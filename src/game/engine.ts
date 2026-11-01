@@ -176,6 +176,8 @@ function setHeat(s: GameState, t: number, value: number) {
   s.heatAt = t;
 }
 
+// All numbers use en-US grouping (1,234) on purpose: with the device locale, Dutch phones showed
+// "$3.210", which reads like three dollars and change.
 export function fmtMoney(n: number) {
   const a = Math.abs(n);
   const sign = n < 0 ? '-' : '';
@@ -183,7 +185,7 @@ export function fmtMoney(n: number) {
   if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
   if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(2)}M`;
   if (a >= 1e4) return `${sign}$${(a / 1e3).toFixed(1)}K`;
-  return `${sign}$${Math.round(a).toLocaleString()}`;
+  return `${sign}$${Math.round(a).toLocaleString('en-US')}`;
 }
 
 export function addXp(s: GameState, skill: SkillId, amount: number, t: number, report: Report) {
@@ -249,7 +251,7 @@ const ENCOUNTERS: Encounter[] = [
   { text: 'You feel a lucky streak coming on.', apply: (s) => { addBuff(s, { label: 'Lucky streak', kind: 'crit', value: 0.2, uses: 5 }); return '+20% Big Score chance for 5 jobs'; } },
   { text: 'A stranger drops a bag in your hands and runs.', apply: (s, sk, t, r, rep) => { const id = rollLoot(s, sk, r); if (!id) return 'it was empty'; giveLoot(s, id, t, rep); return LOOT_BY_ID[id].name; } },
   { text: 'You overhear two bankers bragging about their bonuses.', apply: (s, sk) => { addBuff(s, { label: 'Banker gossip', skill: sk, kind: 'cash', value: 0.5, uses: 5 }); return `+50% ${SKILL_BY_ID[sk].short} cash for 5 jobs`; } },
-  { text: 'Your name is getting around. Word on the street spreads.', apply: (s, sk, t, _r, rep) => { const x = Math.round(xpToNext(skillLevel(s, sk)) * 0.2); addXp(s, sk, x, t, rep); return `+${x.toLocaleString()} ${SKILL_BY_ID[sk].short} XP`; } },
+  { text: 'Your name is getting around. Word on the street spreads.', apply: (s, sk, t, _r, rep) => { const x = Math.round(xpToNext(skillLevel(s, sk)) * 0.2); addXp(s, sk, x, t, rep); return `+${x.toLocaleString('en-US')} ${SKILL_BY_ID[sk].short} XP`; } },
   { text: 'A retired safecracker sells you his notebook for a song.', apply: (s) => { addBuff(s, { label: 'Safecracker notes', skill: 'burglary', kind: 'success', value: 0.15, uses: 8 }); return '+15% Burglary success for 8 jobs'; } },
   { text: 'A mechanic friend tips you off about an unlocked lot.', apply: (s) => { addBuff(s, { label: 'Unlocked lot', skill: 'auto', kind: 'cash', value: 0.6, uses: 4 }); return '+60% Car Theft value for 4 jobs'; } },
   { text: 'Your crew throws you a party. Morale is high.', apply: (s) => { addBuff(s, { label: 'High morale', kind: 'xp', value: 0.2, uses: 10 }); return '+20% XP for 10 jobs'; } },
@@ -578,7 +580,7 @@ export function claimContract(s: GameState, id: string, now: number) {
   s.cash += r.cash;
   s.stats.earned += r.cash;
   addXp(s, c.rewardSkill, r.xp, now, emptyReport());
-  log(s, now, `Contract complete: ${c.label}. +${fmtMoney(r.cash)}, +${r.xp.toLocaleString()} ${SKILL_BY_ID[c.rewardSkill].short} XP`, 'level');
+  log(s, now, `Contract complete: ${c.label}. +${fmtMoney(r.cash)}, +${r.xp.toLocaleString('en-US')} ${SKILL_BY_ID[c.rewardSkill].short} XP`, 'level');
 }
 
 export function fmtDuration(sec: number) {

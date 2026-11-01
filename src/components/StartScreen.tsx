@@ -49,7 +49,7 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
           <div><dt>Total level</dt><dd>{total}</dd></div>
           <div><dt>Cash</dt><dd className="money">{fmtMoney(s.cash)}</dd></div>
           <div><dt>Heat</dt><dd>{Math.round(heatAt(s, now))}</dd></div>
-          <div><dt>Jobs pulled</dt><dd>{s.stats.jobs.toLocaleString()}</dd></div>
+          <div><dt>Jobs pulled</dt><dd>{s.stats.jobs.toLocaleString('en-US')}</dd></div>
         </dl>
 
         <section>
@@ -107,7 +107,7 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
               <ul className="plain">
                 {(Object.entries(report.xp) as [SkillId, number][]).map(([sk, xp]) => (
                   <li key={sk}>
-                    {SKILL_BY_ID[sk].name} +{Math.round(xp).toLocaleString()} XP
+                    {SKILL_BY_ID[sk].name} +{Math.round(xp).toLocaleString('en-US')} XP
                     {levels.has(sk) && <strong className="lvl-up"> → level {levels.get(sk)}</strong>}
                   </li>
                 ))}

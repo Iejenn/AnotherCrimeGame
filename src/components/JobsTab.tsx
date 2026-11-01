@@ -126,7 +126,7 @@ export function JobsTab({ s, now, act, assignRequest }: { s: GameState; now: num
                       <div title="Chance a failure becomes a bust"><dt>Risk</dt><dd>{pct(st.bust)}</dd></div>
                       <div title="Big Score chance: triple cash, double XP"><dt>Big</dt><dd>{pct(st.crit)}</dd></div>
                       <div title="Payout per success"><dt>Take</dt><dd className="money">{take}</dd></div>
-                      <div title="XP per success"><dt>XP</dt><dd>{st.xp.toLocaleString()}</dd></div>
+                      <div title="XP per success"><dt>XP</dt><dd>{st.xp.toLocaleString('en-US')}</dd></div>
                       <div title="Jail time if busted"><dt>Jail</dt><dd>{fmtDuration(st.jail)}</dd></div>
                       <div title={`Mastery ${m}/8 — repeat this job to get faster, safer and luckier`}>
                         <dt>Mastery</dt>
@@ -170,7 +170,7 @@ function SkillHeader({ s, skill }: { s: GameState; skill: SkillId }) {
         {def.name} <span className="num">Lv {lp.level}</span>
       </h2>
       <p className="muted deck">{def.blurb}</p>
-      <Bar pct={lp.pct} label={lp.needed ? `${Math.floor(lp.into).toLocaleString()} / ${lp.needed.toLocaleString()} XP` : 'Max level'} />
+      <Bar pct={lp.pct} label={lp.needed ? `${Math.floor(lp.into).toLocaleString('en-US')} / ${lp.needed.toLocaleString('en-US')} XP` : 'Max level'} />
       {perks.length > 0 && (
         <p className="small">
           <span className="label">Perks</span> {perks.map((p) => PERKS[p].name).join(' · ')}

@@ -129,14 +129,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 /* ---------- jobs ---------- */
 .jobs { display: grid; grid-template-columns: 220px 1fr; gap: 28px; margin-top: 18px; }
 .skill-index { display: flex; flex-direction: column; border-top: 1px solid var(--rule); align-self: start; }
-.index-row { display: grid; grid-template-columns: 24px 1fr auto; column-gap: 8px; align-items: baseline; text-align: left; background: none; border: none; border-bottom: 1px solid var(--rule); padding: 9px 4px 7px; cursor: pointer; }
+.index-row { display: grid; grid-template-columns: 24px 1fr auto; column-gap: 10px; align-items: baseline; text-align: left; background: none; border: none; border-bottom: 1px solid var(--rule); padding: 9px 4px 7px; cursor: pointer; }
 .index-row .bar { grid-column: 2 / -1; height: 2px; margin: 4px 0 0; }
 .index-row:hover { background: var(--ink-2); }
 .index-row.active { background: var(--ink-2); box-shadow: inset 3px 0 0 var(--red); }
 .index-row.active .index-name { color: var(--paper); font-weight: 600; }
 .index-row.locked { color: #6b645a; }
 .index-name { color: #cfc8ba; white-space: nowrap; }
-.tip-mark { margin-left: 6px; font: 600 0.6rem var(--mono); text-transform: uppercase; color: var(--amber); border: 1px solid currentColor; padding: 0 3px; vertical-align: 1px; }
+.tip-mark { margin-left: 6px; font: 600 0.6rem/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--amber); border: 1px solid currentColor; padding: 0 4px; vertical-align: 2px; }
 
 .skill-header { padding-bottom: 6px; }
 .skill-header .headline { margin-top: 2px; }
@@ -258,7 +258,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .mast-id { grid-column: 1 / -1; }
   .jobs { grid-template-columns: 1fr; gap: 14px; }
   .skill-index { flex-direction: row; overflow-x: auto; border-top: none; border-bottom: 1px solid var(--rule); scrollbar-width: none; }
-  .index-row { min-width: 136px; border-bottom: none; border-right: 1px solid var(--rule); }
+  .index-row { flex: 0 0 auto; min-width: 140px; border-bottom: none; border-right: 1px solid var(--rule); padding: 9px 10px 7px; }
   .index-row.active { box-shadow: inset 0 -2px 0 var(--red); }
   .entry { flex-direction: column; gap: 10px; }
   .entry-actions { justify-content: flex-start; }
