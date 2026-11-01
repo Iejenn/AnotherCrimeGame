@@ -9,7 +9,8 @@ import { StashTab } from './components/StashTab';
 import { ShopTab } from './components/ShopTab';
 import { ProfileTab } from './components/ProfileTab';
 import { LogTab } from './components/LogTab';
-import { AwayModal, PerkModal } from './components/Modals';
+import { PerkModal } from './components/Modals';
+import { StartScreen } from './components/StartScreen';
 import { clearGame, importSave } from './game/save';
 
 type Tab = 'jobs' | 'intel' | 'stash' | 'shop' | 'profile' | 'log';
@@ -23,7 +24,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function App() {
-  const { state, act, create, replace, away, dismissAway, toasts } = useGame();
+  const { state, act, create, replace, welcome, dismissWelcome, toasts } = useGame();
   const [tab, setTab] = useState<Tab>('jobs');
   const [perkOpen, setPerkOpen] = useState(true);
   const now = Date.now();
@@ -56,7 +57,7 @@ export default function App() {
       <StatusBar s={state} now={now} act={act} />
       {state.pendingPerks.length > 0 && (
         <button className="perk-banner" onClick={() => setPerkOpen(true)}>
-          ★ {state.pendingPerks.length} perk choice{state.pendingPerks.length > 1 ? 's' : ''} waiting — tap to choose
+          {state.pendingPerks.length} perk choice{state.pendingPerks.length > 1 ? 's' : ''} waiting — choose now
         </button>
       )}
       <CrewPanel s={state} now={now} act={act} onAssign={() => setTab('jobs')} />
@@ -65,7 +66,7 @@ export default function App() {
           <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
             {t.label}
             {t.id === 'intel' && claimable > 0 && <span className="badge">{claimable}</span>}
-            {t.id === 'stash' && newLoot > 0 && <span className="badge dim-badge">{newLoot}</span>}
+            {t.id === 'stash' && newLoot > 0 && <span className="badge quiet">{newLoot}</span>}
           </button>
         ))}
       </nav>
@@ -78,8 +79,8 @@ export default function App() {
         {tab === 'profile' && <ProfileTab s={state} onImport={doImport} onReset={doReset} />}
       </main>
 
-      {away && <AwayModal report={away.report} ms={away.ms} onClose={dismissAway} />}
-      {!away && perkOpen && state.pendingPerks.length > 0 && <PerkModal s={state} act={act} onClose={() => setPerkOpen(false)} />}
+      {welcome && <StartScreen s={state} report={welcome.report} ms={welcome.ms} onClose={dismissWelcome} />}
+      {!welcome && perkOpen && state.pendingPerks.length > 0 && <PerkModal s={state} act={act} onClose={() => setPerkOpen(false)} />}
 
       <div className="toasts">
         {toasts.map((t) => (

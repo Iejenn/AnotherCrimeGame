@@ -20,23 +20,23 @@ export function IntelTab({ s, now, act }: { s: GameState; now: number; act: Act 
   return (
     <div className="intel">
       <h2>Street Intel</h2>
-      <p className="dim">The city changes every few hours. Line up your crew to ride the opportunities.</p>
+      <p className="muted">The city changes every few hours. Line up your crew to ride the opportunities.</p>
       <div className="cards">
         {tips.map((t) => (
           <div key={t.id} className="card tip">
             <div className="tip-head">
               <strong>{t.title}</strong>
-              <span className="chip">{SKILL_BY_ID[t.skill].icon} {SKILL_BY_ID[t.skill].short}</span>
+              <span className="chip">{SKILL_BY_ID[t.skill].name}</span>
             </div>
             <p>{t.text}</p>
             <div className="tip-effects">{effectText(t.effects as Record<string, number>)}</div>
-            <div className="dim small">ends in {fmtDuration((t.endsAt - now) / 1000)}</div>
+            <div className="muted small">ends in {fmtDuration((t.endsAt - now) / 1000)}</div>
           </div>
         ))}
       </div>
 
       <h2>Daily Contracts</h2>
-      <p className="dim">New contracts in {fmtDuration((nextDay - now) / 1000)}.</p>
+      <p className="muted">New contracts in {fmtDuration((nextDay - now) / 1000)}.</p>
       <div className="cards">
         {s.contracts.list.map((c) => {
           const done = c.progress >= c.target;
@@ -53,7 +53,7 @@ export function IntelTab({ s, now, act }: { s: GameState; now: number; act: Act 
                 Reward: {fmtMoney(reward.cash)} + {reward.xp.toLocaleString()} {SKILL_BY_ID[c.rewardSkill].short} XP
               </div>
               {c.claimed ? (
-                <span className="dim">✓ Claimed</span>
+                <span className="muted caps small">Claimed</span>
               ) : (
                 <button className="btn small gold" disabled={!done} onClick={() => act((d, t) => claimContract(d, c.id, t))}>
                   Claim
@@ -66,7 +66,7 @@ export function IntelTab({ s, now, act }: { s: GameState; now: number; act: Act 
 
       <h2>Active Boosts</h2>
       {s.buffs.length === 0 ? (
-        <p className="dim">None right now. Random encounters on jobs can grant boosts.</p>
+        <p className="muted">None right now. Random encounters on jobs can grant boosts.</p>
       ) : (
         <ul className="buffs">
           {s.buffs.map((b) => (

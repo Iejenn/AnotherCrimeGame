@@ -18,7 +18,7 @@ export function StashTab({ s, act }: { s: GameState; act: Act }) {
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="dim">Nothing yet. Successful jobs sometimes drop loot — Big Scores double the odds.</p>
+        <p className="muted">Nothing yet. Successful jobs sometimes drop loot — Big Scores double the odds.</p>
       ) : (
         <div className="table">
           {items.map(([id, n]) => {
@@ -26,7 +26,7 @@ export function StashTab({ s, act }: { s: GameState; act: Act }) {
             return (
               <div key={id} className="row">
                 <span className={`rarity-${def.rarity}`}>{def.name}</span>
-                <span className="dim">×{n}</span>
+                <span className="muted">×{n}</span>
                 <span>{fmtMoney(lootSellValue(s, id))}</span>
                 <button className="btn tiny" onClick={() => act((d) => sellLoot(d, id, 1))}>
                   Sell 1
@@ -39,14 +39,14 @@ export function StashTab({ s, act }: { s: GameState; act: Act }) {
 
       <div className="section-head">
         <h2>
-          Garage <span className="dim small">{s.cars.length}/{garageCap(s.upgrades.garage ?? 0)}</span>
+          Garage <span className="muted small">{s.cars.length}/{garageCap(s.upgrades.garage ?? 0)}</span>
         </h2>
       </div>
-      <p className="dim small">
+      <p className="muted small">
         Your best car powers Smuggling runs: {best >= 0 ? `${CAR_CLASSES[best]} → +${Math.round(CAR_SMUGGLE_BONUS[best] * 100)}% Smuggling cash` : 'no cars yet'}.
       </p>
       {s.cars.length === 0 ? (
-        <p className="dim">Steal some cars (Car Theft) to fill it up.</p>
+        <p className="muted">Steal some cars (Car Theft) to fill it up.</p>
       ) : (
         <div className="table">
           {[...s.cars]
@@ -54,7 +54,7 @@ export function StashTab({ s, act }: { s: GameState; act: Act }) {
             .map((c) => (
               <div key={c.id} className="row">
                 <span className={`car-cls-${c.cls}`}>{c.model}</span>
-                <span className="dim">{CAR_CLASSES[c.cls]}</span>
+                <span className="muted">{CAR_CLASSES[c.cls]}</span>
                 <span>{fmtMoney(carSellValue(s, c.value))}</span>
                 <button className="btn tiny" onClick={() => act((d) => sellCar(d, c.id))}>
                   Sell
@@ -66,7 +66,7 @@ export function StashTab({ s, act }: { s: GameState; act: Act }) {
 
       <div className="section-head">
         <h2>
-          Collection <span className="dim small">{s.discovered.length}/{LOOT.length}</span>
+          Collection <span className="muted small">{s.discovered.length}/{LOOT.length}</span>
         </h2>
       </div>
       <div className="collection">

@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { GameState, Report } from './game/types';
 import { catchUp, newGame } from './game/engine';
+import { SKILL_BY_ID } from './game/data/skills';
 import { loadGame, saveGame } from './game/save';
 import type { OriginId } from './game/types';
 
@@ -13,24 +14,24 @@ export interface Toast {
   kind: 'level' | 'big' | 'bust' | 'cash' | 'event' | 'loot';
 }
 
-const AWAY_THRESHOLD_MS = 60_000;
 
 export function useGame() {
   const ref = useRef<GameState | null>(null);
   const [, rerender] = useReducer((x: number) => x + 1, 0);
-  const [away, setAway] = useState<{ report: Report; ms: number } | null>(null);
+  // Start-up screen data: shown on every load of an existing character.
+  const [welcome, setWelcome] = useState<{ report: Report; ms: number } | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(1);
   const lastSave = useRef(0);
 
   const pushToasts = useCallback((report: Report) => {
     const list: Toast[] = [];
-    for (const l of report.levelUps) list.push({ id: toastId.current++, text: `⬆ ${l.skill.toUpperCase()} ${l.level}`, kind: 'level' });
-    if (report.bigScores) list.push({ id: toastId.current++, text: `💥 BIG SCORE ×${report.bigScores}`, kind: 'big' });
-    if (report.busts) list.push({ id: toastId.current++, text: '🚨 BUSTED', kind: 'bust' });
+    for (const l of report.levelUps) list.push({ id: toastId.current++, text: `${SKILL_BY_ID[l.skill].name} → Lv ${l.level}`, kind: 'level' });
+    if (report.bigScores) list.push({ id: toastId.current++, text: `Big score ×${report.bigScores}`, kind: 'big' });
+    if (report.busts) list.push({ id: toastId.current++, text: 'Busted', kind: 'bust' });
     if (report.cash >= 1) list.push({ id: toastId.current++, text: `+$${Math.round(report.cash).toLocaleString()}`, kind: 'cash' });
-    if (report.loot.length) list.push({ id: toastId.current++, text: `🎒 +${report.loot.length} loot`, kind: 'loot' });
-    for (const e of report.events) list.push({ id: toastId.current++, text: `✦ ${e}`, kind: 'event' });
+    if (report.loot.length) list.push({ id: toastId.current++, text: `+${report.loot.length} loot`, kind: 'loot' });
+    for (const e of report.events) list.push({ id: toastId.current++, text: e, kind: 'event' });
     if (!list.length) return;
     setToasts((t) => [...t, ...list].slice(-6));
     const ids = list.map((x) => x.id);
@@ -54,7 +55,7 @@ export function useGame() {
     const now = Date.now();
     const { state, report } = catchUp(saved, now);
     const ms = now - saved.lastSeen;
-    if (report.jobs > 0 && ms > AWAY_THRESHOLD_MS) setAway({ report, ms });
+    setWelcome({ report, ms });
     commit({ ...state, lastSeen: now }, true);
   }, [commit]);
 
@@ -105,5 +106,5 @@ export function useGame() {
     rerender();
   }, []);
 
-  return { state: ref.current, act, create, replace, away, dismissAway: () => setAway(null), toasts };
+  return { state: ref.current, act, create, replace, welcome, dismissWelcome: () => setWelcome(null), toasts };
 }

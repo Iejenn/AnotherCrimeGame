@@ -1,41 +1,54 @@
 import type { GameState } from '../game/types';
 import { bribeCost, bribeCops, collectFronts, fmtMoney, heatAt, rankFor, totalFrontPending, totalLevel } from '../game/engine';
-import { Bar } from './ui';
 
 type Act = (fn: (d: GameState, now: number) => void) => void;
+
+/** Heat as 10 segments instead of a gradient bar — reads at a glance. */
+function HeatMeter({ heat }: { heat: number }) {
+  const lit = Math.round(heat / 10);
+  return (
+    <div className="heat-meter" aria-label={`Heat ${Math.round(heat)} of 100`}>
+      {Array.from({ length: 10 }, (_, i) => (
+        <span key={i} className={i < lit ? (i >= 6 ? 'seg hot' : 'seg on') : 'seg'} />
+      ))}
+    </div>
+  );
+}
 
 export function StatusBar({ s, now, act }: { s: GameState; now: number; act: Act }) {
   const total = totalLevel(s);
   const rank = rankFor(total);
   const heat = heatAt(s, now);
   const pending = totalFrontPending(s, now);
-  const rankPct = rank.next ? (total - rank.current[0]) / (rank.next[0] - rank.current[0]) : 1;
   return (
-    <header className="status">
-      <div className="status-id">
-        <div className="who">{s.name}</div>
-        <div className="rank">
-          {rank.name} <span className="dim">· Total Lv {total}</span>
+    <header className="masthead">
+      <div className="mast-id">
+        <div className="mast-name">{s.name}</div>
+        <div className="mast-rank">
+          <span className="stamp small">{rank.name}</span>
+          <span className="muted mono">
+            Lv {total}
+            {rank.next && ` / ${rank.next[0]} for ${rank.next[1]}`}
+          </span>
         </div>
-        <Bar pct={rankPct} kind="xp" label={rank.next ? `next: ${rank.next[1]} @ ${rank.next[0]}` : 'MAX RANK'} />
       </div>
-      <div className="status-cash">
-        <div className="cash">{fmtMoney(s.cash)}</div>
+      <div className="mast-cash">
+        <div className="label">Cash</div>
+        <div className="money cash-num">{fmtMoney(s.cash)}</div>
         {pending > 0 && (
-          <button className="btn small gold" onClick={() => act((d, t) => collectFronts(d, t))}>
-            Collect {fmtMoney(pending)}
+          <button className="btn small" onClick={() => act((d, t) => collectFronts(d, t))}>
+            Collect {fmtMoney(pending)} from fronts
           </button>
         )}
       </div>
-      <div className="status-heat">
-        <div className="heat-row">
-          <span>Heat</span>
-          <span className={heat > 60 ? 'hot' : heat > 30 ? 'warm' : 'cool'}>{Math.round(heat)}/100</span>
+      <div className="mast-heat">
+        <div className="label">
+          Heat <span className="mono">{Math.round(heat)}</span>
         </div>
-        <Bar pct={heat / 100} kind="heat" />
+        <HeatMeter heat={heat} />
         {heat > 15 && (
           <button className="btn small" disabled={s.cash < bribeCost(s)} onClick={() => act((d, t) => bribeCops(d, t))} title="-40 heat">
-            Pay off cops ({fmtMoney(bribeCost(s))})
+            Pay off a detective · {fmtMoney(bribeCost(s))}
           </button>
         )}
       </div>

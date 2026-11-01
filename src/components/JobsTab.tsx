@@ -2,9 +2,9 @@ import { useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
+import { PERKS } from '../game/data/world';
 import { canStart, crimeStats, fmtDuration, fmtMoney, isUnlocked, masteryLevel, maxReps, MASTERY_THRESHOLDS, skillLevel, startJob } from '../game/engine';
 import { tipsAt } from '../game/intel';
-import { PERKS } from '../game/data/world';
 import { levelProgress } from '../game/xp';
 import { Bar, Stars, pct } from './ui';
 
@@ -12,9 +12,9 @@ type Act = (fn: (d: GameState, now: number) => void) => void;
 
 function unlockText(id: SkillId) {
   const u = SKILL_BY_ID[id].unlock;
-  const parts = Object.entries(u.skill ?? {}).map(([k, v]) => `${SKILL_BY_ID[k as SkillId].short} ${v}`);
-  if (u.total) parts.push(`Total Lv ${u.total}`);
-  return parts.join(' + ');
+  const parts = Object.entries(u.skill ?? {}).map(([k, v]) => `${SKILL_BY_ID[k as SkillId].name} ${v}`);
+  if (u.total) parts.push(`total level ${u.total}`);
+  return parts.join(' and ');
 }
 
 export function JobsTab({ s, now, act }: { s: GameState; now: number; act: Act }) {
@@ -27,20 +27,25 @@ export function JobsTab({ s, now, act }: { s: GameState; now: number; act: Act }
 
   return (
     <div className="jobs">
-      <nav className="skill-list">
+      <nav className="skill-index" aria-label="Crime families">
         {SKILLS.map((sk) => {
           const open = isUnlocked(s, sk.id);
           const lp = levelProgress(s.skills[sk.id].xp);
-          const hot = tips.some((t) => t.skill === sk.id);
+          const hot = open && tips.some((t) => t.skill === sk.id);
           return (
-            <button key={sk.id} className={`skill-btn ${skill === sk.id ? 'active' : ''} ${open ? '' : 'locked'}`} onClick={() => setSkill(sk.id)}>
-              <span className="skill-icon">{open ? sk.icon : '🔒'}</span>
-              <span className="skill-name">
-                {sk.short}
-                {hot && open && <span className="hot-dot" title="Active Intel tip">●</span>}
+            <button
+              key={sk.id}
+              className={`index-row ${skill === sk.id ? 'active' : ''} ${open ? '' : 'locked'}`}
+              onClick={() => setSkill(sk.id)}
+              aria-pressed={skill === sk.id}
+            >
+              <span className="code">{sk.code}</span>
+              <span className="index-name">
+                {sk.name}
+                {hot && <span className="tip-mark" title="Street Intel tip active">tip</span>}
               </span>
-              <span className="skill-lvl">{lp.level}</span>
-              <Bar pct={lp.pct} />
+              <span className="num">{open ? lp.level : '—'}</span>
+              {open && <Bar pct={lp.pct} />}
             </button>
           );
         })}
@@ -48,27 +53,28 @@ export function JobsTab({ s, now, act }: { s: GameState; now: number; act: Act }
 
       <div className="crime-pane">
         <SkillHeader s={s} skill={skill} />
-        {!unlocked && <div className="notice">🔒 Unlock at: {unlockText(skill)}</div>}
-        {unlocked && (
-          <div className="assign-bar">
+        {!unlocked ? (
+          <p className="locked-note">Locked. Requires {unlockText(skill)}.</p>
+        ) : (
+          <div className="assign">
             {idle.length === 0 ? (
-              <span className="dim">Everyone is busy. Stop a job or hire more crew to run jobs in parallel.</span>
+              <span className="muted">Everyone's busy. Stop a job or hire crew to run more at once.</span>
             ) : (
-              <>
-                <span>Send:</span>
+              <label>
+                <span className="label">Send</span>
                 <select value={selectedCrew?.id} onChange={(e) => setCrewId(e.target.value)}>
                   {idle.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.isPlayer ? 'You' : c.name}
-                      {c.jailedUntil > now ? ' (in jail — will start after)' : ''}
+                      {c.isPlayer ? 'Yourself' : c.name}
+                      {c.jailedUntil > now ? ' (starts after jail)' : ''}
                     </option>
                   ))}
                 </select>
-              </>
+              </label>
             )}
           </div>
         )}
-        <div className="crime-list">
+        <ol className="ledger">
           {crimesForSkill(skill).map((crime) => {
             const lvl = skillLevel(s, skill);
             const locked = !unlocked || lvl < crime.level;
@@ -77,53 +83,54 @@ export function JobsTab({ s, now, act }: { s: GameState; now: number; act: Act }
             const m = masteryLevel(count);
             const nextM = MASTERY_THRESHOLDS[m + 1];
             const max = selectedCrew ? maxReps(s, crime, selectedCrew, now) : 1;
-            const cashTxt = crime.carClasses ? '🚗 car' : `${fmtMoney(crime.cashMin * st.cashMult)}–${fmtMoney(crime.cashMax * st.cashMult)}`;
+            const take = crime.carClasses ? 'a car' : `${fmtMoney(crime.cashMin * st.cashMult)}–${fmtMoney(crime.cashMax * st.cashMult)}`;
             const can = !!selectedCrew && !canStart(s, crime.id);
             const start = (n: number) => act((d, t) => startJob(d, selectedCrew!.id, crime.id, n, t));
             return (
-              <div key={crime.id} className={`crime ${locked ? 'locked' : ''}`}>
-                <div className="crime-top">
-                  <div>
-                    <div className="crime-name">{crime.name}</div>
-                    <div className="crime-req">
+              <li key={crime.id} className={`entry ${locked ? 'locked' : ''}`}>
+                <div className="entry-main">
+                  <div className="entry-title">
+                    <span className="entry-name">{crime.name}</span>
+                    <span className="muted mono small">
                       Lv {crime.level} · {fmtDuration(st.duration)}
-                      {!locked && (
-                        <>
-                          {' '}· <Stars n={m} /> <span className="dim small">{nextM ? `${count}/${nextM}` : count}</span>
-                        </>
-                      )}
-                    </div>
+                    </span>
                   </div>
                   {locked ? (
-                    <div className="lock">🔒 Lv {crime.level}</div>
+                    <div className="muted small caps">Locked · level {crime.level}</div>
                   ) : (
-                    <div className="crime-actions">
-                      <button className="btn small primary" disabled={!can} onClick={() => start(1)}>
-                        Go
-                      </button>
-                      <button className="btn small" disabled={!can || max < 10} onClick={() => start(10)}>
-                        ×10
-                      </button>
-                      <button className="btn small gold" disabled={!can} onClick={() => start(max)} title="Queue as many as fit in one shift">
-                        Shift{selectedCrew ? ` ×${max}` : ''}
-                      </button>
-                    </div>
+                    <dl className="entry-stats">
+                      <div title="Success chance"><dt>Odds</dt><dd>{pct(st.chance)}</dd></div>
+                      <div title="Chance a failure becomes a bust"><dt>Risk</dt><dd>{pct(st.bust)}</dd></div>
+                      <div title="Big Score chance: triple cash, double XP"><dt>Big</dt><dd>{pct(st.crit)}</dd></div>
+                      <div title="Payout per success"><dt>Take</dt><dd className="money">{take}</dd></div>
+                      <div title="XP per success"><dt>XP</dt><dd>{st.xp.toLocaleString()}</dd></div>
+                      <div title="Jail time if busted"><dt>Jail</dt><dd>{fmtDuration(st.jail)}</dd></div>
+                      <div title={`Mastery ${m}/8 — repeat this job to get faster, safer and luckier`}>
+                        <dt>Mastery</dt>
+                        <dd>
+                          <Stars n={m} /> <span className="muted">{nextM ? `${count}/${nextM}` : count}</span>
+                        </dd>
+                      </div>
+                    </dl>
                   )}
                 </div>
                 {!locked && (
-                  <div className="crime-stats">
-                    <span title="Success chance">🎯 {pct(st.chance)}</span>
-                    <span title="Chance a failure becomes a bust">🚨 {pct(st.bust)}</span>
-                    <span title="Big Score chance (×3 cash, ×2 XP)">💥 {pct(st.crit)}</span>
-                    <span title="Cash per success">💵 {cashTxt}</span>
-                    <span title="XP per success">✚ {st.xp.toLocaleString()} XP</span>
-                    <span className="dim" title="Jail time on bust">⛓ {fmtDuration(st.jail)}</span>
+                  <div className="entry-actions">
+                    <button className="btn small" disabled={!can} onClick={() => start(1)}>
+                      Once
+                    </button>
+                    <button className="btn small" disabled={!can || max < 10} onClick={() => start(10)}>
+                      ×10
+                    </button>
+                    <button className="btn small primary" disabled={!can} onClick={() => start(max)} title="Queue as many as fit in one shift">
+                      Full shift{selectedCrew ? ` ×${max}` : ''}
+                    </button>
                   </div>
                 )}
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
     </div>
   );
@@ -135,17 +142,17 @@ function SkillHeader({ s, skill }: { s: GameState; skill: SkillId }) {
   const perks = s.skills[skill].perks;
   return (
     <div className="skill-header">
-      <div className="skill-title">
-        <span className="skill-icon big">{def.icon}</span>
-        <div>
-          <h2>
-            {def.name} <span className="lvl">Lv {lp.level}</span>
-          </h2>
-          <p className="dim">{def.blurb}</p>
-        </div>
-      </div>
-      <Bar pct={lp.pct} label={lp.needed ? `${Math.floor(lp.into).toLocaleString()} / ${lp.needed.toLocaleString()} XP` : 'MAX'} />
-      {perks.length > 0 && <div className="perk-chips">{perks.map((p, i) => <span key={i} className="chip" title={PERKS[p].desc}>{PERKS[p].name}</span>)}</div>}
+      <div className="kicker">File {def.code}</div>
+      <h2 className="headline">
+        {def.name} <span className="num">Lv {lp.level}</span>
+      </h2>
+      <p className="muted deck">{def.blurb}</p>
+      <Bar pct={lp.pct} label={lp.needed ? `${Math.floor(lp.into).toLocaleString()} / ${lp.needed.toLocaleString()} XP` : 'Max level'} />
+      {perks.length > 0 && (
+        <p className="small">
+          <span className="label">Perks</span> {perks.map((p) => PERKS[p].name).join(' · ')}
+        </p>
+      )}
     </div>
   );
 }
