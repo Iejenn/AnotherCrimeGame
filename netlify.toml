@@ -1,0 +1,4 @@
+# Netlify picks this up automatically so Deploy Previews work out of the box.
+[build]
+  command = "npm run build"
+  publish = "dist"
