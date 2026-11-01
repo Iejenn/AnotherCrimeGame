@@ -7,28 +7,37 @@ export function CreateCharacter({ onCreate, onImport }: { onCreate: (name: strin
   const [origin, setOrigin] = useState<OriginId>('streetkid');
   return (
     <div className="create">
-      <h1 className="logo">UNDERWORLD<span>IDLE</span></h1>
-      <p className="tagline">A crime RPG for people with jobs. Plan the heist, close the tab, come back rich.</p>
+      <div className="kicker">A crime RPG for people with day jobs</div>
+      <h1 className="title">
+        Underworld <em>Idle</em>
+      </h1>
+      <p className="deck">Plan the job. Close the tab. Come back richer — or in a cell.</p>
+
       <label className="field">
-        <span>Street name</span>
-        <input value={name} maxLength={20} placeholder="e.g. Johnny Two-Times" onChange={(e) => setName(e.target.value)} autoFocus />
+        <span className="label">Street name</span>
+        <input value={name} maxLength={20} placeholder="Johnny Two-Times" onChange={(e) => setName(e.target.value)} autoFocus />
       </label>
-      <div className="field">
-        <span>Where you come from</span>
+
+      <fieldset className="field">
+        <legend className="label">Where you come from</legend>
         <div className="origins">
           {ORIGINS.map((o) => (
-            <button key={o.id} className={`origin ${origin === o.id ? 'selected' : ''}`} onClick={() => setOrigin(o.id)}>
-              <strong>{o.name}</strong>
-              <small>{o.desc}</small>
-            </button>
+            <label key={o.id} className={`origin ${origin === o.id ? 'selected' : ''}`}>
+              <input type="radio" name="origin" checked={origin === o.id} onChange={() => setOrigin(o.id)} />
+              <span>
+                <strong>{o.name}</strong>
+                <span className="muted">{o.desc}</span>
+              </span>
+            </label>
           ))}
         </div>
-      </div>
-      <button className="btn primary big" disabled={!name.trim()} onClick={() => onCreate(name, origin)}>
-        Hit the streets →
+      </fieldset>
+
+      <button className="btn primary block" disabled={!name.trim()} onClick={() => onCreate(name, origin)}>
+        Open the file
       </button>
       <button className="btn link" onClick={onImport}>
-        Import a save
+        I have a save code
       </button>
     </div>
   );

@@ -4,7 +4,8 @@ export interface SkillDef {
   id: SkillId;
   name: string;
   short: string;
-  icon: string;
+  /** Case-file number shown in the UI instead of an icon. */
+  code: string;
   blurb: string;
   /** Heavier crime families pay more per hour at the same level. */
   cashMult: number;
@@ -19,7 +20,7 @@ export const SKILLS: SkillDef[] = [
     id: 'petty',
     name: 'Petty Theft',
     short: 'Petty',
-    icon: '🖐',
+    code: '01',
     blurb: 'Light fingers, fast feet. Everyone starts somewhere.',
     cashMult: 1,
     unlock: {},
@@ -37,7 +38,7 @@ export const SKILLS: SkillDef[] = [
     id: 'auto',
     name: 'Car Theft',
     short: 'Auto',
-    icon: '🚗',
+    code: '02',
     blurb: 'Every car is just a door and an ignition. Stolen rides fill your garage and power smuggling runs.',
     cashMult: 1.2,
     unlock: { skill: { petty: 5 } },
@@ -55,7 +56,7 @@ export const SKILLS: SkillDef[] = [
     id: 'burglary',
     name: 'Burglary',
     short: 'Burglary',
-    icon: '🔓',
+    code: '03',
     blurb: 'Locks, alarms, and the patience to beat them both.',
     cashMult: 1.3,
     unlock: { skill: { petty: 10 } },
@@ -73,7 +74,7 @@ export const SKILLS: SkillDef[] = [
     id: 'muscle',
     name: 'Enforcement',
     short: 'Muscle',
-    icon: '👊',
+    code: '04',
     blurb: 'Collections, protection, persuasion. Some problems need a heavy hand.',
     cashMult: 1.2,
     unlock: { skill: { petty: 8 } },
@@ -91,7 +92,7 @@ export const SKILLS: SkillDef[] = [
     id: 'fraud',
     name: 'Fraud & Cyber',
     short: 'Fraud',
-    icon: '💻',
+    code: '05',
     blurb: 'Why break a window when you can break a password?',
     cashMult: 1.5,
     unlock: { skill: { burglary: 10 } },
@@ -109,7 +110,7 @@ export const SKILLS: SkillDef[] = [
     id: 'smuggling',
     name: 'Smuggling',
     short: 'Smuggle',
-    icon: '📦',
+    code: '06',
     blurb: 'Move product, avoid checkpoints. The better your car, the bigger the haul.',
     cashMult: 1.7,
     unlock: { skill: { auto: 15 } },
@@ -127,7 +128,7 @@ export const SKILLS: SkillDef[] = [
     id: 'robbery',
     name: 'Armed Robbery',
     short: 'Robbery',
-    icon: '🔫',
+    code: '07',
     blurb: 'Loud, fast, profitable. Needs both nerve and know-how.',
     cashMult: 2,
     unlock: { skill: { muscle: 20, burglary: 20 } },
@@ -145,7 +146,7 @@ export const SKILLS: SkillDef[] = [
     id: 'heist',
     name: 'Heists',
     short: 'Heist',
-    icon: '💎',
+    code: '08',
     blurb: 'Months of planning for one perfect night. The endgame.',
     cashMult: 3,
     unlock: { skill: { robbery: 15 }, total: 120 },

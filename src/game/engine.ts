@@ -195,7 +195,7 @@ export function addXp(s: GameState, skill: SkillId, amount: number, t: number, r
   const wasUnlocked = SKILL_IDS.filter((id) => isUnlocked({ ...s, skills: { ...s.skills, [skill]: { ...s.skills[skill], xp: s.skills[skill].xp - amount } } }, id));
   for (let l = before + 1; l <= after; l++) {
     report.levelUps.push({ skill, level: l });
-    log(s, t, `⬆ ${SKILL_BY_ID[skill].name} reached level ${l}!`, 'level');
+    log(s, t, `${SKILL_BY_ID[skill].name} reached level ${l}!`, 'level');
     if (PERK_MILESTONES.includes(l)) {
       // Each milestone offers two different perks — chosen deterministically so a reload can't reroll them.
       const rng = mulberry32(hashString(`${s.name}:${skill}:${l}`));
@@ -203,12 +203,12 @@ export function addXp(s: GameState, skill: SkillId, amount: number, t: number, r
       let b = pick(rng, PERK_IDS);
       while (b === a) b = pick(rng, PERK_IDS);
       s.pendingPerks.push({ skill, milestone: l, options: [a, b] });
-      log(s, t, `★ ${SKILL_BY_ID[skill].name} ${l}: choose a new perk!`, 'level');
+      log(s, t, `${SKILL_BY_ID[skill].name} ${l}: choose a new perk!`, 'level');
     }
   }
   for (const id of SKILL_IDS) {
     if (!wasUnlocked.includes(id) && isUnlocked(s, id)) {
-      log(s, t, `🔓 New crime family unlocked: ${SKILL_BY_ID[id].name}!`, 'level');
+      log(s, t, `New crime family unlocked: ${SKILL_BY_ID[id].name}!`, 'level');
       report.events.push(`Unlocked ${SKILL_BY_ID[id].name}`);
     }
   }
@@ -272,9 +272,9 @@ function giveLoot(s: GameState, id: string, t: number, report: Report) {
   const def = LOOT_BY_ID[id];
   if (!s.discovered.includes(id)) {
     s.discovered.push(id);
-    log(s, t, `📖 New collection entry: ${def.name} (${def.rarity})`, 'loot');
+    log(s, t, `New collection entry: ${def.name} (${def.rarity})`, 'loot');
   } else if (def.rarity === 'rare' || def.rarity === 'legendary') {
-    log(s, t, `💰 ${def.rarity === 'legendary' ? 'LEGENDARY' : 'Rare'} find: ${def.name}`, 'loot');
+    log(s, t, `${def.rarity === 'legendary' ? 'LEGENDARY' : 'Rare'} find: ${def.name}`, 'loot');
   }
 }
 
@@ -304,19 +304,19 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
       const model = pick(rng, CAR_MODELS[cls]);
       if (s.cars.length < garageCap(s.upgrades.garage ?? 0)) {
         s.cars.push({ id: `c${s.nextId++}`, model, cls, value });
-        line += ` → ${CAR_CLASSES[cls]}: ${model} (${fmtMoney(value)}) parked in the garage.`;
+        line += ` — ${CAR_CLASSES[cls]}: ${model} (${fmtMoney(value)}) parked in the garage.`;
         cash = 0;
         report.cars++;
       } else {
         cash = value * 0.75;
-        line += ` → Garage full, ${model} chopped for parts.`;
+        line += ` — Garage full, ${model} chopped for parts.`;
       }
     }
     if (cash > 0) earn(s, Math.round(cash), report);
     addXp(s, crime.skill, xp, t, report);
     s.mastery[crime.id] = (s.mastery[crime.id] ?? 0) + 1;
     const newM = masteryLevel(s.mastery[crime.id]);
-    if (newM > st.mastery) log(s, t, `✪ ${crime.name} mastery ${newM}! (faster, safer, luckier)`, 'level');
+    if (newM > st.mastery) log(s, t, `${crime.name} mastery ${newM}! (faster, safer, luckier)`, 'level');
     if (big) {
       report.bigScores++;
       s.stats.bigScores++;
@@ -325,7 +325,7 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
     progressContracts(s, 'jobs', crime.skill, 1);
     progressContracts(s, 'cash', crime.skill, Math.round(cash));
     const cashTxt = cash > 0 ? ` +${fmtMoney(cash)}` : '';
-    log(s, t, `${prefix}${big ? '💥 BIG SCORE! ' : ''}${line}${cashTxt} +${xp} XP`, big ? 'big' : 'success');
+    log(s, t, `${prefix}${big ? 'BIG SCORE — ' : ''}${line}${cashTxt} +${xp} XP`, big ? 'big' : 'success');
     if (rng() < lootChance(crime.duration) * (big ? 2 : 1)) {
       const id = rollLoot(s, crime.skill, rng);
       if (id) giveLoot(s, id, t, report);
@@ -340,11 +340,11 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
       s.stats.busts++;
       crew.jailedUntil = t + st.jail * 1000;
       setHeat(s, t, heatNow - 25);
-      log(s, t, `🚨 ${prefix}BUSTED: ${fill(pick(rng, SKILL_BY_ID[crime.skill].bustLines), rng)} ${who} ${crew.isPlayer ? 'are' : 'is'} in jail for ${fmtDuration(st.jail)}.`, 'bust');
+      log(s, t, `${prefix}BUSTED — ${fill(pick(rng, SKILL_BY_ID[crime.skill].bustLines), rng)} ${who} ${crew.isPlayer ? 'are' : 'is'} in jail for ${fmtDuration(st.jail)}.`, 'bust');
     } else {
       s.stats.fails++;
       setHeat(s, t, heatNow + st.heat * 1.5);
-      log(s, t, `${prefix}✗ ${fill(pick(rng, SKILL_BY_ID[crime.skill].failLines), rng)} +${xp} XP`, 'fail');
+      log(s, t, `${prefix}${fill(pick(rng, SKILL_BY_ID[crime.skill].failLines), rng)} +${xp} XP`, 'fail');
     }
   }
   useBuffs(s, crime.skill);
@@ -352,7 +352,7 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
   if (!busted && rng() < encounterChance(crime.duration)) {
     const enc = pick(rng, ENCOUNTERS);
     const result = enc.apply(s, crime.skill, t, rng, report);
-    log(s, t, `✦ ${enc.text} (${result})`, 'event');
+    log(s, t, `${enc.text} (${result})`, 'event');
     report.events.push(`${enc.text} (${result})`);
   }
 
@@ -467,7 +467,7 @@ export function collectFronts(s: GameState, now: number) {
   if (total > 0) {
     s.cash += total;
     s.stats.earned += total;
-    log(s, now, `🏪 Collected ${fmtMoney(total)} from your fronts.`, 'info');
+    log(s, now, `Collected ${fmtMoney(total)} from your fronts.`, 'info');
   }
 }
 
@@ -527,7 +527,7 @@ export function hireCrew(s: GameState, rng: Rng = Math.random) {
   const traits: TraitId[] = ['quick', 'lucky', 'careful', 'greedy', 'bright'];
   const name = `${pick(rng, CREW_FIRST)} ${pick(rng, CREW_NICK)}`;
   s.crew.push({ id: `crew${s.nextId++}`, name, trait: pick(rng, traits), isPlayer: false, job: null, jailedUntil: 0 });
-  log(s, Date.now(), `🤝 ${name} joined your crew.`, 'info');
+  log(s, Date.now(), `${name} joined your crew.`, 'info');
 }
 
 export function bailCost(s: GameState, crew: CrewMember, now: number) {
@@ -547,7 +547,7 @@ export function bail(s: GameState, crewId: string, now: number) {
     crew.job.startedAt = now;
     crew.job.endsAt = now + dur;
   }
-  log(s, now, `⚖ Posted bail for ${crew.isPlayer ? 'yourself' : crew.name} (${fmtMoney(cost)}).`, 'info');
+  log(s, now, `Posted bail for ${crew.isPlayer ? 'yourself' : crew.name} (${fmtMoney(cost)}).`, 'info');
 }
 
 export function bribeCost(s: GameState) {
@@ -559,7 +559,7 @@ export function bribeCops(s: GameState, now: number) {
   if (s.cash < cost || heatAt(s, now) <= 0) return;
   s.cash -= cost;
   setHeat(s, now, heatAt(s, now) - 40);
-  log(s, now, `🤫 Paid off a detective. Heat cools down.`, 'info');
+  log(s, now, `Paid off a detective. Heat cools down.`, 'info');
 }
 
 export function contractRewards(s: GameState, c: Contract) {
@@ -578,7 +578,7 @@ export function claimContract(s: GameState, id: string, now: number) {
   s.cash += r.cash;
   s.stats.earned += r.cash;
   addXp(s, c.rewardSkill, r.xp, now, emptyReport());
-  log(s, now, `📜 Contract complete: ${c.label}. +${fmtMoney(r.cash)}, +${r.xp.toLocaleString()} ${SKILL_BY_ID[c.rewardSkill].short} XP`, 'level');
+  log(s, now, `Contract complete: ${c.label}. +${fmtMoney(r.cash)}, +${r.xp.toLocaleString()} ${SKILL_BY_ID[c.rewardSkill].short} XP`, 'level');
 }
 
 export function fmtDuration(sec: number) {
