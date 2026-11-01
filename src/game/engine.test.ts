@@ -75,3 +75,25 @@ describe('engine', () => {
     expect(high).toBeGreaterThan(low);
   });
 });
+
+describe('save codes', () => {
+  it('are short and round-trip', async () => {
+    const { exportSave, importSave } = await import('./save');
+    const s = structuredClone(newGame('Iejen', 'streetkid', T0));
+    startJob(s, 'you', 'pick_wallet', 720, T0);
+    const { state } = catchUp(s, T0 + 2 * 3600_000, mulberry32(3));
+    const code = await exportSave(state);
+    expect(code.length).toBeLessThan(1500);
+    const back = await importSave(code);
+    expect(back?.skills.petty.xp).toBe(state.skills.petty.xp);
+    expect(back?.cash).toBe(state.cash);
+    expect(back?.log).toEqual([]);
+  });
+
+  it('still imports old uncompressed codes', async () => {
+    const { importSave } = await import('./save');
+    const s = newGame('Old', 'excon', T0);
+    const old = btoa(JSON.stringify(s)); // how v0.1/v0.2 made codes (ASCII name)
+    expect((await importSave(old))?.name).toBe('Old');
+  });
+});

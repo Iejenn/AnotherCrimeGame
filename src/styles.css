@@ -190,7 +190,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .stats-grid > div { display: flex; flex-direction: column; border-top: 1px solid var(--rule); padding-top: 6px; }
 .stats-grid strong { font: 600 1.15rem var(--mono); }
 .save-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.save-code { width: 100%; height: 90px; margin-top: 8px; font: 0.7rem var(--mono); }
+.save-code { width: 100%; height: 90px; margin: 8px 0 6px; font: 0.7rem var(--mono); word-break: break-all; }
+.save-row { align-items: center; }
 
 /* log */
 .log-filters { display: flex; gap: 6px; margin: 16px 0 8px; }
@@ -269,3 +270,23 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .title { font-size: 2.6rem; }
   .toasts { left: 16px; right: 16px; align-items: stretch; }
 }
+
+/* ---------- guide ---------- */
+.next-step { border: 1px solid var(--rule-strong); border-left: 3px solid var(--red); padding: 10px 14px 12px; margin: 10px 0 4px; background: var(--ink-2); }
+.next-head { display: flex; justify-content: space-between; align-items: center; }
+.next-head .btn.link { padding: 0; }
+.next-title { display: block; font: 1.2rem var(--serif); font-weight: 400; margin-top: 2px; }
+.next-how { color: #cfc8ba; font-size: 0.9rem; margin: 4px 0 10px; }
+.steps { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.steps li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.steps li p { margin: 4px 0 8px; font-size: 0.9rem; }
+.steps li.done strong { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+.step-no { font: 600 0.8rem/1.6 var(--mono); color: var(--muted); }
+.steps li.done .step-no { color: var(--money); }
+.ref { border-bottom: 1px solid var(--rule); padding: 10px 0; }
+.ref:first-of-type { border-top: 1px solid var(--rule); }
+.ref summary { cursor: pointer; font: 1.1rem var(--serif); list-style: none; }
+.ref summary::-webkit-details-marker { display: none; }
+.ref summary::after { content: '+'; float: right; font-family: var(--mono); color: var(--muted); }
+.ref[open] summary::after { content: '−'; }
+.ref p { color: #cfc8ba; font-size: 0.92rem; margin: 8px 0 0; }
