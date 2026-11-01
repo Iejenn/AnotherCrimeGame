@@ -24,7 +24,7 @@ export function ProfileTab({ s, onImport, onReset }: { s: GameState; onImport: (
               <strong>
                 <span className="code">{sk.code}</span> {sk.name} <span className="num">{lp.level}</span>
               </strong>
-              <Bar pct={lp.pct} label={`${Math.floor(s.skills[sk.id].xp).toLocaleString()} XP`} />
+              <Bar pct={lp.pct} label={`${Math.floor(s.skills[sk.id].xp).toLocaleString('en-US')} XP`} />
               <span className="muted small">{s.skills[sk.id].perks.map((p) => PERKS[p].name).join(', ') || 'No perks yet'}</span>
             </div>
           );
@@ -33,10 +33,10 @@ export function ProfileTab({ s, onImport, onReset }: { s: GameState; onImport: (
       <h2>Record</h2>
       <div className="stats-grid">
         <div><span className="muted">Total level</span><strong>{totalLevel(s)}</strong></div>
-        <div><span className="muted">Jobs pulled</span><strong>{s.stats.jobs.toLocaleString()}</strong></div>
-        <div><span className="muted">Big scores</span><strong>{s.stats.bigScores.toLocaleString()}</strong></div>
-        <div><span className="muted">Clean escapes</span><strong>{s.stats.fails.toLocaleString()}</strong></div>
-        <div><span className="muted">Times busted</span><strong>{s.stats.busts.toLocaleString()}</strong></div>
+        <div><span className="muted">Jobs pulled</span><strong>{s.stats.jobs.toLocaleString('en-US')}</strong></div>
+        <div><span className="muted">Big scores</span><strong>{s.stats.bigScores.toLocaleString('en-US')}</strong></div>
+        <div><span className="muted">Clean escapes</span><strong>{s.stats.fails.toLocaleString('en-US')}</strong></div>
+        <div><span className="muted">Times busted</span><strong>{s.stats.busts.toLocaleString('en-US')}</strong></div>
         <div><span className="muted">Lifetime earnings</span><strong>{fmtMoney(s.stats.earned)}</strong></div>
         <div><span className="muted">Days in the life</span><strong>{days}</strong></div>
       </div>

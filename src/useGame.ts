@@ -29,7 +29,7 @@ export function useGame() {
     for (const l of report.levelUps) list.push({ id: toastId.current++, text: `${SKILL_BY_ID[l.skill].name} → Lv ${l.level}`, kind: 'level' });
     if (report.bigScores) list.push({ id: toastId.current++, text: `Big score ×${report.bigScores}`, kind: 'big' });
     if (report.busts) list.push({ id: toastId.current++, text: 'Busted', kind: 'bust' });
-    if (report.cash >= 1) list.push({ id: toastId.current++, text: `+$${Math.round(report.cash).toLocaleString()}`, kind: 'cash' });
+    if (report.cash >= 1) list.push({ id: toastId.current++, text: `+$${Math.round(report.cash).toLocaleString('en-US')}`, kind: 'cash' });
     if (report.loot.length) list.push({ id: toastId.current++, text: `+${report.loot.length} loot`, kind: 'loot' });
     for (const e of report.events) list.push({ id: toastId.current++, text: e, kind: 'event' });
     if (!list.length) return;

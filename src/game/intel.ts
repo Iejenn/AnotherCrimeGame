@@ -92,7 +92,7 @@ export function generateContracts(
   const s2 = pool[1] ?? s1;
   const cashTarget = Math.round(cashPerHour(top) * (1.5 + rng() * 1.5) / 100) * 100;
   list.push({
-    id: `${day}:cash`, label: `Earn $${cashTarget.toLocaleString()} from jobs`, kind: 'cash', target: cashTarget, progress: 0,
+    id: `${day}:cash`, label: `Earn $${cashTarget.toLocaleString('en-US')} from jobs`, kind: 'cash', target: cashTarget, progress: 0,
     cashHours: 1, xpFrac: 0.6, rewardSkill: s2, claimed: false,
   });
 

@@ -50,7 +50,7 @@ export function IntelTab({ s, now, act }: { s: GameState; now: number; act: Act 
                 label={c.kind === 'cash' ? `${fmtMoney(c.progress)} / ${fmtMoney(c.target)}` : `${c.progress} / ${c.target}`}
               />
               <div className="small">
-                Reward: {fmtMoney(reward.cash)} + {reward.xp.toLocaleString()} {SKILL_BY_ID[c.rewardSkill].short} XP
+                Reward: {fmtMoney(reward.cash)} + {reward.xp.toLocaleString('en-US')} {SKILL_BY_ID[c.rewardSkill].short} XP
               </div>
               {c.claimed ? (
                 <span className="muted caps small">Claimed</span>
