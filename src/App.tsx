@@ -27,6 +27,8 @@ export default function App() {
   const { state, act, create, replace, welcome, dismissWelcome, toasts } = useGame();
   const [tab, setTab] = useState<Tab>('jobs');
   const [perkOpen, setPerkOpen] = useState(true);
+  // Set by a crew card's "Give them a job" button; `n` changes on every click so repeat clicks still react.
+  const [assignRequest, setAssignRequest] = useState<{ crewId: string; n: number } | null>(null);
   const now = Date.now();
   const pendingCount = state?.pendingPerks.length ?? 0;
   // Re-open the perk picker whenever a new milestone is hit.
@@ -60,7 +62,10 @@ export default function App() {
           {state.pendingPerks.length} perk choice{state.pendingPerks.length > 1 ? 's' : ''} waiting — choose now
         </button>
       )}
-      <CrewPanel s={state} now={now} act={act} onAssign={() => setTab('jobs')} />
+      <CrewPanel s={state} now={now} act={act} onAssign={(crewId) => {
+          setTab('jobs');
+          setAssignRequest((r) => ({ crewId, n: (r?.n ?? 0) + 1 }));
+        }} />
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
@@ -71,7 +76,7 @@ export default function App() {
         ))}
       </nav>
       <main className="content">
-        {tab === 'jobs' && <JobsTab s={state} now={now} act={act} />}
+        {tab === 'jobs' && <JobsTab s={state} now={now} act={act} assignRequest={assignRequest} />}
         {tab === 'intel' && <IntelTab s={state} now={now} act={act} />}
         {tab === 'stash' && <StashTab s={state} act={act} />}
         {tab === 'shop' && <ShopTab s={state} act={act} />}

@@ -142,7 +142,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .skill-header .headline { margin-top: 2px; }
 .skill-header .deck { margin: 4px 0 10px; }
 .locked-note { border-left: 3px solid var(--red); padding: 6px 12px; color: var(--red-ink); }
-.assign { margin: 14px 0 4px; }
+.assign { margin: 14px 0 4px; padding: 6px 8px; margin-left: -8px; scroll-margin-top: 12px; transition: background 0.3s; }
+.assign.flash { background: #3a2420; box-shadow: inset 3px 0 0 var(--red); }
 .assign label { display: flex; align-items: center; gap: 10px; }
 
 .ledger { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--rule-strong); }

@@ -7,7 +7,7 @@ import { Bar } from './ui';
 type Act = (fn: (d: GameState, now: number) => void) => void;
 
 /** The idle "operations board": what each crew member is doing right now. */
-export function CrewPanel({ s, now, act, onAssign }: { s: GameState; now: number; act: Act; onAssign: () => void }) {
+export function CrewPanel({ s, now, act, onAssign }: { s: GameState; now: number; act: Act; onAssign: (crewId: string) => void }) {
   return (
     <section className="crew" aria-label="Crew">
       {s.crew.map((c) => {
@@ -51,7 +51,7 @@ export function CrewPanel({ s, now, act, onAssign }: { s: GameState; now: number
             ) : (
               <>
                 <div className="ticket-line muted">Nothing on. Every idle minute is money left on the table.</div>
-                <button className="btn small primary" onClick={onAssign}>
+                <button className="btn small primary" onClick={() => onAssign(c.id)}>
                   Give them a job
                 </button>
               </>
