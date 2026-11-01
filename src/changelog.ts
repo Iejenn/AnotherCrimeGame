@@ -8,6 +8,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.0',
+    date: '2026-11-01',
+    title: 'A guide for new players, and short save codes',
+    items: [
+      'New Guide tab: 10 getting-started steps that tick off as you play, plus a "how it works" page for every system.',
+      'A "next step" card under your crew shows new players what to do next. Hide it any time.',
+      'Save codes are about 30× shorter (around 1,000 characters instead of 27,000), with a Copy button. Old codes still work.',
+      'Importing a save now asks before it replaces your current character.',
+    ],
+  },
+  {
+    version: '0.2.1',
+    date: '2026-11-01',
+    title: 'Fixes',
+    items: [
+      'Numbers always use a comma for thousands ($3,210). Dutch phones were showing $3.210.',
+      'TIP tags no longer overlap other crime families on phones.',
+      '"Give them a job" now picks that crew member and jumps to the job list.',
+    ],
+  },
+  {
     version: '0.2.0',
     date: '2026-11-01',
     title: 'New look, new front door',

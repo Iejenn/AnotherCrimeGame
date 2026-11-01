@@ -577,6 +577,7 @@ export function claimContract(s: GameState, id: string, now: number) {
   if (!c || c.claimed || c.progress < c.target) return;
   const r = contractRewards(s, c);
   c.claimed = true;
+  s.stats.contracts = (s.stats.contracts ?? 0) + 1;
   s.cash += r.cash;
   s.stats.earned += r.cash;
   addXp(s, c.rewardSkill, r.xp, now, emptyReport());

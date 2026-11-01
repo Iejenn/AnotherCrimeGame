@@ -11,9 +11,10 @@ import { ProfileTab } from './components/ProfileTab';
 import { LogTab } from './components/LogTab';
 import { PerkModal } from './components/Modals';
 import { StartScreen } from './components/StartScreen';
+import { GuideTab, NextStep } from './components/Guide';
+import { isGuideHidden, setGuideHidden, type GuideTab as Tab } from './game/guide';
 import { clearGame, importSave } from './game/save';
 
-type Tab = 'jobs' | 'intel' | 'stash' | 'shop' | 'profile' | 'log';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'intel', label: 'Intel' },
@@ -21,12 +22,18 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'shop', label: 'Shop' },
   { id: 'log', label: 'Log' },
   { id: 'profile', label: 'Profile' },
+  { id: 'guide', label: 'Guide' },
 ];
 
 export default function App() {
   const { state, act, create, replace, welcome, dismissWelcome, toasts } = useGame();
   const [tab, setTab] = useState<Tab>('jobs');
   const [perkOpen, setPerkOpen] = useState(true);
+  const [guideHidden, setGuideHiddenState] = useState(isGuideHidden);
+  const hideGuide = (hidden: boolean) => {
+    setGuideHidden(hidden);
+    setGuideHiddenState(hidden);
+  };
   // Set by a crew card's "Give them a job" button; `n` changes on every click so repeat clicks still react.
   const [assignRequest, setAssignRequest] = useState<{ crewId: string; n: number } | null>(null);
   const now = Date.now();
@@ -36,12 +43,14 @@ export default function App() {
     if (pendingCount > 0) setPerkOpen(true);
   }, [pendingCount]);
 
-  const doImport = () => {
+  const doImport = async () => {
     const text = prompt('Paste your save code:');
     if (!text) return;
-    const s = importSave(text);
-    if (s) replace(s);
-    else alert('That save code is not valid.');
+    const s = await importSave(text);
+    if (!s) return alert('That save code is not valid.');
+    // Importing overwrites the character on this device, so check first.
+    if (state && !confirm(`Replace ${state.name} on this device with ${s.name}?`)) return;
+    replace(s);
   };
   const doReset = () => {
     if (!confirm('Wipe this character and start over? This cannot be undone.')) return;
@@ -66,6 +75,7 @@ export default function App() {
           setTab('jobs');
           setAssignRequest((r) => ({ crewId, n: (r?.n ?? 0) + 1 }));
         }} />
+      {!guideHidden && <NextStep s={state} onGo={setTab} onHide={() => hideGuide(true)} />}
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
@@ -81,6 +91,7 @@ export default function App() {
         {tab === 'stash' && <StashTab s={state} act={act} />}
         {tab === 'shop' && <ShopTab s={state} act={act} />}
         {tab === 'log' && <LogTab s={state} />}
+        {tab === 'guide' && <GuideTab s={state} onGo={setTab} hidden={guideHidden} onShow={() => hideGuide(false)} />}
         {tab === 'profile' && <ProfileTab s={state} onImport={doImport} onReset={doReset} />}
       </main>
 

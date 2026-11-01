@@ -9,6 +9,19 @@ import { Bar } from './ui';
 
 export function ProfileTab({ s, onImport, onReset }: { s: GameState; onImport: () => void; onReset: () => void }) {
   const [code, setCode] = useState('');
+  const [copied, setCopied] = useState(false);
+  const makeCode = async () => {
+    setCopied(false);
+    setCode(await exportSave(s));
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+    } catch {
+      /* clipboard blocked: the text box is selectable as a fallback */
+    }
+  };
   const days = Math.max(1, Math.ceil((Date.now() - s.createdAt) / 86400000));
   return (
     <div className="profile">
@@ -43,11 +56,19 @@ export function ProfileTab({ s, onImport, onReset }: { s: GameState; onImport: (
       <h2>Save</h2>
       <p className="muted small">Saves automatically in this browser. Copy the code to move to another device.</p>
       <div className="save-row">
-        <button className="btn small" onClick={() => setCode(exportSave(s))}>Export save code</button>
+        <button className="btn small" onClick={makeCode}>Export save code</button>
         <button className="btn small" onClick={onImport}>Import save</button>
         <button className="btn small danger" onClick={onReset}>Start over</button>
       </div>
-      {code && <textarea className="save-code" readOnly value={code} onFocus={(e) => e.target.select()} />}
+      {code && (
+        <div className="save-out">
+          <textarea className="save-code" readOnly value={code} onFocus={(e) => e.target.select()} />
+          <div className="save-row">
+            <button className="btn small primary" onClick={copy}>{copied ? 'Copied' : 'Copy code'}</button>
+            <span className="muted small">{code.length.toLocaleString('en-US')} characters · your activity log isn't included</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

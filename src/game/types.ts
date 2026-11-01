@@ -96,7 +96,7 @@ export interface GameState {
   pendingPerks: PendingPerk[];
   contracts: { day: number; list: Contract[] };
   discovered: string[];
-  stats: { jobs: number; busts: number; bigScores: number; earned: number; fails: number };
+  stats: { jobs: number; busts: number; bigScores: number; earned: number; fails: number; contracts?: number };
   log: LogEntry[];
   lastSeen: number;
   nextId: number;
