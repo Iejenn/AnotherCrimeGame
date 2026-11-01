@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
@@ -17,10 +17,33 @@ function unlockText(id: SkillId) {
   return parts.join(' and ');
 }
 
-export function JobsTab({ s, now, act }: { s: GameState; now: number; act: Act }) {
+export function JobsTab({ s, now, act, assignRequest }: { s: GameState; now: number; act: Act; assignRequest: { crewId: string; n: number } | null }) {
   const [skill, setSkill] = useState<SkillId>('petty');
   const idle = s.crew.filter((c) => !c.job);
   const [crewId, setCrewId] = useState<string>('');
+  const [flash, setFlash] = useState(false);
+  const assignRef = useRef<HTMLDivElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  // "Give them a job" on a crew card: pick that crew member, make sure we're on an unlocked
+  // crime family, then scroll the job list into view and briefly highlight the "Send" picker.
+  useEffect(() => {
+    if (!assignRequest) return;
+    setCrewId(assignRequest.crewId);
+    if (!isUnlocked(s, skill)) setSkill('petty');
+    setFlash(true);
+    const raf = requestAnimationFrame(() => {
+      assignRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      selectRef.current?.focus({ preventScroll: true });
+    });
+    const t = setTimeout(() => setFlash(false), 1600);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+    // Only react to new clicks, not to every state tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignRequest?.n]);
   const selectedCrew = idle.find((c) => c.id === crewId) ?? idle[0];
   const tips = tipsAt(now);
   const unlocked = isUnlocked(s, skill);
@@ -56,13 +79,13 @@ export function JobsTab({ s, now, act }: { s: GameState; now: number; act: Act }
         {!unlocked ? (
           <p className="locked-note">Locked. Requires {unlockText(skill)}.</p>
         ) : (
-          <div className="assign">
+          <div className={`assign ${flash ? 'flash' : ''}`} ref={assignRef}>
             {idle.length === 0 ? (
               <span className="muted">Everyone's busy. Stop a job or hire crew to run more at once.</span>
             ) : (
               <label>
                 <span className="label">Send</span>
-                <select value={selectedCrew?.id} onChange={(e) => setCrewId(e.target.value)}>
+                <select ref={selectRef} value={selectedCrew?.id} onChange={(e) => setCrewId(e.target.value)}>
                   {idle.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.isPlayer ? 'Yourself' : c.name}
