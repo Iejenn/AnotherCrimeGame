@@ -36,6 +36,13 @@ npm run build    # typecheck + production build to dist/
 ```
 `netlify.toml` is included, so Netlify Deploy Previews work as-is.
 
+### GitHub Pages
+`.github/workflows/deploy-pages.yml` runs the tests, builds, and publishes to GitHub Pages on every push to `main`
+(or manually via Actions → "Deploy to GitHub Pages" → Run workflow).
+One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+The site will be at `https://iejenn.github.io/AnotherCrimeGame/`.
+`vite.config.ts` uses `base: './'` so the same build works on Pages (sub-folder) and Netlify (root).
+
 ### Layout
 - `src/game/` — pure TypeScript game rules, no React (engine, XP curves, Intel/contracts, data tables).
   Balancing lives in `xp.ts` and `data/*.ts`.
