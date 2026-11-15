@@ -265,11 +265,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .street-labels, .street-floats { position: absolute; left: 0; top: 0; pointer-events: none; }
 .node-label { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 0.68rem var(--sans); color: var(--paper); background: rgba(20, 18, 16, 0.72); padding: 1px 5px; text-shadow: 0 1px 0 #000; }
 .node-label.locked { color: #8b8378; }
-.float { position: absolute; left: 0; top: 0; transform: translate(-50%, 0); white-space: nowrap; font: 700 0.9rem var(--mono); text-shadow: 0 1px 2px #000; animation: floatUp 1.25s ease-out forwards; opacity: 0; display: flex; gap: 8px; }
+.float { position: absolute; left: 0; top: 0; transform: translate(-50%, 0); white-space: nowrap; font: 700 0.95rem var(--mono); /* dark outline: readable on the bright street */ text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 3px #0008; animation: floatUp 1.25s ease-out forwards; opacity: 0; display: flex; gap: 8px; }
 .float-big { font-size: 1.05rem; margin-top: -22px; }
 @keyframes floatUp { 0% { opacity: 0; transform: translate(-50%, 0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -46px); } }
 .f-cash { color: var(--money); }
-.f-xp { color: var(--paper); }
+.f-xp { color: #ffffff; }
 .f-level { color: var(--amber); }
 .f-bust { color: var(--red-ink); }
 .street-status { position: absolute; left: 10px; top: 10px; min-width: 180px; max-width: 60%; background: rgba(20, 18, 16, 0.82); border-left: 3px solid var(--red); padding: 6px 10px; font-size: 0.85rem; pointer-events: none; }

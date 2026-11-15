@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.9.0',
+    date: '2026-11-15',
+    title: 'A brand new look',
+    items: [
+      'The city is now a bright, sunny toy town: cream buildings with coloured trims and windows, rooftop air-cons, striped shop awnings, lane lines and zebra crossings, street lamps, traffic lights and round trees.',
+      'Soft shadows and a blue sky. The river is bright blue with a stone quay.',
+      'New rounded characters for everyone, with walk, pickpocket and stunned animations. Eddy wears an apron now.',
+      'Buildings between the camera and you fade out, so you are never hidden.',
+      'Chunky cartoon cars, a proper card table, and shop doors with glass.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-11-15',
     title: 'Street Crimes 1–30, a minimap, and a city that looks like a city',

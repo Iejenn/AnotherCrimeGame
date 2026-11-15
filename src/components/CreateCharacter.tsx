@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { Look } from '../game/types';
-import { BOTTOM_COLORS, DEFAULT_LOOK, HAIR_COLORS, HAIR_STYLES, SKIN_TONES, TOP_COLORS, buildCharacter, hex, randomLook } from '../street/character';
+import { BOTTOM_COLORS, DEFAULT_LOOK, HAIR_COLORS, HAIR_STYLES, SKIN_TONES, TOP_COLORS, animateCharacter, buildCharacter, hex, randomLook } from '../street/character';
 import { hasOldSave } from '../game/save';
 
 function Preview({ look }: { look: Look }) {
@@ -16,29 +16,18 @@ function Preview({ look }: { look: Look }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xfff1dc, 0x1b1916, 1.3));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x9fb38a, 1.6));
     const sun = new THREE.DirectionalLight(0xffdcb0, 1.3);
     sun.position.set(2, 4, 3);
     scene.add(sun);
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
     camera.position.set(0, 1.0, 3.4);
     camera.lookAt(0, 0.62, 0);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshLambertMaterial({ color: 0x2d2a26 }));
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshLambertMaterial({ color: 0xd8d4cb }));
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    const mats: THREE.Material[] = [];
-    const geos: THREE.BufferGeometry[] = [];
-    const mat = (c: number) => {
-      const m = new THREE.MeshLambertMaterial({ color: c });
-      mats.push(m);
-      return m;
-    };
-    const box = (w: number, h: number, d: number) => {
-      const g = new THREE.BoxGeometry(w, h, d);
-      geos.push(g);
-      return g;
-    };
+    // The model shares geometry and materials with the Street, so there's nothing to dispose per rebuild.
     let model: THREE.Group | null = null;
     let built = '';
     const rebuild = () => {
@@ -46,9 +35,7 @@ function Preview({ look }: { look: Look }) {
       if (key === built) return;
       built = key;
       if (model) scene.remove(model);
-      mats.splice(0).forEach((m) => m.dispose());
-      geos.splice(0).forEach((g) => g.dispose());
-      model = buildCharacter(lookRef.current, mat, box);
+      model = buildCharacter(lookRef.current);
       scene.add(model);
     };
 
@@ -67,15 +54,16 @@ function Preview({ look }: { look: Look }) {
     const loop = () => {
       raf = requestAnimationFrame(loop);
       rebuild();
-      if (model) model.rotation.y = Math.sin(performance.now() / 1600) * 0.9;
+      if (model) {
+        model.rotation.y = Math.sin(performance.now() / 1600) * 0.9;
+        animateCharacter(model, 'idle', performance.now());
+      }
       renderer.render(scene, camera);
     };
     loop();
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      mats.forEach((m) => m.dispose());
-      geos.forEach((g) => g.dispose());
       floor.geometry.dispose();
       (floor.material as THREE.Material).dispose();
       renderer.dispose();

@@ -102,6 +102,21 @@ Planned: Eddy's stock (bandages first), then other shops.
 - **Minimap** in the top-right corner of the Street: roads, buildings, river, you, Eddy, and crime spots
   (greyed out until you have the level).
 
+## 7b. Visual direction
+
+Reference: a bright, toy-like **low-poly city in daylight** (stylised, chunky, friendly; think a tabletop model town).
+- **Light:** sunny day, light-blue sky, warm sun with **soft shadows**. No dark/noir 3D scene.
+- **Buildings:** cream/white walls with a **coloured trim** at the roof line (red, teal, yellow, blue), window grids,
+  rooftop props (air-con units, water tanks, antennas), some ground-floor shops with **striped awnings** and glass fronts.
+- **Streets:** grey asphalt with white **dashed lane lines** and **zebra crossings**, light-grey pavements with kerbs,
+  street lamps and traffic lights.
+- **Nature:** round, faceted low-poly trees in bright greens; parks with grass.
+- **Cars:** chunky cartoon cars (body + cabin + wheels) in bright colours.
+- **People:** rounded low-poly characters (capsule body and limbs, round head) with **walk and action animations**.
+  Everyone uses the same model as your own character, with different looks.
+- **Readability:** your character is never hidden. A building between the camera and you fades out.
+- The UI around the 3D view keeps its own style for now; it may get brighter to match later.
+
 ## 8. Screens
 
 Street (default) · Inventory (28 slots) · Quests (coming soon) · Skills (levels + guide + save codes).
