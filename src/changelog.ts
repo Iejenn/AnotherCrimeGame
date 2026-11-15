@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.0',
+    date: '2026-11-15',
+    title: 'The Street (test version)',
+    items: [
+      'New Street tab: walk a 3D city. Tap the ground to walk, tap a tourist, car or door to work it.',
+      'Your character keeps working a spot until you walk away, and it keeps going while the app is closed.',
+      'Every crime has its own spot. Heavier crimes are further from the centre, and locked ones tell you what level you need.',
+      'Your crew stand at the spots they are working.',
+      'Fixed a few log lines that started with a small letter.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-11-01',
     title: 'A guide for new players, and short save codes',

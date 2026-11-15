@@ -4,6 +4,8 @@ A text-based **idle crime RPG** for people who are busy. Every crime family is i
 Plan a shift, close the tab, come back to a "While you were away" report.
 
 ## Core loop
+- **The Street** (default tab): a low-poly 3D city. Tap to walk, tap a person/car/door to work that crime.
+  It starts the same job queue as the Jobs tab, so it keeps going offline; walking away stops it.
 - **8 crime skills**, each leveled 1–99 with its own XP: Petty Theft → Car Theft / Enforcement / Burglary →
   Fraud & Cyber / Smuggling → Armed Robbery → Heists. Heavier families unlock as you level the lighter ones.
 - **7 crimes per skill** (56 in total), with timers from 10 seconds to 8 hours. Higher tiers pay more cash and XP.
@@ -48,6 +50,7 @@ The site will be at `https://iejenn.github.io/AnotherCrimeGame/`.
   Balancing lives in `xp.ts` and `data/*.ts`.
 - `src/useGame.ts` — state, 1-second tick, offline catch-up, autosave.
 - `src/components/` — UI.
+- `src/street/` — the 3D Street view (three.js): city map, pathfinding, and the scene.
 
 ### Saves & cheating
 v0.1 is **single-player and client-side**: saves go to `localStorage` (export/import from Profile).

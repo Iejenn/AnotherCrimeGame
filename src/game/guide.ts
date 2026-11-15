@@ -2,7 +2,7 @@
 import type { GameState } from './types';
 import { skillLevel, totalLevel, unlockedSkills } from './engine';
 
-export type GuideTab = 'jobs' | 'intel' | 'stash' | 'shop' | 'log' | 'profile' | 'guide';
+export type GuideTab = 'street' | 'jobs' | 'intel' | 'stash' | 'shop' | 'log' | 'profile' | 'guide';
 
 export interface GuideStep {
   id: string;
@@ -16,14 +16,14 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'first-job',
     title: 'Pull your first job',
-    how: 'Open Jobs, find Lift a Wallet under 01 Petty Theft and tap Once. Watch the bar on your crew card: when it fills, the job resolves. Success pays cash and XP, a failure still gives a little XP, and a bust sends you to jail for a short while.',
-    tab: 'jobs',
+    how: 'On the Street, tap a tourist: you walk over and start picking pockets. (Or open Jobs and tap Once on Lift a Wallet.) Watch the bar fill: when it does, the job resolves. Success pays cash and XP, a failure still gives a little XP, and a bust sends you to jail for a short while.',
+    tab: 'street',
     done: (s) => s.stats.jobs >= 1,
   },
   {
     id: 'full-shift',
     title: 'Queue a full shift and walk away',
-    how: 'Tap Full shift to queue as many runs as fit in one shift (2 hours to start). Then close the tab. Jobs keep resolving while you are gone and you get a report when you come back.',
+    how: 'On the Street your character keeps working a spot until you walk away. In Jobs, Full shift does the same. A shift lasts 2 hours to start. Then close the tab. Jobs keep resolving while you are gone and you get a report when you come back.',
     tab: 'jobs',
     done: (s) => s.stats.jobs >= 25 || s.crew.some((c) => !!c.job && c.job.repsDone + c.job.repsLeft >= 25),
   },
