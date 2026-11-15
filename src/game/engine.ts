@@ -1,17 +1,15 @@
 // Core game rules. Everything here is plain functions on a GameState so the same
 // logic could later run server-side (e.g. inside a Supabase RPC) for anti-cheat.
-import type { Buff, Contract, CrewMember, GameState, LogKind, PerkId, Report, SkillId, TraitId, OriginId } from './types';
+import type { Buff, CrewMember, GameState, LogKind, PerkId, Report, SkillId, OriginId } from './types';
 import { emptyReport } from './types';
 import { SKILLS, SKILL_BY_ID, SKILL_IDS } from './data/skills';
 import { CRIME_BY_ID, type CrimeDef } from './data/crimes';
 import {
-  CAR_CLASSES, CAR_MODELS, CAR_SMUGGLE_BONUS, CREW_FIRST, CREW_NICK, CREW_SLOT_COST, CREW_SLOT_TOTAL_LEVEL,
-  FRONTS, FRONT_BY_ID, FRONT_CAP_HOURS, FRONT_MAX_LEVEL, GEAR, GEAR_BY_ID, LOOT, LOOT_BY_ID, MARKS, ORIGIN_BY_ID,
-  PERK_IDS, PERK_MILESTONES, PLACES, RANKS, RARITY_WEIGHT, UPGRADE_BY_ID, frontCost, garageCap, shiftHours,
+  CAR_CLASSES, CAR_MODELS, CAR_SMUGGLE_BONUS, LOOT, LOOT_BY_ID, MARKS, ORIGIN_BY_ID,
+  PERK_IDS, PERK_MILESTONES, PLACES, RANKS, RARITY_WEIGHT,
 } from './data/world';
 import { levelFromXp, cashPerHour, crimeXp, xpToNext, MAX_LEVEL } from './xp';
 import { hashString, mulberry32, pick, randRange, weightedPick, type Rng } from './rng';
-import { ensureContracts, tipEffectsFor } from './intel';
 
 export const LOG_CAP = 150;
 const HEAT_DECAY_PER_MIN = 1;
@@ -19,6 +17,14 @@ const HEAT_DECAY_PER_MIN = 1;
 const encounterChance = (dur: number) => 0.03 * Math.min(3, Math.max(0.1, dur / 300));
 const lootChance = (dur: number) => 0.1 * Math.min(3, Math.max(0.15, dur / 120));
 export const MASTERY_THRESHOLDS = [0, 10, 25, 50, 100, 200, 400, 800, 1600];
+/** How long you keep working a spot before your character stops on their own. */
+export const SHIFT_HOURS = 8;
+/** RuneScape-style bag: gold takes the first slot, each different loot item and each car one more. */
+export const INVENTORY_SLOTS = 28;
+/** Health regenerates this much per minute. */
+const HP_REGEN_PER_MIN = 1;
+/** You need at least this much health to start a job. */
+export const MIN_HP_TO_WORK = 3;
 
 // ---------------- Basic lookups ----------------
 
@@ -48,10 +54,6 @@ export function masteryLevel(count: number) {
 
 const perkCount = (s: GameState, skill: SkillId, perk: PerkId) => s.skills[skill].perks.filter((p) => p === perk).length;
 
-export function bestGear(s: GameState, skill: SkillId) {
-  return GEAR.filter((g) => g.skill === skill && s.gear.includes(g.id)).sort((a, b) => b.level - a.level)[0];
-}
-
 export function bestCarClass(s: GameState) {
   return s.cars.reduce((m, c) => Math.max(m, c.cls), -1);
 }
@@ -60,14 +62,26 @@ function buffSum(s: GameState, skill: SkillId, kind: Buff['kind']) {
   return s.buffs.filter((b) => b.kind === kind && (!b.skill || b.skill === skill)).reduce((sum, b) => sum + b.value, 0);
 }
 
-function traitOf(crew: CrewMember | undefined): TraitId {
-  return crew?.trait ?? 'none';
+export function slotsUsed(s: GameState) {
+  return 1 + Object.keys(s.inventory).length + s.cars.length;
 }
+
+/** Max health grows a little as your total level goes up: 10 at the start. */
+export const maxHp = (s: GameState) => 10 + Math.floor((totalLevel(s) - 8) / 4);
+
+/** Current health after regeneration up to time t (does not mutate). */
+export function hpAt(s: GameState, t: number) {
+  const mins = Math.max(0, t - s.hpAt) / 60000;
+  return Math.min(maxHp(s), s.hp + mins * HP_REGEN_PER_MIN);
+}
+
+/** Health lost on a failed job: 1 for low-level crimes, up to 4 for the heaviest. */
+export const failDamage = (crimeLevel: number) => 1 + Math.floor(crimeLevel / 25);
 
 /** Current heat after decay up to time t (does not mutate). */
 export function heatAt(s: GameState, t: number) {
   const mins = Math.max(0, t - s.heatAt) / 60000;
-  const rate = HEAT_DECAY_PER_MIN * (1 + 0.3 * (s.upgrades.safehouse ?? 0));
+  const rate = HEAT_DECAY_PER_MIN;
   return Math.max(0, s.heat - mins * rate);
 }
 
@@ -95,49 +109,40 @@ export interface CrimeStats {
   mastery: number;
 }
 
-export function crimeStats(s: GameState, crime: CrimeDef, crew: CrewMember | undefined, t: number): CrimeStats {
+export function crimeStats(s: GameState, crime: CrimeDef, t: number): CrimeStats {
   const lvl = skillLevel(s, crime.skill);
   const origin = ORIGIN_BY_ID[s.origin];
-  const tip = tipEffectsFor(crime.skill, t);
-  const gear = bestGear(s, crime.skill);
   const m = masteryLevel(s.mastery[crime.id] ?? 0);
-  const trait = traitOf(crew);
   const heat = heatAt(s, t);
 
   let chance = crime.baseChance + Math.min(0.15, Math.max(0, lvl - crime.level) * 0.01);
-  chance += (gear?.success ?? 0) + m * 0.01 + tip.success + buffSum(s, crime.skill, 'success');
+  chance += m * 0.01 + buffSum(s, crime.skill, 'success');
   chance -= (heat / 100) * 0.25;
   chance = Math.min(0.97, Math.max(0.05, chance));
 
   let bust = crime.risk * Math.max(0.2, 1 - 0.2 * perkCount(s, crime.skill, 'ghost'));
-  if (trait === 'careful') bust *= 0.7;
-  bust *= (1 + (heat / 100) * 1.5) * Math.max(0.1, 1 + tip.bust);
+  bust *= 1 + (heat / 100) * 1.5;
   bust = Math.min(0.9, Math.max(0, bust));
 
   let crit = 0.05 + 0.03 * perkCount(s, crime.skill, 'lucky') + m * 0.005 + buffSum(s, crime.skill, 'crit');
-  if (trait === 'lucky') crit += 0.04;
   crit = Math.min(0.6, crit);
 
   let dur = crime.duration * Math.max(0.5, 1 - 0.07 * perkCount(s, crime.skill, 'speed')) * (1 - m * 0.02);
-  if (trait === 'quick') dur *= 0.9;
   dur = Math.max(3, Math.round(dur));
 
-  let xpMult = 1 + (origin.xp[crime.skill] ?? 0) + 0.1 * perkCount(s, crime.skill, 'scholar') + tip.xp + buffSum(s, crime.skill, 'xp');
-  if (trait === 'bright') xpMult += 0.12;
-
-  let cashMult = 1 + (origin.cash[crime.skill] ?? 0) + 0.12 * perkCount(s, crime.skill, 'greed') + (gear?.cash ?? 0) + tip.cash + buffSum(s, crime.skill, 'cash');
-  if (trait === 'greedy') cashMult += 0.12;
+  const xpMult = 1 + (origin.xp[crime.skill] ?? 0) + 0.1 * perkCount(s, crime.skill, 'scholar') + buffSum(s, crime.skill, 'xp');
+  let cashMult = 1 + (origin.cash[crime.skill] ?? 0) + 0.12 * perkCount(s, crime.skill, 'greed') + buffSum(s, crime.skill, 'cash');
   if (crime.skill === 'smuggling') {
     const best = bestCarClass(s);
     if (best >= 0) cashMult += CAR_SMUGGLE_BONUS[best];
   }
 
-  const jail = Math.round(crime.jail * origin.jailMult * (1 - 0.12 * (s.upgrades.lawyer ?? 0)));
+  const jail = Math.round(crime.jail * origin.jailMult);
   return {
     xp: Math.round(baseCrimeXp(s, crime) * Math.max(0.1, xpMult)),
     chance, bust, crit, duration: dur, xpMult: Math.max(0.1, xpMult), cashMult: Math.max(0.1, cashMult),
-    // Heat scales with job length so spamming 10-second jobs doesn't max it out, but 4 crew grinding will.
-    heat: crime.heat * Math.min(4, Math.max(0.25, crime.duration / 60)) * 0.5 * Math.max(0, 1 + tip.heat), jail, mastery: m,
+    // Heat scales with job length so spamming 10-second jobs doesn't max it out.
+    heat: crime.heat * Math.min(4, Math.max(0.25, crime.duration / 60)) * 0.5, jail, mastery: m,
   };
 }
 
@@ -147,16 +152,14 @@ export function newGame(name: string, origin: OriginId, now: number): GameState 
   const skills = Object.fromEntries(SKILL_IDS.map((id) => [id, { xp: 0, perks: [] }])) as unknown as GameState['skills'];
   const s: GameState = {
     version: 1, name: name.trim() || 'Nobody', origin, createdAt: now,
-    cash: ORIGIN_BY_ID[origin].startCash, heat: 0, heatAt: now,
+    cash: ORIGIN_BY_ID[origin].startCash, heat: 0, heatAt: now, hp: 10, hpAt: now,
     skills, mastery: {},
-    crew: [{ id: 'you', name: name.trim() || 'You', trait: 'none', isPlayer: true, job: null, jailedUntil: 0 }],
-    inventory: {}, cars: [], gear: [], upgrades: {},
-    fronts: {}, buffs: [], pendingPerks: [], contracts: { day: -1, list: [] }, discovered: [],
+    crew: [{ id: 'you', name: name.trim() || 'You', isPlayer: true, job: null, jailedUntil: 0 }],
+    inventory: {}, cars: [], buffs: [], pendingPerks: [],
     stats: { jobs: 0, busts: 0, bigScores: 0, earned: 0, fails: 0 },
     log: [], lastSeen: now, nextId: 1,
   };
   log(s, now, `${s.name} hits the streets. Everyone starts with petty stuff.`, 'info');
-  ensureContracts(s, now, unlockedSkills(s), (id) => skillLevel(s, id));
   return s;
 }
 
@@ -178,16 +181,15 @@ function setHeat(s: GameState, t: number, value: number) {
   s.heatAt = t;
 }
 
-// All numbers use en-US grouping (1,234) on purpose: with the device locale, Dutch phones showed
-// "$3.210", which reads like three dollars and change.
+// The currency is gold. All numbers use en-US grouping (1,234) on purpose: with the device
+// locale, Dutch phones showed "3.210", which reads like three and a bit.
 export function fmtMoney(n: number) {
   const a = Math.abs(n);
   const sign = n < 0 ? '-' : '';
-  if (a >= 1e12) return `${sign}$${(a / 1e12).toFixed(2)}T`;
-  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
-  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(2)}M`;
-  if (a >= 1e4) return `${sign}$${(a / 1e3).toFixed(1)}K`;
-  return `${sign}$${Math.round(a).toLocaleString('en-US')}`;
+  if (a >= 1e9) return `${sign}${(a / 1e9).toFixed(2)}B gold`;
+  if (a >= 1e6) return `${sign}${(a / 1e6).toFixed(2)}M gold`;
+  if (a >= 1e5) return `${sign}${(a / 1e3).toFixed(1)}K gold`;
+  return `${sign}${Math.round(a).toLocaleString('en-US')} gold`;
 }
 
 export function addXp(s: GameState, skill: SkillId, amount: number, t: number, report: Report) {
@@ -223,14 +225,6 @@ function useBuffs(s: GameState, skill: SkillId) {
   s.buffs = s.buffs.filter((b) => b.uses > 0);
 }
 
-function progressContracts(s: GameState, kind: 'jobs' | 'cash' | 'big', skill: SkillId, amount: number) {
-  for (const c of s.contracts.list) {
-    if (c.claimed || c.kind !== kind) continue;
-    if (kind === 'jobs' && c.skill !== skill) continue;
-    c.progress = Math.min(c.target, c.progress + amount);
-  }
-}
-
 function earn(s: GameState, amount: number, report: Report) {
   s.cash += amount;
   s.stats.earned += amount;
@@ -256,7 +250,7 @@ const ENCOUNTERS: Encounter[] = [
   { text: 'Your name is getting around. Word on the street spreads.', apply: (s, sk, t, _r, rep) => { const x = Math.round(xpToNext(skillLevel(s, sk)) * 0.2); addXp(s, sk, x, t, rep); return `+${x.toLocaleString('en-US')} ${SKILL_BY_ID[sk].short} XP`; } },
   { text: 'A retired safecracker sells you his notebook for a song.', apply: (s) => { addBuff(s, { label: 'Safecracker notes', skill: 'burglary', kind: 'success', value: 0.15, uses: 8 }); return '+15% Burglary success for 8 jobs'; } },
   { text: 'A mechanic friend tips you off about an unlocked lot.', apply: (s) => { addBuff(s, { label: 'Unlocked lot', skill: 'auto', kind: 'cash', value: 0.6, uses: 4 }); return '+60% Car Theft value for 4 jobs'; } },
-  { text: 'Your crew throws you a party. Morale is high.', apply: (s) => { addBuff(s, { label: 'High morale', kind: 'xp', value: 0.2, uses: 10 }); return '+20% XP for 10 jobs'; } },
+  { text: 'Your old gang throws you a party. Morale is high.', apply: (s) => { addBuff(s, { label: 'High morale', kind: 'xp', value: 0.2, uses: 10 }); return '+20% XP for 10 jobs'; } },
 ];
 
 function addBuff(s: GameState, b: Omit<Buff, 'id'>) {
@@ -271,15 +265,16 @@ function rollLoot(s: GameState, skill: SkillId, rng: Rng): string | undefined {
 }
 
 function giveLoot(s: GameState, id: string, t: number, report: Report) {
+  const def = LOOT_BY_ID[id];
+  // Items you already carry stack; a new kind of item needs a free slot.
+  if (!s.inventory[id] && slotsUsed(s) >= INVENTORY_SLOTS) {
+    log(s, t, `You find ${def.name}, but your inventory is full. You leave it behind.`, 'loot');
+    return;
+  }
   s.inventory[id] = (s.inventory[id] ?? 0) + 1;
   report.loot.push(id);
-  const def = LOOT_BY_ID[id];
-  if (!s.discovered.includes(id)) {
-    s.discovered.push(id);
-    log(s, t, `New collection entry: ${def.name} (${def.rarity})`, 'loot');
-  } else if (def.rarity === 'rare' || def.rarity === 'legendary') {
-    log(s, t, `${def.rarity === 'legendary' ? 'LEGENDARY' : 'Rare'} find: ${def.name}`, 'loot');
-  }
+  const tag = def.rarity === 'legendary' ? 'LEGENDARY: ' : def.rarity === 'rare' ? 'Rare: ' : '';
+  log(s, t, `${tag}You find ${def.name}.`, 'loot');
 }
 
 // ---------------- Resolving one job repetition ----------------
@@ -287,7 +282,7 @@ function giveLoot(s: GameState, id: string, t: number, report: Report) {
 function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report: Report) {
   const job = crew.job!;
   const crime = CRIME_BY_ID[job.crimeId];
-  const st = crimeStats(s, crime, crew, t);
+  const st = crimeStats(s, crime, t);
   const heatNow = heatAt(s, t);
   const who = crew.isPlayer ? 'You' : crew.name;
   const prefix = crew.isPlayer ? '' : `[${crew.name}] `;
@@ -306,14 +301,14 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
       const cls = lo + Math.floor(rng() * (hi - lo + 1));
       const value = Math.round(cash * (1 + (cls - lo) * 0.5));
       const model = pick(rng, CAR_MODELS[cls]);
-      if (s.cars.length < garageCap(s.upgrades.garage ?? 0)) {
+      if (slotsUsed(s) < INVENTORY_SLOTS) {
         s.cars.push({ id: `c${s.nextId++}`, model, cls, value });
-        line += ` — ${CAR_CLASSES[cls]}: ${model} (${fmtMoney(value)}) parked in the garage.`;
+        line += ` — You pocket the keys to a ${CAR_CLASSES[cls]}: ${model}.`;
         cash = 0;
         report.cars++;
       } else {
         cash = value * 0.75;
-        line += ` — Garage full, ${model} chopped for parts.`;
+        line += ` — No room for the keys, so the ${model} gets chopped for parts.`;
       }
     }
     if (cash > 0) earn(s, Math.round(cash), report);
@@ -324,10 +319,7 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
     if (big) {
       report.bigScores++;
       s.stats.bigScores++;
-      progressContracts(s, 'big', crime.skill, 1);
     }
-    progressContracts(s, 'jobs', crime.skill, 1);
-    progressContracts(s, 'cash', crime.skill, Math.round(cash));
     const cashTxt = cash > 0 ? ` +${fmtMoney(cash)}` : '';
     log(s, t, `${prefix}${big ? 'BIG SCORE — ' : ''}${line}${cashTxt} +${xp} XP`, big ? 'big' : 'success');
     if (rng() < lootChance(crime.duration) * (big ? 2 : 1)) {
@@ -348,7 +340,11 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
     } else {
       s.stats.fails++;
       setHeat(s, t, heatNow + st.heat * 1.5);
-      log(s, t, `${prefix}${fill(pick(rng, SKILL_BY_ID[crime.skill].failLines), rng)} +${xp} XP`, 'fail');
+      const dmg = failDamage(crime.level);
+      s.hp = Math.max(0, hpAt(s, t) - dmg);
+      s.hpAt = t;
+      report.damage += dmg;
+      log(s, t, `${prefix}${fill(pick(rng, SKILL_BY_ID[crime.skill].failLines), rng)} -${dmg} HP, +${xp} XP`, 'fail');
     }
   }
   useBuffs(s, crime.skill);
@@ -362,11 +358,16 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
 
   job.repsLeft--;
   job.repsDone++;
-  if (job.repsLeft > 0) {
+  if (s.hp < 1 && s.hpAt === t) {
+    // Out of health (under 1 HP shows as 0): stop here instead of grinding on while hurt.
+    crew.job = null;
+    log(s, t, `You're too hurt to keep going. Rest up: health comes back over time.`, 'bust');
+    report.events.push('Too hurt to keep working');
+  } else if (job.repsLeft > 0) {
     // Jail pauses the queue rather than wiping it — idle players shouldn't lose a whole night to one bust.
     const start = Math.max(t, crew.jailedUntil);
     job.startedAt = start;
-    job.endsAt = start + crimeStats(s, crime, crew, start).duration * 1000;
+    job.endsAt = start + crimeStats(s, crime, start).duration * 1000;
   } else {
     crew.job = null;
   }
@@ -378,10 +379,9 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
  */
 export function catchUp(prev: GameState, now: number, rng: Rng = Math.random): { state: GameState; report: Report } {
   const report = emptyReport();
-  const due = prev.crew.some((c) => c.job && c.job.endsAt <= now) || prev.contracts.day !== Math.floor(now / 86400000);
+  const due = prev.crew.some((c) => c.job && c.job.endsAt <= now);
   if (!due) return { state: prev, report };
   const s = structuredClone(prev);
-  ensureContracts(s, now, unlockedSkills(s), (id) => skillLevel(s, id));
   for (let guard = 0; guard < 50_000; guard++) {
     let next: CrewMember | null = null;
     for (const c of s.crew) if (c.job && c.job.endsAt <= now && (!next || c.job.endsAt < next.job!.endsAt)) next = c;
@@ -394,9 +394,9 @@ export function catchUp(prev: GameState, now: number, rng: Rng = Math.random): {
 
 // ---------------- Player actions (all mutate a draft) ----------------
 
-export function maxReps(s: GameState, crime: CrimeDef, crew: CrewMember, now: number) {
-  const dur = crimeStats(s, crime, crew, now).duration;
-  return Math.max(1, Math.floor((shiftHours(s.upgrades.shift ?? 0) * 3600) / dur));
+export function maxReps(s: GameState, crime: CrimeDef, now: number) {
+  const dur = crimeStats(s, crime, now).duration;
+  return Math.max(1, Math.floor((SHIFT_HOURS * 3600) / dur));
 }
 
 export function canStart(s: GameState, crimeId: string): string | null {
@@ -409,11 +409,11 @@ export function canStart(s: GameState, crimeId: string): string | null {
 
 export function startJob(s: GameState, crewId: string, crimeId: string, reps: number, now: number) {
   const crew = s.crew.find((c) => c.id === crewId);
-  if (!crew || crew.job || canStart(s, crimeId)) return;
+  if (!crew || crew.job || canStart(s, crimeId) || hpAt(s, now) < MIN_HP_TO_WORK) return;
   const crime = CRIME_BY_ID[crimeId];
-  const n = Math.max(1, Math.min(reps, maxReps(s, crime, crew, now)));
+  const n = Math.max(1, Math.min(reps, maxReps(s, crime, now)));
   const start = Math.max(now, crew.jailedUntil);
-  crew.job = { crimeId, startedAt: start, endsAt: start + crimeStats(s, crime, crew, start).duration * 1000, repsLeft: n, repsDone: 0 };
+  crew.job = { crimeId, startedAt: start, endsAt: start + crimeStats(s, crime, start).duration * 1000, repsLeft: n, repsDone: 0 };
 }
 
 export function stopJob(s: GameState, crewId: string) {
@@ -428,110 +428,35 @@ export function choosePerk(s: GameState, index: number, perk: PerkId) {
   s.pendingPerks.splice(index, 1);
 }
 
-export function buyGear(s: GameState, id: string) {
-  const g = GEAR_BY_ID[id];
-  if (!g || s.gear.includes(id) || s.cash < g.price || skillLevel(s, g.skill) < g.level) return;
-  s.cash -= g.price;
-  s.gear.push(id);
-}
+/** What Eddy pays: the item's value. */
+export const lootPrice = (id: string) => LOOT_BY_ID[id].value;
 
-export function upgradeCost(s: GameState, id: string) {
-  const u = UPGRADE_BY_ID[id];
-  const lvl = s.upgrades[id] ?? 0;
-  return lvl >= u.max ? null : u.cost(lvl);
-}
-
-export function buyUpgrade(s: GameState, id: string) {
-  const cost = upgradeCost(s, id);
-  if (cost === null || s.cash < cost) return;
-  s.cash -= cost;
-  s.upgrades[id] = (s.upgrades[id] ?? 0) + 1;
-}
-
-export function frontIncome(s: GameState, id: string) {
-  return (s.fronts[id]?.level ?? 0) * FRONT_BY_ID[id].incomePerLevel;
-}
-export function frontPending(s: GameState, id: string, now: number) {
-  const f = s.fronts[id];
-  if (!f) return 0;
-  const hours = Math.min(FRONT_CAP_HOURS, (now - f.collectedAt) / 3600000);
-  return Math.floor(frontIncome(s, id) * hours);
-}
-export function totalFrontPending(s: GameState, now: number) {
-  return FRONTS.reduce((sum, f) => sum + frontPending(s, f.id, now), 0);
-}
-
-export function collectFronts(s: GameState, now: number) {
-  let total = 0;
-  for (const f of FRONTS) {
-    if (!s.fronts[f.id]) continue;
-    total += frontPending(s, f.id, now);
-    s.fronts[f.id].collectedAt = now;
-  }
-  if (total > 0) {
-    s.cash += total;
-    s.stats.earned += total;
-    log(s, now, `Collected ${fmtMoney(total)} from your fronts.`, 'info');
-  }
-}
-
-export function buyFront(s: GameState, id: string, now: number) {
-  const def = FRONT_BY_ID[id];
-  const lvl = s.fronts[id]?.level ?? 0;
-  if (lvl >= FRONT_MAX_LEVEL || totalLevel(s) < def.totalLevel) return;
-  const cost = frontCost(def, lvl);
-  if (s.cash < cost) return;
-  collectFronts(s, now); // bank what's pending first so the new level doesn't apply retroactively
-  s.cash -= cost;
-  s.fronts[id] = { level: lvl + 1, collectedAt: s.fronts[id]?.collectedAt ?? now };
-}
-
-const fenceMult = (s: GameState) => 1 + 0.1 * (s.upgrades.fence ?? 0);
-
-export function lootSellValue(s: GameState, id: string) {
-  return Math.round(LOOT_BY_ID[id].value * fenceMult(s));
-}
-export function carSellValue(s: GameState, value: number) {
-  return Math.round(value * fenceMult(s));
-}
-
-export function sellLoot(s: GameState, id: string, count: number) {
+/** Sell one of an item to the store. */
+export function sellLoot(s: GameState, id: string) {
   const have = s.inventory[id] ?? 0;
-  const n = Math.min(have, count);
-  if (n <= 0) return;
-  s.inventory[id] = have - n;
-  if (s.inventory[id] === 0) delete s.inventory[id];
-  s.cash += lootSellValue(s, id) * n;
-  s.stats.earned += lootSellValue(s, id) * n;
-}
-
-export function sellAllLoot(s: GameState) {
-  for (const id of Object.keys(s.inventory)) sellLoot(s, id, s.inventory[id]);
+  if (have <= 0) return;
+  if (have === 1) delete s.inventory[id];
+  else s.inventory[id] = have - 1;
+  s.cash += lootPrice(id);
+  s.stats.earned += lootPrice(id);
 }
 
 export function sellCar(s: GameState, carId: string) {
-  const i = s.cars.findIndex((c) => c.id === carId);
-  if (i < 0) return;
-  const v = carSellValue(s, s.cars[i].value);
-  s.cash += v;
-  s.stats.earned += v;
-  s.cars.splice(i, 1);
+  const car = s.cars.find((c) => c.id === carId);
+  if (!car) return;
+  s.cars = s.cars.filter((c) => c.id !== carId);
+  s.cash += car.value;
+  s.stats.earned += car.value;
 }
 
-export function crewSlotInfo(s: GameState) {
-  const idx = s.crew.length;
-  if (idx >= CREW_SLOT_COST.length) return null;
-  return { cost: CREW_SLOT_COST[idx], totalLevel: CREW_SLOT_TOTAL_LEVEL[idx] };
+/** Throw away a stack of loot. */
+export function dropLoot(s: GameState, id: string) {
+  if (!s.inventory[id]) return;
+  delete s.inventory[id];
 }
 
-export function hireCrew(s: GameState, rng: Rng = Math.random) {
-  const info = crewSlotInfo(s);
-  if (!info || s.cash < info.cost || totalLevel(s) < info.totalLevel) return;
-  s.cash -= info.cost;
-  const traits: TraitId[] = ['quick', 'lucky', 'careful', 'greedy', 'bright'];
-  const name = `${pick(rng, CREW_FIRST)} ${pick(rng, CREW_NICK)}`;
-  s.crew.push({ id: `crew${s.nextId++}`, name, trait: pick(rng, traits), isPlayer: false, job: null, jailedUntil: 0 });
-  log(s, Date.now(), `${name} joined your crew.`, 'info');
+export function dropCar(s: GameState, carId: string) {
+  s.cars = s.cars.filter((c) => c.id !== carId);
 }
 
 export function bailCost(s: GameState, crew: CrewMember, now: number) {
@@ -552,38 +477,6 @@ export function bail(s: GameState, crewId: string, now: number) {
     crew.job.endsAt = now + dur;
   }
   log(s, now, `Posted bail for ${crew.isPlayer ? 'yourself' : crew.name} (${fmtMoney(cost)}).`, 'info');
-}
-
-export function bribeCost(s: GameState) {
-  return Math.max(50, Math.round(cashPerHour(avgLevel(s)) * 0.4));
-}
-
-export function bribeCops(s: GameState, now: number) {
-  const cost = bribeCost(s);
-  if (s.cash < cost || heatAt(s, now) <= 0) return;
-  s.cash -= cost;
-  setHeat(s, now, heatAt(s, now) - 40);
-  log(s, now, `Paid off a detective. Heat cools down.`, 'info');
-}
-
-export function contractRewards(s: GameState, c: Contract) {
-  const top = Math.max(...unlockedSkills(s).map((id) => skillLevel(s, id)));
-  return {
-    cash: Math.round(cashPerHour(top) * c.cashHours),
-    xp: Math.round(xpToNext(skillLevel(s, c.rewardSkill)) * c.xpFrac),
-  };
-}
-
-export function claimContract(s: GameState, id: string, now: number) {
-  const c = s.contracts.list.find((x) => x.id === id);
-  if (!c || c.claimed || c.progress < c.target) return;
-  const r = contractRewards(s, c);
-  c.claimed = true;
-  s.stats.contracts = (s.stats.contracts ?? 0) + 1;
-  s.cash += r.cash;
-  s.stats.earned += r.cash;
-  addXp(s, c.rewardSkill, r.xp, now, emptyReport());
-  log(s, now, `Contract complete: ${c.label}. +${fmtMoney(r.cash)}, +${r.xp.toLocaleString('en-US')} ${SKILL_BY_ID[c.rewardSkill].short} XP`, 'level');
 }
 
 export function fmtDuration(sec: number) {

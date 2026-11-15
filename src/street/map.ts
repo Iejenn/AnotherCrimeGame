@@ -24,7 +24,7 @@ export interface StreetNode {
   wanders?: boolean;
 }
 
-export type BlockKind = { type: 'skill'; skill: SkillId } | { type: 'park' } | { type: 'building' };
+export type BlockKind = { type: 'skill'; skill: SkillId } | { type: 'park' } | { type: 'building' } | { type: 'store' };
 
 // Which block belongs to which crime family. Petty Theft is in the middle, where you spawn.
 const SKILL_BLOCKS: Record<SkillId, [number, number]> = {
@@ -37,7 +37,9 @@ const SKILL_BLOCKS: Record<SkillId, [number, number]> = {
   robbery: [3, 1],
   heist: [4, 1],
 };
-const PARKS: [number, number][] = [[2, 1], [3, 3], [0, 4], [5, 0]];
+const PARKS: [number, number][] = [[3, 3], [0, 4], [5, 0]];
+// Eddy's General Store: the block just north of where you start.
+export const STORE_BLOCK: [number, number] = [2, 1];
 
 // What each crime looks like in the street and what its spot is called.
 const LOOK: Record<string, [NodeKind, string]> = {
@@ -74,6 +76,7 @@ export const BLOCKS: Map<string, BlockKind> = (() => {
   for (let bx = 0; bx < COLS; bx++) for (let by = 0; by < ROWS; by++) m.set(`${bx},${by}`, { type: 'building' });
   for (const [skill, [bx, by]] of Object.entries(SKILL_BLOCKS)) m.set(`${bx},${by}`, { type: 'skill', skill: skill as SkillId });
   for (const [bx, by] of PARKS) m.set(`${bx},${by}`, { type: 'park' });
+  m.set(STORE_BLOCK.join(','), { type: 'store' });
   return m;
 })();
 
@@ -109,6 +112,19 @@ export const NODES: StreetNode[] = (() => {
   }
   return out;
 })();
+
+// ---------- NPCs ----------
+export interface Npc {
+  id: string;
+  name: string;
+  role: string;
+  /** The tile they stand on (you talk to them from a tile next to it). */
+  x: number;
+  y: number;
+}
+
+/** Eddy stands on the pavement in front of his store's door (south face of the store block). */
+export const NPCS: Npc[] = [{ id: 'eddy', name: 'Eddy', role: 'General store', x: STORE_BLOCK[0] * BLOCK + 4, y: STORE_BLOCK[1] * BLOCK + 7 }];
 
 /** Tiles you can't walk through: everything that isn't road or park, plus fixed spots. */
 export function buildBlocked(): Uint8Array {

@@ -70,25 +70,14 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
         </section>
 
         <section>
-          <h3 className="rule-head">Crew</h3>
-          <ul className="plain">
-            {s.crew.map((c) => {
-              const jailed = c.jailedUntil > now;
-              const crime = c.job ? CRIME_BY_ID[c.job.crimeId] : null;
-              return (
-                <li key={c.id}>
-                  <strong>{c.isPlayer ? 'You' : c.name}</strong> —{' '}
-                  {jailed ? (
-                    <span className="alert">in jail, {fmtDuration((c.jailedUntil - now) / 1000)} left</span>
-                  ) : crime && c.job ? (
-                    <span>{crime.name}, {c.job.repsLeft} to go</span>
-                  ) : (
-                    <span className="warn">idle</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <h3 className="rule-head">Right now</h3>
+          {(() => {
+            const me = s.crew[0];
+            const crime = me.job ? CRIME_BY_ID[me.job.crimeId] : null;
+            if (me.jailedUntil > now) return <p className="alert">In jail, {fmtDuration((me.jailedUntil - now) / 1000)} left.</p>;
+            if (crime) return <p>Working: {crime.name}.</p>;
+            return <p className="warn">Idle. Head out to the Street.</p>;
+          })()}
         </section>
 
         <section>

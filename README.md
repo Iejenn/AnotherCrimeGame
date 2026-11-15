@@ -3,7 +3,11 @@
 A text-based **idle crime RPG** for people who are busy. Every crime family is its own skill to level up.
 Plan a shift, close the tab, come back to a "While you were away" report.
 
-## Core loop
+## Core loop (v0.5)
+Tabs: **Street** (walk the city, tap spots to work them), **Inventory** (28 slots: cash, loot, car keys),
+**Quests** (coming soon) and **Skills** (levels, perks and a per-skill guide). Sections below about crew, shop,
+Intel, contracts and the collection describe v0.4 and were removed in v0.5.
+
 - **The Street** (default tab): a low-poly 3D city. Tap to walk, tap a person/car/door to work that crime.
   It starts the same job queue as the Jobs tab, so it keeps going offline; walking away stops it.
 - **8 crime skills**, each leveled 1–99 with its own XP: Petty Theft → Car Theft / Enforcement / Burglary →
