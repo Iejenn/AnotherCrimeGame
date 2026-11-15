@@ -1,25 +1,31 @@
-export type SkillId = 'petty' | 'auto' | 'burglary' | 'muscle' | 'fraud' | 'smuggling' | 'robbery' | 'heist';
+export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street';
 
-export type PerkId = 'speed' | 'greed' | 'scholar' | 'ghost' | 'lucky';
-export type OriginId = 'streetkid' | 'greasemonkey' | 'excon' | 'hacker' | 'dockworker';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
 export interface SkillState {
   xp: number;
-  perks: PerkId[];
+}
+
+/** What your character looks like. Each value is an index into the option lists in street/character.ts. */
+export interface Look {
+  skin: number;
+  hair: number;
+  hairColor: number;
+  top: number;
+  bottom: number;
 }
 
 export interface Job {
   crimeId: string;
-  /** When the current repetition started (for progress bars). */
+  /** When the current attempt started (for progress bars). */
   startedAt: number;
-  /** When the current repetition finishes. Locked in at rep start. */
+  /** When the current attempt finishes. Locked in at the start of the attempt. */
   endsAt: number;
   repsLeft: number;
   repsDone: number;
 }
 
-/** The player. Kept as a list (with one entry) so older saves and the job timer code stay simple. */
+/** The player. Kept as a list (with one entry) so the job timer code stays simple. */
 export interface CrewMember {
   id: string;
   name: string;
@@ -33,17 +39,9 @@ export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
 export interface Buff {
   id: string;
   label: string;
-  skill?: SkillId;
   kind: BuffKind;
   value: number;
   uses: number;
-}
-
-export interface Car {
-  id: string;
-  model: string;
-  cls: number; // 0..4
-  value: number;
 }
 
 export type LogKind = 'success' | 'big' | 'fail' | 'bust' | 'level' | 'event' | 'info' | 'loot';
@@ -54,16 +52,11 @@ export interface LogEntry {
   kind: LogKind;
 }
 
-export interface PendingPerk {
-  skill: SkillId;
-  milestone: number;
-  options: PerkId[];
-}
-
 export interface GameState {
-  version: 1;
+  /** 2 = the 5-skill RPG (v0.7). Saves from version 1 can't be converted and start over. */
+  version: 2;
   name: string;
-  origin: OriginId;
+  look: Look;
   createdAt: number;
   cash: number;
   heat: number;
@@ -72,21 +65,19 @@ export interface GameState {
   hp: number;
   hpAt: number;
   skills: Record<SkillId, SkillState>;
+  /** Crime id → successful attempts (for mastery stars). */
   mastery: Record<string, number>;
   crew: CrewMember[];
   /** Loot item id → how many. Each different item takes one inventory slot. */
   inventory: Record<string, number>;
-  /** Stolen cars: one inventory slot each. */
-  cars: Car[];
   buffs: Buff[];
-  pendingPerks: PendingPerk[];
   stats: { jobs: number; busts: number; bigScores: number; earned: number; fails: number };
   log: LogEntry[];
   lastSeen: number;
   nextId: number;
 }
 
-/** Things that happened during a tick — used for toasts and the "while you were away" report. */
+/** Things that happened during a tick — used for floating text and the "since you left" report. */
 export interface Report {
   jobs: number;
   cash: number;
@@ -95,12 +86,11 @@ export interface Report {
   busts: number;
   bigScores: number;
   loot: string[];
-  cars: number;
   events: string[];
   /** Health lost to failed jobs. */
   damage: number;
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], cars: 0, events: [], damage: 0 };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], events: [], damage: 0 };
 }

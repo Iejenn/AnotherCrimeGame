@@ -6,7 +6,7 @@ import type { GameState, Report } from './game/types';
 import { catchUp, newGame } from './game/engine';
 import { SKILL_BY_ID } from './game/data/skills';
 import { loadGame, saveGame } from './game/save';
-import type { OriginId } from './game/types';
+import type { Look } from './game/types';
 
 export interface Toast {
   id: number;
@@ -101,7 +101,7 @@ export function useGame() {
     [commit, pushToasts],
   );
 
-  const create = useCallback((name: string, origin: OriginId) => commit(newGame(name, origin, Date.now()), true), [commit]);
+  const create = useCallback((name: string, look: Look) => commit(newGame(name, look, Date.now()), true), [commit]);
   const replace = useCallback((s: GameState | null) => {
     ref.current = s;
     if (s) saveGame(s);

@@ -1,33 +1,20 @@
 import type { GameState } from './types';
 
 const KEY = 'underworld-idle-save-v1';
-/** Prefix for compressed save codes, so old (uncompressed) codes still import. */
-const CODE_PREFIX = 'UI1.';
+/** Prefix for compressed save codes. v0.7+ codes start with UI2; older codes are refused. */
+const CODE_PREFIX = 'UI2.';
 
 /**
- * Bring any older save up to the current shape. v0.5 removed hired crew, gear, upgrades,
- * fronts, contracts and the collection: those fields are dropped, everything else is kept.
+ * Accept only saves of the current version. v0.7 replaced all skills (5 new skills, levels 1–10),
+ * so older saves can't be converted: those players make a new character.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function migrate(raw: any): GameState | null {
-  if (raw?.version !== 1 || !raw.skills || !Array.isArray(raw.crew)) return null;
-  const me = raw.crew.find((c: { isPlayer?: boolean }) => c.isPlayer) ?? raw.crew[0];
-  raw.crew = [{ id: 'you', name: me?.name ?? raw.name, isPlayer: true, job: me?.job ?? null, jailedUntil: me?.jailedUntil ?? 0 }];
-  for (const k of ['gear', 'upgrades', 'fronts', 'contracts', 'discovered']) delete raw[k];
-  if (raw.stats) delete raw.stats.contracts;
+  if (raw?.version !== 2 || !raw.skills || !Array.isArray(raw.crew) || !raw.look) return null;
   raw.inventory ??= {};
-  raw.cars ??= [];
   raw.buffs ??= [];
-  raw.pendingPerks ??= [];
+  raw.mastery ??= {};
   raw.log = Array.isArray(raw.log) ? raw.log : [];
-  if (typeof raw.hp !== 'number') {
-    // Pre-0.6 save: health didn't exist, and the economy was ~3× richer. Scale gold down to match.
-    raw.hp = 10;
-    raw.hpAt = Date.now();
-    raw.cash = Math.round((raw.cash ?? 0) / 3);
-    for (const c of raw.cars) c.value = Math.max(1, Math.round(c.value / 3));
-    if (raw.stats) raw.stats.earned = Math.round((raw.stats.earned ?? 0) / 3);
-  }
   return raw as GameState;
 }
 
@@ -37,6 +24,16 @@ export function loadGame(): GameState | null {
     return raw ? migrate(JSON.parse(raw)) : null;
   } catch {
     return null;
+  }
+}
+
+/** True when this browser holds a save from before v0.7 (shown as a note on the character creator). */
+export function hasOldSave(): boolean {
+  try {
+    const raw = localStorage.getItem(KEY);
+    return !!raw && JSON.parse(raw)?.version !== 2;
+  } catch {
+    return false;
   }
 }
 

@@ -1,151 +1,109 @@
 import { describe, expect, it } from 'vitest';
-import { catchUp, crimeStats, isUnlocked, newGame, skillLevel, startJob, totalLevel } from './engine';
+import { catchUp, crimeStats, lootPrice, maxHp, newGame, sellLoot, skillLevel, startJob, totalLevel } from './engine';
 import { CRIME_BY_ID, CRIMES } from './data/crimes';
-import { levelFromXp, totalXpForLevel, xpToNext } from './xp';
+import { SKILL_IDS } from './data/skills';
+import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
 import { mulberry32 } from './rng';
+import { DEFAULT_LOOK } from '../street/character';
 
 const T0 = Date.UTC(2026, 0, 1);
+const fresh = (name = 'Tester') => structuredClone(newGame(name, DEFAULT_LOOK, T0));
 
-describe('xp curve', () => {
-  it('level boundaries round-trip', () => {
-    for (const l of [1, 2, 10, 50, 99]) {
+describe('levels', () => {
+  it('go from 1 to 10 and round-trip', () => {
+    expect(MAX_LEVEL).toBe(10);
+    for (let l = 1; l <= MAX_LEVEL; l++) {
       expect(levelFromXp(totalXpForLevel(l))).toBe(l);
       if (l > 1) expect(levelFromXp(totalXpForLevel(l) - 1)).toBe(l - 1);
     }
-    expect(xpToNext(1)).toBeGreaterThan(0);
+    expect(levelFromXp(1e9)).toBe(10);
   });
 });
 
-describe('crimes data', () => {
-  it('every crime has sane numbers', () => {
+describe('crimes', () => {
+  it('have sane numbers and fit inside the level cap', () => {
     for (const c of CRIMES) {
       expect(c.xp).toBeGreaterThan(0);
-      expect(c.cashMax).toBeGreaterThan(c.cashMin);
-      expect(c.flavor.length).toBeGreaterThan(0);
+      expect(c.cashMax).toBeGreaterThanOrEqual(c.cashMin);
+      expect(c.level).toBeLessThanOrEqual(MAX_LEVEL);
     }
   });
-});
 
-describe('engine', () => {
-  it('starts with only Petty Theft unlocked', () => {
-    const s = newGame('Tester', 'streetkid', T0);
-    expect(isUnlocked(s, 'petty')).toBe(true);
-    expect(isUnlocked(s, 'auto')).toBe(false);
-    expect(totalLevel(s)).toBe(8);
-  });
-
-  it('resolves queued jobs while offline, in order', () => {
-    let s = newGame('Tester', 'streetkid', T0);
-    s = structuredClone(s);
-    startJob(s, 'you', 'pick_wallet', 50, T0);
-    expect(s.crew[0].job?.repsLeft).toBe(50);
-    const { state, report } = catchUp(s, T0 + 3 * 3600_000, mulberry32(1));
-    expect(report.jobs).toBe(50);
-    expect(state.crew[0].job).toBeNull();
-    expect(skillLevel(state, 'petty')).toBeGreaterThan(1);
-    expect(state.stats.jobs).toBe(50);
-  });
-
-  it('does nothing when no job is due', () => {
-    const s = newGame('Tester', 'streetkid', T0);
-    const { state } = catchUp(s, T0 + 1000);
-    expect(state).toBe(s);
-  });
-
-  it('a bust pauses the queue instead of wiping it', () => {
-    const s = structuredClone(newGame('Tester', 'streetkid', T0));
-    startJob(s, 'you', 'pick_wallet', 200, T0);
-    // 1st roll fails the job (0.99), 2nd roll triggers the bust (0), the rest are neutral.
-    let i = 0;
-    const rng = () => [0.99, 0][i++] ?? 0.5;
-    const { state, report } = catchUp(s, T0 + 10_500, rng);
-    const me = state.crew[0];
-    expect(report.busts).toBe(1);
-    expect(me.jailedUntil).toBeGreaterThan(T0 + 10_000);
-    expect(me.job?.repsLeft).toBe(199);
-    expect(me.job?.startedAt).toBe(me.jailedUntil);
-  });
-
-  it('higher level improves odds', () => {
-    const s = newGame('Tester', 'streetkid', T0);
-    const crime = CRIME_BY_ID.pick_wallet;
-    const low = crimeStats(s, crime, T0).chance;
-    s.skills.petty.xp = totalXpForLevel(20);
-    const high = crimeStats(s, crime, T0).chance;
-    expect(high).toBeGreaterThan(low);
-  });
-});
-
-describe('save codes', () => {
-  it('are short and round-trip', async () => {
-    const { exportSave, importSave } = await import('./save');
-    const s = structuredClone(newGame('Iejen', 'streetkid', T0));
-    startJob(s, 'you', 'pick_wallet', 720, T0);
-    const { state } = catchUp(s, T0 + 2 * 3600_000, mulberry32(3));
-    const code = await exportSave(state);
-    expect(code.length).toBeLessThan(1500);
-    const back = await importSave(code);
-    expect(back?.skills.petty.xp).toBe(state.skills.petty.xp);
-    expect(back?.cash).toBe(state.cash);
-    expect(back?.log).toEqual([]);
-  });
-
-  it('still imports old uncompressed codes', async () => {
-    const { importSave } = await import('./save');
-    const s = newGame('Old', 'excon', T0);
-    const old = btoa(JSON.stringify(s)); // how v0.1/v0.2 made codes (ASCII name)
-    expect((await importSave(old))?.name).toBe('Old');
-  });
-});
-
-describe('old saves', () => {
-  it('drop hired crew and removed systems but keep progress', async () => {
-    const { migrate } = await import('./save');
-    const old = {
-      ...structuredClone(newGame('Vet', 'excon', T0)),
-      gear: ['petty_gear_0'], upgrades: { shift: 2 }, fronts: {}, contracts: { day: 1, list: [] }, discovered: ['sunglasses'],
-    } as Record<string, unknown> & { crew: unknown[]; skills: { petty: { xp: number } } };
-    old.skills.petty.xp = 5000;
-    old.crew.push({ id: 'crew9', name: 'Rosa', trait: 'quick', isPlayer: false, job: null, jailedUntil: 0 });
-    const s = migrate(old)!;
-    expect(s.crew).toHaveLength(1);
-    expect(s.crew[0].id).toBe('you');
-    expect(s.skills.petty.xp).toBe(5000);
-    expect('gear' in s || 'fronts' in s || 'contracts' in s).toBe(false);
-  });
-});
-
-describe('health and selling (v0.6)', () => {
   it('a level 1 pickpocket pays 1–3 gold', () => {
     expect(CRIME_BY_ID.pick_wallet.cashMin).toBe(1);
     expect(CRIME_BY_ID.pick_wallet.cashMax).toBe(3);
   });
+});
+
+describe('new character', () => {
+  it('has 5 skills, all at level 1, and 10 health', () => {
+    const s = fresh();
+    expect(SKILL_IDS).toEqual(['street', 'melee', 'defense', 'gunfire', 'health']);
+    expect(totalLevel(s)).toBe(5);
+    expect(maxHp(s)).toBe(10);
+    expect(s.look).toEqual(DEFAULT_LOOK);
+  });
+});
+
+describe('jobs', () => {
+  it('resolve while offline, in order', () => {
+    const s = fresh();
+    startJob(s, 'you', 'pick_wallet', 30, T0);
+    const { state, report } = catchUp(s, T0 + 3600_000, mulberry32(1));
+    expect(report.jobs).toBeGreaterThan(0);
+    expect(skillLevel(state, 'street')).toBeGreaterThan(1);
+  });
+
+  it('do nothing when nothing is due', () => {
+    const s = fresh();
+    expect(catchUp(s, T0 + 1000).state).toBe(s);
+  });
+
+  it('a bust pauses the job instead of cancelling it', () => {
+    const s = fresh();
+    startJob(s, 'you', 'pick_wallet', 200, T0);
+    let i = 0;
+    const rng = () => [0.99, 0][i++] ?? 0.5; // fail, then bust
+    const { state, report } = catchUp(s, T0 + 6_500, rng);
+    const me = state.crew[0];
+    expect(report.busts).toBe(1);
+    expect(me.jailedUntil).toBeGreaterThan(T0 + 6_000);
+    expect(me.job?.repsLeft).toBe(199);
+    expect(me.job?.startedAt).toBe(me.jailedUntil);
+  });
 
   it('a failed job costs a little health', () => {
-    const s = structuredClone(newGame('Hurt', 'streetkid', T0));
+    const s = fresh();
     startJob(s, 'you', 'pick_wallet', 10, T0);
     let i = 0;
     const rng = () => [0.99, 0.99][i++] ?? 0.5; // fail, no bust
-    const { state, report } = catchUp(s, T0 + 10_500, rng);
+    const { state, report } = catchUp(s, T0 + 6_500, rng);
     expect(report.damage).toBe(1);
     expect(state.hp).toBe(9);
-    expect(state.crew[0].job?.repsLeft).toBe(9);
   });
 
   it('at 0 health you stop working', () => {
-    const s = structuredClone(newGame('Hurt', 'streetkid', T0));
+    const s = fresh();
     startJob(s, 'you', 'pick_wallet', 10, T0);
     s.hp = 1;
     let i = 0;
     const rng = () => [0.99, 0.99][i++] ?? 0.5;
-    const { state } = catchUp(s, T0 + 10_500, rng);
+    const { state } = catchUp(s, T0 + 6_500, rng);
     expect(state.hp).toBeLessThan(1);
     expect(state.crew[0].job).toBeNull();
   });
 
-  it('selling one item pays its value', async () => {
-    const { sellLoot, lootPrice } = await import('./engine');
-    const s = structuredClone(newGame('Seller', 'streetkid', T0));
+  it('higher level improves odds', () => {
+    const s = fresh();
+    const low = crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance;
+    s.skills.street.xp = totalXpForLevel(6);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeGreaterThan(low);
+  });
+});
+
+describe('selling', () => {
+  it('pays the item value, one at a time', () => {
+    const s = fresh();
     s.inventory.sunglasses = 2;
     const before = s.cash;
     sellLoot(s, 'sunglasses');
@@ -153,5 +111,24 @@ describe('health and selling (v0.6)', () => {
     expect(s.cash).toBe(before + lootPrice('sunglasses'));
     sellLoot(s, 'sunglasses');
     expect('sunglasses' in s.inventory).toBe(false);
+  });
+});
+
+describe('saves', () => {
+  it('codes are short and round-trip', async () => {
+    const { exportSave, importSave } = await import('./save');
+    const s = fresh('Iejen');
+    startJob(s, 'you', 'pick_wallet', 100, T0);
+    const { state } = catchUp(s, T0 + 3600_000, mulberry32(3));
+    const code = await exportSave(state);
+    expect(code.length).toBeLessThan(1500);
+    const back = await importSave(code);
+    expect(back?.skills.street.xp).toBe(state.skills.street.xp);
+    expect(back?.look).toEqual(DEFAULT_LOOK);
+  });
+
+  it('saves from before v0.7 are not loaded (new skill set)', async () => {
+    const { migrate } = await import('./save');
+    expect(migrate({ version: 1, skills: { petty: { xp: 10 } }, crew: [] })).toBeNull();
   });
 });

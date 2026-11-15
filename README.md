@@ -3,35 +3,20 @@
 A text-based **idle crime RPG** for people who are busy. Every crime family is its own skill to level up.
 Plan a shift, close the tab, come back to a "While you were away" report.
 
-## Core loop (v0.5)
-Tabs: **Street** (walk the city, tap spots to work them), **Inventory** (28 slots: cash, loot, car keys),
-**Quests** (coming soon) and **Skills** (levels, perks and a per-skill guide). Sections below about crew, shop,
-Intel, contracts and the collection describe v0.4 and were removed in v0.5.
+## The game (v0.7)
+A point-and-click crime RPG. Make a character (name + look), then walk an island city by tapping.
 
-- **The Street** (default tab): a low-poly 3D city. Tap to walk, tap a person/car/door to work that crime.
-  It starts the same job queue as the Jobs tab, so it keeps going offline; walking away stops it.
-- **8 crime skills**, each leveled 1–99 with its own XP: Petty Theft → Car Theft / Enforcement / Burglary →
-  Fraud & Cyber / Smuggling → Armed Robbery → Heists. Heavier families unlock as you level the lighter ones.
-- **7 crimes per skill** (56 in total), with timers from 10 seconds to 8 hours. Higher tiers pay more cash and XP.
-- **Shifts**: queue up to 2h (upgradeable to 24h) of repeat jobs per crew member. Progress is calculated from
-  timestamps, so everything finished while you were offline is resolved when you come back.
-- **Crew**: hire up to 4 extra crew, each with a random trait, to run jobs in parallel.
+- **Skills** (levels 1–10 for now): Street Crimes, Melee, Defense, Gunfire, Health.
+  Only Street Crimes can be trained so far: 9 crimes (levels 1–9) around the starting point.
+  Health adds 2 max HP per level.
+- **Street**: tap to walk, tap a person/car/door to work that crime. It repeats until you walk away
+  and keeps going while the app is closed. Drag to rotate, pinch to zoom.
+- **Health**: failed crimes cost HP; it comes back at 1 per minute. **Heat** raises bust risk; busts mean jail.
+- **Eddy's General Store** (yellow name = NPC): sell loot one item at a time. His shop is empty for now.
+- **Inventory**: 28 slots (gold + loot). **Quests**: coming soon.
 
-## RPG layers (numbers go up)
-- **Perks**: at levels 10/25/40/60/80 of each skill, pick 1 of 2 perks (speed, cash, XP, bust-proof, crits).
-- **Mastery**: every crime has 8 mastery stars from repeat completions (faster, safer, luckier).
-- **Gear**: 3 tiers per skill. **Upgrades**: shift length, lawyer, safehouse, garage, fence.
-- **Fronts**: passive-income businesses (store up to 12h of income).
-- **Ranks** by total level: Nobody → Corner Boy → … → Godfather → Legend.
-
-## Variety (something different on every visit)
-- Every result line is built from templates + random marks/places, so the log reads differently each time.
-- **Big Scores** (×3 cash, ×2 XP), clean escapes, busts with jail time, loot drops in 4 rarities + a collection log.
-- **Random encounters** grant temporary boosts, cash, loot or heat.
-- **Street Intel** rotates every 3 hours (conventions, crackdowns, blackouts…) and buffs or nerfs certain skills.
-- **Daily contracts** with rewards that scale with your level.
-- **Heat** builds up as you work and raises bust risk. Let it cool, buy a safehouse, or pay off the cops.
-- Car Theft fills a **garage**. Your best car boosts Smuggling payouts.
+Tuning lives in `src/game/data/crimes.ts` (one row per crime), `src/game/xp.ts` (XP table)
+and `src/game/data/world.ts` (loot, ranks).
 
 ## Dev
 ```bash
@@ -54,7 +39,7 @@ The site will be at `https://iejenn.github.io/AnotherCrimeGame/`.
   Balancing lives in `xp.ts` and `data/*.ts`.
 - `src/useGame.ts` — state, 1-second tick, offline catch-up, autosave.
 - `src/components/` — UI.
-- `src/street/` — the 3D Street view (three.js): city map, pathfinding, and the scene.
+- `src/street/` — the 3D Street view (three.js): city map, pathfinding, the scene, NPC dialog and the character model.
 
 ### Saves & cheating
 v0.1 is **single-player and client-side**: saves go to `localStorage` (export/import from Profile).

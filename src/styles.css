@@ -348,3 +348,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .topbar-hp::before { content: '♥ '; color: var(--red-ink); }
   .bag.compact { grid-template-columns: repeat(5, 1fr); }
 }
+
+/* ---------- character creator ---------- */
+.creator { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: start; }
+.char-preview { height: 260px; background: radial-gradient(circle at 50% 70%, #24211d, var(--ink) 70%); border: 1px solid var(--rule); }
+.char-preview canvas { display: block; width: 100%; height: 100%; }
+.look-options { display: flex; flex-direction: column; gap: 10px; }
+.look-options > .btn { align-self: flex-start; }
+.look-row { display: flex; flex-direction: column; gap: 5px; }
+.swatches, .hair-styles { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--rule-strong); cursor: pointer; padding: 0; }
+.swatch.selected { border-color: var(--paper); box-shadow: 0 0 0 2px var(--red); }
+.notice-old { border-left: 3px solid var(--amber); padding: 6px 10px; color: var(--amber); font-size: 0.9rem; margin-top: 14px; }
+@media (max-width: 520px) {
+  .creator { grid-template-columns: 1fr; }
+  .char-preview { height: 220px; }
+}

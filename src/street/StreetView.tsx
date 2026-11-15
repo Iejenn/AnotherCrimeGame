@@ -4,11 +4,12 @@
 // Walking away stops the job. Drag to rotate the camera, pinch (or mouse wheel) to zoom.
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import type { GameState, Report, SkillId } from '../game/types';
+import type { GameState, Report } from '../game/types';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { MIN_HP_TO_WORK, bail, bailCost, canStart, fmtDuration, fmtMoney, hpAt, isUnlocked, skillLevel, startJob, stopJob } from '../game/engine';
-import { BLOCK, BLOCKS, COLS, H, NODES, NPCS, ROWS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
+import { MIN_HP_TO_WORK, bail, bailCost, canStart, fmtDuration, fmtMoney, hpAt, skillLevel, startJob, stopJob } from '../game/engine';
+import { BLOCK, BLOCKS, COLS, H, NODES, NPCS, RIVER, ROWS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
+import { buildCharacter } from './character';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
 import { mulberry32 } from '../game/rng';
@@ -44,20 +45,12 @@ function signTexture(text: string) {
   return tex;
 }
 const MAX_LABELS = 6;
-const SKILL_COLORS: Record<SkillId, number> = {
-  petty: 0x8a6f4d, auto: 0x4f5d6b, burglary: 0x5c4b5e, muscle: 0x6b3f36,
-  fraud: 0x3f5b57, smuggling: 0x5e5a3c, robbery: 0x6e2f28, heist: 0x7a6332,
-};
+/** Wall colours for the three blocks with crime spots (levels 1–3, 4–6, 7–9). */
+const CRIME_BLOCK_COLORS = [0x8a6f4d, 0x5c4b5e, 0x4f5d6b];
 
 function lockMessage(s: GameState, crimeId: string) {
   const crime = CRIME_BY_ID[crimeId];
   const skill = SKILL_BY_ID[crime.skill];
-  if (!isUnlocked(s, crime.skill)) {
-    const u = skill.unlock;
-    const parts = Object.entries(u.skill ?? {}).map(([k, v]) => `${SKILL_BY_ID[k as SkillId].name} ${v}`);
-    if (u.total) parts.push(`total level ${u.total}`);
-    return `You don't know the first thing about ${skill.name} yet. (Needs ${parts.join(' and ')}.)`;
-  }
   return `You need ${skill.name} level ${crime.level} to do that. You're level ${skillLevel(s, crime.skill)}.`;
 }
 
@@ -128,16 +121,42 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       return g;
     };
 
-    // Water around the city, then the road surface.
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(W + 80, H + 80), mat(0x1a2730));
+    // The city is an island: far bank (grass), then the river, then a stone quay wall, then the streets.
+    const farBank = new THREE.Mesh(new THREE.PlaneGeometry(W + 120, H + 120), mat(0x2f4527));
+    farBank.rotation.x = -Math.PI / 2;
+    farBank.position.set(W / 2, -0.35, H / 2);
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(W + RIVER * 2, H + RIVER * 2), mat(0x2e6584));
     water.rotation.x = -Math.PI / 2;
-    water.position.set(W / 2, -0.05, H / 2);
-    scene.add(water);
+    water.position.set(W / 2, -0.3, H / 2);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat(0x2d2a26));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(W / 2, 0, H / 2);
-    scene.add(ground);
-    geoms.push(water.geometry, ground.geometry);
+    scene.add(farBank, water, ground);
+    geoms.push(farBank.geometry, water.geometry, ground.geometry);
+    // Quay wall + railing along all four sides.
+    const quay = mat(0x8a8276);
+    const rail = mat(0x3a352f);
+    for (const [x, z, w, d] of [
+      [W / 2, -0.1, W + 0.4, 0.2], [W / 2, H + 0.1, W + 0.4, 0.2], [-0.1, H / 2, 0.2, H], [W + 0.1, H / 2, 0.2, H],
+    ] as const) {
+      const wall = new THREE.Mesh(box(w, 0.45, d), quay);
+      wall.position.set(x, -0.12, z);
+      const bar = new THREE.Mesh(box(w, 0.05, d * 0.4), rail);
+      bar.position.set(x, 0.32, z);
+      scene.add(wall, bar);
+    }
+    // Trees on the far bank, just across the water.
+    const treeRng = mulberry32(5);
+    for (let i = 0; i < 70; i++) {
+      const side = i % 4;
+      const along = treeRng();
+      const out = RIVER + 1 + treeRng() * 6;
+      const x = side < 2 ? along * (W + 2 * out) - out : side === 2 ? -out : W + out;
+      const z = side >= 2 ? along * (H + 2 * out) - out : side === 0 ? -out : H + out;
+      const top = new THREE.Mesh(box(1, 1, 1), mat(0x2f5a2b));
+      top.position.set(x, 0.4 + treeRng() * 0.4, z);
+      scene.add(top);
+    }
 
     // Sidewalk rings around each block, buildings, parks.
     const rng = mulberry32(11);
@@ -188,13 +207,14 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           scene.add(shop, top, awning, sign, door, win1, win2);
           continue;
         }
-        const skillBlock = kind.type === 'skill';
-        const h = skillBlock ? 1.1 + rng() * 0.5 : 0.9 + rng() * 1.6; // kept low so they don't hide you
-        const color = skillBlock ? SKILL_COLORS[kind.skill] : [0x37322d, 0x3f3a33, 0x332f2b][Math.floor(rng() * 3)];
+        const crimeBlock = kind.type === 'crime';
+        const h = crimeBlock ? 1.1 + rng() * 0.5 : 0.9 + rng() * 1.6; // kept low so they don't hide you
+        const crimeIdx = crimeBlock ? NODES.findIndex((n) => !n.wanders && Math.floor(n.x / BLOCK) === bx && Math.floor((n.y - 1) / BLOCK) === by) : -1;
+        const color = crimeBlock ? CRIME_BLOCK_COLORS[Math.floor(Math.max(0, crimeIdx) / 3)] ?? 0x8a6f4d : [0x37322d, 0x3f3a33, 0x332f2b][Math.floor(rng() * 3)];
         const b = new THREE.Mesh(box(5, h, 5), mat(color));
         b.position.set(cx, h / 2, cz);
         scene.add(b);
-        const roof = new THREE.Mesh(box(5.1, 0.12, 5.1), mat(skillBlock ? new THREE.Color(color).multiplyScalar(1.35).getHex() : 0x2a2622));
+        const roof = new THREE.Mesh(box(5.1, 0.12, 5.1), mat(crimeBlock ? new THREE.Color(color).multiplyScalar(1.35).getHex() : 0x2a2622));
         roof.position.set(cx, h + 0.06, cz);
         scene.add(roof);
       }
@@ -240,7 +260,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       } else {
         // A door: lit doorway on the building face, on the side of this tile that touches the building.
         g = new THREE.Group();
-        const dir = neighbors(n.x, n.y).find(([x, y]) => !isRoad(x, y) && blocked[y * W + x] && BLOCKS.get(`${Math.floor(x / BLOCK)},${Math.floor(y / BLOCK)}`)?.type === 'skill');
+        const dir = neighbors(n.x, n.y).find(([x, y]) => !isRoad(x, y) && blocked[y * W + x] && BLOCKS.get(`${Math.floor(x / BLOCK)},${Math.floor(y / BLOCK)}`)?.type === 'crime');
         const dx = dir ? dir[0] - n.x : 0;
         const dz = dir ? dir[1] - n.y : -1;
         const door = new THREE.Mesh(box(dx ? 0.08 : 0.6, 0.95, dz ? 0.08 : 0.6), mat(0xd9a441));
@@ -279,7 +299,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     };
 
     // ---------- player and crew ----------
-    const player = personMesh(0xc8412f);
+    const player = buildCharacter(sRef.current.look, mat, box);
     scene.add(player);
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 24), new THREE.MeshBasicMaterial({ color: 0xebe4d6, transparent: true, opacity: 0 }));
     ring.rotation.x = -Math.PI / 2;
@@ -398,7 +418,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const p = new THREE.Vector3();
       if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p)) return;
       const [tx, ty] = tileOf(p.x, p.z);
-      if (tx < 0 || ty < 0 || tx >= W || ty >= H) return;
+      if (tx < 0 || ty < 0 || tx >= W || ty >= H) return say("That's the river. The city ends here, for now.");
       stopWorking();
       setTalkingRef.current(null); // walking away ends the conversation
       // Tapped a building: head for the nearest street tiles around it instead.
@@ -478,7 +498,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       if (r.cash >= 1) bits.push([`+${fmtMoney(r.cash)}`, 'f-cash']);
       const xp = Object.values(r.xp).reduce((a, b) => a + (b ?? 0), 0);
       if (xp) bits.push([`+${Math.round(xp).toLocaleString('en-US')} xp`, 'f-xp']);
-      for (const l of r.levelUps) bits.push([`${SKILL_BY_ID[l.skill].short} level ${l.level}!`, 'f-level']);
+      for (const l of r.levelUps) bits.push([`${SKILL_BY_ID[l.skill].name} level ${l.level}!`, 'f-level']);
       if (r.bigScores) bits.push(['Big score!', 'f-level']);
       bits.forEach(([text, cls], i) => {
         const el = document.createElement('div');
@@ -646,7 +666,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         }
         const crime = CRIME_BY_ID[n.crimeId];
         const locked = !!canStart(st, n.crimeId);
-        const text = locked ? `${n.label} · ${SKILL_BY_ID[crime.skill].short} ${crime.level}` : n.label;
+        const text = locked ? `${n.label} · Lv ${crime.level}` : n.label;
         if (el.textContent !== text) el.textContent = text;
         const wpx = text.length * 6 + 10;
         // If it would overlap a label already placed, stack it higher (up to 3 rows), else skip it.

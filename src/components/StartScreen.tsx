@@ -2,9 +2,9 @@
 import { useMemo } from 'react';
 import type { GameState, Report, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
-import { LOOT_BY_ID, ORIGIN_BY_ID } from '../game/data/world';
+import { LOOT_BY_ID } from '../game/data/world';
 import { CRIME_BY_ID } from '../game/data/crimes';
-import { fmtDuration, fmtMoney, heatAt, isUnlocked, rankFor, totalLevel } from '../game/engine';
+import { fmtDuration, fmtMoney, heatAt, hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
 import { levelProgress } from '../game/xp';
 import { hashString } from '../game/rng';
 import { CHANGELOG, getSeenVersion, markVersionSeen } from '../changelog';
@@ -40,22 +40,22 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
           <div>
             <div className="kicker">Case file Nº {fileNo}</div>
             <h1 className="dossier-name">{s.name}</h1>
-            <div className="muted">{ORIGIN_BY_ID[s.origin].name} · on the books {fmtDuration((now - s.createdAt) / 1000)}</div>
+            <div className="muted">On the books {fmtDuration((now - s.createdAt) / 1000)}</div>
           </div>
           <div className="stamp">{rank.name}</div>
         </div>
 
         <dl className="figures">
           <div><dt>Total level</dt><dd>{total}</dd></div>
-          <div><dt>Cash</dt><dd className="money">{fmtMoney(s.cash)}</dd></div>
+          <div><dt>Gold</dt><dd className="money">{fmtMoney(s.cash).replace(' gold', '')}</dd></div>
+          <div><dt>Health</dt><dd>{Math.floor(hpAt(s, now))}/{maxHp(s)}</dd></div>
           <div><dt>Heat</dt><dd>{Math.round(heatAt(s, now))}</dd></div>
-          <div><dt>Jobs pulled</dt><dd>{s.stats.jobs.toLocaleString('en-US')}</dd></div>
         </dl>
 
         <section>
           <h3 className="rule-head">Skills</h3>
           <ul className="skill-ledger">
-            {SKILLS.filter((sk) => isUnlocked(s, sk.id)).map((sk) => {
+            {SKILLS.map((sk) => {
               const lp = levelProgress(s.skills[sk.id].xp);
               return (
                 <li key={sk.id}>
@@ -90,7 +90,6 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
                 <span className="money big-num">+{fmtMoney(report.cash)}</span> from {report.jobs} jobs
                 {report.bigScores > 0 && <>, {report.bigScores} big scores</>}
                 {report.loot.length > 0 && <>, {report.loot.length} loot</>}
-                {report.cars > 0 && <>, {report.cars} cars</>}
                 {report.busts > 0 && <>, <span className="alert">{report.busts} busts</span></>}.
               </p>
               <ul className="plain">
@@ -104,7 +103,6 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
               {rare.length > 0 && <p>Rare finds: {rare.map((id) => LOOT_BY_ID[id].name).join(', ')}</p>}
             </>
           )}
-          {s.pendingPerks.length > 0 && <p className="warn">{s.pendingPerks.length} perk choice waiting.</p>}
         </section>
 
         <section>

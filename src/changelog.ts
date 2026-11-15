@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.0',
+    date: '2026-11-15',
+    title: 'A fresh start: the RPG begins',
+    items: [
+      'Five skills, all starting at level 1 with a max of 10 for now: Street Crimes, Melee, Defense, Gunfire and Health.',
+      'Street Crimes has 9 crimes from Lift a Wallet (level 1) to Mug a Banker (level 9), all around where you start. The other skills come later.',
+      'New character creator: pick your skin, hair and clothes, with a live 3D preview. You walk the Street as that character.',
+      'The city is now an island with a river all the way around it.',
+      'Removed: perks, the 8 old crime families, cars and origins. Because every skill is new, old characters start over.',
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-11-15',
     title: "Eddy's General Store",

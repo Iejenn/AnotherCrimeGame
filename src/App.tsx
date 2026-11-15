@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useGame } from './useGame';
 import { CreateCharacter } from './components/CreateCharacter';
 import { StatusBar } from './components/StatusBar';
 import { InventoryTab } from './components/InventoryTab';
 import { QuestsTab } from './components/QuestsTab';
 import { SkillsTab } from './components/SkillsTab';
-import { PerkModal } from './components/Modals';
 import { StartScreen } from './components/StartScreen';
 import { StreetView } from './street/StreetView';
 import { clearGame, importSave } from './game/save';
@@ -22,13 +21,7 @@ const TABS: { id: Tab; label: string }[] = [
 export default function App() {
   const { state, act, create, replace, onReport, welcome, dismissWelcome, toasts } = useGame();
   const [tab, setTab] = useState<Tab>('street');
-  const [perkOpen, setPerkOpen] = useState(true);
   const now = Date.now();
-  const pendingCount = state?.pendingPerks.length ?? 0;
-  // Re-open the perk picker whenever a new milestone is hit.
-  useEffect(() => {
-    if (pendingCount > 0) setPerkOpen(true);
-  }, [pendingCount]);
 
   const doImport = async () => {
     const text = prompt('Paste your save code:');
@@ -52,11 +45,6 @@ export default function App() {
   return (
     <div className="app">
       <StatusBar s={state} now={now} />
-      {state.pendingPerks.length > 0 && (
-        <button className="perk-banner" onClick={() => setPerkOpen(true)}>
-          {state.pendingPerks.length} perk choice{state.pendingPerks.length > 1 ? 's' : ''} waiting — choose now
-        </button>
-      )}
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
@@ -73,7 +61,6 @@ export default function App() {
       </main>
 
       {welcome && <StartScreen s={state} report={welcome.report} ms={welcome.ms} onClose={dismissWelcome} />}
-      {!welcome && perkOpen && state.pendingPerks.length > 0 && <PerkModal s={state} act={act} onClose={() => setPerkOpen(false)} />}
 
       <div className="toasts">
         {toasts.map((t) => (

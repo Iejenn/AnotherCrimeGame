@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import type { GameState } from '../game/types';
 import type { Npc } from './map';
 import { LOOT_BY_ID } from '../game/data/world';
-import { fmtMoney, lootPrice, sellCar, sellLoot } from '../game/engine';
+import { fmtMoney, lootPrice, sellLoot } from '../game/engine';
 import { Bag, bagSlots, slotKey } from '../components/Bag';
 
 type Act = (fn: (d: GameState, now: number) => void) => void;
@@ -29,29 +29,16 @@ export function NpcDialog({ npc, s, act, onClose }: { npc: Npc; s: GameState; ac
       setSel(null);
       return setLine("That's your gold, pal. I don't buy gold.");
     }
+    const def = LOOT_BY_ID[slot.id];
     if (sel === key) {
       // Second tap on the same item: sell one.
-      if (slot.kind === 'loot') {
-        const def = LOOT_BY_ID[slot.id];
-        act((d) => sellLoot(d, slot.id));
-        setLine(`Sold ${def.name} for ${fmtMoney(lootPrice(slot.id))}.${slot.count > 1 ? ' Tap again to sell another.' : ''}`);
-        if (slot.count <= 1) setSel(null);
-      } else {
-        const car = s.cars.find((c) => c.id === slot.id)!;
-        act((d) => sellCar(d, slot.id));
-        setLine(`Sold the ${car.model} keys for ${fmtMoney(car.value)}.`);
-        setSel(null);
-      }
+      act((d) => sellLoot(d, slot.id));
+      setLine(`Sold ${def.name} for ${fmtMoney(lootPrice(slot.id))}.${slot.count > 1 ? ' Tap again to sell another.' : ''}`);
+      if (slot.count <= 1) setSel(null);
       return;
     }
     setSel(key);
-    if (slot.kind === 'loot') {
-      const def = LOOT_BY_ID[slot.id];
-      setLine(`I'll give you ${fmtMoney(def.value)} for the ${def.name}. Tap it again to sell.`);
-    } else {
-      const car = s.cars.find((c) => c.id === slot.id)!;
-      setLine(`Keys to a ${car.model}? ${fmtMoney(car.value)}, no questions asked. Tap again to sell.`);
-    }
+    setLine(`I'll give you ${fmtMoney(def.value)} for the ${def.name}. Tap it again to sell.`);
   };
 
   return (

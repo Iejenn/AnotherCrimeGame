@@ -1,34 +1,25 @@
-// Skills: RuneScape-style skill grid. Tap a skill for its guide: what you can do, at what level, and where.
+// Skills: the five skills (levels 1–10 for now). Tap one for its guide: how to train it and,
+// for Street Crimes, every crime with its level and where to find it.
 import { useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
-import { ORIGIN_BY_ID, PERKS } from '../game/data/world';
-import { crimeStats, fmtDuration, fmtMoney, isUnlocked, masteryLevel, rankFor, skillLevel, totalLevel } from '../game/engine';
-import { NODES } from '../street/map';
+import { crimeStats, fmtDuration, fmtMoney, masteryLevel, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
 import { exportSave } from '../game/save';
-import { levelProgress } from '../game/xp';
+import { MAX_LEVEL, levelProgress } from '../game/xp';
 import { Bar, Stars, pct } from './ui';
 
-const spotOf = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders)?.label ?? '—';
-
-function unlockText(id: SkillId) {
-  const u = SKILL_BY_ID[id].unlock;
-  const parts = Object.entries(u.skill ?? {}).map(([k, v]) => `${SKILL_BY_ID[k as SkillId].name} ${v}`);
-  if (u.total) parts.push(`total level ${u.total}`);
-  return parts.join(' and ');
-}
-
 export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: () => void; onReset: () => void }) {
-  const [open, setOpen] = useState<SkillId>('petty');
+  const [open, setOpen] = useState<SkillId>('street');
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
   const total = totalLevel(s);
   const rank = rankFor(total);
   const now = Date.now();
   const def = SKILL_BY_ID[open];
-  const unlocked = isUnlocked(s, open);
   const lvl = skillLevel(s, open);
+  const lp = levelProgress(s.skills[open].xp);
+  const crimes = crimesForSkill(open);
 
   const makeCode = async () => {
     setCopied(false);
@@ -46,10 +37,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
   return (
     <div className="skills">
       <div className="skills-head">
-        <div>
-          <h2 className="headline">{s.name}</h2>
-          <div className="muted small">{ORIGIN_BY_ID[s.origin].name}</div>
-        </div>
+        <h2 className="headline">{s.name}</h2>
         <div className="skills-total">
           <span className="stamp small">{rank.name}</span>
           <span className="mono">Total level {total}</span>
@@ -63,67 +51,63 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
 
       <div className="skill-grid">
         {SKILLS.map((sk) => {
-          const lp = levelProgress(s.skills[sk.id].xp);
-          const ok = isUnlocked(s, sk.id);
+          const p = levelProgress(s.skills[sk.id].xp);
           return (
-            <button key={sk.id} className={`skill-cell ${open === sk.id ? 'active' : ''} ${ok ? '' : 'locked'}`} onClick={() => setOpen(sk.id)}>
+            <button key={sk.id} className={`skill-cell ${open === sk.id ? 'active' : ''}`} onClick={() => setOpen(sk.id)}>
               <span className="code">{sk.code}</span>
               <span className="skill-cell-name">{sk.name}</span>
-              <span className="num">{ok ? lp.level : '—'}</span>
-              {ok && <Bar pct={lp.pct} />}
+              <span className="num">
+                {p.level}
+                <span className="muted">/{MAX_LEVEL}</span>
+              </span>
+              <Bar pct={p.pct} />
             </button>
           );
         })}
       </div>
 
       <section className="skill-guide">
-        <div className="kicker">File {def.code}</div>
+        <div className="kicker">Skill {def.code}</div>
         <h2 className="headline">
-          {def.name} {unlocked && <span className="num">Lv {lvl}</span>}
+          {def.name} <span className="num">Lv {lvl}</span>
         </h2>
         <p className="deck">{def.blurb}</p>
-        {unlocked ? (
-          (() => {
-            const lp = levelProgress(s.skills[open].xp);
-            return <Bar pct={lp.pct} label={lp.needed ? `${Math.floor(lp.into).toLocaleString('en-US')} / ${lp.needed.toLocaleString('en-US')} XP` : 'Max level'} />;
-          })()
-        ) : (
-          <p className="locked-note">Locked. Requires {unlockText(open)}.</p>
-        )}
-        {s.skills[open].perks.length > 0 && (
-          <p className="small">
-            <span className="label">Perks</span> {s.skills[open].perks.map((p) => PERKS[p].name).join(' · ')}
-          </p>
-        )}
-        <ol className="ledger">
-          {crimesForSkill(open).map((crime) => {
-            const can = unlocked && lvl >= crime.level;
-            const st = crimeStats(s, crime, now);
-            const count = s.mastery[crime.id] ?? 0;
-            return (
-              <li key={crime.id} className={`entry ${can ? '' : 'locked'}`}>
-                <div className="entry-main">
-                  <div className="entry-title">
-                    <span className="mono small lvl-col">{crime.level}</span>
-                    <span className="entry-name">{crime.name}</span>
+        <Bar pct={lp.pct} label={lp.needed ? `${Math.floor(lp.into).toLocaleString('en-US')} / ${lp.needed.toLocaleString('en-US')} XP` : 'Max level (for now)'} />
+        <p className="small">
+          <span className="label">How to train</span> {def.howToTrain}
+        </p>
+        {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 per minute.</p>}
+        {crimes.length > 0 && (
+          <ol className="ledger">
+            {crimes.map((crime) => {
+              const can = lvl >= crime.level;
+              const st = crimeStats(s, crime, now);
+              const count = s.mastery[crime.id] ?? 0;
+              return (
+                <li key={crime.id} className={`entry ${can ? '' : 'locked'}`}>
+                  <div className="entry-main">
+                    <div className="entry-title">
+                      <span className="mono small lvl-col">{crime.level}</span>
+                      <span className="entry-name">{crime.name}</span>
+                    </div>
+                    <dl className="entry-stats">
+                      <div><dt>Where</dt><dd>{crime.spot.label}</dd></div>
+                      <div><dt>Time</dt><dd>{fmtDuration(st.duration)}</dd></div>
+                      {can && (
+                        <>
+                          <div><dt>Odds</dt><dd>{pct(st.chance)}</dd></div>
+                          <div><dt>XP</dt><dd>{st.xp}</dd></div>
+                          <div><dt>Take</dt><dd className="money">{crime.cashMin}–{crime.cashMax} gold</dd></div>
+                          <div><dt>Mastery</dt><dd><Stars n={masteryLevel(count)} /></dd></div>
+                        </>
+                      )}
+                    </dl>
                   </div>
-                  <dl className="entry-stats">
-                    <div><dt>Where</dt><dd>{spotOf(crime.id)}</dd></div>
-                    <div><dt>Time</dt><dd>{fmtDuration(st.duration)}</dd></div>
-                    {can && (
-                      <>
-                        <div><dt>Odds</dt><dd>{pct(st.chance)}</dd></div>
-                        <div><dt>XP</dt><dd>{st.xp.toLocaleString('en-US')}</dd></div>
-                        <div><dt>Take</dt><dd className="money">{crime.carClasses ? 'a car' : `${fmtMoney(crime.cashMin * st.cashMult)}–${fmtMoney(crime.cashMax * st.cashMult)}`}</dd></div>
-                        <div><dt>Mastery</dt><dd><Stars n={masteryLevel(count)} /></dd></div>
-                      </>
-                    )}
-                  </dl>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </section>
 
       {s.buffs.length > 0 && (
@@ -132,8 +116,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
           <ul className="plain small">
             {s.buffs.map((b) => (
               <li key={b.id}>
-                {b.label}: +{Math.round(b.value * 100)}% {b.kind}
-                {b.skill ? ` (${SKILL_BY_ID[b.skill].name})` : ''}, {b.uses} more jobs
+                {b.label}: +{Math.round(b.value * 100)}% {b.kind}, {b.uses} more jobs
               </li>
             ))}
           </ul>
