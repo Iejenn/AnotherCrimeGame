@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { GameState, Report } from '../game/types';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { MIN_HP_TO_WORK, bail, bailCost, canStart, fmtDuration, fmtMoney, hpAt, skillLevel, startJob, stopJob } from '../game/engine';
+import { bail, bailCost, busyReason, canStart, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
 import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
 import { buildCharacter } from './character';
 import { NpcDialog } from './NpcDialog';
@@ -320,6 +320,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       goalNpc: null as Npc | null,
       attached: null as StreetNode | null,
       attachedAt: 0,
+      /** The spot you last worked, so "You size up the tourist…" only shows the first time. */
+      lastSpot: '' as string,
       facing: 0,
     };
     const findNodeFor = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders);
@@ -364,16 +366,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       me.attached = n;
       me.attachedAt = performance.now();
       if (job && job.crimeId === n.crimeId) return;
-      const hp = hpAt(st, Date.now());
-      if (hp < MIN_HP_TO_WORK) {
-        me.attached = null;
-        say(`You're too hurt to work (${Math.floor(hp)} HP). Rest a few minutes: health comes back on its own.`);
-        return;
-      }
-      say(startLine(n));
+      const busy = busyReason(st, Date.now());
+      if (busy) return say(busy);
+      if (me.lastSpot !== n.id) say(startLine(n));
+      me.lastSpot = n.id;
       actRef.current((d, t) => {
         if (d.player.job) stopJob(d);
-        startJob(d, n.crimeId, t); // repeats until you walk away
+        startJob(d, n.crimeId, t); // one tap = one attempt
       });
     };
 
@@ -411,7 +410,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         setTalkingRef.current(null);
         const n = NODES.find((x) => x.id === hit.object.userData.nodeId)!;
         if (canStart(st, n.crimeId)) return say(lockMessage(st, n.crimeId));
-        if (me.attached?.id === n.id && st.player.job?.crimeId === n.crimeId) return say("You're already on it.");
+        if (me.attached?.id === n.id && st.player.job?.crimeId === n.crimeId) return; // mid-attempt: ignore extra taps
         stopWorking();
         const [nx, ny] = nodeTile(n);
         if (walkTo(neighbors(nx, ny), n)) {
@@ -602,7 +601,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         setTimeout(() => el.remove(), 1300);
       };
       line(parts, '');
+      if (r.fails) big.push(['Stunned!', 'f-bust']);
       line(big, 'float-big');
+      if (r.fails || r.busts) {
+        host.classList.remove('shake');
+        void host.offsetWidth; // restart the animation
+        host.classList.add('shake');
+      }
     });
 
     // ---------- labels for nearby spots ----------
@@ -674,6 +679,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         me.facing = Math.atan2(nx + 0.5 - me.pos.x, ny + 0.5 - me.pos.z);
       }
       player.position.set(me.pos.x, working ? Math.abs(Math.sin(now / 160)) * 0.06 : me.path.length ? Math.abs(Math.sin(now / 90)) * 0.05 : 0, me.pos.z);
+      const stunned = meCrew.stunnedUntil > Date.now();
+      player.rotation.z = stunned ? Math.sin(now / 70) * 0.18 : 0;
       player.rotation.y = me.facing;
       player.visible = !jailed;
 
@@ -834,17 +841,17 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
               Bail · {fmtMoney(bailCost(me, now))}
             </button>
           </>
+        ) : me.stunnedUntil > now ? (
+          <span className="alert">Stunned · {fmtDuration(Math.max(0.1, (me.stunnedUntil - now) / 1000))}</span>
         ) : crime && job ? (
           <>
-            <span>
-              {crime.name} <span className="muted mono">#{job.attempts + 1}</span>
-            </span>
+            <span>{crime.name}</span>
             <div className="bar bar-job">
               <div className="bar-fill" ref={progressRef} />
             </div>
           </>
         ) : (
-          <span className="muted">Idle — tap something</span>
+          <span className="muted">Tap something to work it</span>
         )}
       </div>
       {talking && <NpcDialog npc={talking} s={s} act={act} onClose={() => setTalking(null)} />}

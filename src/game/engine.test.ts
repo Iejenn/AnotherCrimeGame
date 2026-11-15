@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { crimeStats, hpAt, lootPrice, maxHp, newGame, sellLoot, skillLevel, startJob, stopJob, tick, totalLevel } from './engine';
-import { ACTION_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
+import { busyReason, crimeStats, hpAt, lootPrice, maxHp, newGame, sellLoot, startJob, tick, totalLevel } from './engine';
+import { STUN_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
 import { mulberry32 } from './rng';
@@ -26,11 +26,11 @@ describe('street crimes (design §4)', () => {
     expect(CRIMES.map((c) => c.level)).toEqual([1, 5, 10, 15, 20, 25, 30]);
   });
 
-  it('a pickpocket is 2 actions of 0.5s and pays 1–3 gold', () => {
+  it('a pickpocket is 4 ticks of 0.5s (2 seconds) and pays 1–3 gold', () => {
     const c = CRIME_BY_ID.pick_wallet;
-    expect(ACTION_SECONDS).toBe(0.5);
-    expect(c.actions).toBe(2);
-    expect(c.duration).toBe(1);
+    expect(TICK_SECONDS).toBe(0.5);
+    expect(c.ticks).toBe(4);
+    expect(c.duration).toBe(2);
     expect([c.cashMin, c.cashMax]).toEqual([1, 3]);
   });
 
@@ -43,7 +43,9 @@ describe('street crimes (design §4)', () => {
     let hours = 0;
     for (let i = 0; i < CRIMES.length - 1; i++) {
       const c = CRIMES[i];
-      const xpPerHour = (3600 / c.duration) * (c.baseChance * c.xp + (1 - c.baseChance) * c.xp * 0.25);
+      // One tap per attempt; a failure adds a 2-second stun before the next tap.
+      const secondsPerAttempt = c.duration + (1 - c.baseChance) * STUN_SECONDS;
+      const xpPerHour = (3600 / secondsPerAttempt) * (c.baseChance * c.xp + (1 - c.baseChance) * c.xp * 0.25);
       hours += (totalXpForLevel(CRIMES[i + 1].level) - totalXpForLevel(c.level)) / xpPerHour;
     }
     expect(hours).toBeGreaterThan(12);
@@ -60,55 +62,58 @@ describe('a new character', () => {
   });
 });
 
-describe('working a crime', () => {
-  it('repeats an attempt every second until you stop', () => {
+describe('working a crime (one tap = one attempt)', () => {
+  it('one attempt takes 2 seconds and then stops', () => {
     const s = fresh();
     startJob(s, 'pick_wallet', T0);
-    const { state, report } = tick(s, T0 + 10_000, mulberry32(1));
-    expect(report.jobs).toBeGreaterThanOrEqual(9);
-    expect(state.player.job).not.toBeNull();
-    stopJob(state);
-    expect(state.player.job).toBeNull();
-    expect(skillLevel(state, 'street')).toBe(1);
+    expect(tick(s, T0 + 1900).state).toBe(s); // not done yet
+    const { state, report } = tick(s, T0 + 2000, mulberry32(1));
+    expect(report.jobs).toBe(1);
+    expect(state.player.job).toBeNull(); // no auto-repeat
+    const again = tick(state, T0 + 10_000);
+    expect(again.report.jobs).toBe(0);
   });
 
-  it('does nothing when no attempt has finished', () => {
-    const s = fresh();
-    startJob(s, 'pick_wallet', T0);
-    expect(tick(s, T0 + 500).state).toBe(s);
-  });
-
-  it('a bust pauses the job until you are out of jail', () => {
-    const s = fresh();
-    startJob(s, 'pick_wallet', T0);
-    let i = 0;
-    const rng = () => [0.99, 0][i++] ?? 0.5; // fail, then bust
-    const { state, report } = tick(s, T0 + 1000, rng);
-    expect(report.busts).toBe(1);
-    expect(state.player.jailedUntil).toBe(T0 + 1000 + CRIME_BY_ID.pick_wallet.jail * 1000);
-    expect(state.player.job?.startedAt).toBe(state.player.jailedUntil);
-  });
-
-  it('a failure costs 1 HP, and health comes back at 1 per minute', () => {
+  it('a failure costs 1 HP and stuns you for 2 seconds', () => {
     const s = fresh();
     startJob(s, 'pick_wallet', T0);
     let i = 0;
     const rng = () => [0.99, 0.99][i++] ?? 0.5; // fail, no bust
-    const { state, report } = tick(s, T0 + 1000, rng);
+    const { state, report } = tick(s, T0 + 2000, rng);
+    expect(report.fails).toBe(1);
     expect(report.damage).toBe(1);
     expect(state.hp).toBe(9);
-    expect(hpAt(state, T0 + 1000 + 30_000)).toBe(9.5);
-    expect(hpAt(state, T0 + 1000 + 60_000)).toBe(10);
+    expect(state.player.stunnedUntil).toBe(T0 + 2000 + STUN_SECONDS * 1000);
+    expect(busyReason(state, T0 + 3000)).toMatch(/stunned/);
+    startJob(state, 'pick_wallet', T0 + 3000);
+    expect(state.player.job).toBeNull(); // can't start while stunned
+    expect(busyReason(state, T0 + 4000)).toBeNull();
   });
 
-  it('stops when you run out of health', () => {
+  it('health comes back at 1 per minute', () => {
+    const s = fresh();
+    s.hp = 9;
+    s.hpAt = T0;
+    expect(hpAt(s, T0 + 30_000)).toBe(9.5);
+    expect(hpAt(s, T0 + 60_000)).toBe(10);
+  });
+
+  it('a bust sends you to jail and you cannot work until you are out', () => {
     const s = fresh();
     startJob(s, 'pick_wallet', T0);
-    s.hp = 1;
     let i = 0;
-    const rng = () => [0.99, 0.99][i++] ?? 0.5;
-    const { state } = tick(s, T0 + 1000, rng);
-    expect(state.player.job).toBeNull();
+    const rng = () => [0.99, 0][i++] ?? 0.5; // fail, then bust
+    const { state, report } = tick(s, T0 + 2000, rng);
+    expect(report.busts).toBe(1);
+    expect(state.player.jailedUntil).toBe(T0 + 2000 + CRIME_BY_ID.pick_wallet.jail * 1000);
+    expect(busyReason(state, T0 + 3000)).toMatch(/cell/);
+  });
+
+  it('below 3 HP you cannot start', () => {
+    const s = fresh();
+    s.hp = 2;
+    startJob(s, 'pick_wallet', T0);
+    expect(s.player.job).toBeNull();
   });
 
   it('a higher level improves the odds', () => {
@@ -141,7 +146,7 @@ describe('saves', () => {
     const { exportSave, importSave } = await import('./save');
     const s = fresh('Iejen');
     startJob(s, 'pick_wallet', T0);
-    const { state } = tick(s, T0 + 60_000, mulberry32(3));
+    const { state } = tick(s, T0 + 2000, mulberry32(3));
     const code = await exportSave(state);
     expect(code.length).toBeLessThan(1500);
     const back = await importSave(code);

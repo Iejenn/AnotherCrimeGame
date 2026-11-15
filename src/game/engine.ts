@@ -2,7 +2,7 @@
 // later run server-side (e.g. a Supabase function) for anti-cheat.
 import type { Buff, GameState, Look, LogKind, PlayerState, Report, SkillId } from './types';
 import { SKILL_BY_ID, SKILL_IDS, FAIL_LINES, BUST_LINES } from './data/skills';
-import { CRIME_BY_ID, type CrimeDef } from './data/crimes';
+import { CRIME_BY_ID, STUN_SECONDS, type CrimeDef } from './data/crimes';
 import { LOOT, LOOT_BY_ID, MARKS, PLACES, RANKS, RARITY_WEIGHT } from './data/world';
 import { levelFromXp, MAX_LEVEL } from './xp';
 import { pick, randRange, weightedPick, type Rng } from './rng';
@@ -99,7 +99,7 @@ export function newGame(name: string, look: Look, now: number): GameState {
   const s: GameState = {
     version: 2, name: name.trim() || 'Nobody', look, createdAt: now,
     cash: 10, heat: 0, heatAt: now, hp: 10, hpAt: now,
-    skills, player: { job: null, jailedUntil: 0 },
+    skills, player: { job: null, jailedUntil: 0, stunnedUntil: 0 },
     inventory: {}, buffs: [],
     stats: { jobs: 0, busts: 0, bigScores: 0, earned: 0, fails: 0 },
     log: [], nextId: 1,
@@ -255,11 +255,13 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
       log(s, t, `BUSTED — ${fill(pick(rng, BUST_LINES), rng)} You're in a cell for ${fmtDuration(st.jail)}.`, 'bust');
     } else {
       s.stats.fails++;
+      report.fails++;
+      me.stunnedUntil = t + STUN_SECONDS * 1000;
       setHeat(s, t, heatNow + st.heat * 1.5);
       s.hp = Math.max(0, hpAt(s, t) - FAIL_DAMAGE);
       s.hpAt = t;
       report.damage += FAIL_DAMAGE;
-      log(s, t, `${fill(pick(rng, FAIL_LINES), rng)} -${FAIL_DAMAGE} HP, +${xp} XP`, 'fail');
+      log(s, t, `${fill(pick(rng, FAIL_LINES), rng)} You're stunned. -${FAIL_DAMAGE} HP, +${xp} XP`, 'fail');
     }
   }
   useBuffs(s);
@@ -271,17 +273,11 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
     report.events.push(`${enc.text} (${result})`);
   }
 
-  job.attempts++;
-  if (s.hp < 1 && s.hpAt === t) {
-    // Out of health (under 1 HP shows as 0): stop instead of grinding on while hurt.
-    me.job = null;
-    log(s, t, "You're too hurt to keep going. Catch your breath: health comes back on its own.", 'bust');
-    report.events.push('Too hurt to keep working');
-  } else {
-    // Next attempt starts straight away (or when you're out of jail).
-    const start = Math.max(t, me.jailedUntil);
-    job.startedAt = start;
-    job.endsAt = start + st.duration * 1000;
+  // One tap = one attempt: the job is done. Tap again for the next one.
+  me.job = null;
+  if (s.hp < MIN_HP_TO_WORK && s.hpAt === t) {
+    log(s, t, "You're too hurt to keep going. Health comes back slowly; food will help.", 'bust');
+    report.events.push('Too hurt to work');
   }
 }
 
@@ -290,7 +286,7 @@ export function tick(prev: GameState, now: number, rng: Rng = Math.random): { st
   const report = emptyReport();
   if (!prev.player.job || prev.player.job.endsAt > now) return { state: prev, report };
   const s = structuredClone(prev);
-  for (let guard = 0; guard < 1000 && s.player.job && s.player.job.endsAt <= now; guard++) resolveAttempt(s, s.player.job.endsAt, rng, report);
+  resolveAttempt(s, s.player.job!.endsAt, rng, report);
   return { state: s, report };
 }
 
@@ -304,13 +300,22 @@ export function canStart(s: GameState, crimeId: string): string | null {
   return null;
 }
 
-/** Start working a crime. It repeats until you walk away, get too hurt, or leave the game. */
+/** Why you can't start an attempt right now (jail, stun, health), or null if you can. */
+export function busyReason(s: GameState, now: number): string | null {
+  const me = s.player;
+  if (me.jailedUntil > now) return `You're in a cell for another ${fmtDuration((me.jailedUntil - now) / 1000)}.`;
+  if (me.stunnedUntil > now) return "You're still stunned.";
+  const hp = hpAt(s, now);
+  if (hp < MIN_HP_TO_WORK) return `You're too hurt to work (${Math.floor(hp)} HP). You need ${MIN_HP_TO_WORK} HP; it comes back 1 per minute.`;
+  return null;
+}
+
+/** Start one attempt at a crime (one tap = one attempt). */
 export function startJob(s: GameState, crimeId: string, now: number) {
   const me = s.player;
-  if (me.job || canStart(s, crimeId) || hpAt(s, now) < MIN_HP_TO_WORK) return;
+  if (me.job || canStart(s, crimeId) || busyReason(s, now)) return;
   const crime = CRIME_BY_ID[crimeId];
-  const start = Math.max(now, me.jailedUntil);
-  me.job = { crimeId, startedAt: start, endsAt: start + crime.duration * 1000, attempts: 0 };
+  me.job = { crimeId, startedAt: now, endsAt: now + crime.duration * 1000 };
 }
 
 export function stopJob(s: GameState) {
@@ -347,11 +352,6 @@ export function bail(s: GameState, now: number) {
   if (s.cash < cost) return;
   s.cash -= cost;
   me.jailedUntil = now;
-  if (me.job && me.job.startedAt > now) {
-    const dur = me.job.endsAt - me.job.startedAt;
-    me.job.startedAt = now;
-    me.job.endsAt = now + dur;
-  }
   log(s, now, `Posted bail (${fmtMoney(cost)}).`, 'info');
 }
 

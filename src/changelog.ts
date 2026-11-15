@@ -14,8 +14,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Street Crimes now goes to level 30, with a new crime every 5 levels: Lift a Wallet, Shoplift, Strip a Parked Car, Run a Shell Game, Burgle a House, Rob a Corner Store and Mug a Banker.',
       'Each level needs 20% more XP than the last. About 16 hours of play to reach 30.',
-      'Everything is faster: an action takes half a second, and picking a pocket takes 2 actions (1 second).',
-      'Only active play counts now. Close or hide the app and your character stops; nothing happens while you are away.',
+      'One tap = one attempt. Picking a pocket takes 4 ticks (2 seconds); tap the tourist again for the next one.',
+      'A failed attempt shakes the screen and stuns you for 2 seconds.',
+      'Only active play counts now. Nothing happens while the app is closed or hidden.',
       'Minimap in the top-right corner. Tap it to walk there.',
       'Buildings now come in different sizes and heights, with alleys you can walk through.',
     ],
