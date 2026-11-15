@@ -8,6 +8,31 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.8.0',
+    date: '2026-11-15',
+    title: 'Street Crimes 1–30, a minimap, and a city that looks like a city',
+    items: [
+      'Street Crimes now goes to level 30, with a new crime every 5 levels: Lift a Wallet, Shoplift, Strip a Parked Car, Run a Shell Game, Burgle a House, Rob a Corner Store and Mug a Banker.',
+      'Each level needs 20% more XP than the last. About 16 hours of play to reach 30.',
+      'Everything is faster: an action takes half a second, and picking a pocket takes 2 actions (1 second).',
+      'Only active play counts now. Close or hide the app and your character stops; nothing happens while you are away.',
+      'Minimap in the top-right corner. Tap it to walk there.',
+      'Buildings now come in different sizes and heights, with alleys you can walk through.',
+    ],
+  },
+  {
+    version: '0.7.0',
+    date: '2026-11-15',
+    title: 'A fresh start: the RPG begins',
+    items: [
+      'Five skills, all starting at level 1 with a max of 10 for now: Street Crimes, Melee, Defense, Gunfire and Health.',
+      'Street Crimes has 9 crimes from Lift a Wallet (level 1) to Mug a Banker (level 9), all around where you start. The other skills come later.',
+      'New character creator: pick your skin, hair and clothes, with a live 3D preview. You walk the Street as that character.',
+      'The city is now an island with a river all the way around it.',
+      'Removed: perks, the 8 old crime families, cars and origins. Because every skill is new, old characters start over.',
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-11-15',
     title: "Eddy's General Store",

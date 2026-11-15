@@ -10,15 +10,6 @@ export function Bar({ pct, kind = 'xp', label }: { pct: number; kind?: 'xp' | 'j
   );
 }
 
-export function Stars({ n, max = 8 }: { n: number; max?: number }) {
-  return (
-    <span className="stars" title={`Mastery ${n}/${max}`}>
-      {'★'.repeat(n)}
-      <span className="dim">{'☆'.repeat(max - n)}</span>
-    </span>
-  );
-}
-
 export function pct(n: number) {
   return `${Math.round(n * 100)}%`;
 }

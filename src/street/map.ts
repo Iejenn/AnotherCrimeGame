@@ -1,8 +1,9 @@
-// The city grid. Roads are 2 tiles wide every 7 tiles; the 5×5 squares between them are blocks.
-// Each crime family owns one block, with its 7 crimes as tappable spots around it.
-// Low-level families sit near the spawn point; heavier ones are further out.
-import type { SkillId } from '../game/types';
-import { crimesForSkill } from '../game/data/crimes';
+// The city grid (docs/design.md §7). Roads are 2 tiles wide every 7 tiles; the 5×5 squares
+// between them are blocks. A block is a park, Eddy's store, or a cluster of buildings in one of
+// a few layouts (one big building, two or four smaller ones, sometimes with an alley you can
+// walk through). The whole city sits on an island with a river around it (drawn in StreetView).
+import type { SpotKind } from '../game/data/crimes';
+import { CRIME_BY_ID } from '../game/data/crimes';
 import { mulberry32 } from '../game/rng';
 
 export const BLOCK = 7;
@@ -10,13 +11,13 @@ export const COLS = 6;
 export const ROWS = 5;
 export const W = COLS * BLOCK + 2;
 export const H = ROWS * BLOCK + 2;
-
-export type NodeKind = 'person' | 'car' | 'door' | 'crate' | 'table';
+/** How wide the river around the city is, in tiles. */
+export const RIVER = 6;
 
 export interface StreetNode {
   id: string;
   crimeId: string;
-  kind: NodeKind;
+  kind: SpotKind;
   label: string;
   x: number;
   y: number;
@@ -24,80 +25,92 @@ export interface StreetNode {
   wanders?: boolean;
 }
 
-export type BlockKind = { type: 'skill'; skill: SkillId } | { type: 'park' } | { type: 'building' } | { type: 'store' };
+export type BlockKind = { type: 'park' } | { type: 'buildings' } | { type: 'store' };
 
-// Which block belongs to which crime family. Petty Theft is in the middle, where you spawn.
-const SKILL_BLOCKS: Record<SkillId, [number, number]> = {
-  petty: [2, 2],
-  auto: [3, 2],
-  muscle: [2, 3],
-  burglary: [1, 2],
-  fraud: [1, 1],
-  smuggling: [4, 3],
-  robbery: [3, 1],
-  heist: [4, 1],
-};
-const PARKS: [number, number][] = [[3, 3], [0, 4], [5, 0]];
-// Eddy's General Store: the block just north of where you start.
+export interface Building {
+  /** Top-left tile and size in tiles. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Height in world units. */
+  height: number;
+  color: number;
+}
+
+const PARKS: [number, number][] = [[3, 3], [0, 4], [5, 0], [1, 0]];
+/** Eddy's General Store: the block just north of where you start. */
 export const STORE_BLOCK: [number, number] = [2, 1];
 
-// What each crime looks like in the street and what its spot is called.
-const LOOK: Record<string, [NodeKind, string]> = {
-  pick_wallet: ['person', 'Tourist'], shoplift: ['door', 'Electronics store'], shell_game: ['table', 'Card table'],
-  fake_charity: ['table', 'Charity stand'], ticket_scalp: ['door', 'Stadium gate'], boutique: ['door', 'Boutique'], gala: ['door', 'Gala hall'],
-  hubcaps: ['car', 'Parked hatchback'], beater: ['car', 'Rusty beater'], mall_sedan: ['car', 'Sedan'], relay_suv: ['car', 'Keyless SUV'],
-  valet: ['table', 'Valet stand'], to_order: ['car', 'Sports coupe'], showroom: ['door', 'Car showroom'],
-  shed: ['door', 'Garden shed'], corner_store: ['door', 'Corner store'], suburb_house: ['door', 'Family house'], loft: ['door', 'Loft apartments'],
-  pharmacy: ['door', 'Pharmacy'], penthouse: ['door', 'Penthouse tower'], private_vault: ['door', "Collector's mansion"],
-  late_payer: ['person', 'Late payer'], street_tax: ['person', 'Corner dealer'], bar_racket: ['door', 'Bar'], fight_night: ['door', 'Fight club'],
-  witness: ['person', 'Witness'], convoy: ['car', 'Convoy truck'], turf_war: ['person', 'Rival boss'],
-  phishing: ['door', 'Internet café'], skimmer: ['table', 'Gas pump'], fake_store: ['door', 'Parcel depot'], insurance: ['door', 'Insurance office'],
-  romance: ['door', 'Call center'], rug_pull: ['door', 'Crypto office'], wire_fraud: ['door', 'Bank back office'],
-  cigs: ['car', 'Delivery van'], bootleg: ['crate', 'Liquor crates'], knockoffs: ['crate', 'Shipping crates'], fuel: ['car', 'Fuel tanker'],
-  art_customs: ['crate', 'Art crate'], container: ['crate', 'Container'], gold_run: ['door', 'Private hangar'],
-  gas_station: ['door', 'Gas station'], liquor_store: ['door', 'Liquor store'], pawn_shop: ['door', 'Pawn shop'], jewelry: ['door', 'Jewelry store'],
-  casino_cage: ['door', 'Casino'], armored: ['car', 'Armored truck'], bank_branch: ['door', 'Bank'],
-  gallery_swap: ['door', 'Art gallery'], train_car: ['crate', 'Rail yard'], museum: ['door', 'Museum'], diamond_exchange: ['door', 'Diamond exchange'],
-  fed_depot: ['door', 'Federal depot'], casino_vault: ['door', 'Casino vault'], the_mint: ['door', 'The Mint'],
-};
-
 export const SPAWN: [number, number] = [2 * BLOCK + 4, 3 * BLOCK + 1];
+
+/**
+ * Where each crime's spot is: [block x, block y, 0 = left end / 4 = right end of the block's south side].
+ * Level 1 and 5 are right where you start; higher levels are further out.
+ */
+const SPOTS: Record<string, [number, number, 0 | 4]> = {
+  pick_wallet: [2, 2, 0],
+  shoplift: [2, 2, 4],
+  strip_car: [3, 2, 0],
+  shell_game: [3, 2, 4],
+  burgle_house: [1, 2, 4],
+  rob_store: [4, 2, 4],
+  mug_banker: [4, 1, 0],
+};
 
 export function isRoad(x: number, y: number) {
   return x % BLOCK < 2 || y % BLOCK < 2;
 }
 
-export function blockAt(x: number, y: number): [number, number] {
-  return [Math.floor(x / BLOCK), Math.floor(y / BLOCK)];
-}
-
 export const BLOCKS: Map<string, BlockKind> = (() => {
   const m = new Map<string, BlockKind>();
-  for (let bx = 0; bx < COLS; bx++) for (let by = 0; by < ROWS; by++) m.set(`${bx},${by}`, { type: 'building' });
-  for (const [skill, [bx, by]] of Object.entries(SKILL_BLOCKS)) m.set(`${bx},${by}`, { type: 'skill', skill: skill as SkillId });
+  for (let bx = 0; bx < COLS; bx++) for (let by = 0; by < ROWS; by++) m.set(`${bx},${by}`, { type: 'buildings' });
   for (const [bx, by] of PARKS) m.set(`${bx},${by}`, { type: 'park' });
   m.set(STORE_BLOCK.join(','), { type: 'store' });
   return m;
 })();
 
-/** Spots around a block that face the road: 5 along the south side, then 2 on the east side. */
-function slots(bx: number, by: number): [number, number][] {
-  const x0 = bx * BLOCK + 2;
-  const y0 = by * BLOCK + 2;
-  return [
-    [x0, y0 + 5], [x0 + 1, y0 + 5], [x0 + 2, y0 + 5], [x0 + 3, y0 + 5], [x0 + 4, y0 + 5],
-    [x0 + 5, y0 + 1], [x0 + 5, y0 + 3],
-  ];
-}
+const WALL_COLORS = [0x37322d, 0x3f3a33, 0x332f2b, 0x45392f, 0x3a3936, 0x4a3f36, 0x2f3236];
+
+/** Each building block gets one of these layouts (offsets inside the 5×5 block). */
+const LAYOUTS: [number, number, number, number][][] = [
+  [[0, 0, 5, 5]], // one big building
+  [[0, 0, 2, 5], [3, 0, 2, 5]], // two tall ones, alley in the middle
+  [[0, 0, 5, 2], [0, 3, 5, 2]], // two wide ones, alley in the middle
+  [[0, 0, 2, 2], [3, 0, 2, 2], [0, 3, 2, 2], [3, 0 + 3, 2, 2]], // four small ones, cross-shaped alley
+  [[0, 0, 5, 2], [0, 2, 5, 3]], // a short and a deep building, back to back
+  [[0, 0, 3, 5], [3, 0, 2, 5]], // wide + narrow, back to back
+  [[0, 0, 5, 3], [0, 3, 2, 2], [3, 3, 2, 2]], // big one at the back, two small at the front with a gap
+];
+
+export const BUILDINGS: Building[] = (() => {
+  const out: Building[] = [];
+  const rng = mulberry32(42);
+  for (let bx = 0; bx < COLS; bx++)
+    for (let by = 0; by < ROWS; by++) {
+      if (BLOCKS.get(`${bx},${by}`)?.type !== 'buildings') continue;
+      const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
+      for (const [ox, oy, w, h] of layout) {
+        const big = w * h >= 10;
+        out.push({
+          x: bx * BLOCK + 2 + ox,
+          y: by * BLOCK + 2 + oy,
+          w,
+          h,
+          // Kept fairly low so they don't hide you; small buildings can still be tall-ish towers.
+          height: big ? 0.9 + rng() * 1.6 : 0.7 + rng() * 1.3,
+          color: WALL_COLORS[Math.floor(rng() * WALL_COLORS.length)],
+        });
+      }
+    }
+  return out;
+})();
 
 export const NODES: StreetNode[] = (() => {
   const out: StreetNode[] = [];
-  for (const [skill, [bx, by]] of Object.entries(SKILL_BLOCKS)) {
-    const s = slots(bx, by);
-    crimesForSkill(skill as SkillId).forEach((c, i) => {
-      const [kind, label] = LOOK[c.id] ?? ['door', c.name];
-      out.push({ id: c.id, crimeId: c.id, kind, label, x: s[i][0], y: s[i][1] });
-    });
+  for (const [crimeId, [bx, by, end]] of Object.entries(SPOTS)) {
+    const c = CRIME_BY_ID[crimeId];
+    out.push({ id: crimeId, crimeId, kind: c.spot.kind, label: c.spot.label, x: bx * BLOCK + 2 + end, y: by * BLOCK + 7 });
   }
   // A few extra tourists wandering around the middle of town.
   const rng = mulberry32(7);
@@ -123,18 +136,15 @@ export interface Npc {
   y: number;
 }
 
-/** Eddy stands on the pavement in front of his store's door (south face of the store block). */
+/** Eddy stands on the pavement in front of his store's door (south side of the store block). */
 export const NPCS: Npc[] = [{ id: 'eddy', name: 'Eddy', role: 'General store', x: STORE_BLOCK[0] * BLOCK + 4, y: STORE_BLOCK[1] * BLOCK + 7 }];
 
-/** Tiles you can't walk through: everything that isn't road or park, plus fixed spots. */
+/** Tiles you can't walk through: buildings, the store, and fixed spots. Roads, alleys and parks are open. */
 export function buildBlocked(): Uint8Array {
   const g = new Uint8Array(W * H);
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      if (isRoad(x, y)) continue;
-      const kind = BLOCKS.get(blockAt(x, y).join(','));
-      if (kind?.type !== 'park') g[y * W + x] = 1;
-    }
+  for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
+  const [sx, sy] = STORE_BLOCK;
+  for (let y = sy * BLOCK + 2; y < sy * BLOCK + 7; y++) for (let x = sx * BLOCK + 2; x < sx * BLOCK + 7; x++) g[y * W + x] = 1;
   for (const n of NODES) if (!n.wanders) g[n.y * W + n.x] = 1;
   return g;
 }
