@@ -74,8 +74,10 @@ XP per success is worked out from the band times: XP per hour needed ÷ attempts
 
 - **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
   Below 3 HP you can't start a job; at 0 the job stops. Real healing comes from items (see §9, Healing).
-  ⚠ Known issue until healing exists: at 1 attempt per second a pickpocket fails about 9 times a minute,
-  so 10 HP lasts roughly a minute of work.
+  **Decided:** failures keep costing 1 HP and regen stays slow. At 1 attempt per second a pickpocket fails
+  about 9 times a minute, so 10 HP lasts roughly a minute of work. That is intended: health is a real limit
+  from day one, and **food is a core system**, the main way to keep going. It matters even more once
+  combat arrives. Food is the next thing to scope.
 - **Heat:** 0–100. Working adds heat per minute (more for bigger crimes); it cools by 2 per minute.
   High heat lowers odds and raises bust risk. A bust drops heat by 25.
 - **Jail:** a bust locks you up for 10–60 seconds. Bail costs 1 gold per 5 seconds left.
@@ -105,7 +107,7 @@ The start screen shows your character file and what's new.
 - **Melee / Defense / Gunfire:** combat with NPCs? Training dummies or gyms? Fights as a crime outcome?
   Weapons and armour from shops?
 - **Health:** trained by taking damage, eating, or a gym?
-- **Healing (idea, to scope):** a **Shoplifting** skill with a ladder of shops to steal from, each giving
+- **Healing / food (top priority, to scope):** a **Shoplifting** skill with a ladder of shops to steal from, each giving
   food that heals when eaten. For example: a candy store at level 1 (candy, +1 HP) and a gas station at the
   edge of town (gas station snacks, +3 HP), with better shops and food further up. Needs: a level ladder
   (every 5 levels like Street Crimes?), eating from the inventory, whether food stacks, and how it relates
