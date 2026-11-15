@@ -265,7 +265,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .street-labels, .street-floats { position: absolute; left: 0; top: 0; pointer-events: none; }
 .node-label { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 0.68rem var(--sans); color: var(--paper); background: rgba(20, 18, 16, 0.72); padding: 1px 5px; text-shadow: 0 1px 0 #000; }
 .node-label.locked { color: #8b8378; }
-.float { position: absolute; left: 0; top: 0; transform: translate(-50%, 0); white-space: nowrap; font: 700 0.9rem var(--mono); text-shadow: 0 1px 2px #000; animation: floatUp 1.5s ease-out forwards; opacity: 0; }
+.float { position: absolute; left: 0; top: 0; transform: translate(-50%, 0); white-space: nowrap; font: 700 0.9rem var(--mono); text-shadow: 0 1px 2px #000; animation: floatUp 1.25s ease-out forwards; opacity: 0; display: flex; gap: 8px; }
+.float-big { font-size: 1.05rem; margin-top: -22px; }
 @keyframes floatUp { 0% { opacity: 0; transform: translate(-50%, 0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -46px); } }
 .f-cash { color: var(--money); }
 .f-xp { color: var(--paper); }
@@ -364,3 +365,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .creator { grid-template-columns: 1fr; }
   .char-preview { height: 220px; }
 }
+
+/* ---------- minimap ---------- */
+.minimap { position: absolute; top: 10px; right: 10px; z-index: 3; border: 2px solid #8a8276; border-radius: 3px; box-shadow: 0 2px 10px #000a; cursor: pointer; touch-action: none; }
+.street-status { max-width: calc(100% - 180px); }

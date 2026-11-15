@@ -1,8 +1,14 @@
-// Levels 1–10 for now. Start small, grow later: to raise the cap, add numbers to XP_TABLE.
+// Levels 1–30 (see docs/design.md §3). Each level needs 20% more XP than the one before.
 
-/** Total XP needed to BE each level. XP_TABLE[1] = 0 (level 1), XP_TABLE[10] = 2500 (level 10). */
-const XP_TABLE = [0, 0, 40, 110, 220, 380, 600, 900, 1300, 1800, 2500];
-export const MAX_LEVEL = XP_TABLE.length - 1;
+export const MAX_LEVEL = 30;
+/** XP to go from level 1 to 2. */
+const BASE_XP = 1000;
+/** How much more each next level needs. */
+const GROWTH = 1.2;
+
+/** XP_TABLE[L] = total XP needed to BE level L. */
+const XP_TABLE: number[] = [0, 0];
+for (let l = 1; l < MAX_LEVEL; l++) XP_TABLE.push(XP_TABLE[l] + Math.round(BASE_XP * Math.pow(GROWTH, l - 1)));
 
 export function totalXpForLevel(level: number): number {
   return XP_TABLE[Math.min(Math.max(level, 1), MAX_LEVEL)];

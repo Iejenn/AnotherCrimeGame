@@ -15,21 +15,18 @@ export interface Look {
   bottom: number;
 }
 
+/** What you're working right now. It repeats until you walk away (active play only). */
 export interface Job {
   crimeId: string;
   /** When the current attempt started (for progress bars). */
   startedAt: number;
-  /** When the current attempt finishes. Locked in at the start of the attempt. */
+  /** When the current attempt finishes. */
   endsAt: number;
-  repsLeft: number;
-  repsDone: number;
+  /** Attempts finished so far on this job. */
+  attempts: number;
 }
 
-/** The player. Kept as a list (with one entry) so the job timer code stays simple. */
-export interface CrewMember {
-  id: string;
-  name: string;
-  isPlayer: boolean;
+export interface PlayerState {
   job: Job | null;
   jailedUntil: number;
 }
@@ -65,19 +62,16 @@ export interface GameState {
   hp: number;
   hpAt: number;
   skills: Record<SkillId, SkillState>;
-  /** Crime id → successful attempts (for mastery stars). */
-  mastery: Record<string, number>;
-  crew: CrewMember[];
+  player: PlayerState;
   /** Loot item id → how many. Each different item takes one inventory slot. */
   inventory: Record<string, number>;
   buffs: Buff[];
   stats: { jobs: number; busts: number; bigScores: number; earned: number; fails: number };
   log: LogEntry[];
-  lastSeen: number;
   nextId: number;
 }
 
-/** Things that happened during a tick — used for floating text and the "since you left" report. */
+/** Things that happened during a tick — used for the floating text over your character. */
 export interface Report {
   jobs: number;
   cash: number;

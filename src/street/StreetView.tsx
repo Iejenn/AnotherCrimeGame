@@ -8,7 +8,7 @@ import type { GameState, Report } from '../game/types';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { MIN_HP_TO_WORK, bail, bailCost, canStart, fmtDuration, fmtMoney, hpAt, skillLevel, startJob, stopJob } from '../game/engine';
-import { BLOCK, BLOCKS, COLS, H, NODES, NPCS, RIVER, ROWS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
+import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
 import { buildCharacter } from './character';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
@@ -45,9 +45,6 @@ function signTexture(text: string) {
   return tex;
 }
 const MAX_LABELS = 6;
-/** Wall colours for the three blocks with crime spots (levels 1–3, 4–6, 7–9). */
-const CRIME_BLOCK_COLORS = [0x8a6f4d, 0x5c4b5e, 0x4f5d6b];
-
 function lockMessage(s: GameState, crimeId: string) {
   const crime = CRIME_BY_ID[crimeId];
   const skill = SKILL_BY_ID[crime.skill];
@@ -70,6 +67,7 @@ function startLine(n: StreetNode) {
 
 export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onReport: (fn: (r: Report) => void) => () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const miniRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const floatsRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -81,7 +79,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
   const yawRef = useRef(0); // camera angle around you
   const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
   const [msgs, setMsgs] = useState<Msg[]>([{ t: Date.now(), text: 'Tap to walk, tap a person, car or door to work it. Drag to turn the camera, pinch to zoom.' }]);
-  const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-5), { t: Date.now(), text }]));
+  const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-3), { t: Date.now(), text }]));
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
   const setTalkingRef = useRef(setTalking);
@@ -207,17 +205,25 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           scene.add(shop, top, awning, sign, door, win1, win2);
           continue;
         }
-        const crimeBlock = kind.type === 'crime';
-        const h = crimeBlock ? 1.1 + rng() * 0.5 : 0.9 + rng() * 1.6; // kept low so they don't hide you
-        const crimeIdx = crimeBlock ? NODES.findIndex((n) => !n.wanders && Math.floor(n.x / BLOCK) === bx && Math.floor((n.y - 1) / BLOCK) === by) : -1;
-        const color = crimeBlock ? CRIME_BLOCK_COLORS[Math.floor(Math.max(0, crimeIdx) / 3)] ?? 0x8a6f4d : [0x37322d, 0x3f3a33, 0x332f2b][Math.floor(rng() * 3)];
-        const b = new THREE.Mesh(box(5, h, 5), mat(color));
-        b.position.set(cx, h / 2, cz);
-        scene.add(b);
-        const roof = new THREE.Mesh(box(5.1, 0.12, 5.1), mat(crimeBlock ? new THREE.Color(color).multiplyScalar(1.35).getHex() : 0x2a2622));
-        roof.position.set(cx, h + 0.06, cz);
-        scene.add(roof);
       }
+
+    // Buildings: different sizes and heights per block (see BUILDINGS in map.ts), with a roof
+    // ledge and a few lit windows on the street-facing side.
+    for (const b of BUILDINGS) {
+      const bcx = b.x + b.w / 2;
+      const bcz = b.y + b.h / 2;
+      const wall = new THREE.Mesh(box(b.w - 0.1, b.height, b.h - 0.1), mat(b.color));
+      wall.position.set(bcx, b.height / 2, bcz);
+      const roof = new THREE.Mesh(box(b.w, 0.1, b.h), mat(new THREE.Color(b.color).multiplyScalar(0.7).getHex()));
+      roof.position.set(bcx, b.height + 0.05, bcz);
+      scene.add(wall, roof);
+      for (let i = 0; i < b.w; i++) {
+        if (rng() < 0.45) continue;
+        const win = new THREE.Mesh(box(0.35, 0.28, 0.04), mat(rng() < 0.6 ? 0xe8c87a : 0x2a3140));
+        win.position.set(b.x + i + 0.5, Math.min(b.height - 0.3, 0.75), b.y + b.h - 0.03);
+        scene.add(win);
+      }
+    }
 
     // ---------- tappable spots ----------
     const pickables: THREE.Object3D[] = [];
@@ -260,7 +266,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       } else {
         // A door: lit doorway on the building face, on the side of this tile that touches the building.
         g = new THREE.Group();
-        const dir = neighbors(n.x, n.y).find(([x, y]) => !isRoad(x, y) && blocked[y * W + x] && BLOCKS.get(`${Math.floor(x / BLOCK)},${Math.floor(y / BLOCK)}`)?.type === 'crime');
+        const dir = neighbors(n.x, n.y).find(([x, y]) => !isRoad(x, y) && blocked[y * W + x]);
         const dx = dir ? dir[0] - n.x : 0;
         const dz = dir ? dir[1] - n.y : -1;
         const door = new THREE.Mesh(box(dx ? 0.08 : 0.6, 0.95, dz ? 0.08 : 0.6), mat(0xd9a441));
@@ -322,7 +328,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       return neighbors(nx, ny).find(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !blocked[y * W + x]) ?? SPAWN;
     };
     // Coming back to the Street mid-job: stand where that job happens.
-    const myJob = sRef.current.crew[0]?.job;
+    const myJob = sRef.current.player.job;
     if (myJob) {
       const n = findNodeFor(myJob.crimeId);
       if (n) {
@@ -354,7 +360,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
 
     const arrive = (n: StreetNode) => {
       const st = sRef.current;
-      const job = st.crew[0]?.job;
+      const job = st.player.job;
       me.attached = n;
       me.attachedAt = performance.now();
       if (job && job.crimeId === n.crimeId) return;
@@ -366,14 +372,14 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       }
       say(startLine(n));
       actRef.current((d, t) => {
-        if (d.crew[0].job) stopJob(d, 'you');
-        startJob(d, 'you', n.crimeId, 99999, t); // keep going until you walk away (capped by your shift length)
+        if (d.player.job) stopJob(d);
+        startJob(d, n.crimeId, t); // repeats until you walk away
       });
     };
 
     const stopWorking = () => {
-      if (me.attached && sRef.current.crew[0]?.job) {
-        actRef.current((d) => stopJob(d, 'you'));
+      if (me.attached && sRef.current.player.job) {
+        actRef.current((d) => stopJob(d));
         say('You stop what you were doing.');
       }
       me.attached = null;
@@ -385,8 +391,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
-      if (st.crew[0].jailedUntil > Date.now()) {
-        say(`You're in a cell for another ${fmtDuration((st.crew[0].jailedUntil - Date.now()) / 1000)}. Post bail at the top of the map.`);
+      if (st.player.jailedUntil > Date.now()) {
+        say(`You're in a cell for another ${fmtDuration((st.player.jailedUntil - Date.now()) / 1000)}. Post bail at the top of the map.`);
         return;
       }
       const hit = ray.intersectObjects(pickables, true)[0];
@@ -405,7 +411,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         setTalkingRef.current(null);
         const n = NODES.find((x) => x.id === hit.object.userData.nodeId)!;
         if (canStart(st, n.crimeId)) return say(lockMessage(st, n.crimeId));
-        if (me.attached?.id === n.id && st.crew[0].job?.crimeId === n.crimeId) return say("You're already on it.");
+        if (me.attached?.id === n.id && st.player.job?.crimeId === n.crimeId) return say("You're already on it.");
         stopWorking();
         const [nx, ny] = nodeTile(n);
         if (walkTo(neighbors(nx, ny), n)) {
@@ -417,7 +423,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       }
       const p = new THREE.Vector3();
       if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p)) return;
-      const [tx, ty] = tileOf(p.x, p.z);
+      walkToTile(...tileOf(p.x, p.z));
+    };
+
+    const walkToTile = (tx: number, ty: number) => {
       if (tx < 0 || ty < 0 || tx >= W || ty >= H) return say("That's the river. The city ends here, for now.");
       stopWorking();
       setTalkingRef.current(null); // walking away ends the conversation
@@ -436,6 +445,82 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         (ring.material as THREE.MeshBasicMaterial).color.set(0xebe4d6);
       }
     };
+
+    // ---------- minimap (top-right) ----------
+    // The static map (river, roads, buildings, parks, store) is drawn once; you, Eddy and the
+    // crime spots are drawn on top a few times a second. Tapping it walks you there.
+    const mini = miniRef.current!;
+    const MINI_PX = 3; // CSS pixels per tile
+    const MINI_EDGE = 2; // tiles of river shown around the city
+    const miniW = (W + MINI_EDGE * 2) * MINI_PX;
+    const miniH = (H + MINI_EDGE * 2) * MINI_PX;
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    mini.width = miniW * dpr;
+    mini.height = miniH * dpr;
+    mini.style.width = `${miniW}px`;
+    mini.style.height = `${miniH}px`;
+    const base = document.createElement('canvas');
+    base.width = mini.width;
+    base.height = mini.height;
+    {
+      const g = base.getContext('2d')!;
+      g.scale(dpr, dpr);
+      const tile = (x: number, y: number, w: number, h: number, c: string) => {
+        g.fillStyle = c;
+        g.fillRect((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, w * MINI_PX, h * MINI_PX);
+      };
+      g.fillStyle = '#2e6584';
+      g.fillRect(0, 0, miniW, miniH);
+      tile(0, 0, W, H, '#5a544c');
+      for (const [key, kind] of BLOCKS) {
+        const [bx, by] = key.split(',').map(Number);
+        if (kind.type === 'park') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#3d6b37');
+        if (kind.type === 'store') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#6b8a55');
+      }
+      for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#22201d');
+    }
+    const drawMini = () => {
+      const g = mini.getContext('2d')!;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(base, 0, 0);
+      g.scale(dpr, dpr);
+      const dot = (x: number, y: number, r: number, fill: string, stroke?: string) => {
+        g.beginPath();
+        g.arc((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, r, 0, Math.PI * 2);
+        g.fillStyle = fill;
+        g.fill();
+        if (stroke) {
+          g.lineWidth = 1;
+          g.strokeStyle = stroke;
+          g.stroke();
+        }
+      };
+      const st = sRef.current;
+      for (const n of NODES) {
+        if (n.wanders) continue;
+        dot(n.x + 0.5, n.y + 0.5, 2.2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
+      }
+      for (const npc of NPCS) dot(npc.x + 0.5, npc.y + 0.5, 2.6, '#f2d27a', '#141210');
+      // You: a red dot with a tick showing which way the camera looks.
+      const px = me.pos.x;
+      const pz = me.pos.z;
+      g.beginPath();
+      g.moveTo((px + MINI_EDGE) * MINI_PX, (pz + MINI_EDGE) * MINI_PX);
+      g.lineTo((px + MINI_EDGE - Math.sin(yawRef.current) * 3) * MINI_PX, (pz + MINI_EDGE - Math.cos(yawRef.current) * 3) * MINI_PX);
+      g.strokeStyle = 'rgba(235, 228, 214, 0.8)';
+      g.lineWidth = 1.5;
+      g.stroke();
+      dot(px, pz, 3, '#e2604c', '#ffffff');
+    };
+    const onMiniTap = (e: PointerEvent) => {
+      e.stopPropagation();
+      const r = mini.getBoundingClientRect();
+      const tx = Math.floor((e.clientX - r.left) / (r.width / (W + MINI_EDGE * 2))) - MINI_EDGE;
+      const ty = Math.floor((e.clientY - r.top) / (r.height / (H + MINI_EDGE * 2))) - MINI_EDGE;
+      walkToTile(tx, ty);
+    };
+    mini.addEventListener('pointerup', onMiniTap);
+    let lastMini = 0;
 
     // Gestures: a short press without moving = tap (walk / work). One finger dragging = rotate the
     // camera around you (sideways) and tilt it (up/down). Two fingers = pinch to zoom.
@@ -492,22 +577,32 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
 
     // ---------- floating "+$5" over your head ----------
     const off = onReport((r) => {
-      const bits: [string, string][] = [];
-      if (r.busts) bits.push(['Busted!', 'f-bust']);
-      if (r.damage) bits.push([`-${r.damage} HP`, 'f-bust']);
-      if (r.cash >= 1) bits.push([`+${fmtMoney(r.cash)}`, 'f-cash']);
+      // One line per attempt (attempts come every second, so separate lines would pile up),
+      // plus a second, bigger line for level-ups, big scores and busts.
+      const parts: [string, string][] = [];
+      if (r.cash >= 1) parts.push([`+${fmtMoney(r.cash)}`, 'f-cash']);
       const xp = Object.values(r.xp).reduce((a, b) => a + (b ?? 0), 0);
-      if (xp) bits.push([`+${Math.round(xp).toLocaleString('en-US')} xp`, 'f-xp']);
-      for (const l of r.levelUps) bits.push([`${SKILL_BY_ID[l.skill].name} level ${l.level}!`, 'f-level']);
-      if (r.bigScores) bits.push(['Big score!', 'f-level']);
-      bits.forEach(([text, cls], i) => {
+      if (xp) parts.push([`+${Math.round(xp).toLocaleString('en-US')} xp`, 'f-xp']);
+      if (r.damage) parts.push([`-${r.damage} HP`, 'f-bust']);
+      const big: [string, string][] = [];
+      if (r.busts) big.push(['Busted!', 'f-bust']);
+      if (r.bigScores) big.push(['Big score!', 'f-level']);
+      for (const l of r.levelUps) big.push([`${SKILL_BY_ID[l.skill].name} level ${l.level}!`, 'f-level']);
+      const line = (items: [string, string][], cls: string) => {
+        if (!items.length) return;
         const el = document.createElement('div');
         el.className = `float ${cls}`;
-        el.textContent = text;
-        el.style.animationDelay = `${i * 120}ms`;
+        for (const [text, c] of items) {
+          const span = document.createElement('span');
+          span.className = c;
+          span.textContent = text;
+          el.appendChild(span);
+        }
         floatLayer.appendChild(el);
-        setTimeout(() => el.remove(), 1600 + i * 120);
-      });
+        setTimeout(() => el.remove(), 1300);
+      };
+      line(parts, '');
+      line(big, 'float-big');
     });
 
     // ---------- labels for nearby spots ----------
@@ -539,7 +634,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const st = sRef.current;
-      const meCrew = st.crew[0];
+      const meCrew = st.player;
       const job = meCrew?.job;
       const jailed = meCrew.jailedUntil > Date.now();
 
@@ -690,6 +785,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const [hx, hy] = project(me.pos.clone().setY(1.5));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
+      if (now - lastMini > 100) {
+        lastMini = now;
+        drawMini();
+      }
       renderer.render(scene, camera);
     };
     loop();
@@ -698,6 +797,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       cancelAnimationFrame(raf);
       off();
       ro.disconnect();
+      mini.removeEventListener('pointerup', onMiniTap);
       renderer.domElement.removeEventListener('pointerdown', onDown);
       renderer.domElement.removeEventListener('pointermove', onMove);
       renderer.domElement.removeEventListener('pointerup', onUp);
@@ -714,29 +814,30 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
   }, [onReport]);
 
   // ---------- overlay ----------
-  const me = s.crew[0];
+  const me = s.player;
   const now = Date.now();
   const jailed = me.jailedUntil > now;
   const job = me.job;
   const crime = job ? CRIME_BY_ID[job.crimeId] : null;
-  const recent: Msg[] = [...msgs, ...s.log.slice(0, 4).map((l) => ({ t: l.t, text: l.text }))].sort((a, b) => a.t - b.t).slice(-5);
+  const recent: Msg[] = [...msgs, ...s.log.slice(0, 4).map((l) => ({ t: l.t, text: l.text }))].sort((a, b) => a.t - b.t).slice(-4);
 
   return (
     <div className="street" ref={hostRef}>
       <div className="street-labels" ref={labelsRef} />
       <div className="street-floats" ref={floatsRef} />
+      <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
       <div className="street-status">
         {jailed ? (
           <>
             <span className="alert">In a cell · {fmtDuration((me.jailedUntil - now) / 1000)}</span>
-            <button className="btn tiny" disabled={s.cash < bailCost(s, me, now)} onClick={() => act((d, t) => bail(d, 'you', t))}>
-              Bail · {fmtMoney(bailCost(s, me, now))}
+            <button className="btn tiny" disabled={s.cash < bailCost(me, now)} onClick={() => act((d, t) => bail(d, t))}>
+              Bail · {fmtMoney(bailCost(me, now))}
             </button>
           </>
         ) : crime && job ? (
           <>
             <span>
-              {crime.name} <span className="muted mono">#{job.repsDone + 1}</span>
+              {crime.name} <span className="muted mono">#{job.attempts + 1}</span>
             </span>
             <div className="bar bar-job">
               <div className="bar-fill" ref={progressRef} />

@@ -1,9 +1,7 @@
-// Start-up screen: character file + "since you left" + what's new.
+// Start-up screen: your character file and what's new. (Nothing happens while you're away, so no "since you left".)
 import { useMemo } from 'react';
-import type { GameState, Report, SkillId } from '../game/types';
-import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
-import { LOOT_BY_ID } from '../game/data/world';
-import { CRIME_BY_ID } from '../game/data/crimes';
+import type { GameState } from '../game/types';
+import { SKILLS } from '../game/data/skills';
 import { fmtDuration, fmtMoney, heatAt, hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
 import { levelProgress } from '../game/xp';
 import { hashString } from '../game/rng';
@@ -18,16 +16,13 @@ function isNewer(a: string, b: string | null) {
   return false;
 }
 
-export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: Report; ms: number; onClose: () => void }) {
+export function StartScreen({ s, onClose }: { s: GameState; onClose: () => void }) {
   const now = Date.now();
   // Read once on open, so the NEW stamps stay visible until the screen closes.
   const seen = useMemo(() => getSeenVersion(), []);
   const total = totalLevel(s);
   const rank = rankFor(total);
   const fileNo = String(hashString(s.name + s.createdAt) % 90000 + 10000);
-  const levels = new Map<SkillId, number>();
-  for (const l of report.levelUps) levels.set(l.skill, l.level);
-  const rare = report.loot.filter((id) => ['rare', 'legendary'].includes(LOOT_BY_ID[id].rarity));
   const close = () => {
     markVersionSeen();
     onClose();
@@ -67,42 +62,6 @@ export function StartScreen({ s, report, ms, onClose }: { s: GameState; report: 
               );
             })}
           </ul>
-        </section>
-
-        <section>
-          <h3 className="rule-head">Right now</h3>
-          {(() => {
-            const me = s.crew[0];
-            const crime = me.job ? CRIME_BY_ID[me.job.crimeId] : null;
-            if (me.jailedUntil > now) return <p className="alert">In jail, {fmtDuration((me.jailedUntil - now) / 1000)} left.</p>;
-            if (crime) return <p>Working: {crime.name}.</p>;
-            return <p className="warn">Idle. Head out to the Street.</p>;
-          })()}
-        </section>
-
-        <section>
-          <h3 className="rule-head">Since you left · {fmtDuration(ms / 1000)}</h3>
-          {report.jobs === 0 ? (
-            <p className="muted">Quiet. Nobody was on a job.</p>
-          ) : (
-            <>
-              <p className="since">
-                <span className="money big-num">+{fmtMoney(report.cash)}</span> from {report.jobs} jobs
-                {report.bigScores > 0 && <>, {report.bigScores} big scores</>}
-                {report.loot.length > 0 && <>, {report.loot.length} loot</>}
-                {report.busts > 0 && <>, <span className="alert">{report.busts} busts</span></>}.
-              </p>
-              <ul className="plain">
-                {(Object.entries(report.xp) as [SkillId, number][]).map(([sk, xp]) => (
-                  <li key={sk}>
-                    {SKILL_BY_ID[sk].name} +{Math.round(xp).toLocaleString('en-US')} XP
-                    {levels.has(sk) && <strong className="lvl-up"> → level {levels.get(sk)}</strong>}
-                  </li>
-                ))}
-              </ul>
-              {rare.length > 0 && <p>Rare finds: {rare.map((id) => LOOT_BY_ID[id].name).join(', ')}</p>}
-            </>
-          )}
         </section>
 
         <section>

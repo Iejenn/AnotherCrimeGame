@@ -60,7 +60,7 @@ export default function App() {
         {tab === 'skills' && <SkillsTab s={state} onImport={doImport} onReset={doReset} />}
       </main>
 
-      {welcome && <StartScreen s={state} report={welcome.report} ms={welcome.ms} onClose={dismissWelcome} />}
+      {welcome && <StartScreen s={state} onClose={dismissWelcome} />}
 
       <div className="toasts">
         {toasts.map((t) => (

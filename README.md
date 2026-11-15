@@ -3,20 +3,12 @@
 A text-based **idle crime RPG** for people who are busy. Every crime family is its own skill to level up.
 Plan a shift, close the tab, come back to a "While you were away" report.
 
-## The game (v0.7)
-A point-and-click crime RPG. Make a character (name + look), then walk an island city by tapping.
+## The game
+**The full design lives in [`docs/design.md`](docs/design.md). Change that first, then the code.**
 
-- **Skills** (levels 1–10 for now): Street Crimes, Melee, Defense, Gunfire, Health.
-  Only Street Crimes can be trained so far: 9 crimes (levels 1–9) around the starting point.
-  Health adds 2 max HP per level.
-- **Street**: tap to walk, tap a person/car/door to work that crime. It repeats until you walk away
-  and keeps going while the app is closed. Drag to rotate, pinch to zoom.
-- **Health**: failed crimes cost HP; it comes back at 1 per minute. **Heat** raises bust risk; busts mean jail.
-- **Eddy's General Store** (yellow name = NPC): sell loot one item at a time. His shop is empty for now.
-- **Inventory**: 28 slots (gold + loot). **Quests**: coming soon.
-
-Tuning lives in `src/game/data/crimes.ts` (one row per crime), `src/game/xp.ts` (XP table)
-and `src/game/data/world.ts` (loot, ranks).
+In short: a point-and-click crime RPG. Make a character, walk an island city by tapping, tap people,
+cars and doors to commit crimes. Only active play counts. Street Crimes goes to level 30 with a new
+crime every 5 levels; Melee, Defense, Gunfire and Health are still to be designed.
 
 ## Dev
 ```bash

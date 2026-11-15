@@ -4,10 +4,10 @@ import { useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
-import { crimeStats, fmtDuration, fmtMoney, masteryLevel, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
+import { crimeStats, fmtDuration, fmtMoney, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
 import { exportSave } from '../game/save';
 import { MAX_LEVEL, levelProgress } from '../game/xp';
-import { Bar, Stars, pct } from './ui';
+import { Bar, pct } from './ui';
 
 export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: () => void; onReset: () => void }) {
   const [open, setOpen] = useState<SkillId>('street');
@@ -76,13 +76,12 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
         <p className="small">
           <span className="label">How to train</span> {def.howToTrain}
         </p>
-        {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 per minute.</p>}
+        {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 HP every 6 seconds.</p>}
         {crimes.length > 0 && (
           <ol className="ledger">
             {crimes.map((crime) => {
               const can = lvl >= crime.level;
               const st = crimeStats(s, crime, now);
-              const count = s.mastery[crime.id] ?? 0;
               return (
                 <li key={crime.id} className={`entry ${can ? '' : 'locked'}`}>
                   <div className="entry-main">
@@ -98,7 +97,6 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
                           <div><dt>Odds</dt><dd>{pct(st.chance)}</dd></div>
                           <div><dt>XP</dt><dd>{st.xp}</dd></div>
                           <div><dt>Take</dt><dd className="money">{crime.cashMin}–{crime.cashMax} gold</dd></div>
-                          <div><dt>Mastery</dt><dd><Stars n={masteryLevel(count)} /></dd></div>
                         </>
                       )}
                     </dl>
