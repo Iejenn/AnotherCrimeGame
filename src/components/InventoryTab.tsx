@@ -1,24 +1,17 @@
-// RuneScape-style bag: 28 slots. Cash always sits in the first one, then loot stacks and car keys.
+// RuneScape-style bag: 28 slots. Gold always sits in the first one, then loot stacks and car keys.
 import { useState } from 'react';
 import type { GameState } from '../game/types';
 import { CAR_CLASSES, CAR_SMUGGLE_BONUS, LOOT_BY_ID } from '../game/data/world';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { INVENTORY_SLOTS, bestCarClass, dropCar, dropLoot, fmtMoney, slotsUsed } from '../game/engine';
+import { Bag, bagSlots, slotKey } from './Bag';
 
 type Act = (fn: (d: GameState, now: number) => void) => void;
-type Slot = { kind: 'cash' } | { kind: 'loot'; id: string; count: number } | { kind: 'car'; id: string };
 
 export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
   const [sel, setSel] = useState<string>('cash');
-  const slots: Slot[] = [
-    { kind: 'cash' },
-    ...Object.entries(s.inventory)
-      .sort((a, b) => LOOT_BY_ID[b[0]].value - LOOT_BY_ID[a[0]].value)
-      .map(([id, count]) => ({ kind: 'loot' as const, id, count })),
-    ...s.cars.map((c) => ({ kind: 'car' as const, id: c.id })),
-  ];
-  const keyOf = (sl: Slot) => (sl.kind === 'cash' ? 'cash' : sl.id);
-  const selected = slots.find((sl) => keyOf(sl) === sel) ?? slots[0];
+  const slots = bagSlots(s);
+  const selected = slots.find((sl) => slotKey(sl) === sel) ?? slots[0];
   const best = bestCarClass(s);
 
   return (
@@ -29,42 +22,12 @@ export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
           {slotsUsed(s)}/{INVENTORY_SLOTS} slots
         </span>
       </div>
-      <div className="bag" role="grid" aria-label="Inventory">
-        {Array.from({ length: INVENTORY_SLOTS }, (_, i) => {
-          const sl = slots[i];
-          if (!sl) return <div key={i} className="slot empty" />;
-          const k = keyOf(sl);
-          let name = '';
-          let sub = '';
-          let cls = '';
-          if (sl.kind === 'cash') {
-            name = 'Cash';
-            sub = fmtMoney(s.cash);
-            cls = 'slot-cash';
-          } else if (sl.kind === 'loot') {
-            const def = LOOT_BY_ID[sl.id];
-            name = def.name;
-            sub = sl.count > 1 ? `×${sl.count}` : '';
-            cls = `rarity-${def.rarity}`;
-          } else {
-            const car = s.cars.find((c) => c.id === sl.id)!;
-            name = `${car.model} keys`;
-            sub = CAR_CLASSES[car.cls];
-            cls = `car-cls-${car.cls}`;
-          }
-          return (
-            <button key={k} className={`slot ${cls} ${sel === k ? 'selected' : ''}`} onClick={() => setSel(k)}>
-              <span className="slot-name">{name}</span>
-              {sub && <span className="slot-sub">{sub}</span>}
-            </button>
-          );
-        })}
-      </div>
+      <Bag s={s} selected={sel} onSelect={setSel} />
 
       <div className="slot-detail">
         {selected.kind === 'cash' && (
           <>
-            <div className="kicker">Cash</div>
+            <div className="kicker">Gold</div>
             <div className="money detail-cash">{fmtMoney(s.cash)}</div>
             <p className="muted small">Lifetime earnings: {fmtMoney(s.stats.earned)}</p>
           </>
@@ -80,9 +43,7 @@ export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
                 <strong className={`detail-name rarity-${def.rarity}`}>
                   {def.name} {selected.count > 1 && <span className="muted mono">×{selected.count}</span>}
                 </strong>
-                <p className="muted small">
-                  Worth about {fmtMoney(def.value)} each to the right buyer. A general store is coming to the Street, where you'll be able to sell.
-                </p>
+                <p className="muted small">Eddy at the General Store pays {fmtMoney(def.value)} each.</p>
                 <button
                   className="btn small"
                   onClick={() => {
@@ -102,7 +63,7 @@ export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
                 <div className="kicker">Car keys · {CAR_CLASSES[car.cls]}</div>
                 <strong className={`detail-name car-cls-${car.cls}`}>{car.model}</strong>
                 <p className="muted small">
-                  Worth about {fmtMoney(car.value)}.
+                  Eddy pays {fmtMoney(car.value)} for the keys.
                   {car.cls === best && ` Your best car: Smuggling pays +${Math.round(CAR_SMUGGLE_BONUS[car.cls] * 100)}% while you have it.`}
                 </p>
                 <button

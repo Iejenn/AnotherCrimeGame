@@ -20,6 +20,14 @@ export function migrate(raw: any): GameState | null {
   raw.buffs ??= [];
   raw.pendingPerks ??= [];
   raw.log = Array.isArray(raw.log) ? raw.log : [];
+  if (typeof raw.hp !== 'number') {
+    // Pre-0.6 save: health didn't exist, and the economy was ~3× richer. Scale gold down to match.
+    raw.hp = 10;
+    raw.hpAt = Date.now();
+    raw.cash = Math.round((raw.cash ?? 0) / 3);
+    for (const c of raw.cars) c.value = Math.max(1, Math.round(c.value / 3));
+    if (raw.stats) raw.stats.earned = Math.round((raw.stats.earned ?? 0) / 3);
+  }
   return raw as GameState;
 }
 

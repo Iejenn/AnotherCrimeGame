@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.0',
+    date: '2026-11-15',
+    title: "Eddy's General Store",
+    items: [
+      "Eddy has opened a General Store just north of where you start. NPC names are yellow: tap him to talk.",
+      'Sell: tap an item to hear what Eddy pays, tap it again to sell one. He takes car keys too.',
+      'Buy: his shelves are empty for now. A delivery is coming.',
+      'The currency is now gold, and earnings are much lower: a picked pocket pays 1–3 gold. Older saves had their gold scaled down to match.',
+      'New: health. A failed job costs a little HP, and it comes back at 1 per minute. At 0 you stop working until you have rested.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-11-15',
     title: 'Back to the streets',

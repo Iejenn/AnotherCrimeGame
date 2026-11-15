@@ -135,6 +135,7 @@ function build(skill: SkillId, r: Raw): CrimeDef {
     xp: crimeXp(level, duration),
     cashMin: Math.max(1, Math.round(avg * 0.6)),
     cashMax: Math.max(2, Math.round(avg * 1.4)),
+    // (Lift a Wallet: avg ≈ 2.3 → 1–3 gold.)
     carClasses,
     flavor,
   };

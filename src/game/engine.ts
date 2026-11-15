@@ -19,8 +19,12 @@ const lootChance = (dur: number) => 0.1 * Math.min(3, Math.max(0.15, dur / 120))
 export const MASTERY_THRESHOLDS = [0, 10, 25, 50, 100, 200, 400, 800, 1600];
 /** How long you keep working a spot before your character stops on their own. */
 export const SHIFT_HOURS = 8;
-/** RuneScape-style bag: cash takes the first slot, each different loot item and each car one more. */
+/** RuneScape-style bag: gold takes the first slot, each different loot item and each car one more. */
 export const INVENTORY_SLOTS = 28;
+/** Health regenerates this much per minute. */
+const HP_REGEN_PER_MIN = 1;
+/** You need at least this much health to start a job. */
+export const MIN_HP_TO_WORK = 3;
 
 // ---------------- Basic lookups ----------------
 
@@ -61,6 +65,18 @@ function buffSum(s: GameState, skill: SkillId, kind: Buff['kind']) {
 export function slotsUsed(s: GameState) {
   return 1 + Object.keys(s.inventory).length + s.cars.length;
 }
+
+/** Max health grows a little as your total level goes up: 10 at the start. */
+export const maxHp = (s: GameState) => 10 + Math.floor((totalLevel(s) - 8) / 4);
+
+/** Current health after regeneration up to time t (does not mutate). */
+export function hpAt(s: GameState, t: number) {
+  const mins = Math.max(0, t - s.hpAt) / 60000;
+  return Math.min(maxHp(s), s.hp + mins * HP_REGEN_PER_MIN);
+}
+
+/** Health lost on a failed job: 1 for low-level crimes, up to 4 for the heaviest. */
+export const failDamage = (crimeLevel: number) => 1 + Math.floor(crimeLevel / 25);
 
 /** Current heat after decay up to time t (does not mutate). */
 export function heatAt(s: GameState, t: number) {
@@ -136,7 +152,7 @@ export function newGame(name: string, origin: OriginId, now: number): GameState 
   const skills = Object.fromEntries(SKILL_IDS.map((id) => [id, { xp: 0, perks: [] }])) as unknown as GameState['skills'];
   const s: GameState = {
     version: 1, name: name.trim() || 'Nobody', origin, createdAt: now,
-    cash: ORIGIN_BY_ID[origin].startCash, heat: 0, heatAt: now,
+    cash: ORIGIN_BY_ID[origin].startCash, heat: 0, heatAt: now, hp: 10, hpAt: now,
     skills, mastery: {},
     crew: [{ id: 'you', name: name.trim() || 'You', isPlayer: true, job: null, jailedUntil: 0 }],
     inventory: {}, cars: [], buffs: [], pendingPerks: [],
@@ -165,16 +181,15 @@ function setHeat(s: GameState, t: number, value: number) {
   s.heatAt = t;
 }
 
-// All numbers use en-US grouping (1,234) on purpose: with the device locale, Dutch phones showed
-// "$3.210", which reads like three dollars and change.
+// The currency is gold. All numbers use en-US grouping (1,234) on purpose: with the device
+// locale, Dutch phones showed "3.210", which reads like three and a bit.
 export function fmtMoney(n: number) {
   const a = Math.abs(n);
   const sign = n < 0 ? '-' : '';
-  if (a >= 1e12) return `${sign}$${(a / 1e12).toFixed(2)}T`;
-  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
-  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(2)}M`;
-  if (a >= 1e4) return `${sign}$${(a / 1e3).toFixed(1)}K`;
-  return `${sign}$${Math.round(a).toLocaleString('en-US')}`;
+  if (a >= 1e9) return `${sign}${(a / 1e9).toFixed(2)}B gold`;
+  if (a >= 1e6) return `${sign}${(a / 1e6).toFixed(2)}M gold`;
+  if (a >= 1e5) return `${sign}${(a / 1e3).toFixed(1)}K gold`;
+  return `${sign}${Math.round(a).toLocaleString('en-US')} gold`;
 }
 
 export function addXp(s: GameState, skill: SkillId, amount: number, t: number, report: Report) {
@@ -325,7 +340,11 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
     } else {
       s.stats.fails++;
       setHeat(s, t, heatNow + st.heat * 1.5);
-      log(s, t, `${prefix}${fill(pick(rng, SKILL_BY_ID[crime.skill].failLines), rng)} +${xp} XP`, 'fail');
+      const dmg = failDamage(crime.level);
+      s.hp = Math.max(0, hpAt(s, t) - dmg);
+      s.hpAt = t;
+      report.damage += dmg;
+      log(s, t, `${prefix}${fill(pick(rng, SKILL_BY_ID[crime.skill].failLines), rng)} -${dmg} HP, +${xp} XP`, 'fail');
     }
   }
   useBuffs(s, crime.skill);
@@ -339,7 +358,12 @@ function resolveRep(s: GameState, crew: CrewMember, t: number, rng: Rng, report:
 
   job.repsLeft--;
   job.repsDone++;
-  if (job.repsLeft > 0) {
+  if (s.hp < 1 && s.hpAt === t) {
+    // Out of health (under 1 HP shows as 0): stop here instead of grinding on while hurt.
+    crew.job = null;
+    log(s, t, `You're too hurt to keep going. Rest up: health comes back over time.`, 'bust');
+    report.events.push('Too hurt to keep working');
+  } else if (job.repsLeft > 0) {
     // Jail pauses the queue rather than wiping it — idle players shouldn't lose a whole night to one bust.
     const start = Math.max(t, crew.jailedUntil);
     job.startedAt = start;
@@ -385,7 +409,7 @@ export function canStart(s: GameState, crimeId: string): string | null {
 
 export function startJob(s: GameState, crewId: string, crimeId: string, reps: number, now: number) {
   const crew = s.crew.find((c) => c.id === crewId);
-  if (!crew || crew.job || canStart(s, crimeId)) return;
+  if (!crew || crew.job || canStart(s, crimeId) || hpAt(s, now) < MIN_HP_TO_WORK) return;
   const crime = CRIME_BY_ID[crimeId];
   const n = Math.max(1, Math.min(reps, maxReps(s, crime, now)));
   const start = Math.max(now, crew.jailedUntil);
@@ -404,7 +428,28 @@ export function choosePerk(s: GameState, index: number, perk: PerkId) {
   s.pendingPerks.splice(index, 1);
 }
 
-/** Throw away a stack of loot (selling comes back with the store NPC). */
+/** What Eddy pays: the item's value. */
+export const lootPrice = (id: string) => LOOT_BY_ID[id].value;
+
+/** Sell one of an item to the store. */
+export function sellLoot(s: GameState, id: string) {
+  const have = s.inventory[id] ?? 0;
+  if (have <= 0) return;
+  if (have === 1) delete s.inventory[id];
+  else s.inventory[id] = have - 1;
+  s.cash += lootPrice(id);
+  s.stats.earned += lootPrice(id);
+}
+
+export function sellCar(s: GameState, carId: string) {
+  const car = s.cars.find((c) => c.id === carId);
+  if (!car) return;
+  s.cars = s.cars.filter((c) => c.id !== carId);
+  s.cash += car.value;
+  s.stats.earned += car.value;
+}
+
+/** Throw away a stack of loot. */
 export function dropLoot(s: GameState, id: string) {
   if (!s.inventory[id]) return;
   delete s.inventory[id];

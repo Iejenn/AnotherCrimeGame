@@ -285,7 +285,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 /* ---------- slim top bar ---------- */
 .topbar { display: flex; align-items: center; gap: 10px; padding: 4px 0 10px; border-bottom: 3px double var(--rule-strong); }
 .topbar-name { font: 1.35rem/1.1 var(--serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topbar-heat { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.topbar-hp { margin-left: auto; font-size: 0.85rem; white-space: nowrap; }
+.topbar-hp .mono { color: var(--paper); }
+.topbar-hp.low .mono { color: var(--red-ink); }
+.topbar-heat { display: flex; align-items: center; gap: 6px; }
 .topbar .heat-meter .seg { width: 8px; height: 10px; }
 button, a { -webkit-tap-highlight-color: transparent; }
 
@@ -320,3 +323,28 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* ---------- quests placeholder ---------- */
 .coming-soon { max-width: 520px; margin-top: 24px; border-left: 3px solid var(--red); padding: 4px 0 4px 16px; }
 .coming-soon .headline { margin: 4px 0; }
+
+/* ---------- NPCs ---------- */
+/* NPC names are yellow, so you can tell people you talk to apart from things you rob. */
+.node-label.npc { color: #f2d27a; font-weight: 700; border-bottom: 1px solid #d9a441; }
+.npc-dialog { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 5; max-height: 72%; overflow-y: auto; background: rgba(20, 18, 16, 0.96); border: 1px solid var(--rule-strong); border-top: 3px solid #d9a441; padding: 10px 12px 12px; }
+.npc-head { display: flex; align-items: baseline; gap: 8px; }
+.npc-name { color: #f2d27a; font-weight: 700; }
+.npc-close { margin-left: auto; font-size: 1rem; line-height: 1; }
+.npc-line { margin: 6px 0 8px; font-size: 0.92rem; color: var(--paper); }
+.npc-options { list-style: none; counter-reset: opt; margin: 0; padding: 0; }
+.npc-options li { counter-increment: opt; }
+.npc-options button { width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--rule); padding: 10px 4px; cursor: pointer; font-size: 0.95rem; color: #9fc1e8; }
+.npc-options button::before { content: counter(opt) '. '; color: var(--muted); font-family: var(--mono); }
+.npc-options button:hover { color: #c4dbf5; background: var(--ink-2); }
+.npc-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.bag.compact { gap: 4px; padding: 6px; grid-template-columns: repeat(7, 1fr); }
+.bag.compact .slot { padding: 3px 4px; aspect-ratio: 5 / 4; }
+.bag.compact .slot-name { font-size: 0.6rem; -webkit-line-clamp: 2; }
+.bag.compact .slot-sub { font-size: 0.6rem; }
+.store-shelf { grid-template-columns: repeat(4, 1fr) !important; }
+@media (max-width: 720px) {
+  .topbar .label { display: none; }
+  .topbar-hp::before { content: '♥ '; color: var(--red-ink); }
+  .bag.compact { grid-template-columns: repeat(5, 1fr); }
+}

@@ -68,6 +68,9 @@ export interface GameState {
   cash: number;
   heat: number;
   heatAt: number;
+  /** Health. Failed jobs hurt a little; it regenerates over time (see hpAt). */
+  hp: number;
+  hpAt: number;
   skills: Record<SkillId, SkillState>;
   mastery: Record<string, number>;
   crew: CrewMember[];
@@ -94,8 +97,10 @@ export interface Report {
   loot: string[];
   cars: number;
   events: string[];
+  /** Health lost to failed jobs. */
+  damage: number;
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], cars: 0, events: [] };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], cars: 0, events: [], damage: 0 };
 }

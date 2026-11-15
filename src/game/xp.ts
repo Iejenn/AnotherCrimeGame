@@ -49,7 +49,11 @@ export function crimeXp(level: number, durationSec: number): number {
   return Math.max(1, Math.round(xpToNext(level) * levelsPerHour(level) * (durationSec / 3600)));
 }
 
-/** Expected cash per hour of a crime at this level (before skill multiplier). */
+/**
+ * Expected gold per hour of a crime at this level (before skill multiplier).
+ * Tuned so Lift a Wallet (level 1, 10s) pays 1–3 gold per success.
+ * Loot values, car values and bail all scale from this too.
+ */
 export function cashPerHour(level: number): number {
-  return 1500 * Math.pow(1.085, level - 1);
+  return 700 * Math.pow(1.05, level - 1);
 }

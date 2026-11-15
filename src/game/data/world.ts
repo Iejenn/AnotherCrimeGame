@@ -62,7 +62,8 @@ export interface LootDef {
   value: number;
 }
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, uncommon: 25, rare: 9, legendary: 2 };
-const RARITY_HOURS: Record<Rarity, number> = { common: 0.05, uncommon: 0.15, rare: 0.5, legendary: 2.5 };
+// Loot value = this many hours of gold at the item's level: commons are pocket change, legendaries a real prize.
+const RARITY_HOURS: Record<Rarity, number> = { common: 0.012, uncommon: 0.04, rare: 0.15, legendary: 0.8 };
 
 const LOOT_RAW: Record<SkillId, [string, string, Rarity, number][]> = {
   petty: [['sunglasses', 'Knockoff Sunglasses', 'common', 1], ['smartwatch', 'Smartwatch', 'common', 10], ['gold_chain', 'Gold Chain', 'uncommon', 25], ['vintage_watch', 'Vintage Swiss Watch', 'rare', 45], ['jeweled_egg', 'Jeweled Imperial Egg', 'legendary', 70]],
@@ -82,7 +83,7 @@ export const LOOT: LootDef[] = (Object.keys(LOOT_RAW) as SkillId[]).flatMap((ski
     skill,
     rarity,
     minLevel,
-    value: Math.round(cashPerHour(minLevel + 5) * SKILL_BY_ID[skill].cashMult * RARITY_HOURS[rarity]),
+    value: Math.max(1, Math.round(cashPerHour(minLevel) * SKILL_BY_ID[skill].cashMult * RARITY_HOURS[rarity])),
   })),
 );
 export const LOOT_BY_ID: Record<string, LootDef> = Object.fromEntries(LOOT.map((l) => [l.id, l]));
