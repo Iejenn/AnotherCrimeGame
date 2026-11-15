@@ -1,7 +1,7 @@
 // The Street: a small low-poly city you walk around RuneScape-style.
 // Tap the ground to walk. Tap a person, car or door to walk up and work it:
 // that starts the same job queue the Jobs tab uses, so it keeps running offline.
-// Walking away stops the job. The game rules don't change here, only how you start jobs.
+// Walking away stops the job. Drag to rotate the camera, pinch (or mouse wheel) to zoom.
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { GameState, Report, SkillId } from '../game/types';
@@ -62,7 +62,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
   const actRef = useRef(act);
   actRef.current = act;
   const zoomRef = useRef(15);
-  const [msgs, setMsgs] = useState<Msg[]>([{ t: Date.now(), text: 'Tap the street to walk. Tap a person, car or door to get to work.' }]);
+  const yawRef = useRef(0); // camera angle around you
+  const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
+  const [msgs, setMsgs] = useState<Msg[]>([{ t: Date.now(), text: 'Tap to walk, tap a person, car or door to work it. Drag to turn the camera, pinch to zoom.' }]);
   const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-5), { t: Date.now(), text }]));
 
   useEffect(() => {
@@ -214,12 +216,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     // ---------- player and crew ----------
     const player = personMesh(0xc8412f);
     scene.add(player);
-    const crewMeshes = [0, 1, 2, 3].map(() => {
-      const m = personMesh(0x4f6b45);
-      m.visible = false;
-      scene.add(m);
-      return m;
-    });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 24), new THREE.MeshBasicMaterial({ color: 0xebe4d6, transparent: true, opacity: 0 }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.08;
@@ -235,10 +231,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       facing: 0,
     };
     const findNodeFor = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders);
-    const standSpot = (n: StreetNode, skip = 0) => {
+    const standSpot = (n: StreetNode) => {
       const [nx, ny] = nodeTile(n);
-      const free = neighbors(nx, ny).filter(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !blocked[y * W + x]);
-      return free[Math.min(skip, free.length - 1)] ?? SPAWN;
+      return neighbors(nx, ny).find(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !blocked[y * W + x]) ?? SPAWN;
     };
     // Coming back to the Street mid-job: stand where that job happens.
     const myJob = sRef.current.crew[0]?.job;
@@ -291,7 +286,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       if (st.crew[0].jailedUntil > Date.now()) {
-        say(`You're in a cell for another ${fmtDuration((st.crew[0].jailedUntil - Date.now()) / 1000)}. Post bail from your crew card.`);
+        say(`You're in a cell for another ${fmtDuration((st.crew[0].jailedUntil - Date.now()) / 1000)}. Post bail at the top of the map.`);
         return;
       }
       const hit = ray.intersectObjects(pickables, true)[0];
@@ -329,19 +324,57 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       }
     };
 
-    // A tap is a short press without much movement; anything else is ignored.
-    let down: { x: number; y: number; t: number } | null = null;
-    const onDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY, t: performance.now() });
+    // Gestures: a short press without moving = tap (walk / work). One finger dragging = rotate the
+    // camera around you (sideways) and tilt it (up/down). Two fingers = pinch to zoom.
+    const MIN_ZOOM = 7;
+    const MAX_ZOOM = 24;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let tapStart: { x: number; y: number; t: number } | null = null;
+    let pinch: { dist: number; zoom: number } | null = null;
+    const fingerGap = () => {
+      const [a, b] = [...pointers.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    const onDown = (e: PointerEvent) => {
+      renderer.domElement.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 1) tapStart = { x: e.clientX, y: e.clientY, t: performance.now() };
+      if (pointers.size === 2) {
+        tapStart = null;
+        pinch = { dist: fingerGap(), zoom: zoomRef.current };
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      const prev = pointers.get(e.pointerId);
+      if (!prev) return;
+      const dx = e.clientX - prev.x;
+      const dy = e.clientY - prev.y;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2 && pinch) {
+        zoomRef.current = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, (pinch.zoom * pinch.dist) / Math.max(10, fingerGap())));
+        return;
+      }
+      if (pointers.size !== 1) return;
+      if (tapStart && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) > 8) tapStart = null; // it's a drag, not a tap
+      if (!tapStart) {
+        yawRef.current -= dx * 0.008;
+        pitchRef.current = Math.min(1.45, Math.max(0.75, pitchRef.current + dy * 0.004));
+      }
+    };
     const onUp = (e: PointerEvent) => {
-      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10 && performance.now() - down.t < 600) tap(e.clientX, e.clientY);
-      down = null;
+      if (tapStart && pointers.size === 1 && performance.now() - tapStart.t < 600) tap(e.clientX, e.clientY);
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (pointers.size === 0) tapStart = null;
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      zoomRef.current = Math.min(22, Math.max(7, zoomRef.current + Math.sign(e.deltaY)));
+      zoomRef.current = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current + Math.sign(e.deltaY)));
     };
     renderer.domElement.addEventListener('pointerdown', onDown);
+    renderer.domElement.addEventListener('pointermove', onMove);
     renderer.domElement.addEventListener('pointerup', onUp);
+    renderer.domElement.addEventListener('pointercancel', onUp);
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
     // ---------- floating "+$5" over your head ----------
@@ -451,26 +484,20 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         nodeGroups.get(id)!.position.copy(w.pos);
       }
 
-      // Crew members stand at the spot of the job they're running.
-      st.crew.slice(1).forEach((c, i) => {
-        const m = crewMeshes[i];
-        const n = c.job && c.jailedUntil <= Date.now() ? findNodeFor(c.job.crimeId) : undefined;
-        m.visible = !!n;
-        if (n) {
-          const spot = standSpot(n, 1 + i);
-          m.position.set(spot[0] + 0.5, Math.abs(Math.sin(now / 170 + i)) * 0.05, spot[1] + 0.5);
-          m.rotation.y = Math.atan2(n.x - spot[0], n.y - spot[1]);
-        }
-      });
-
       // Tap ring fades out.
       const rm = ring.material as THREE.MeshBasicMaterial;
       rm.opacity = Math.max(0, rm.opacity - dt * 0.8);
 
-      // Camera follows from above at an angle.
+      // Camera orbits you: yaw = angle around you, pitch = how steeply it looks down.
       camTarget.lerp(me.pos, 1 - Math.pow(0.001, dt));
-      const z = zoomRef.current;
-      camera.position.set(camTarget.x, z * 1.15, camTarget.z + z * 0.5); // steep, so buildings don't hide you
+      const r = zoomRef.current * 1.25;
+      const yaw = yawRef.current;
+      const pitch = pitchRef.current;
+      camera.position.set(
+        camTarget.x + Math.sin(yaw) * r * Math.cos(pitch),
+        r * Math.sin(pitch),
+        camTarget.z + Math.cos(yaw) * r * Math.cos(pitch),
+      );
       camera.lookAt(camTarget.x, 0, camTarget.z);
 
       // Progress bar for the current action.
@@ -535,7 +562,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       off();
       ro.disconnect();
       renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointermove', onMove);
       renderer.domElement.removeEventListener('pointerup', onUp);
+      renderer.domElement.removeEventListener('pointercancel', onUp);
       renderer.domElement.removeEventListener('wheel', onWheel);
       for (const el of labelEls.values()) el.remove();
       geoms.forEach((g) => g.dispose());
@@ -578,19 +607,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         ) : (
           <span className="muted">Idle — tap something</span>
         )}
-        {s.crew.length > 1 && (
-          <div className="muted small">
-            Crew: {s.crew.slice(1).filter((c) => c.job).length}/{s.crew.length - 1} working
-          </div>
-        )}
-      </div>
-      <div className="street-zoom">
-        <button className="btn tiny" aria-label="Zoom in" onClick={() => (zoomRef.current = Math.max(7, zoomRef.current - 2))}>
-          +
-        </button>
-        <button className="btn tiny" aria-label="Zoom out" onClick={() => (zoomRef.current = Math.min(22, zoomRef.current + 2))}>
-          −
-        </button>
       </div>
       <div className="chatbox" aria-live="polite">
         {recent.map((m, i) => (

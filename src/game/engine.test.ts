@@ -69,9 +69,9 @@ describe('engine', () => {
   it('higher level improves odds', () => {
     const s = newGame('Tester', 'streetkid', T0);
     const crime = CRIME_BY_ID.pick_wallet;
-    const low = crimeStats(s, crime, s.crew[0], T0).chance;
+    const low = crimeStats(s, crime, T0).chance;
     s.skills.petty.xp = totalXpForLevel(20);
-    const high = crimeStats(s, crime, s.crew[0], T0).chance;
+    const high = crimeStats(s, crime, T0).chance;
     expect(high).toBeGreaterThan(low);
   });
 });
@@ -95,5 +95,22 @@ describe('save codes', () => {
     const s = newGame('Old', 'excon', T0);
     const old = btoa(JSON.stringify(s)); // how v0.1/v0.2 made codes (ASCII name)
     expect((await importSave(old))?.name).toBe('Old');
+  });
+});
+
+describe('old saves', () => {
+  it('drop hired crew and removed systems but keep progress', async () => {
+    const { migrate } = await import('./save');
+    const old = {
+      ...structuredClone(newGame('Vet', 'excon', T0)),
+      gear: ['petty_gear_0'], upgrades: { shift: 2 }, fronts: {}, contracts: { day: 1, list: [] }, discovered: ['sunglasses'],
+    } as Record<string, unknown> & { crew: unknown[]; skills: { petty: { xp: number } } };
+    old.skills.petty.xp = 5000;
+    old.crew.push({ id: 'crew9', name: 'Rosa', trait: 'quick', isPlayer: false, job: null, jailedUntil: 0 });
+    const s = migrate(old)!;
+    expect(s.crew).toHaveLength(1);
+    expect(s.crew[0].id).toBe('you');
+    expect(s.skills.petty.xp).toBe(5000);
+    expect('gear' in s || 'fronts' in s || 'contracts' in s).toBe(false);
   });
 });

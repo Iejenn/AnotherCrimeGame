@@ -102,22 +102,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 
 .perk-banner { display: block; width: 100%; margin-top: 12px; padding: 10px; background: transparent; border: 1px dashed var(--amber); color: var(--amber); cursor: pointer; font-weight: 600; border-radius: 2px; }
 
-/* crew tickets */
-.crew { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin: 16px 0 6px; }
-.ticket { border-left: 3px solid var(--rule-strong); padding: 4px 0 6px 12px; display: flex; flex-direction: column; gap: 4px; }
-.ticket.busy { border-left-color: var(--money); }
-.ticket.idle { border-left-color: var(--amber); }
-.ticket.jailed { border-left-color: var(--red); }
-.ticket .btn { align-self: flex-start; }
-.ticket-head { display: flex; gap: 8px; align-items: baseline; }
-.ticket-head .status-tag { margin-left: auto; }
-.status-tag { font: 600 0.65rem var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
-.status-tag.idle { color: var(--amber); }
-.status-tag.jailed { color: var(--red-ink); }
-.ticket-line { font-size: 0.92rem; }
-.ticket-meta { display: flex; gap: 10px; align-items: center; font-size: 0.75rem; }
-.ticket-meta .btn { margin-left: auto; }
-
 /* tabs */
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule-strong); overflow-x: auto; scrollbar-width: none; margin-top: 10px; }
 .tab { background: none; border: none; padding: 12px 14px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; font: 600 0.75rem var(--sans); text-transform: uppercase; letter-spacing: 0.12em; }
@@ -272,29 +256,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .toasts { left: 16px; right: 16px; top: 12px; bottom: auto; align-items: stretch; }
 }
 
-/* ---------- guide ---------- */
-.next-step { border: 1px solid var(--rule-strong); border-left: 3px solid var(--red); padding: 10px 14px 12px; margin: 10px 0 4px; background: var(--ink-2); }
-.next-head { display: flex; justify-content: space-between; align-items: center; }
-.next-head .btn.link { padding: 0; }
-.next-title { display: block; font: 1.2rem var(--serif); font-weight: 400; margin-top: 2px; }
-.next-how { color: #cfc8ba; font-size: 0.9rem; margin: 4px 0 10px; }
-.steps { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
-.steps li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
-.steps li p { margin: 4px 0 8px; font-size: 0.9rem; }
-.steps li.done strong { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--rule-strong); }
-.step-no { font: 600 0.8rem/1.6 var(--mono); color: var(--muted); }
-.steps li.done .step-no { color: var(--money); }
-.ref { border-bottom: 1px solid var(--rule); padding: 10px 0; }
-.ref:first-of-type { border-top: 1px solid var(--rule); }
-.ref summary { cursor: pointer; font: 1.1rem var(--serif); list-style: none; }
-.ref summary::-webkit-details-marker { display: none; }
-.ref summary::after { content: '+'; float: right; font-family: var(--mono); color: var(--muted); }
-.ref[open] summary::after { content: '−'; }
-.ref p { color: #cfc8ba; font-size: 0.92rem; margin: 8px 0 0; }
-
 /* ---------- street (3D) ---------- */
+/* No blue tap flash on phones, no outline while dragging the camera. */
+.street, .street canvas { -webkit-tap-highlight-color: transparent; outline: none; }
 .street { position: relative; height: min(68vh, 640px); margin-top: 12px; border: 1px solid var(--rule-strong); overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
-.street canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
+.street canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.street canvas:active { cursor: grabbing; }
 .street-labels, .street-floats { position: absolute; left: 0; top: 0; pointer-events: none; }
 .node-label { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 0.68rem var(--sans); color: var(--paper); background: rgba(20, 18, 16, 0.72); padding: 1px 5px; text-shadow: 0 1px 0 #000; }
 .node-label.locked { color: #8b8378; }
@@ -308,10 +275,48 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .street-status .bar { margin: 5px 0 0; }
 .street-status .btn { pointer-events: auto; margin-left: 8px; }
 .street-status .bar-fill { transition: none; }
-.street-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
-.street-zoom .btn { background: rgba(20, 18, 16, 0.82); width: 34px; height: 34px; font-size: 1rem; }
 .chatbox { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px; background: linear-gradient(transparent, rgba(12, 11, 10, 0.92) 30%); font: 0.78rem/1.4 var(--sans); color: #d6cfc1; pointer-events: none; }
 .chatbox div:last-child { color: var(--paper); }
 @media (max-width: 720px) {
-  .street { height: 62vh; margin-left: -16px; margin-right: -16px; border-left: 0; border-right: 0; }
+  /* Fill the rest of the phone screen under the top bar and tabs. */
+  .street { height: calc(100dvh - 128px); margin-left: -16px; margin-right: -16px; margin-bottom: -82px; border-left: 0; border-right: 0; border-bottom: 0; }
 }
+
+/* ---------- slim top bar ---------- */
+.topbar { display: flex; align-items: center; gap: 10px; padding: 4px 0 10px; border-bottom: 3px double var(--rule-strong); }
+.topbar-name { font: 1.35rem/1.1 var(--serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-heat { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.topbar .heat-meter .seg { width: 8px; height: 10px; }
+button, a { -webkit-tap-highlight-color: transparent; }
+
+/* ---------- inventory ---------- */
+.inventory { max-width: 520px; }
+.bag { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px; background: var(--ink-2); border: 1px solid var(--rule-strong); }
+.slot { aspect-ratio: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; padding: 5px 6px; background: var(--ink); border: 1px solid var(--rule); border-radius: 2px; cursor: pointer; overflow: hidden; min-width: 0; }
+.slot.empty { cursor: default; background: #181614; }
+.slot.selected { border-color: var(--paper); box-shadow: inset 0 0 0 1px var(--paper); }
+.slot-name { font-size: 0.72rem; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.slot-sub { font: 600 0.7rem var(--mono); color: var(--muted); }
+.slot-cash .slot-name { color: var(--muted); }
+.slot-cash .slot-sub { color: var(--money); font-size: 0.78rem; }
+.slot-detail { margin-top: 12px; border-top: 1px solid var(--rule-strong); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.detail-cash { font-size: 1.8rem; font-weight: 600; }
+.detail-name { font: 1.3rem var(--serif); font-weight: 400; }
+
+/* ---------- skills ---------- */
+.skills-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-top: 14px; }
+.skills-head .headline { margin: 0; }
+.skills-total { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 0.85rem; }
+.skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 14px; }
+.skill-cell { display: grid; grid-template-columns: 22px 1fr auto; align-items: baseline; gap: 6px; text-align: left; background: var(--ink-2); border: 1px solid var(--rule); padding: 8px 10px 6px; cursor: pointer; border-radius: 2px; }
+.skill-cell .bar { grid-column: 1 / -1; height: 3px; margin: 2px 0 0; }
+.skill-cell.active { border-color: var(--paper); box-shadow: inset 3px 0 0 var(--red); }
+.skill-cell.locked { color: #6b645a; }
+.skill-cell-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; }
+.skill-guide { margin-top: 18px; }
+.skill-guide .headline { margin-top: 2px; }
+.lvl-col { display: inline-block; min-width: 22px; color: var(--muted); }
+
+/* ---------- quests placeholder ---------- */
+.coming-soon { max-width: 520px; margin-top: 24px; border-left: 3px solid var(--red); padding: 4px 0 4px 16px; }
+.coming-soon .headline { margin: 4px 0; }

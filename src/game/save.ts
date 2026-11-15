@@ -4,12 +4,29 @@ const KEY = 'underworld-idle-save-v1';
 /** Prefix for compressed save codes, so old (uncompressed) codes still import. */
 const CODE_PREFIX = 'UI1.';
 
+/**
+ * Bring any older save up to the current shape. v0.5 removed hired crew, gear, upgrades,
+ * fronts, contracts and the collection: those fields are dropped, everything else is kept.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function migrate(raw: any): GameState | null {
+  if (raw?.version !== 1 || !raw.skills || !Array.isArray(raw.crew)) return null;
+  const me = raw.crew.find((c: { isPlayer?: boolean }) => c.isPlayer) ?? raw.crew[0];
+  raw.crew = [{ id: 'you', name: me?.name ?? raw.name, isPlayer: true, job: me?.job ?? null, jailedUntil: me?.jailedUntil ?? 0 }];
+  for (const k of ['gear', 'upgrades', 'fronts', 'contracts', 'discovered']) delete raw[k];
+  if (raw.stats) delete raw.stats.contracts;
+  raw.inventory ??= {};
+  raw.cars ??= [];
+  raw.buffs ??= [];
+  raw.pendingPerks ??= [];
+  raw.log = Array.isArray(raw.log) ? raw.log : [];
+  return raw as GameState;
+}
+
 export function loadGame(): GameState | null {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as GameState;
-    return s?.version === 1 ? s : null;
+    return raw ? migrate(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
@@ -71,10 +88,7 @@ export async function importSave(text: string): Promise<GameState | null> {
       // Older codes: plain base64 JSON.
       json = new TextDecoder().decode(fromBase64Url(code));
     }
-    const s = JSON.parse(json) as GameState;
-    if (s?.version !== 1 || !s.skills || !Array.isArray(s.crew)) return null;
-    s.log = Array.isArray(s.log) ? s.log : [];
-    return s;
+    return migrate(JSON.parse(json));
   } catch {
     return null;
   }

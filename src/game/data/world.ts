@@ -1,4 +1,4 @@
-import type { OriginId, PerkId, Rarity, SkillId, TraitId } from '../types';
+import type { OriginId, PerkId, Rarity, SkillId } from '../types';
 import { cashPerHour } from '../xp';
 import { SKILL_BY_ID } from './skills';
 
@@ -25,20 +25,6 @@ export const PERKS: Record<PerkId, { name: string; desc: string }> = {
   lucky: { name: 'Lucky Break', desc: '+3% Big Score chance' },
 };
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
-
-// ---------- Crew traits ----------
-export const TRAITS: Record<TraitId, { name: string; desc: string }> = {
-  none: { name: '—', desc: 'No special trait' },
-  quick: { name: 'Quick', desc: '-10% job duration' },
-  lucky: { name: 'Lucky', desc: '+4% Big Score chance' },
-  careful: { name: 'Careful', desc: '-30% bust chance' },
-  greedy: { name: 'Greedy', desc: '+12% cash' },
-  bright: { name: 'Bright', desc: '+12% XP' },
-};
-export const CREW_FIRST = ['Sal', 'Vinnie', 'Rosa', 'Mickey', 'Nadia', 'Tommy', 'Lena', 'Dex', 'Marco', 'Ivy', 'Bruno', 'Kat', 'Rico', 'Yuki', 'Ozzy', 'Bea'];
-export const CREW_NICK = ['"The Rat"', '"Two-Tone"', '"Fingers"', '"Smokes"', '"Quiet"', '"Tank"', '"Lucky"', '"Wheels"', '"Doc"', '"Ghost"', '"Sparks"', '"Ledger"'];
-export const CREW_SLOT_COST = [0, 2_500, 40_000, 600_000, 9_000_000];
-export const CREW_SLOT_TOTAL_LEVEL = [0, 12, 40, 100, 200];
 
 // ---------- Origins: picked at character creation ----------
 export interface OriginDef {
@@ -110,94 +96,5 @@ export const CAR_MODELS: string[][] = [
   ['Executive Saloon', 'Armored Limo', 'Grand Tourer', 'Luxury SUV'],
   ['Hypercar', 'Italian Supercar', 'One-Off Prototype', 'Racing Legend'],
 ];
-export const CAR_BASE_VALUE = [400, 3_000, 20_000, 120_000, 900_000];
 /** Smuggling cash bonus from the best car in your garage. */
 export const CAR_SMUGGLE_BONUS = [0.05, 0.15, 0.3, 0.6, 1.0];
-
-// ---------- Gear: best owned piece per skill applies ----------
-export interface GearDef {
-  id: string;
-  name: string;
-  skill: SkillId;
-  level: number;
-  success: number;
-  cash: number;
-  price: number;
-}
-const GEAR_RAW: Record<SkillId, [string, string, string]> = {
-  petty: ['Razor Blade & Tweezers', 'Magnetic Sleeve Kit', 'Tailored Pickpocket Coat'],
-  auto: ['Slim Jim', 'OBD Key Programmer', 'Relay Attack Rig'],
-  burglary: ['Lockpick Set', 'Electric Pick Gun', 'Thermal Lance'],
-  muscle: ['Leather Gloves', 'Intimidating Suit', 'Armored Escalade'],
-  fraud: ['Burner Laptop', 'Card Encoder', 'Botnet Rental'],
-  smuggling: ['Hidden Compartment', 'Bribed Port Contact', 'Private Airstrip'],
-  robbery: ['Ski Mask & Bat', 'Police Scanner', 'Tactical Getaway Plan'],
-  heist: ['Blueprints Broker', 'Inside Man Network', 'Master Planner'],
-};
-const GEAR_TIERS = [
-  { level: 10, success: 0.05, cash: 0.1, hours: 3 },
-  { level: 35, success: 0.08, cash: 0.2, hours: 6 },
-  { level: 65, success: 0.12, cash: 0.35, hours: 10 },
-];
-export const GEAR: GearDef[] = (Object.keys(GEAR_RAW) as SkillId[]).flatMap((skill) =>
-  GEAR_RAW[skill].map((name, i) => {
-    const t = GEAR_TIERS[i];
-    return {
-      id: `${skill}_gear_${i}`,
-      name,
-      skill,
-      level: t.level,
-      success: t.success,
-      cash: t.cash,
-      price: Math.round(cashPerHour(t.level) * SKILL_BY_ID[skill].cashMult * t.hours),
-    };
-  }),
-);
-export const GEAR_BY_ID: Record<string, GearDef> = Object.fromEntries(GEAR.map((g) => [g.id, g]));
-
-// ---------- Upgrades (the idle-quality-of-life tree) ----------
-export interface UpgradeDef {
-  id: string;
-  name: string;
-  desc: (lvl: number) => string;
-  max: number;
-  cost: (lvl: number) => number;
-}
-export const UPGRADES: UpgradeDef[] = [
-  { id: 'shift', name: 'Planning Board', desc: (l) => `Queue up to ${shiftHours(l)}h of jobs per crew member`, max: 5, cost: (l) => Math.round(1_000 * Math.pow(6, l)) },
-  { id: 'lawyer', name: 'Lawyer on Retainer', desc: (l) => `Jail time -${l * 12}%`, max: 5, cost: (l) => Math.round(2_000 * Math.pow(5, l)) },
-  { id: 'safehouse', name: 'Safehouse', desc: (l) => `Heat cools ${Math.round(l * 30)}% faster`, max: 5, cost: (l) => Math.round(1_500 * Math.pow(5, l)) },
-  { id: 'garage', name: 'Garage Space', desc: (l) => `Store ${garageCap(l)} cars`, max: 6, cost: (l) => Math.round(3_000 * Math.pow(4, l)) },
-  { id: 'fence', name: 'Fence Connections', desc: (l) => `Sell loot & cars for +${l * 10}%`, max: 5, cost: (l) => Math.round(2_500 * Math.pow(5, l)) },
-];
-export const UPGRADE_BY_ID = Object.fromEntries(UPGRADES.map((u) => [u.id, u])) as Record<string, UpgradeDef>;
-export function shiftHours(lvl: number) {
-  return [2, 4, 6, 8, 12, 24][lvl] ?? 24;
-}
-export function garageCap(lvl: number) {
-  return 4 + lvl * 4;
-}
-
-// ---------- Fronts: passive income businesses ----------
-export interface FrontDef {
-  id: string;
-  name: string;
-  totalLevel: number;
-  baseCost: number;
-  incomePerLevel: number; // $ per hour per level
-}
-export const FRONTS: FrontDef[] = [
-  { id: 'newsstand', name: 'Newsstand', totalLevel: 0, baseCost: 500, incomePerLevel: 60 },
-  { id: 'laundromat', name: 'Laundromat', totalLevel: 25, baseCost: 6_000, incomePerLevel: 500 },
-  { id: 'pizzeria', name: 'Pizzeria', totalLevel: 60, baseCost: 60_000, incomePerLevel: 3_500 },
-  { id: 'nightclub', name: 'Nightclub', totalLevel: 120, baseCost: 600_000, incomePerLevel: 25_000 },
-  { id: 'casino', name: 'Casino', totalLevel: 220, baseCost: 7_000_000, incomePerLevel: 200_000 },
-  { id: 'shipping', name: 'Shipping Company', totalLevel: 350, baseCost: 90_000_000, incomePerLevel: 1_800_000 },
-];
-export const FRONT_BY_ID = Object.fromEntries(FRONTS.map((f) => [f.id, f])) as Record<string, FrontDef>;
-export const FRONT_MAX_LEVEL = 10;
-/** Fronts stop accruing after this many hours uncollected — a gentle "come back" nudge. */
-export const FRONT_CAP_HOURS = 12;
-export function frontCost(f: FrontDef, lvl: number) {
-  return Math.round(f.baseCost * Math.pow(1.6, lvl));
-}

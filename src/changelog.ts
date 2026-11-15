@@ -8,6 +8,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.5.0',
+    date: '2026-11-15',
+    title: 'Back to the streets',
+    items: [
+      'The game is now all about the Street: four tabs, Street, Inventory, Quests and Skills.',
+      'Drag to turn the camera, pinch to zoom. No more blue flash when you tap.',
+      'New Inventory: 28 slots with your cash, loot and car keys. Selling comes back with a store on the Street.',
+      'Skills shows every crime per skill: what level you need, where to find it on the map, and your mastery.',
+      'Quests are coming soon.',
+      'Removed: the Jobs list, hiring crew, the shop (gear, upgrades, fronts), Intel and contracts, the collection, the log and the guide.',
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-11-15',
     title: 'The Street (test version)',
