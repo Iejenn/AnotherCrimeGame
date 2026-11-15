@@ -1,7 +1,7 @@
 import type { GameState } from '../game/types';
 import { GUIDE_STEPS, guideProgress, type GuideTab } from '../game/guide';
 
-const TAB_NAMES: Record<GuideTab, string> = { jobs: 'Jobs', intel: 'Intel', stash: 'Stash', shop: 'Shop', log: 'Log', profile: 'Profile', guide: 'Guide' };
+const TAB_NAMES: Record<GuideTab, string> = { street: 'Street', jobs: 'Jobs', intel: 'Intel', stash: 'Stash', shop: 'Shop', log: 'Log', profile: 'Profile', guide: 'Guide' };
 
 /** Small card under the crew panel: the one thing a new player should do next. */
 export function NextStep({ s, onGo, onHide }: { s: GameState; onGo: (tab: GuideTab) => void; onHide: () => void }) {

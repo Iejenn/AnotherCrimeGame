@@ -168,7 +168,9 @@ function log(s: GameState, t: number, text: string, kind: LogKind) {
 }
 
 function fill(text: string, rng: Rng) {
-  return text.replace(/\{mark\}/g, () => pick(rng, MARKS)).replace(/\{place\}/g, () => pick(rng, PLACES));
+  const out = text.replace(/\{mark\}/g, () => pick(rng, MARKS)).replace(/\{place\}/g, () => pick(rng, PLACES));
+  // "{mark} grabbed…" → "A tourist grabbed…": capitalise the start of each sentence.
+  return out.replace(/(^|[.!?]\s+)([a-z])/g, (_, pre: string, c: string) => pre + c.toUpperCase());
 }
 
 function setHeat(s: GameState, t: number, value: number) {

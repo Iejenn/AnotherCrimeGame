@@ -23,8 +23,11 @@ export function useGame() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(1);
   const lastSave = useRef(0);
+  // Other views (the Street) can listen for job results, e.g. to float "+$5" over the character.
+  const listeners = useRef(new Set<(r: Report) => void>());
 
   const pushToasts = useCallback((report: Report) => {
+    if (report.jobs || report.events.length) listeners.current.forEach((fn) => fn(report));
     const list: Toast[] = [];
     for (const l of report.levelUps) list.push({ id: toastId.current++, text: `${SKILL_BY_ID[l.skill].name} → Lv ${l.level}`, kind: 'level' });
     if (report.bigScores) list.push({ id: toastId.current++, text: `Big score ×${report.bigScores}`, kind: 'big' });
@@ -106,5 +109,12 @@ export function useGame() {
     rerender();
   }, []);
 
-  return { state: ref.current, act, create, replace, welcome, dismissWelcome: () => setWelcome(null), toasts };
+  const onReport = useCallback((fn: (r: Report) => void) => {
+    listeners.current.add(fn);
+    return () => {
+      listeners.current.delete(fn);
+    };
+  }, []);
+
+  return { state: ref.current, act, create, replace, onReport, welcome, dismissWelcome: () => setWelcome(null), toasts };
 }

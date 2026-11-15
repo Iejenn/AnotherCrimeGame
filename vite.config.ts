@@ -6,4 +6,6 @@ export default defineConfig({
   // Relative asset paths so the build works both on GitHub Pages
   // (served from /AnotherCrimeGame/) and on Netlify (served from /).
   base: './',
+  // three.js makes the bundle ~200 KB gzipped; that's expected for the 3D Street view.
+  build: { chunkSizeWarningLimit: 900 },
 });

@@ -11,11 +11,13 @@ import { ProfileTab } from './components/ProfileTab';
 import { LogTab } from './components/LogTab';
 import { PerkModal } from './components/Modals';
 import { StartScreen } from './components/StartScreen';
+import { StreetView } from './street/StreetView';
 import { GuideTab, NextStep } from './components/Guide';
 import { isGuideHidden, setGuideHidden, type GuideTab as Tab } from './game/guide';
 import { clearGame, importSave } from './game/save';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'street', label: 'Street' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'intel', label: 'Intel' },
   { id: 'stash', label: 'Stash' },
@@ -26,8 +28,8 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function App() {
-  const { state, act, create, replace, welcome, dismissWelcome, toasts } = useGame();
-  const [tab, setTab] = useState<Tab>('jobs');
+  const { state, act, create, replace, onReport, welcome, dismissWelcome, toasts } = useGame();
+  const [tab, setTab] = useState<Tab>('street');
   const [perkOpen, setPerkOpen] = useState(true);
   const [guideHidden, setGuideHiddenState] = useState(isGuideHidden);
   const hideGuide = (hidden: boolean) => {
@@ -71,10 +73,11 @@ export default function App() {
           {state.pendingPerks.length} perk choice{state.pendingPerks.length > 1 ? 's' : ''} waiting — choose now
         </button>
       )}
-      <CrewPanel s={state} now={now} act={act} onAssign={(crewId) => {
+      {/* On the Street your crew stand in the city, so the cards would just push the map down. */}
+      {tab !== 'street' && <CrewPanel s={state} now={now} act={act} onAssign={(crewId) => {
           setTab('jobs');
           setAssignRequest((r) => ({ crewId, n: (r?.n ?? 0) + 1 }));
-        }} />
+        }} />}
       {!guideHidden && <NextStep s={state} onGo={setTab} onHide={() => hideGuide(true)} />}
       <nav className="tabs">
         {TABS.map((t) => (
@@ -86,6 +89,7 @@ export default function App() {
         ))}
       </nav>
       <main className="content">
+        {tab === 'street' && <StreetView s={state} act={act} onReport={onReport} />}
         {tab === 'jobs' && <JobsTab s={state} now={now} act={act} assignRequest={assignRequest} />}
         {tab === 'intel' && <IntelTab s={state} now={now} act={act} />}
         {tab === 'stash' && <StashTab s={state} act={act} />}
