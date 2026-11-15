@@ -76,7 +76,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
         <p className="small">
           <span className="label">How to train</span> {def.howToTrain}
         </p>
-        {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 HP every 6 seconds.</p>}
+        {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 HP per minute.</p>}
         {crimes.length > 0 && (
           <ol className="ledger">
             {crimes.map((crime) => {

@@ -18,7 +18,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Only active play counts now. Close or hide the app and your character stops; nothing happens while you are away.',
       'Minimap in the top-right corner. Tap it to walk there.',
       'Buildings now come in different sizes and heights, with alleys you can walk through.',
-      'Health comes back much faster (1 HP every 6 seconds), because failures come faster too.',
     ],
   },
   {

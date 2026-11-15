@@ -17,8 +17,8 @@ const ENCOUNTERS_PER_MIN = 0.05;
 const BIG_SCORE_CHANCE = 0.05;
 /** RuneScape-style bag: gold takes the first slot, each different loot item one more. */
 export const INVENTORY_SLOTS = 28;
-/** Health regenerates 1 HP every 6 seconds. */
-const HP_REGEN_PER_MIN = 10;
+/** Health regenerates 1 HP per minute. Healing faster will come from items (see docs/design.md §9). */
+const HP_REGEN_PER_MIN = 1;
 /** You need at least this much health to start a job. */
 export const MIN_HP_TO_WORK = 3;
 

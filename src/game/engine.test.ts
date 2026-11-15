@@ -89,7 +89,7 @@ describe('working a crime', () => {
     expect(state.player.job?.startedAt).toBe(state.player.jailedUntil);
   });
 
-  it('a failure costs 1 HP, and health comes back at 1 per 6 seconds', () => {
+  it('a failure costs 1 HP, and health comes back at 1 per minute', () => {
     const s = fresh();
     startJob(s, 'pick_wallet', T0);
     let i = 0;
@@ -97,7 +97,8 @@ describe('working a crime', () => {
     const { state, report } = tick(s, T0 + 1000, rng);
     expect(report.damage).toBe(1);
     expect(state.hp).toBe(9);
-    expect(hpAt(state, T0 + 1000 + 6000)).toBe(10);
+    expect(hpAt(state, T0 + 1000 + 30_000)).toBe(9.5);
+    expect(hpAt(state, T0 + 1000 + 60_000)).toBe(10);
   });
 
   it('stops when you run out of health', () => {
