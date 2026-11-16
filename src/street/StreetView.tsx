@@ -20,7 +20,7 @@ import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
-import { Hoops } from './hoops';
+import { BALL_COLOR, Hoops } from './hoops';
 import { ChatBox } from './ChatBox';
 import type { ChatLink } from '../net/chat';
 import { mulberry32 } from '../game/rng';
@@ -688,7 +688,35 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     labelLayer.appendChild(hpBar);
     let hpBarUntil = 0;
     // ---------- floating "+$5" over your head ----------
+    // ---------- caught at the gym bags: a baller yells "Stop that!" and throws the ball at you ----------
+    // The server has already decided the hit; we play the throw and show the hit when the ball lands.
+    const thrown = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshLambertMaterial({ color: BALL_COLOR }));
+    thrown.castShadow = true;
+    thrown.visible = false;
+    scene.add(thrown);
+    geoms.push(thrown.geometry);
+    disposables.push(thrown.material as THREE.Material);
+    const THROW_MS = 600;
+    let toss: { from: THREE.Vector3; to: THREE.Vector3; t0: number; baller: string } | null = null;
+    const throwAtMe = () => {
+      const ballers = NPCS.filter((n) => n.kind === 'baller');
+      const baller = ballers.sort((a, b) => npcWalk.get(a.id)!.pos.distanceTo(me.pos) - npcWalk.get(b.id)!.pos.distanceTo(me.pos))[0];
+      if (!baller) return;
+      const from = npcWalk.get(baller.id)!.pos.clone().setY(1.0);
+      yell(baller.id, 'Stop that!');
+      toss = { from, to: me.pos.clone().setY(1.0), t0: performance.now(), baller: baller.id };
+    };
+
     const off = onReport((r) => {
+      // A failed grab at the gym bags: the throw first, the hit when the ball lands.
+      if (r.hit && me.lastSpot.startsWith('bag_')) {
+        throwAtMe();
+        setTimeout(() => showReport(r), THROW_MS);
+        return;
+      }
+      showReport(r);
+    });
+    const showReport = (r: Report) => {
       // One line per attempt (attempts come every second, so separate lines would pile up),
       // plus a second, bigger line for level-ups, big scores and stuns.
       const parts: [string, string][] = [];
@@ -735,7 +763,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         void host.offsetWidth; // restart the animation
         host.classList.add('shake');
       }
-    });
+    };
 
     // ---------- labels for nearby spots ----------
     const labelEls = new Map<string, HTMLDivElement>();
@@ -917,14 +945,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           animateCharacter(g, w.moving ? 'walk' : 'idle', now, 4.2);
           continue;
         } else if (npc.kind === 'baller') {
-          // Ballers are moved by the basketball game.
+          // Ballers are moved by the basketball game (except the one throwing a ball at you).
           const b = hoops.player(npc.id === 'baller_0' ? 0 : 1, now / 1000);
           const d = b.pos.clone().sub(w.pos);
           w.moving = d.length() > 0.01;
           w.pos.copy(b.pos);
-          g.rotation.y = b.facing;
+          const throwing = toss?.baller === npc.id && now - toss.t0 < THROW_MS;
+          g.rotation.y = throwing ? Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z) : b.facing;
           g.position.set(w.pos.x, 0.03 + b.jump, w.pos.z);
-          animateCharacter(g, b.shooting ? 'work' : w.moving ? 'walk' : 'idle', now, npc.id === 'baller_0' ? 0 : 1.7);
+          animateCharacter(g, throwing || b.shooting ? 'work' : w.moving ? 'walk' : 'idle', now, npc.id === 'baller_0' ? 0 : 1.7);
           continue;
         } else {
           const d = w.target.clone().sub(w.pos);
@@ -946,6 +975,23 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
+      // The thrown ball: an arc from the baller's hands to your head, then it bounces off and drops.
+      if (toss) {
+        const u = (now - toss.t0) / THROW_MS;
+        thrown.visible = true;
+        if (u < 1) {
+          thrown.position.copy(toss.from).lerp(toss.to, u);
+          thrown.position.y += 0.6 * 4 * u * (1 - u);
+        } else if (u < 1.8) {
+          const k = (u - 1) / 0.8;
+          const away = toss.to.clone().sub(toss.from).setY(0).normalize();
+          thrown.position.copy(toss.to).addScaledVector(away, -0.9 * k);
+          thrown.position.y = 1.0 * (1 - k) + Math.abs(Math.sin(k * Math.PI * 1.5)) * 0.35 * (1 - k) + 0.09;
+        } else {
+          thrown.visible = false;
+          toss = null;
+        }
+      }
       {
         const gw = npcWalk.get('guard');
         const gg = npcGroups.get('guard');

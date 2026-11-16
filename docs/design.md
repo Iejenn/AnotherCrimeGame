@@ -105,7 +105,8 @@ timing) in `src/game/data/crimes.ts`.
 
 1. **Pickpocket Tourists (1).** Two tourists stroll around the park. Tap one to try. Success: $1–3.
 2. **Raid Gym Bags (5).** Two NPCs play basketball on a court; their gym bags sit on a bench at the side.
-   Tap a bag. Success: $2–6.
+   Tap a bag. Success: $2–6. Failure: the nearest player yells **"Stop that!"** and throws the basketball at you;
+   it hits you (−1 HP, stunned 2s) when it lands.
 3. **Shoplift Candy Store (10).** An enterable shop (like Eddy's) with a **clerk** wandering around the register
    and some **shelves**. Tap a shelf. Success: **1 candy bar** (food, +1 HP when eaten). A shelf you stole from is
    **empty for 10 seconds**. Failure: the clerk yells **"Hey!"**, comes over and hits you (−1 HP).

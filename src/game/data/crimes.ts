@@ -65,7 +65,7 @@ export const CRIMES: CrimeDef[] = [
     cashMin: 2, cashMax: 6, failDamage: 1, failStun: 2,
     spot: { kind: 'bag', label: 'Gym bag', where: 'The basketball court' },
     flavor: ['You fished some cash out of a gym bag while they were busy dunking.', 'Sweaty socks, a towel, and a few dollars. You took the dollars.'],
-    failLines: ['A loose ball smacked you in the head. "Hands off the bags!"', 'One of the players saw you and shoved you into the fence.'],
+    failLines: ['A baller saw you. "Stop that!" He hurls the basketball at your head.'],
   },
   {
     id: 'candy_store', skill: 'street', name: 'Shoplift Candy Store', level: 10, ticks: 4, duration: 0, baseChance: 0.4, xp: 10,

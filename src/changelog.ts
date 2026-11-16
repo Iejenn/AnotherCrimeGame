@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.25.0',
+    date: '2026-11-16',
+    title: 'Stop that!',
+    items: ['Get caught at the gym bags and one of the players yells "Stop that!" and throws the basketball at your head.'],
+  },
+  {
     version: '0.24.0',
     date: '2026-11-16',
     title: 'Living dangerously',
