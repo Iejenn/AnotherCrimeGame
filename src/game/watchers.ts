@@ -53,12 +53,13 @@ export const GUARD_HALF = 0.75;
 export const GUARD_SPEED = 1.2;
 export const GUARD_STOP_MS = 2500;
 /**
- * His patrol route (tile coordinates, walked in straight lines, then back to the first one):
- * along the driveway, down the east road, through the middle lane, round the south road, and through
- * the middle lane again. Checked in map.test.ts: every step is walkable and inside the patrol area.
+ * His patrol route (tile coordinates, walked in straight lines, then back to the first one): across the north-east
+ * lot below its meters and cars, down its east side, west along the south strip's middle lane past the pumps,
+ * and back up. Checked in map.test.ts: every step is walkable and inside the patrol area. The server has the same
+ * list (game.guard_at; scripts/spots-sql.ts prints it).
  */
 export const GUARD_ROUTE: [number, number][] = [
-  [36, 21], [42, 21], [42, 25], [36, 25], [36, 28], [42, 28], [42, 25], [36, 25],
+  [46, 27], [50, 27], [50, 30], [42, 30], [46, 30],
 ];
 
 interface Leg {

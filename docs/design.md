@@ -181,23 +181,37 @@ timing) in `src/game/data/crimes.ts`.
 ## 7. The map
 
 - An **island in the ocean**: a sandy beach with rocks around the city, then open sea.
-- 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
-  a block can hold one large building or several smaller ones, with some parks.
-- **Central Park** (built): right below where you start, **2×2 blocks** plus the roads and crossing between them
-  (12×12 tiles). Lawns, hedges with gaps where the paths come in, gravel paths in a **#** shape, a **fountain** in
+- **The grid (v0.30, decided: layout B):** 3×3 **blocks** of 10×10 tiles, each block **4 lots** of 5×5 (2×2), with
+  **7-tile streets** between the blocks: a sidewalk (1.5), a road for two cars (4, dashed centre line), a sidewalk
+  (1.5). Zebra crossings at every crossing, traffic lights on the corners. The map is 58×58 tiles (was 44×37):
+  about 1.4× as far to walk, which is fine (decided); bus stops can become fast travel when the city grows.
+  A lot holds a few buildings in one of several layouts, a pocket park, or a special place; bigger places take
+  more lots (the parking lot 3, the park a whole block), and later **bigger buildings** can take 2 or 4 lots.
+  Everything is in `src/street/map.ts`; the server's copy (size, spawn, shop areas, guard route, pigeon tiles,
+  spots) is generated from it by `scripts/map-sql.ts`.
+- **Person scale (v0.30):** a person is about 1.2 tiles tall; a floor is 1.45, so buildings have 2–3 floors with
+  person-sized windows and a front door (step + lamp) on their street side. Shops are one proper storey. Cars are
+  about three people long and park along the curbs (you walk around them).
+- **Street life (v0.30):** lamps with an arm over the road, trees in pits, hydrants, bins, mailboxes, newspaper
+  boxes, benches, bike racks, dumpsters in the alleys, and a bus stop across from the candy store
+  (`src/street/streetLife.ts`).
+- **Shop fronts with character (v0.30):** Eddy's has fruit crates and a chalkboard outside; the candy store a giant
+  lollipop on the roof, jars of sweets in the windows and a neon OPEN sign; Ray's a half-down roll-up shutter, bars
+  on the window and a security camera.
+- **Central Park** (built): a **whole block** (10×10 tiles) south of where you start. Lawns, hedges with gaps where the paths come in, gravel paths in a **#** shape, a **fountain** in
   the middle with benches, a **pond** with lily pads, trees, flowerbeds and four old lamps.
   **Three tourists** stroll around in it.
-- **The basketball court** (built), left of the park: painted court with lines, a chain-link fence on three sides
+- **The basketball court** (built), on a corner lot of the west block, its open side on the street: painted court with lines, a chain-link fence on three sides
   (you get in at the two front corners), two hoops, a floodlight. Two players dribble, pass, shoot and chase
   rebounds. Their gym bags lie on the bench on the street side.
-- **The candy store** (built), north of the park: walk in through the door like Eddy's. Dusty pink walls, a pink
+- **The candy store** (built), across the street from the park: walk in through the door like Eddy's. Dusty pink walls, a pink
   neon CANDY sign, four candy shelves on the back wall (tap one to steal; an emptied shelf shows bare and is
   restocked after 10s), a counter with candy jars and the register, a gumball machine, lollipops by the door.
   The **clerk** (yellow name) hangs around the register; on a failed attempt he yells "Hey!", walks over and
   shoves you. Shop icon on the minimap.
 - **Rooms you can walk into** all work the same way: walls along the block edge, one door in the middle of the
   front wall, and the roof lifts while you're inside.
-- **The bar** (built), above the basketball court: walk in like a shop. Dark wood, a red neon BAR sign, a back bar of
+- **The bar** (built), next to the basketball court: walk in like a shop. Dark wood, a red neon BAR sign, a back bar of
   glowing bottles with a mirror, a jukebox, the counter with beer taps and pendant lamps, a small table with a candle.
   **Three drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
   The **bartender** works behind the counter on a **fixed schedule** (the same for every player, see §11): every
@@ -205,21 +219,21 @@ timing) in `src/game/data/crimes.ts`.
   spots. Turning round takes 0.6s before he sees anything. His label says "watching" (red) or "back turned" (green).
   If he sees the room at any moment of your attempt, he yells "Leave my guests alone!", comes round the counter
   and punches you (−2 HP, stunned 3s). Timings: `BAR_SLOT_MS`, `BAR_WATCH`, `BAR_TURN_MS` in `src/game/watchers.ts`.
-- **The parking lot** (built), at the east edge of town by the beach, south of the gas station: dark asphalt with white bays, wheel stops and
+- **The parking lot** (built): three lots of the east block, in an **L** around the gas station: dark asphalt with white bays, wheel stops and
   oil stains, a guard booth with a lit window and a barrier arm, two tall sodium lamps, a blue P sign.
   **Five parking meters** (tap one: 3s, always works if unseen, $15–30). An emptied meter's light turns red and
   it fills up again after 15s.
-  The **guard** walks a **fixed patrol route** (the same for every player, see §11): along the driveway, the
-  roads around the lot and its middle lane, stopping at each corner for 2.5s to sweep his **flashlight** left and
+  The **guard** walks a **fixed patrol route** (the same for every player, see §11): across the north-east lot,
+  down its side and along the south strip's lane, stopping at each corner for 2.5s to sweep his **flashlight** left and
   right. The beam is drawn on the ground (4.5 tiles long, ~86° wide) and turns red when you're working inside it.
   Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back to his route. Route and
   numbers: `GUARD_ROUTE`, `GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`, `GUARD_STOP_MS` in `src/game/watchers.ts`.
 - **Cars** (built): four parked cars nose-in at the lot's bays (Steal From Cars: 3s, 35%, $30–60). A failed
   attempt sets off the car alarm and brings the guard; he can also simply see you in his beam.
-- **The gas station** (built), at the north end of the parking lot (the road between them is gone: gas station, driveway and lot form one big rectangle): a pale concrete shop with a blue trim and a yellow
-  GAS & GO sign, the top four rows of the block. Inside: four shelves either side of a glowing drinks fridge
+- **The gas station** (built), one lot of the east block, the parking lot around it: a pale concrete shop with a blue
+  trim and a yellow GAS & GO sign, the top four rows of its lot. Inside: four shelves either side of a glowing drinks fridge
   (Shoplift Gas Station: sandwich or candy bar; shelves restock after 10s), and the counter with the **clerk**
-  behind it. Out front: two pumps under a lit canopy (it fades when it hides you), a car filling up, a price sign.
+  behind it. Out front: two pumps under a lit canopy (it fades when it hides you), and a price sign on the corner.
   Shop icon on the minimap.
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:

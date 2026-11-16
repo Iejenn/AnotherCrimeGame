@@ -244,24 +244,24 @@ describe('watchers on fixed schedules (design §4, §11)', () => {
   it('prying a meter in the guard\'s beam gets you caught; out of sight it always pays', () => {
     const s = fresh();
     s.skills.street.xp = totalXpForLevel(20);
-    // Find a moment where the guard looks straight at tile (38, 22) and one where he's far away.
+    // Find a moment where the guard looks straight at tile (46, 25), in front of meter_0 and one where he's far away.
     let seenT = 0;
     let safeT = 0;
     for (let t = T0; t < T0 + GUARD_LOOP_MS && (!seenT || !safeT); t += 100) {
       const g = guardAt(t);
-      if (!seenT && inBeam(g, 38.5, 22.5)) seenT = t;
+      if (!seenT && inBeam(g, 46.5, 25.5)) seenT = t;
       let clear = true;
-      for (let x = t; x <= t + 3000; x += 100) if (inBeam(guardAt(x), 38.5, 22.5)) clear = false;
+      for (let x = t; x <= t + 3000; x += 100) if (inBeam(guardAt(x), 46.5, 25.5)) clear = false;
       if (!safeT && clear) safeT = t;
     }
     const caught = structuredClone(s);
-    startJob(caught, 'parking_meter', seenT, 'meter_0', [38, 22]);
+    startJob(caught, 'parking_meter', seenT, 'meter_0', [46, 25]);
     const hit = tick(caught, seenT + 3000); // seen at once; his hit (−3 HP) has landed by the end
     expect(hit.state.stats.fails).toBe(1);
     expect(hit.report.damage).toBe(3);
     expect(hit.report.cash).toBe(0);
     const fine = structuredClone(s);
-    startJob(fine, 'parking_meter', safeT, 'meter_0', [38, 22]);
+    startJob(fine, 'parking_meter', safeT, 'meter_0', [46, 25]);
     const r = tick(fine, safeT + 3000, mulberry32(2));
     expect(r.state.stats.fails).toBe(0);
     expect(r.report.cash).toBeGreaterThanOrEqual(15);

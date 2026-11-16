@@ -10,11 +10,14 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.30.0',
     date: '2026-11-16',
-    title: 'A city your size',
+    title: 'A brand new city',
     items: [
-      'The buildings are now drawn at your scale: 2 or 3 floors with windows a person fits behind, instead of toy towers with rows of tiny windows.',
-      'Every building has a front door with a step and a lamp, and shop windows sit at eye level.',
-      'The shops are a proper storey tall, with a door you fit through. The gas station canopy is high enough to stand under.',
+      'The whole city is rebuilt: bigger blocks, real streets with a road for two cars, sidewalks, zebra crossings and traffic lights.',
+      'Everything is at your scale now: buildings of 2 or 3 floors with a front door, shops a proper storey tall, and cars as big as cars.',
+      'Street life: lamps over the road, trees, hydrants, mailboxes, benches, bikes, dumpsters in the alleys, and a bus stop across from the candy store.',
+      "The shops got character: fruit crates outside Eddy's, a giant lollipop on the candy store, a half-closed shutter at Ray's.",
+      'The gas station has a big parking lot around it now. The park is a whole block of its own.',
+      'Everyone starts at the new start spot by the candy store. Graves were moved there too, with everything in them.',
       'Tip: drag up or down to tilt the camera lower and look down the street.',
     ],
   },

@@ -15,8 +15,9 @@ import { ITEM_BY_ID } from '../game/data/items';
 import { COURT, H, NODES, NPCS, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, animatePigeon, buildCar, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
+import { buildBigCar } from './streetLife';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
@@ -217,7 +218,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         addHitArea(g);
         people.set(n.id, g);
       } else if (n.kind === 'car') {
-        g = buildCar(CAR_COLORS[(n.x + n.y) % CAR_COLORS.length]);
+        // A car at person scale, filling its bay (two tiles deep: the spot's tile and the one behind it).
+        g = buildBigCar(CAR_COLORS[(n.x + n.y) % CAR_COLORS.length]);
+        g.scale.setScalar(0.72);
       } else if (n.kind === 'bag') {
         g = buildGymBag(BAG_COLORS[(n.x + n.y) % BAG_COLORS.length]);
       } else if (n.kind === 'meter') {
@@ -226,6 +229,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         g = buildShelf([0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8, 0xe86aa0], n.x * 3 + n.y);
       }
       g.position.copy(c);
+      if (n.kind === 'car' && n.facing !== undefined) g.position.add(new THREE.Vector3(-Math.cos(n.facing), 0, Math.sin(n.facing)).multiplyScalar(0.45));
       if (n.seated) g.position.y = 0.06;
       if (n.facing !== undefined) g.rotation.y = n.facing;
       g.traverse((o) => (o.userData.nodeId = n.id));
