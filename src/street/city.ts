@@ -215,16 +215,15 @@ export function buildCity(scene: THREE.Scene) {
     const z = k * PITCH + STREET / 2;
     for (let x = 0; x < W; x += 1.6) if (!inCrossing(Math.floor(x)) && !inCrossing(Math.floor(x + 0.7))) dash.add(x + 0.35, 0.006, z, 1, 1, 1, Math.PI / 2);
   }
-  // Zebra crossings on the four sides of every crossing (just outside it, across the road).
+  // Zebra crossings: one per street, on the south and east side of each crossing (just outside it, across the
+  // road). Two per street, one at each end, was too many: half the map was zebra.
   for (let i = 0; i <= BCOLS; i++)
     for (let j = 0; j <= BROWS; j++) {
       const ix = i * PITCH + STREET / 2;
       const iz = j * PITCH + STREET / 2;
       for (let st = 0; st < 6; st++) {
         const off = -1.5 + st * 0.6;
-        if (j > 0) zebra.add(ix + off, 0.007, iz - STREET / 2 - 1.4);
         if (j < BROWS) zebra.add(ix + off, 0.007, iz + STREET / 2 + 1.4);
-        if (i > 0) zebra.add(ix - STREET / 2 - 1.4, 0.007, iz + off, 1, 1, 1, Math.PI / 2);
         if (i < BCOLS) zebra.add(ix + STREET / 2 + 1.4, 0.007, iz + off, 1, 1, 1, Math.PI / 2);
       }
     }
