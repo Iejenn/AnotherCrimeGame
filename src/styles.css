@@ -473,3 +473,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) { .hp-bar.low { animation: none; } }
 /* "A new version is out": shown for a few seconds before the game reloads itself. */
 .update-banner { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 100; background: #f2d27a; color: #141210; font: 700 0.9rem var(--sans); padding: 10px 16px; border-radius: 3px; box-shadow: 0 6px 20px #000c; }
+/* Desktop: the game fills the whole window (no boxed column). The Street takes all the height that's left
+   under the header and tabs; the other tabs keep a readable width in the middle. */
+@media (min-width: 721px) {
+  .app { max-width: none; padding: 10px 20px 14px; }
+  .content > :not(.street) { max-width: 1080px; margin-left: auto; margin-right: auto; }
+  .street { height: calc(100dvh - 132px); }
+}
+/* The chat takes less room: a bit lower on phones; on desktop an OSRS-style panel in the bottom-left corner. */
+.chat { height: 30%; max-height: 200px; min-height: 110px; }
+@media (min-width: 721px) {
+  .chat { right: auto; width: min(560px, 55%); border-right: 1px solid #6a6258; border-top-right-radius: 3px; }
+}

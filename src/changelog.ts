@@ -11,7 +11,12 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '0.25.0',
     date: '2026-11-16',
     title: 'Stop that!',
-    items: ['Get caught at the gym bags and one of the players yells "Stop that!" and throws the basketball at your head.'],
+    items: [
+      'Get caught at the gym bags and one of the players yells "Stop that!" and throws the basketball at your head.',
+      'On a computer the game now fills your whole screen, with the chat as a panel in the bottom-left corner.',
+      'Other players walk smoothly now instead of jumping around.',
+      'The chat takes less room on phones, and stays scrolled to the newest message.',
+    ],
   },
   {
     version: '0.24.0',

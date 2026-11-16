@@ -309,6 +309,12 @@ per second and 5 per 10 seconds (200 letters max). Kept for 7 days. No word filt
 if a newer build is out it says "A new version of Underworld is out. Updating…" and reloads itself to `?v=<build>`
 (which skips cached copies of the page; it won't loop if that still isn't the new one). `src/useUpdateCheck.ts`.
 
+**Smooth movement (v0.25):** other players are drawn gliding towards where their route says they are (a bit faster
+than walking, to catch up), instead of being placed there each frame; only a gap of more than 4 tiles (dying) snaps.
+The game clock moves gently towards each server answer instead of jumping to it. Before, a re-tap mid-walk (new
+route from a tile's middle) and clock corrections made players hop. Measured after: biggest step 11 px per 100 ms
+(normal walking speed) while the other player re-tapped every 1.2 s.
+
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.
 

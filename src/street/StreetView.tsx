@@ -374,7 +374,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     worldRef.current?.move(tileOf(me.pos.x, me.pos.z), []);
 
     // ---------- other players (online) ----------
-    const others = new Map<string, { g: THREE.Group; facing: number }>();
+    /** Other players: their model, where we draw them (smoothed), and which way they face. */
+    const others = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; facing: number }>();
     /** Chat over heads: who said what, until when; and the newest message already handled. */
     const said = new Map<string, { text: string; until: number }>();
     let lastSaid = Math.max(0, ...(chatRef.current?.messages ?? []).map((m) => m.id));
@@ -1021,14 +1022,24 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (!e) {
           const g = buildCharacter(o.look);
           scene.add(g);
-          e = { g, facing: 0 };
+          e = { g, pos: null, facing: 0 };
           others.set(o.id, e);
         }
+        // Where their route says they are now. We don't jump there: we glide (a bit faster than walking, so we
+        // catch up), so a new route that starts from the middle of a tile, or a small clock correction, doesn't
+        // make them hop. Only a big gap (they died and woke up at the start) snaps straight there.
         const at = along(o.from, o.path, Math.max(0, ((gameNow() - o.at) / 1000) * WALK_SPEED));
-        if (at.facing !== null && at.moving) e.facing = at.facing;
-        e.g.position.set(at.x, 0.03, at.z);
+        const goal = new THREE.Vector3(at.x, 0, at.z);
+        if (!e.pos || e.pos.distanceTo(goal) > 4) e.pos = goal.clone();
+        const gap = goal.clone().sub(e.pos);
+        const gliding = gap.length() > 0.03;
+        if (gliding) {
+          e.pos.add(gap.clone().clampLength(0, WALK_SPEED * 1.35 * dt));
+          e.facing = Math.atan2(gap.x, gap.z);
+        } else if (at.facing !== null && at.moving) e.facing = at.facing;
+        e.g.position.set(e.pos.x, 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
-        animateCharacter(e.g, at.moving ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
+        animateCharacter(e.g, at.moving || gliding ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
       }
       for (const [id, e] of others)
         if (!here.has(id)) {
