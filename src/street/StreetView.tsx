@@ -8,7 +8,7 @@ import type { GameState, Report } from '../game/types';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { bail, bailCost, busyReason, canStart, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
-import { BLOCK, BLOCKS, BUILDINGS, H, NODES, NPCS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
+import { BLOCK, BLOCKS, BUILDINGS, H, NODES, NPCS, SPAWN, STORE, W, buildBlocked, canStep, inStore, isRoad, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { CAR_COLORS, buildCar, buildCardTable, buildCrate, buildDoor } from './props';
@@ -65,6 +65,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
   const setTalkingRef = useRef(setTalking);
+  const talkingIdRef = useRef<string | null>(null);
+  talkingIdRef.current = talking?.id ?? null;
 
   useEffect(() => {
     const host = hostRef.current!;
@@ -113,12 +115,23 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     const nodeGroups = new Map<string, THREE.Group>();
     // People on the street use the same model as your character, with a random (but fixed) look.
     const lookRng = mulberry32(99);
+    // People are small and move, so each gets a bigger invisible tap area (easier on phones).
+    const hitGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.9, 8); // up to just under their name label
+    const hitMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+    geoms.push(hitGeo);
+    disposables.push(hitMat);
+    const addHitArea = (g: THREE.Group) => {
+      const hit = new THREE.Mesh(hitGeo, hitMat);
+      hit.position.y = 0.95;
+      g.add(hit);
+    };
     const people = new Map<string, THREE.Group>();
     for (const n of NODES) {
       let g: THREE.Group;
       const c = center(n.x, n.y);
       if (n.kind === 'person') {
         g = buildCharacter(randomLook(lookRng));
+        addHitArea(g);
         people.set(n.id, g);
       } else if (n.kind === 'car') {
         g = buildCar(CAR_COLORS[(n.x + n.y) % CAR_COLORS.length]);
@@ -140,10 +153,18 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
 
     // NPCs: Eddy stands in front of his store. Green apron, flat cap, faces the street.
     const npcGroups = new Map<string, THREE.Group>();
+    /** Where each NPC is right now (Eddy strolls around his shop). */
+    const npcWalk = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; wait: number; moving: boolean }>();
+    const npcTile = (npc: Npc): [number, number] => {
+      const w = npcWalk.get(npc.id)!;
+      return tileOf(w.pos.x, w.pos.z);
+    };
     for (const npc of NPCS) {
       // Eddy: flat cap, green top, white apron.
       const g = buildCharacter({ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xf2efe8 });
+      addHitArea(g);
       g.position.copy(center(npc.x, npc.y));
+      npcWalk.set(npc.id, { pos: center(npc.x, npc.y), target: center(npc.x, npc.y), wait: 1 + Math.random() * 2, moving: false });
       g.traverse((o) => (o.userData.npcId = npc.id));
       scene.add(g);
       pickables.push(g);
@@ -196,7 +217,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     player.position.copy(me.pos);
 
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
-      const path = findPath(blocked, W, H, tileOf(me.pos.x, me.pos.z), goals);
+      const path = findPath(blocked, W, H, tileOf(me.pos.x, me.pos.z), goals, canStep);
       if (!path) {
         say("You can't reach that.");
         return false;
@@ -253,8 +274,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
         stopWorking();
         setTalkingRef.current(null);
-        if (walkTo(neighbors(npc.x, npc.y), null, npc)) {
-          ring.position.set(npc.x + 0.5, 0.08, npc.y + 0.5);
+        const [ex, ey] = npcTile(npc);
+        if (walkTo(neighbors(ex, ey), null, npc)) {
+          ring.position.set(ex + 0.5, 0.08, ey + 0.5);
           (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
           (ring.material as THREE.MeshBasicMaterial).color.set(0xf2d27a);
         }
@@ -353,7 +375,27 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         if (n.wanders) continue;
         dot(n.x + 0.5, n.y + 0.5, 2.2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
-      for (const npc of NPCS) dot(npc.x + 0.5, npc.y + 0.5, 2.6, '#f2d27a', '#141210');
+      // Shopping bag icon on the store.
+      {
+        const bx = (STORE.x0 + 2.5 + MINI_EDGE) * MINI_PX;
+        const by = (STORE.y0 + 2.7 + MINI_EDGE) * MINI_PX;
+        g.fillStyle = '#f2d27a';
+        g.strokeStyle = '#141210';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.rect(bx - 5, by - 3, 10, 8);
+        g.fill();
+        g.stroke();
+        g.beginPath();
+        g.arc(bx, by - 3, 3, Math.PI, 0);
+        g.strokeStyle = '#f2d27a';
+        g.lineWidth = 1.5;
+        g.stroke();
+      }
+      for (const npc of NPCS) {
+        const ep = npcWalk.get(npc.id)!.pos;
+        dot(ep.x, ep.z, 2.2, '#f2d27a', '#141210');
+      }
       // You: a red dot with a tick showing which way the camera looks.
       const px = me.pos.x;
       const pz = me.pos.z;
@@ -511,8 +553,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           }
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
-            me.facing = Math.atan2(npc.x + 0.5 - me.pos.x, npc.y + 0.5 - me.pos.z);
-            npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - npc.x - 0.5, me.pos.z - npc.y - 0.5);
+            const ep = npcWalk.get(npc.id)!.pos;
+            me.facing = Math.atan2(ep.x - me.pos.x, ep.z - me.pos.z);
+            npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - ep.x, me.pos.z - ep.z);
             setTalkingRef.current(npc);
             me.goalNpc = null;
           }
@@ -569,7 +612,39 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         animateCharacter(g, w?.moving ? 'walk' : 'idle', now, k++ * 0.7);
         if (w) w.moving = false;
       }
-      for (const g of npcGroups.values()) animateCharacter(g, 'idle', now, 3.1);
+      const talkingNow = talkingIdRef.current;
+      for (const npc of NPCS) {
+        const w = npcWalk.get(npc.id)!;
+        const g = npcGroups.get(npc.id)!;
+        const busy = me.goalNpc?.id === npc.id || talkingNow === npc.id;
+        w.moving = false;
+        if (busy) {
+          w.target.copy(center(...tileOf(w.pos.x, w.pos.z)));
+          if (talkingNow === npc.id) g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
+        } else if (npc.wanders === 'store') {
+          const d = w.target.clone().sub(w.pos);
+          if (d.length() < 0.02) {
+            w.wait -= dt;
+            if (w.wait <= 0) {
+              // Next step: a random free tile next to him, inside the store.
+              const [tx, ty] = tileOf(w.pos.x, w.pos.z);
+              const opts = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const)
+                .map(([dx, dy]) => [tx + dx, ty + dy] as [number, number])
+                .filter(([x, y]) => inStore(x, y) && !blocked[y * W + x] && !(x === STORE.door[0] && y === STORE.door[1]));
+              if (opts.length) w.target = center(...opts[Math.floor(Math.random() * opts.length)]);
+              w.wait = 0.8 + Math.random() * 2.5;
+            }
+          } else {
+            w.pos.add(d.clampLength(0, 1.1 * dt));
+            g.rotation.y = Math.atan2(d.x, d.z);
+            w.moving = true;
+          }
+        }
+        g.position.set(w.pos.x, 0.03, w.pos.z);
+        animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
+      }
+      // Inside the store: fade its walls and lift the roof so you can see in.
+      city.store.force = inStore(...tileOf(me.pos.x, me.pos.z));
 
       // Tap ring fades out.
       const rm = ring.material as THREE.MeshBasicMaterial;

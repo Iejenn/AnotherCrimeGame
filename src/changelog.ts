@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.10.0',
+    date: '2026-11-16',
+    title: "Step inside Eddy's",
+    items: [
+      "You can walk into Eddy's General Store through its front door. Inside, the roof lifts so you can see the shop.",
+      'Shelves full of goods, a glowing drinks fridge, a counter with a cash register.',
+      'Eddy wanders around his shop now. Tap him to talk, like before.',
+      'The store has a shopping-bag icon on the minimap.',
+      'People are easier to tap on a phone.',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-11-15',
     title: 'A brand new look',
