@@ -11,7 +11,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '0.39.1',
     date: '2026-11-16',
     title: 'Rats, labelled',
-    items: ['Fixed: rats in the sewer had no name or health bar, and things lying on the ground down there had no label.'],
+    items: [
+      'Fixed: rats in the sewer had no name or health bar, and things lying on the ground down there had no label.',
+      'Cooking shows the XP you get: "+5 XP" in the log, and popping up over your head.',
+    ],
   },
   {
     version: '0.39.0',
