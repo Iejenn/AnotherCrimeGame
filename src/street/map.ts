@@ -401,13 +401,20 @@ export const BUILDINGS: Building[] = (() => {
 // Where you cook: stand next to one. The server has the same list (public.stations): keep them in step.
 export interface Station {
   id: string;
+  /** What you can cook on it (the recipes' station). */
   kind: 'bbq';
   x: number;
   y: number;
+  /** How it looks: the park's brick barbecue (default), or a burning oil drum (the sewer). */
+  look?: 'barrel';
 }
 /** The pocket park with the barbecue (003-B). */
 export const BBQ_PARK: Rect = lot('003', 'B');
-export const STATIONS: Station[] = [{ id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 }];
+export const STATIONS: Station[] = [
+  { id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 },
+  // In the sewer: a burning oil drum against the north wall, where a crate stood (so the rats' patches stay the same).
+  { id: 'barrel_0', kind: 'bbq', x: SEWER.x0 + 11, y: SEWER.y0, look: 'barrel' },
+];
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
 export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole';
@@ -509,7 +516,7 @@ export const FIXTURES: Fixture[] = (() => {
   // The sewer: the ladder, crates and rubbish bags against the walls; the pothole in the street.
   const sw = (dx: number, dy: number, kind: FixtureKind) => out.push({ x: SEWER.x0 + dx, y: SEWER.y0 + dy, kind });
   sw(2, 0, 'ladder');
-  for (const dx of [5, 11, 20]) sw(dx, 0, 'crate');
+  for (const dx of [5, 20]) sw(dx, 0, 'crate'); // (dx 11 is the fire barrel, a cooking station)
   for (const dx of [12, 21]) sw(dx, 0, 'trash');
   for (const dx of [3, 9, 15, 21]) sw(dx, 11, 'crate');
   sw(10, 11, 'trash');
@@ -675,8 +682,28 @@ export function buildBlocked(): Uint8Array {
   return g;
 }
 
+// ---------- the sewer's map (shown instead of the island's while you're down there) ----------
+export const SEWER_AREAS: Area[] = [
+  {
+    id: 'sewer_ladder', name: 'Ladder up', rect: { x0: SEWER_LADDER[0], y0: SEWER_LADDER[1], x1: SEWER_LADDER[0], y1: SEWER_LADDER[1] }, icon: 'ladder', crimes: [], npcs: [],
+    blurb: 'Back up to the street, by the pothole east of the candy shop.',
+  },
+  {
+    id: 'sewer_fire', name: 'Fire barrel', rect: { x0: SEWER.x0 + 11, y0: SEWER.y0, x1: SEWER.x0 + 11, y1: SEWER.y0 }, icon: 'fire', crimes: [], npcs: [],
+    blurb: 'A burning oil drum. Cook your rat meat here without going back up (Cooking).',
+  },
+  {
+    id: 'sewer_rats_n', name: 'Rats', rect: { x0: SEWER.x0 + 14, y0: SEWER.y0 + 1, x1: SEWER.x0 + 14, y1: SEWER.y0 + 1 }, icon: 'rat', crimes: [], npcs: [],
+    blurb: 'Five rats along the north walkway (level 3, not aggressive). They always drop raw rat meat.',
+  },
+  {
+    id: 'sewer_rats_s', name: 'Rats', rect: { x0: SEWER.x0 + 12, y0: SEWER.y1 - 1, x1: SEWER.x0 + 12, y1: SEWER.y1 - 1 }, icon: 'rat', crimes: [], npcs: [],
+    blurb: 'Five rats along the south walkway, across the bridges (level 3, not aggressive).',
+  },
+];
+
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat';
 export interface Area {
   id: string;
   name: string;

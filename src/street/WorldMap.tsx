@@ -7,8 +7,8 @@ import { CRIME_BY_ID } from '../game/data/crimes';
 import { ITEM_BY_ID } from '../game/data/items';
 import { canStart, crimeStats, fmtMoney, skillLevel } from '../game/engine';
 import { pct } from '../components/ui';
-import { AREAS, H, NPCS, ROOMS, W, type Area, type AreaIcon } from './map';
-import { MAP_EDGE, drawWorld } from './mapArt';
+import { AREAS, H, NPCS, ROOMS, SEWER, SEWER_AREAS, W, inSewer, type Area, type AreaIcon } from './map';
+import { MAP_EDGE, drawSewer, drawWorld } from './mapArt';
 
 const PX = 8; // canvas pixels per tile
 
@@ -69,6 +69,23 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  ladder: (
+    <>
+      {/* a ladder going up */}
+      <path d="M8 3 V21 M16 3 V21" stroke="#c8a46a" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 7 H16 M8 11 H16 M8 15 H16 M8 19 H16" stroke="#c8a46a" strokeWidth="1.6" />
+      <path d="M12 0.5 L16 4 H8 Z" fill="#f2e8d6" />
+    </>
+  ),
+  rat: (
+    <>
+      {/* a rat: grey body, pink ear and tail, red eye */}
+      <path d="M4 15 Q4 9 11 9 Q16 9 19 13 L21.5 14.5 L19 16 Q16 18 10 18 Q4 18 4 15 Z" fill="#6a6560" stroke="#141210" strokeWidth="0.9" />
+      <circle cx="15" cy="10" r="2" fill="#d8a0a0" stroke="#141210" strokeWidth="0.6" />
+      <circle cx="18" cy="13.2" r="0.9" fill="#ff3a2a" />
+      <path d="M4.5 16 Q1 18 2.5 21.5" stroke="#d8a0a0" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+    </>
+  ),
   dungeon: (
     <>
       {/* a dungeon entrance: a stone arch, dark inside, a ladder going down */}
@@ -111,7 +128,9 @@ function walkTarget(a: Area): [number, number] {
 export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [number, number]; onClose: () => void; onWalk: (x: number, y: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [sel, setSel] = useState<Area | null>(null);
-  const world = useMemo(() => drawWorld(PX), []);
+  // In the sewer the map shows the sewer (with its ladder, fire barrel and rats) instead of the island.
+  const below = inSewer(...here);
+  const world = useMemo(() => (below ? drawSewer(PX * 2) : drawWorld(PX)), [below]);
   useEffect(() => {
     const c = canvasRef.current!;
     c.width = world.width;
@@ -120,23 +139,27 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
   }, [world]);
 
   // Positions as percentages of the map, so the icons stay put however big the map is drawn.
-  const fullW = W + MAP_EDGE * 2;
-  const fullH = H + MAP_EDGE * 2;
-  const at = (x: number, y: number) => ({ left: `${((x + MAP_EDGE) / fullW) * 100}%`, top: `${((y + MAP_EDGE) / fullH) * 100}%` });
+  // The sewer's map starts one tile left of and above the sewer.
+  const ox = below ? SEWER.x0 - 1 : -MAP_EDGE;
+  const oy = below ? SEWER.y0 - 1 : -MAP_EDGE;
+  const fullW = below ? SEWER.x1 - SEWER.x0 + 3 : W + MAP_EDGE * 2;
+  const fullH = below ? SEWER.y1 - SEWER.y0 + 3 : H + MAP_EDGE * 2;
+  const areas = below ? SEWER_AREAS : AREAS;
+  const at = (x: number, y: number) => ({ left: `${((x - ox) / fullW) * 100}%`, top: `${((y - oy) / fullH) * 100}%` });
   const lvl = skillLevel(s, 'street');
 
   return (
     <div className="worldmap-backdrop" onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-label="World map">
       <div className="worldmap">
         <div className="worldmap-head">
-          <h2 className="headline">The island</h2>
+          <h2 className="headline">{below ? 'The sewer' : 'The island'}</h2>
           <button className="btn tiny" onClick={onClose} aria-label="Close the map">
             ×
           </button>
         </div>
         <div className="worldmap-canvas" style={{ aspectRatio: `${fullW} / ${fullH}` }}>
           <canvas ref={canvasRef} />
-          {AREAS.map((a) => {
+          {areas.map((a) => {
             const locked = a.crimes.length > 0 && a.crimes.every((id) => canStart(s, id));
             return (
               <button
@@ -153,7 +176,7 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
               </button>
             );
           })}
-          {s.grave && <span className="map-marker grave" style={at(s.grave.x + 0.5, s.grave.y + 0.5)} title="Your grave" />}
+          {s.grave && inSewer(s.grave.x, s.grave.y) === below && <span className="map-marker grave" style={at(s.grave.x + 0.5, s.grave.y + 0.5)} title="Your grave" />}
           <span className="map-marker you" style={at(here[0] + 0.5, here[1] + 0.5)} title="You are here" />
         </div>
 

@@ -1,4 +1,4 @@
-// RuneScape-style bag: 28 slots. Cash always sits in the first one, then items (food stacks).
+// RuneScape-style bag: 30 slots (5 × 6). Cash always sits in the first one, then one item per slot.
 import { useState } from 'react';
 import type { GameState } from '../game/types';
 import { ITEM_BY_ID, buyerOf } from '../game/data/items';

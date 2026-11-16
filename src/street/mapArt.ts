@@ -72,6 +72,33 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   return c;
 }
 
+/** Just the sewer (its map while you're down there), from one tile left of and above it, at `px` per tile. */
+export function drawSewer(px: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  const w = SEWER.x1 - SEWER.x0 + 3;
+  const h = SEWER.y1 - SEWER.y0 + 3;
+  c.width = w * px;
+  c.height = h * px;
+  const g = c.getContext('2d')!;
+  const tile = (x: number, y: number, tw: number, th: number, col: string) => {
+    g.fillStyle = col;
+    g.fillRect((x - SEWER.x0 + 1) * px, (y - SEWER.y0 + 1) * px, tw * px, th * px);
+  };
+  g.fillStyle = '#0c0f0d';
+  g.fillRect(0, 0, c.width, c.height);
+  tile(SEWER.x0 - 1, SEWER.y0 - 1, w, 1, '#5a4a3e'); // the brick back wall
+  for (let y = SEWER.y0; y <= SEWER.y1; y++)
+    for (let x = SEWER.x0; x <= SEWER.x1; x++) {
+      tile(x, y, 1, 1, isSewage(x, y) ? '#2f4a2a' : '#6e7468');
+      if (!isSewage(x, y)) tile(x + 0.04, y + 0.04, 0.92, 0.92, '#767c70');
+    }
+  for (const f of FIXTURES) {
+    if (f.kind === 'crate') tile(f.x + 0.15, f.y + 0.15, 0.7, 0.7, '#6a4a2e');
+    if (f.kind === 'trash') tile(f.x + 0.2, f.y + 0.2, 0.6, 0.6, '#1e2022');
+  }
+  return c;
+}
+
 /** A shopping bag (shops on the minimap and world map), centred on (x, y), `s` = size. */
 export function drawBag(g: CanvasRenderingContext2D, x: number, y: number, s: number) {
   g.fillStyle = '#f2d27a';

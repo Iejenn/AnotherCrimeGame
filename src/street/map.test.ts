@@ -142,3 +142,18 @@ describe('the sewer', () => {
     expect(RAT_ZONES).toHaveLength(10);
   });
 });
+
+it("the rats' patches are still the ones the server has (0019_sewer.sql)", async () => {
+  const { RAT_ZONES } = await import('../game/enemies');
+  const sewerSql = (await import('../../supabase/migrations/0019_sewer.sql?raw')).default;
+  const tiles = RAT_ZONES.flat();
+  expect(sewerSql).toContain(`px int[] := array[${tiles.map((p) => p[0]).join(',')}];`);
+  expect(sewerSql).toContain(`py int[] := array[${tiles.map((p) => p[1]).join(',')}];`);
+});
+
+it('the server has the same cooking stations (0015, 0020)', async () => {
+  const { STATIONS } = await import('./map');
+  const sql = (await import('../../supabase/migrations/0020_fire_barrel_and_bigger_bag.sql?raw')).default;
+  const barrel = STATIONS.find((s) => s.id === 'barrel_0')!;
+  expect(sql).toContain(`('barrel_0', '${barrel.kind}', ${barrel.x}, ${barrel.y})`);
+});

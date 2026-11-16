@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.39.0',
+    date: '2026-11-16',
+    title: 'A fire in the dark',
+    items: [
+      'A burning barrel in the sewer: cook your rat meat right there, no need to climb back up to the barbecue.',
+      'The map shows the sewer while you are down there, with the ladder, the fire and the rats.',
+      'A bigger bag: 30 slots (cash + 29), shown 5 wide and 6 high with smaller boxes, so it is less cramped.',
+    ],
+  },
+  {
     version: '0.38.0',
     date: '2026-11-16',
     title: 'Down the drain',

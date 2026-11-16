@@ -10,7 +10,7 @@ import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
-  MANHOLE, SEWER, SEWER_BRIDGES, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
+  MANHOLE, SEWER, SEWER_BRIDGES, floorY, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -1152,6 +1152,21 @@ export function buildCity(scene: THREE.Scene) {
   const flames: THREE.Mesh[] = [];
   const fireLights: THREE.PointLight[] = [];
 
+  /** A burning oil drum (the Yard's, and the sewer's for cooking): a rusty drum with flames and a flickering light. */
+  const burningBarrel = (x: number, y0: number, z: number) => {
+    add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.75, 12)), lam(0x6a4a32, { flatShading: true }), x, y0 + 0.4, z);
+    for (const y of [0.2, 0.6]) add(own(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 12)), lam(0x3a2a1e), x, y0 + y, z, false);
+    add(own(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 12)), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 1 }), x, y0 + 0.78, z, false);
+    for (let i = 0; i < 5; i++) {
+      const f = add(own(new THREE.ConeGeometry(0.07 + rng() * 0.04, 0.32, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 }), x + (rng() - 0.5) * 0.3, y0 + 0.95, z + (rng() - 0.5) * 0.3, false);
+      flames.push(f);
+    }
+    const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
+    light.position.set(x, y0 + 1.2, z);
+    scene.add(light);
+    fireLights.push(light);
+  };
+
   // ---------- the Yard (007): where the thugs hang out ----------
   // Cracked concrete, graffiti on the walls around it, an old couch, a burning barrel, a chain-link fence along the
   // street with two gaps (the gates), and a single bulb over the back.
@@ -1270,21 +1285,7 @@ export function buildCity(scene: THREE.Scene) {
       add(geoBox(0.6, 0.05, 0.5), lam(0x4a2a1e), ux - 0.4, 0.42, uz + 0.05).rotation.y = 0.2; // a sagging cushion
     }
     // The burning barrel: a rusty drum with flames and a flickering orange light.
-    for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) {
-      const x = b.x + 0.5;
-      const z = b.y + 0.5;
-      add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.75, 12)), lam(0x6a4a32, { flatShading: true }), x, 0.4, z);
-      for (const y of [0.2, 0.6]) add(own(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 12)), lam(0x3a2a1e), x, y, z, false);
-      add(own(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 12)), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 1 }), x, 0.78, z, false);
-      for (let i = 0; i < 5; i++) {
-        const f = add(own(new THREE.ConeGeometry(0.07 + rng() * 0.04, 0.32, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 }), x + (rng() - 0.5) * 0.3, 0.95, z + (rng() - 0.5) * 0.3, false);
-        flames.push(f);
-      }
-      const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
-      light.position.set(x, 1.2, z);
-      scene.add(light);
-      fireLights.push(light);
-    }
+    for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) burningBarrel(b.x + 0.5, 0, b.y + 0.5);
     // Chain-link fence along the street: posts and a see-through mesh panel on every fence tile.
     const post = new Batch(own(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6)), lam(0x8a8f96));
     const linkTex = own(canvasTex(32, 32, (g) => {
@@ -1728,6 +1729,10 @@ export function buildCity(scene: THREE.Scene) {
   for (const st of STATIONS) {
     const x = st.x + 0.5;
     const z = st.y + 0.5;
+    if (st.look === 'barrel') {
+      burningBarrel(x, floorY(x, z), z);
+      continue;
+    }
     add(own(new THREE.CircleGeometry(1.4, 20).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
     const brick = lam(0x8a4434, { flatShading: true });
     add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);

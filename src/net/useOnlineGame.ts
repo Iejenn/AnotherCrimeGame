@@ -118,7 +118,7 @@ const SAY: Record<string, string> = {
   too_far_away: "You're too far away. Walk up to it first.",
   gone: "It's gone: someone else got there first, or it rotted away.",
   not_at_link: 'You need to stand right next to it to climb.',
-  not_near_station: 'You need to stand next to the barbecue to cook.',
+  not_near_station: 'You need to stand next to a fire to cook.',
   cant_cook: "You can't cook that.",
   nothing_to_cook: "You don't have any of that to cook.",
   busy: "You're busy. Finish what you're doing first.",

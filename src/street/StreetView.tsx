@@ -13,7 +13,7 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { COURT, FLOOR_H, GH, LINKS, MANHOLE, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
@@ -571,7 +571,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     // The barbecue is tappable: an invisible box over it.
     for (const st of STATIONS) {
       const hitBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.2, 1.1), hitMat);
-      hitBox.position.set(st.x + 0.5, 0.6, st.y + 0.5);
+      hitBox.position.set(st.x + 0.5, floorY(st.x + 0.5, st.y + 0.5) + 0.6, st.y + 0.5);
       hitBox.userData.stationId = st.id;
       scene.add(hitBox);
       pickables.push(hitBox);
@@ -1572,8 +1572,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const gr = st.grave;
       grave.visible = !!gr;
       if (gr) grave.position.set(gr.x + 0.5, floorY(gr.x + 0.5, gr.y + 0.5) + 0.03, gr.y + 0.5);
-      // On the world map (the island only), the sewer is where its pothole is.
-      herePos.current = inSewer(...tileOf(me.pos.x, me.pos.z)) ? MANHOLE : tileOf(me.pos.x, me.pos.z);
+      herePos.current = tileOf(me.pos.x, me.pos.z);
 
       // Tap ring fades out.
       const rm = ring.material as THREE.MeshBasicMaterial;
