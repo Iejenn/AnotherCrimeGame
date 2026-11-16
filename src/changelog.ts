@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.36.0',
+    date: '2026-11-16',
+    title: 'Off to the hospital',
+    items: [
+      'A new hospital on 005-B and 005-D, facing the park: a glass lobby with a receptionist, two staircases, and a ward full of beds upstairs where two doctors do their rounds. An ambulance is parked round the side.',
+      'At 0 HP the screen goes black: you passed out. You wake up in the hospital ward instead of the park. Your stuff is still in your grave.',
+      'Tap the stairs to go up or down.',
+      'Cooking now shows a little bar over your head that fills while each piece cooks.',
+    ],
+  },
+  {
     version: '0.35.0',
     date: '2026-11-16',
     title: 'Know your enemy',

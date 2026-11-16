@@ -468,3 +468,32 @@ export function buildGroundItem(item: string) {
   }
   return g;
 }
+
+/** An ambulance parked by the hospital: a white box van with a red stripe, red crosses and a light bar (length along x,
+ *  front at +x, like buildBigCar). */
+export function buildAmbulance() {
+  const g = new THREE.Group();
+  const white = 0xeeeeea;
+  put(g, boxGeo(2.8, 0.42, 1.3), white, 0, 0.42, 0); // chassis
+  put(g, boxGeo(1.75, 0.95, 1.32), white, -0.5, 1.05, 0); // the box at the back
+  put(g, boxGeo(0.95, 0.5, 1.22), white, 0.82, 0.88, 0); // the cab
+  put(g, boxGeo(0.97, 0.3, 1.24), 0x9fd0e8, 0.84, 0.92, 0, false); // cab windows
+  put(g, boxGeo(2.84, 0.1, 1.34), 0xc8282a, 0, 0.62, 0, false); // red stripe
+  put(g, boxGeo(2.86, 0.12, 1.34), 0xcfcfcf, 0, 0.22, 0); // bumpers
+  // Red crosses on both sides of the box, and on the back.
+  for (const z of [-0.665, 0.665]) {
+    put(g, boxGeo(0.42, 0.12, 0.01), 0xc8282a, -0.5, 1.12, z, false);
+    put(g, boxGeo(0.12, 0.42, 0.01), 0xc8282a, -0.5, 1.12, z, false);
+  }
+  put(g, boxGeo(0.01, 0.12, 0.42), 0xc8282a, -1.38, 1.12, 0, false);
+  put(g, boxGeo(0.01, 0.42, 0.12), 0xc8282a, -1.38, 1.12, 0, false);
+  // The light bar on the cab: red and blue.
+  put(g, boxGeo(0.2, 0.08, 0.36), glow(0xe03a3a, 1.4), 0.75, 1.17, -0.22, false);
+  put(g, boxGeo(0.2, 0.08, 0.36), glow(0x3a6ae0, 1.4), 0.75, 1.17, 0.22, false);
+  for (const z of [-0.45, 0.45]) {
+    put(g, boxGeo(0.04, 0.12, 0.22), glow(0xfff2a8, 1), 1.41, 0.5, z, false);
+    put(g, boxGeo(0.04, 0.12, 0.22), glow(0xd23a2a, 0.8), -1.41, 0.5, z, false);
+  }
+  for (const [x, z] of [[0.85, 0.62], [0.85, -0.62], [-0.85, 0.62], [-0.85, -0.62]]) put(g, cyl(0.26, 0.26, 0.18, 14).rotateX(Math.PI / 2), 0x1e1e22, x, 0.26, z);
+  return g;
+}

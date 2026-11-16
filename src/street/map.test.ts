@@ -1,5 +1,6 @@
-import { expect, it } from 'vitest';
-import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, PATROL, SPAWN, W, H, buildBlocked, canStep, inRect } from './map';
+import { describe, expect, it } from 'vitest';
+import hospitalSql from '../../supabase/migrations/0017_hospital.sql?raw';
+import { ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PARK, PATROL, SPAWN, STAIRS, W, WAKE, WARD, H, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
 import { GUARD_ROUTE } from '../game/watchers';
@@ -93,4 +94,34 @@ it('the Yard: you get in through the two gates, and you can reach every spot a t
   const closed = [];
   for (let x = YARD.x0; x <= YARD.x1; x++) if (b[YARD.y1 * W + x]) closed.push(x);
   expect(closed.length).toBe(YARD.x1 - YARD.x0 + 1 - YARD_GATES.length);
+});
+
+describe('the hospital', () => {
+  it('you wake up where the server puts you (0017_hospital.sql)', () => {
+    expect(hospitalSql).toContain(`p.pos_x := ${WAKE[0]}; p.pos_y := ${WAKE[1]};`);
+    expect(isUpstairs(...WAKE)).toBe(true);
+  });
+  it('the ward is only reachable by the stairs, and from the ward you get back out', () => {
+    const b = buildBlocked();
+    const out = findPath(b, W, H, WAKE, [SPAWN], canStep)!;
+    expect(out).not.toBeNull();
+    // Every step between the ward and the lobby is a stair, straight down.
+    const route = [WAKE, ...out];
+    for (let i = 1; i < route.length; i++) {
+      const [ax, ay] = route[i - 1];
+      const [bx, by] = route[i];
+      if (isUpstairs(ax, ay) !== isUpstairs(bx, by)) expect(STAIRS.some((s) => s.x === ax && s.x === bx)).toBe(true);
+    }
+    // Walking along the back of the lobby, you can't step up into the ward.
+    expect(canStep(LOBBY.x0 + 2, LOBBY.y0, LOBBY.x0 + 2, WARD.y1)).toBe(false);
+    // You can't step onto the stairs from the side.
+    expect(canStep(LOBBY.x0 + 1, LOBBY.y0, LOBBY.x0, LOBBY.y0)).toBe(false);
+  });
+  it('the floor rises up the stairs to the ward', () => {
+    const s = STAIRS[0];
+    expect(floorY(s.x + 0.5, s.bottom[1] + 1.5)).toBe(0);
+    expect(floorY(s.x + 0.5, s.bottom[1] + 0.5)).toBeCloseTo(FLOOR_H / 4);
+    expect(floorY(s.x + 0.5, WARD.y1 + 0.5)).toBe(FLOOR_H);
+    expect(floorY(LOBBY.x0 + 2.5, LOBBY.y0 + 0.5)).toBe(0); // the lobby's back row, between the stairs
+  });
 });

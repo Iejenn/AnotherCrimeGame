@@ -12,7 +12,8 @@ import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
-import { COURT, H, NODES, NPCS, ROOMS, SPAWN, STATIONS, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
+import { COOK_TICKS } from '../game/data/recipes';
+import { COURT, FLOOR_H, H, NODES, NPCS, ROOMS, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, isUpstairs, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
@@ -184,6 +185,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const blocked = buildBlocked();
     const tileOf = (x: number, z: number): [number, number] => [Math.floor(x), Math.floor(z)];
     const center = (tx: number, ty: number) => new THREE.Vector3(tx + 0.5, 0, ty + 0.5);
+    /** A point `h` above the floor at v (the street, or the hospital's ward upstairs): for labels over heads. */
+    const lift = (v: THREE.Vector3, h: number) => new THREE.Vector3(v.x, floorY(v.x, v.z) + h, v.z);
 
     // ---------- renderer / scene: dusk, long soft shadows, fog (docs/design.md §7b) ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -220,6 +223,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
 
     // ---------- tappable spots ----------
     const pickables: THREE.Object3D[] = [];
+    // The hospital's stairs: tap them to go up (or down).
+    pickables.push(...city.stairs);
     const nodeGroups = new Map<string, THREE.Group>();
     // People on the street use the same model as your character, with a random (but fixed) look.
     const lookRng = mulberry32(99);
@@ -293,6 +298,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       bartender: [{ skin: 1, hair: 0, hairColor: 0, top: 4, bottom: 0 }, { apron: 0x1e1b18 }], // white shirt, black apron
       guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, undefined], // navy uniform and cap
       gas_clerk: [{ skin: 4, hair: 1, hairColor: 0, top: 0, bottom: 1 }, { apron: 0x2a4a7a }], // red shirt, blue apron
+      receptionist: [{ skin: 1, hair: 2, hairColor: 2, top: 1, bottom: 0 }, undefined], // blue blouse, long hair
+      doctor_0: [{ skin: 1, hair: 2, hairColor: 1, top: 4, bottom: 0 }, { scrubs: 0x2f6b4a, coat: true }], // green scrubs, white coat
+      doctor_1: [{ skin: 2, hair: 1, hairColor: 0, top: 4, bottom: 0 }, { scrubs: 0x7ab0d8, coat: true }], // light blue scrubs, white coat
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
@@ -617,6 +625,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     };
 
     const tap = (clientX: number, clientY: number) => {
+      if (performance.now() < passOutUntil) return;
       const st = sRef.current;
       if (st.player.caught) return say("You've been caught! Brace yourself…");
       const r = renderer.domElement.getBoundingClientRect();
@@ -624,6 +633,16 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.stairsId) {
+        // The stairs: from downstairs, walk up to the ward; from the ward, walk down to the lobby.
+        const s = STAIRS.find((x) => x.id === hit.object.userData.stairsId)!;
+        const up = !isUpstairs(...tileOf(me.pos.x, me.pos.z));
+        const goal: [number, number] = up ? [s.x, WARD.y1] : [s.x, s.bottom[1] + 1];
+        stopWorking();
+        setTalkingRef.current(null);
+        if (walkTo([goal], null)) say(up ? 'You take the stairs up to the ward.' : 'You take the stairs down to the lobby.');
+        return;
+      }
       if (hit?.object.userData.groundId !== undefined) {
         // Something on the ground: walk onto it (or next to it) and pick it up.
         const g = sRef.current.ground?.find((x) => x.id === hit.object.userData.groundId);
@@ -682,6 +701,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (npc.kind === 'clerk') return say(`The ${npc.name.toLowerCase()} keeps an eye on the shelves. Don't get caught.`);
         if (npc.kind === 'bartender') return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
         if (npc.kind === 'guard') return say('The guard patrols the lot with his flashlight. Stay out of the light.');
+        if (npc.kind === 'receptionist') return say('"You\'re all patched up, hon. Try not to come back too soon."');
+        if (npc.kind === 'doctor') return say('The doctor is busy with the patients.');
         stopWorking();
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
@@ -707,6 +728,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         return;
       }
       const p = new THREE.Vector3();
+      // Upstairs in the hospital, a tap on the ward's floor walks you there (its floor is a storey up).
+      if (isUpstairs(...tileOf(me.pos.x, me.pos.z)) && ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR_H), p) && isUpstairs(...tileOf(p.x, p.z)))
+        return walkToTile(...tileOf(p.x, p.z));
       if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p)) return;
       walkToTile(...tileOf(p.x, p.z));
     };
@@ -717,11 +741,14 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       setTalkingRef.current(null); // walking away ends the conversation
       // Tapped a building: head for the nearest street tiles around it instead.
       let goals: [number, number][] = [[tx, ty]];
-      for (let r = 1; blocked[ty * W + tx] && r <= 6; r++) {
+      // From downstairs, the ward's tiles count as building (you'd only get there by the stairs, on purpose).
+      const upHere = isUpstairs(...tileOf(me.pos.x, me.pos.z));
+      const solid = (x: number, y: number) => !!blocked[y * W + x] || (!upHere && isUpstairs(x, y));
+      for (let r = 1; solid(tx, ty) && r <= 6; r++) {
         goals = [];
         for (let y = ty - r; y <= ty + r; y++)
           for (let x = tx - r; x <= tx + r; x++)
-            if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) === r && x >= 0 && y >= 0 && x < W && y < H && !blocked[y * W + x]) goals.push([x, y]);
+            if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) === r && x >= 0 && y >= 0 && x < W && y < H && !solid(x, y)) goals.push([x, y]);
         if (goals.length) break;
       }
       if (walkTo(goals, null)) {
@@ -892,6 +919,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
     const camTarget = me.pos.clone();
+    /** How high the camera looks (the floor you're on). */
+    let camLift = floorY(me.pos.x, me.pos.z);
     // ---------- your health bar over your head (OSRS-style) ----------
     // Shows for a few seconds after you get hit, and stays while your health is low (30% or less).
     const hpBar = document.createElement('div');
@@ -900,6 +929,20 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     hpBar.appendChild(hpFill);
     labelLayer.appendChild(hpBar);
     let hpBarUntil = 0;
+    // ---------- passing out (0 HP): the screen fades to black, then you wake up in the hospital ----------
+    const passOut = document.createElement('div');
+    passOut.className = 'passout';
+    passOut.innerHTML = '<span>You passed out</span>';
+    host.appendChild(passOut);
+    /** Taps do nothing while the screen is black; you're still groggy (lying down, then getting up) after. */
+    let passOutUntil = 0;
+    let wakeUntil = 0;
+    // ---------- the cooking bar over your head: fills up while the next piece cooks ----------
+    const cookBar = document.createElement('div');
+    cookBar.className = 'cook-bar';
+    const cookFill = document.createElement('div');
+    cookBar.appendChild(cookFill);
+    labelLayer.appendChild(cookBar);
     // ---------- floating "+$5" over your head ----------
     // ---------- caught at the gym bags: a baller yells "Stop that!" and throws the ball at you ----------
     // The server has already decided the hit; we play the throw and show the hit when the ball lands.
@@ -922,7 +965,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
 
     /** A hitsplat over someone: a red splat with the damage, or a blue one for a miss (0), like OSRS. */
     const hitsplat = (where: THREE.Vector3, dmg: number) => {
-      const [x, y] = project(where.clone().setY(0.9));
+      const [x, y] = project(lift(where, 0.9));
       const el = document.createElement('div');
       el.className = `hitsplat ${dmg > 0 ? 'hit' : 'miss'}`;
       el.textContent = String(dmg);
@@ -969,18 +1012,29 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       line(parts, '');
       if (r.damage) hpBarUntil = performance.now() + 6000;
       if (r.died) {
-        // You wake up at the start. Your stuff is in your grave.
-        me.pos.copy(center(...SPAWN));
-        worldRef.current?.move(SPAWN, []);
+        // You pass out: the screen fades to black ("You passed out"), and you wake up in the hospital's ward (where
+        // the server put you too). Your stuff is in your grave.
         me.path = [];
         me.goal = null;
         me.goalNpc = null;
         me.goalGrave = false;
+        me.goalEnemy = null;
         me.attached = null;
-        camTarget.copy(me.pos);
         setTalkingRef.current(null);
-        say(sRef.current.grave ? 'You wake up at the start. Your stuff is in your grave: go and get it.' : 'You wake up at the start.');
-        big.push(['You died!', 'f-bust']);
+        passOut.classList.add('on');
+        passOutUntil = performance.now() + 2600;
+        setTimeout(() => {
+          me.pos.copy(center(...WAKE));
+          me.path = [];
+          worldRef.current?.move(WAKE, []);
+          camTarget.copy(me.pos);
+          camLift = floorY(me.pos.x, me.pos.z);
+          wakeUntil = performance.now() + 2600;
+        }, 900);
+        setTimeout(() => {
+          passOut.classList.remove('on');
+          say(sRef.current.grave ? 'You wake up in the hospital. Your stuff is in your grave: go and get it.' : 'You wake up in the hospital.');
+        }, 2600);
       } else if (r.hit) big.push(['Stunned!', 'f-bust']);
       line(big, 'float-big');
       if (r.hit) {
@@ -1085,7 +1139,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const foeView = foe ? enemyViews.get(foe) : undefined;
       if (foeView && !me.path.length) me.facing = Math.atan2(foeView.g.position.x - me.pos.x, foeView.g.position.z - me.pos.z);
       setGear(player, st.equipment);
-      player.position.set(me.pos.x, 0.03, me.pos.z);
+      player.position.set(me.pos.x, floorY(me.pos.x, me.pos.z) + 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
       // Cooking: face the barbecue and work it.
       const cooking = !!st.cook && !me.path.length;
@@ -1094,7 +1148,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
       }
       const swinging = now < me.punchUntil && weaponAnim(st.equipment?.weapon) === 'swing';
-      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || cooking || now < me.punchUntil ? 'work' : 'idle';
+      const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || cooking || now < me.punchUntil ? 'work' : 'idle';
       animateCharacter(player, pose, now, 0, (now - me.punchAt) / (me.punchUntil - me.punchAt));
       player.rotation.y = me.facing;
 
@@ -1160,7 +1214,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             w.mode = 'normal';
             w.target.copy(w.pos);
           }
-          g.position.set(w.pos.x, 0.03, w.pos.z);
+          g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
           animateCharacter(g, w.mode === 'hit' ? 'work' : w.moving ? 'walk' : 'idle', now, 3.1);
           continue;
         }
@@ -1180,7 +1234,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           } else {
             g.rotation.y = turnTowards(g.rotation.y, b.watching ? 0 : Math.PI, dt * 6);
           }
-          g.position.set(w.pos.x, 0.03, w.pos.z);
+          g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
           animateCharacter(g, w.moving ? 'walk' : b.watching ? 'idle' : 'work', now, 2.3);
           continue;
         } else if (npc.kind === 'guard') {
@@ -1191,7 +1245,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           w.pos.add(d.length() > 0.05 ? d.multiplyScalar(Math.min(1, dt * 4)) : d);
           w.moving = gs.moving;
           g.rotation.y = gs.yaw;
-          g.position.set(w.pos.x, 0.03, w.pos.z);
+          g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
           animateCharacter(g, w.moving ? 'walk' : 'idle', now, 4.2);
           continue;
         } else if (npc.kind === 'baller') {
@@ -1224,7 +1278,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             w.moving = true;
           }
         }
-        g.position.set(w.pos.x, 0.03, w.pos.z);
+        g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
         animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
@@ -1263,7 +1317,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, gameNow()) > 0);
       // Inside a room: fade its walls and lift the roof so you can see in.
       const myTile = tileOf(me.pos.x, me.pos.z);
-      for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
+      for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile) || (r.id === 'hospital' && isUpstairs(...myTile));
+      // The tap ring sits on the floor it was tapped on (the ward is a storey up).
+      ring.position.y = floorY(ring.position.x, ring.position.z) + 0.08;
 
       // Things on the ground: add new ones, remove picked-up or rotted ones, a gentle bob so they catch the eye.
       {
@@ -1426,7 +1482,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             e.hpBar.style.display = show ? 'block' : 'none';
             if (show) {
               // Above their name label (which sits at 1.55), not on top of it.
-              const [bx, by, depth] = project(e.pos.clone().setY(1.55));
+              const [bx, by, depth] = project(lift(e.pos, 1.55));
               e.hpBar.style.transform = `translate(${bx}px, ${by - 20}px) translate(-50%, -100%)`;
               e.hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
               (e.hpBar.firstChild as HTMLElement).style.width = `${Math.max(0, Math.min(1, hpNow / os.maxHp)) * 100}%`;
@@ -1434,7 +1490,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             }
           }
         }
-        e.g.position.set(e.pos.x, 0.03, e.pos.z);
+        e.g.position.set(e.pos.x, floorY(e.pos.x, e.pos.z) + 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
         setGear(e.g, o.equipment);
         // Someone else swinging a bat: their swings loop at the weapon's speed (we don't see their exact timing).
@@ -1460,18 +1516,20 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
 
       // Camera orbits you: yaw = angle around you, pitch = how steeply it looks down.
       camTarget.lerp(me.pos, 1 - Math.pow(0.001, dt));
+      // Upstairs (or on the stairs) the camera rises with you.
+      camLift += (floorY(me.pos.x, me.pos.z) - camLift) * Math.min(1, dt * 6);
       const r = zoomRef.current * 1.25;
       const yaw = yawRef.current;
       const pitch = pitchRef.current;
       camera.position.set(
         camTarget.x + Math.sin(yaw) * r * Math.cos(pitch),
-        r * Math.sin(pitch),
+        r * Math.sin(pitch) + camLift,
         camTarget.z + Math.cos(yaw) * r * Math.cos(pitch),
       );
-      camera.lookAt(camTarget.x, 0, camTarget.z);
+      camera.lookAt(camTarget.x, camLift, camTarget.z);
       sun.position.copy(camTarget).add(SUN_OFFSET);
       sun.target.position.copy(camTarget);
-      updateFades(city.fadeables, camera, me.pos, dt);
+      updateFades(city.fadeables, camera, lift(me.pos, 0), dt);
       city.animate(now);
 
       // Progress bar for the current action.
@@ -1488,7 +1546,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       for (const it of st.ground ?? []) {
         const v = groundViews.get(it.id);
         if (!v || v.position.distanceTo(me.pos) > LABEL_RANGE) continue;
-        const [x, y, depth] = project(v.position.clone().setY(0.35));
+        const [x, y, depth] = project(lift(v.position, 0.35));
         if (depth > 1 || placed.some(([px, py, w]) => Math.abs(px - x) < w / 2 + 30 && Math.abs(py - y) < 14)) continue;
         const key = `ground:${it.id}`;
         let el = labelEls.get(key);
@@ -1509,7 +1567,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const v = enemyViews.get(e.id);
         const k = ENEMY_KINDS[e.kind];
         if (!v || !v.g.visible || !k || v.g.position.distanceTo(me.pos) > LABEL_RANGE + 2) continue;
-        const [x, y, depth] = project(v.g.position.clone().setY(e.kind === 'pigeon' ? 0.75 : 1.6));
+        const [x, y, depth] = project(lift(v.g.position, e.kind === 'pigeon' ? 0.75 : 1.6));
         if (depth > 1) continue;
         let el = labelEls.get(`enemy:${e.id}`);
         if (!el) {
@@ -1534,7 +1592,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       for (const [id, e] of others) {
         const o = list.find((x) => x.id === id);
         if (!o || e.g.position.distanceTo(me.pos) > NPC_LABEL_RANGE * 1.5) continue;
-        const [x, y, depth] = project(e.g.position.clone().setY(1.55));
+        const [x, y, depth] = project(lift(e.g.position, 1.55));
         if (depth > 1) continue;
         let el = labelEls.get(`player:${id}`);
         if (!el) {
@@ -1551,7 +1609,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       }
       // "Your grave · 4:31" over your grave (from further away than other labels).
       if (gr) {
-        const [x, y, depth] = project(grave.position.clone().setY(0.95));
+        const [x, y, depth] = project(lift(grave.position, 0.95));
         if (depth <= 1 && grave.position.distanceTo(me.pos) < NPC_LABEL_RANGE * 1.5) {
           let el = labelEls.get('grave');
           if (!el) {
@@ -1582,7 +1640,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           }
           const pos = pid === ch.myId ? me.pos : others.get(pid)?.g.position;
           if (!pos) continue;
-          const [x, y, depth] = project(pos.clone().setY(1.95));
+          const [x, y, depth] = project(lift(pos, 1.95));
           if (depth > 1) continue;
           let el = labelEls.get(`say:${pid}`);
           if (!el) {
@@ -1603,7 +1661,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           yells.delete(id);
           continue;
         }
-        const [x, yy, depth] = project(g.position.clone().setY(2.05));
+        const [x, yy, depth] = project(lift(g.position, 2.05));
         if (depth > 1) continue;
         let el = labelEls.get(`yell:${id}`);
         if (!el) {
@@ -1620,7 +1678,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (!npc.named) continue;
         const g = npcGroups.get(npc.id)!;
         let el = labelEls.get(`npc:${npc.id}`);
-        const [x, y, depth] = project(g.position.clone().setY(1.55));
+        const [x, y, depth] = project(lift(g.position, 1.55));
         if (g.position.distanceTo(me.pos) > NPC_LABEL_RANGE || depth > 1) continue;
         if (!el) {
           el = document.createElement('div');
@@ -1642,7 +1700,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         .slice(0, MAX_LABELS);
       for (const { n } of nearby) {
         const g = nodeGroups.get(n.id)!;
-        const [x, y, depth] = project(g.position.clone().setY(n.kind === 'person' ? 1.45 : 1.2));
+        const [x, y, depth] = project(lift(g.position, n.kind === 'person' ? 1.45 : 1.2));
         if (depth > 1) continue;
         seen.add(n.id);
         let el = labelEls.get(n.id);
@@ -1682,14 +1740,31 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const show = now < hpBarUntil || hpNow / hpMax <= 0.3;
         hpBar.style.display = show ? 'block' : 'none';
         if (show) {
-          const [bx, by, depth] = project(me.pos.clone().setY(1.72));
+          const [bx, by, depth] = project(lift(me.pos, 1.72));
           hpBar.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
           hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
           hpFill.style.width = `${Math.max(0, Math.min(1, hpNow / hpMax)) * 100}%`;
           hpBar.classList.toggle('low', hpNow / hpMax <= 0.3);
         }
       }
-      const [hx, hy] = project(me.pos.clone().setY(1.5));
+      {
+        // Cooking: a bar that fills from dark brown to clay while the current piece cooks (one every COOK_TICKS ticks).
+        const ck = st.cook;
+        const show = !!ck && !me.path.length;
+        cookBar.style.display = show ? 'block' : 'none';
+        if (show && ck) {
+          const p = Math.max(0, Math.min(1, 1 - (ck.next - gameNow()) / (COOK_TICKS * 500)));
+          const hpShown = hpBar.style.display === 'block';
+          const [bx, by, depth] = project(lift(me.pos, 1.72));
+          cookBar.style.transform = `translate(${bx}px, ${by - (hpShown ? 10 : 0)}px) translate(-50%, -100%)`;
+          cookBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
+          cookFill.style.width = `${p * 100}%`;
+          // From burnt-sugar brown to a warm clay as it cooks.
+          const mix = (a: number, b: number) => Math.round(a + (b - a) * p);
+          cookFill.style.background = `rgb(${mix(92, 196)}, ${mix(58, 112)}, ${mix(34, 64)})`;
+        }
+      }
+      const [hx, hy] = project(lift(me.pos, 1.5));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
       if (now - lastMini > 100) {
@@ -1714,10 +1789,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       renderer.domElement.removeEventListener('wheel', onWheel);
       for (const el of labelEls.values()) el.remove();
       hpBar.remove();
+      cookBar.remove();
       geoms.forEach((g) => g.dispose());
       disposables.forEach((d) => d.dispose());
       (ring.material as THREE.Material).dispose();
       renderer.dispose();
+      passOut.remove();
       renderer.domElement.remove();
     };
   }, [onReport]);

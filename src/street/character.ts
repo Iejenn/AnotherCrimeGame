@@ -55,13 +55,16 @@ export interface Rig {
 }
 
 /** Build a character. The returned group has `userData.rig` for animateCharacter(). */
-export function buildCharacter(look: Look, extra?: { apron?: number; hood?: number }): THREE.Group {
+export function buildCharacter(look: Look, extra?: { apron?: number; hood?: number; scrubs?: number; coat?: boolean }): THREE.Group {
   const root = new THREE.Group();
   const body = new THREE.Group(); // everything above the feet, so it can bob and wobble
   root.add(body);
   const skin = mat(SKIN_TONES[look.skin] ?? SKIN_TONES[1]);
-  const top = mat(TOP_COLORS[look.top] ?? TOP_COLORS[0]);
-  const bottom = mat(BOTTOM_COLORS[look.bottom] ?? BOTTOM_COLORS[0]);
+  // Doctors wear scrubs (top and trousers in one colour) under a white coat.
+  const coat = extra?.coat ? mat(0xf4f4f0) : null;
+  const scrubs = extra?.scrubs !== undefined ? mat(extra.scrubs) : null;
+  const top = coat ?? scrubs ?? mat(TOP_COLORS[look.top] ?? TOP_COLORS[0]);
+  const bottom = scrubs ?? mat(BOTTOM_COLORS[look.bottom] ?? BOTTOM_COLORS[0]);
   const hair = mat(HAIR_COLORS[look.hairColor] ?? HAIR_COLORS[0]);
   const dark = mat(0x1e1b18);
   const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = body) => {
@@ -91,6 +94,14 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   if (extra?.apron !== undefined) {
     const apron = mesh(new THREE.BoxGeometry(0.26, 0.34, 0.03), mat(extra.apron), 0, 0.6, 0.13);
     apron.castShadow = false;
+  }
+  if (coat) {
+    // The coat hangs open over the scrubs: the scrubs show in a V at the chest, the coat's skirt reaches the knees,
+    // a stethoscope round the neck and a name badge.
+    if (scrubs) mesh(new THREE.BoxGeometry(0.1, 0.2, 0.02), scrubs, 0, 0.72, 0.125).castShadow = false;
+    mesh(new THREE.BoxGeometry(0.36, 0.26, 0.27), coat, 0, 0.4, 0);
+    mesh(new THREE.TorusGeometry(0.1, 0.012, 4, 12, Math.PI), mat(0x3a5a4a), 0, 0.8, 0.07).rotation.set(Math.PI * 0.6, 0, Math.PI);
+    mesh(new THREE.BoxGeometry(0.06, 0.04, 0.01), mat(0x3a6ea5), 0.09, 0.73, 0.13).castShadow = false;
   }
   mesh(geo.head, skin, 0, 1.0, 0);
   mesh(geo.eye, dark, -0.06, 1.02, 0.148);

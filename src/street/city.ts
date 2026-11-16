@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -368,7 +369,7 @@ export function buildCity(scene: THREE.Scene) {
 
   // ---------- street life: cars parked along the curbs, and things on the sidewalks ----------
   for (const c of PARKED_CARS) {
-    const car = L.buildBigCar(c.color);
+    const car = c.ambulance ? L.buildAmbulance() : L.buildBigCar(c.color);
     const mid = c.along === 'x' ? [c.x + 1.5, c.y + 0.5] : [c.x + 0.5, c.y + 1.5];
     car.position.set(mid[0], 0.0, mid[1]);
     car.rotation.y = c.along === 'x' ? (c.y % PITCH < STREET / 2 ? Math.PI : 0) : c.x % PITCH < STREET / 2 ? Math.PI / 2 : -Math.PI / 2;
@@ -1308,6 +1309,197 @@ export function buildCity(scene: THREE.Scene) {
     scene.add(bulb);
   }
 
+  // ---------- the hospital (005-B + 005-D): where you wake up after passing out ----------
+  // Two storeys. The front half is a tall lobby behind a glass front with a wide entrance, a reception desk and two
+  // staircases up the side walls at the back. The back half is the ward upstairs: beds along both walls, a glass
+  // railing where it looks down into the lobby. Brick sides, a dark front with the sign, a red cross on the roof.
+  // While you're inside (the lobby or the ward) the walls fade and the roof lifts, like the shops.
+  const stairs: THREE.Object3D[] = [];
+  {
+    const X0 = HOSPITAL.x0;
+    const X1 = HOSPITAL.x1 + 1;
+    const ZN = HOSPITAL.y0; // the back (north)
+    const ZM = LOBBY.y0; // where the ward ends and the lobby starts
+    const ZS = HOSPITAL.y1 + 1; // the front (south), facing the park
+    const cx = (X0 + X1) / 2;
+    const F = FLOOR_H;
+    const TOP = 2 * F;
+    const t = 0.14;
+    add(geoBox(X1 - X0 + 0.6, 0.06, ZS - ZN + 0.6), pavement, cx, 0.03, (ZN + ZS) / 2, false);
+    const mBrick = lam(0x7a4a3a);
+    const mFacade = lam(0x2f3236);
+    const mWhite = lam(0xeeeeea);
+    const mRed = lam(0xc8282a);
+    const glass = own(new THREE.MeshLambertMaterial({ color: 0xbfe0ee, emissive: 0xffe2b0, emissiveIntensity: 0.25, transparent: true, opacity: 0.28, depthWrite: false }));
+    // Outer walls: brick sides and back, full height.
+    const walls = [
+      add(geoBox(t, TOP, ZS - ZN), mBrick, X0 + t / 2, TOP / 2, (ZN + ZS) / 2),
+      add(geoBox(t, TOP, ZS - ZN), mBrick, X1 - t / 2, TOP / 2, (ZN + ZS) / 2),
+      add(geoBox(X1 - X0, TOP, t), mBrick, cx, TOP / 2, ZN + t / 2),
+      // The front above the glass: dark, with the sign on it.
+      add(geoBox(X1 - X0, TOP - F - 0.1, t), mFacade, cx, (TOP + F + 0.1) / 2, ZS - t / 2),
+    ];
+    // The glass front of the lobby: panes either side of the entrance (3 tiles wide), a glass strip above it, and the
+    // frames. The doors stand open.
+    const ENT0 = LOBBY.door[0] - 1;
+    const ENT1 = LOBBY.door[0] + 2;
+    const panes = [
+      add(geoBox(ENT0 - X0, F + 0.1, 0.04), glass, (X0 + ENT0) / 2, (F + 0.1) / 2, ZS - 0.05, false),
+      add(geoBox(X1 - ENT1, F + 0.1, 0.04), glass, (ENT1 + X1) / 2, (F + 0.1) / 2, ZS - 0.05, false),
+      add(geoBox(ENT1 - ENT0, F - 1.25, 0.04), glass, (ENT0 + ENT1) / 2, 1.25 + (F - 1.25) / 2 + 0.05, ZS - 0.05, false),
+    ];
+    const frames = [X0 + 0.07, ENT0, ENT1, X1 - 0.07].map((x) => add(geoBox(0.08, F + 0.1, 0.1), mFacade, x, (F + 0.1) / 2, ZS - 0.05));
+    frames.push(add(geoBox(ENT1 - ENT0, 0.06, 0.1), mFacade, (ENT0 + ENT1) / 2, 1.25, ZS - 0.05));
+    // The sliding doors, slid open to the sides.
+    for (const x of [ENT0 + 0.3, ENT1 - 0.3]) panes.push(add(geoBox(0.55, 1.2, 0.03), glass, x, 0.62, ZS - 0.14, false));
+    // The sign: HOSPITAL in red on white, and a red cross on the corner.
+    const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture('HOSPITAL', '#f4f4f0', '#c8282a')) }));
+    const sign = add(own(new THREE.PlaneGeometry(2.6, 0.48)), signMat, cx - 0.5, F + 0.55, ZS + 0.01, false);
+    const crossMat = lam(0xd9302a, { emissive: 0xd9302a, emissiveIntensity: 0.7 });
+    const cross = [
+      add(geoBox(0.5, 0.16, 0.06), crossMat, X1 - 0.7, F + 0.55, ZS + 0.03, false),
+      add(geoBox(0.16, 0.5, 0.06), crossMat, X1 - 0.7, F + 0.55, ZS + 0.03, false),
+    ];
+    // Windows: a lit strip on the front's upper floor, and windows down the brick sides on both floors.
+    const winMat = lam(0x6a5032, { emissive: 0xfff0d0, emissiveIntensity: 0.9 });
+    const windows = [add(geoBox(X1 - X0 - 0.6, 0.35, 0.03), winMat, cx, TOP - 0.45, ZS + 0.01, false)];
+    for (const side of [X0 - 0.01, X1 + 0.01])
+      for (let z = ZN + 1; z < ZS - 0.5; z += 2)
+        for (const y of z < ZM ? [0.9, F + 0.85] : [F + 0.85]) windows.push(add(geoBox(0.03, 0.6, 0.8), winMat, side, y, z + 0.5, false));
+    // The roof, its edge, two air conditioners and a red cross for the helicopters (and the minimap).
+    const roof = add(geoBox(X1 - X0, 0.1, ZS - ZN), lam(C.roof), cx, TOP + 0.05, (ZN + ZS) / 2);
+    const rim = parapet(cx, (ZN + ZS) / 2, X1 - X0 + 0.06, ZS - ZN + 0.06, TOP + 0.08, mWhite);
+    const roofProps = [
+      add(geoBox(0.6, 0.3, 0.5), lam(0xd8d8d8), X0 + 1, TOP + 0.25, ZN + 1),
+      add(geoBox(0.6, 0.3, 0.5), lam(0xd8d8d8), X0 + 1, TOP + 0.25, ZN + 2),
+      add(geoBox(1.4, 0.02, 0.4), mRed, cx, TOP + 0.11, ZM + 2, false),
+      add(geoBox(0.4, 0.02, 1.4), mRed, cx, TOP + 0.11, ZM + 2, false),
+    ];
+
+    // --- the lobby ---
+    const lobbyTex = own(
+      canvasTex(64, 64, (g) => {
+        g.fillStyle = '#d8d6cf';
+        g.fillRect(0, 0, 64, 64);
+        g.strokeStyle = '#b8b4aa';
+        g.lineWidth = 2;
+        g.strokeRect(1, 1, 62, 62);
+      }),
+    );
+    lobbyTex.repeat.set(X1 - X0, ZS - ZM);
+    const lobbyFloor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.2, ZS - ZM - 0.1)), lam(0xffffff, { map: lobbyTex }));
+    lobbyFloor.rotation.x = -Math.PI / 2;
+    lobbyFloor.position.set(cx, 0.065, (ZM + ZS) / 2);
+    lobbyFloor.receiveShadow = true;
+    scene.add(lobbyFloor);
+    // The back wall under the ward, between the stairs: two "staff only" doors and a big cross.
+    add(geoBox(X1 - X0 - 2, F, 0.12), lam(0xdcd8cc), cx, F / 2, ZM - 0.06);
+    for (const dx of [-0.75, 0.75]) add(geoBox(0.6, 1.1, 0.03), lam(0x7a8a90), cx + dx, 0.6, ZM + 0.01, false);
+    add(geoBox(0.4, 0.12, 0.03), mRed, cx, 1.42, ZM + 0.01, false);
+    add(geoBox(0.12, 0.4, 0.03), mRed, cx, 1.42, ZM + 0.01, false);
+    // The reception desk (white, a red band), with a computer; the receptionist stands behind it.
+    {
+      const desk = FIXTURES.filter((f) => f.kind === 'desk');
+      const dx0 = Math.min(...desk.map((f) => f.x));
+      const dx1 = Math.max(...desk.map((f) => f.x)) + 1;
+      const dz = desk[0].y + 0.5;
+      const dcx = (dx0 + dx1) / 2;
+      add(geoBox(dx1 - dx0 - 0.1, 0.6, 0.5), mWhite, dcx, 0.3, dz);
+      add(geoBox(dx1 - dx0 - 0.08, 0.08, 0.52), mRed, dcx, 0.45, dz + 0.005, false);
+      add(geoBox(dx1 - dx0, 0.05, 0.6), lam(0x9a8a72), dcx, 0.63, dz);
+      add(geoBox(0.34, 0.24, 0.03), lam(0x2b2b2e), dcx + 0.4, 0.82, dz - 0.12);
+      add(geoBox(0.3, 0.2, 0.01), lam(0x9fd0e8, { emissive: 0x9fd0e8, emissiveIntensity: 0.8 }), dcx + 0.4, 0.82, dz - 0.105, false);
+      add(geoBox(0.2, 0.03, 0.12), lam(0x2b2b2e), dcx + 0.4, 0.67, dz - 0.1, false);
+    }
+    // Plants in the front corners.
+    for (const x of [X0 + 0.35, X1 - 0.35]) {
+      add(own(new THREE.CylinderGeometry(0.14, 0.11, 0.28, 8)), lam(0x8a6a4a), x, 0.2, ZS - 0.35);
+      add(own(new THREE.IcosahedronGeometry(0.24, 0)), lam(0x3f6834, { flatShading: true }), x, 0.55, ZS - 0.35);
+    }
+    // One light for the lobby and the ward (every extra light costs phones a little).
+    const light = new THREE.PointLight(0xfff2dc, 7, 8, 1.4);
+    light.position.set(cx, F + 1.2, ZM + 0.5);
+    scene.add(light);
+
+    // --- the stairs: a flight up each side wall, rising to the ward at the back of the lobby ---
+    const stepMat = lam(0xc8c4ba);
+    const noseMat = lam(0x5a5650);
+    const N = 8;
+    for (const s of STAIRS) {
+      const g = new THREE.Group();
+      const west = s.x === HOSPITAL.x0;
+      const sx = west ? s.x + t + (1 - t) / 2 : s.x + (1 - t) / 2;
+      const zFoot = s.bottom[1] + 1;
+      for (let i = 0; i < N; i++) {
+        const h = ((i + 1) * F) / N;
+        const z = zFoot - (i + 0.5) * (2 / N);
+        const step = new THREE.Mesh(geoBox(1 - t, h, 2 / N), stepMat);
+        step.position.set(sx, h / 2, z);
+        step.castShadow = step.receiveShadow = true;
+        g.add(step);
+        const nose = new THREE.Mesh(geoBox(1 - t, 0.025, 0.04), noseMat);
+        nose.position.set(sx, h - 0.01, z + 1 / N - 0.02);
+        g.add(nose);
+      }
+      // A handrail on the open side, sloping with the steps.
+      const railX = west ? s.x + 1 : s.x;
+      const len = Math.hypot(2, F);
+      const rail = new THREE.Mesh(geoBox(0.05, 0.05, len), lam(0x8a8f96));
+      rail.position.set(railX, F / 2 + 0.75, zFoot - 1);
+      rail.rotation.x = Math.atan2(F, 2);
+      g.add(rail);
+      for (const k of [0.15, 0.5, 0.85]) {
+        const post = new THREE.Mesh(geoBox(0.03, 0.75, 0.03), lam(0x8a8f96));
+        post.position.set(railX, F * k + 0.38, zFoot - 2 * k);
+        g.add(post);
+      }
+      g.traverse((o) => (o.userData.stairsId = s.id));
+      scene.add(g);
+      stairs.push(g);
+    }
+
+    // --- the ward, upstairs ---
+    add(geoBox(X1 - X0, 0.14, ZM - ZN), lam(0xdcd8cc), cx, F - 0.06, (ZN + ZM) / 2);
+    const wardFloor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.2, ZM - ZN - 0.1)), lam(0xa8c4bc));
+    wardFloor.rotation.x = -Math.PI / 2;
+    wardFloor.position.set(cx, F + 0.015, (ZN + ZM) / 2);
+    wardFloor.receiveShadow = true;
+    scene.add(wardFloor);
+    // A glass railing along the edge over the lobby, between the stairs.
+    add(geoBox(X1 - X0 - 2, 0.5, 0.03), glass, cx, F + 0.27, ZM, false);
+    add(geoBox(X1 - X0 - 2, 0.05, 0.07), lam(0x8a8f96), cx, F + 0.53, ZM);
+    // The beds: head against the wall, white sheets, a blue blanket; a drip stand by some, a patient in two.
+    const steel = lam(0x9aa0a8);
+    const sheet = lam(0xf4f4f0);
+    const blanket = lam(0x6a9ac0);
+    FIXTURES.filter((f) => f.kind === 'bed').forEach((b, i) => {
+      const west = b.x === WARD.x0;
+      const dir = west ? 1 : -1; // from the head towards the foot
+      const head = west ? b.x + t : b.x + 1 - t;
+      const bz = b.y + 0.5;
+      const mid = head + dir * 0.45;
+      add(geoBox(0.86, 0.08, 0.58), steel, mid, F + 0.3, bz);
+      for (const [lx, lz] of [[0.05, -0.25], [0.05, 0.25], [0.8, -0.25], [0.8, 0.25]]) add(geoBox(0.04, 0.28, 0.04), steel, head + dir * lx, F + 0.14, bz + lz, false);
+      add(geoBox(0.04, 0.42, 0.58), steel, head + dir * 0.03, F + 0.42, bz);
+      add(geoBox(0.82, 0.1, 0.54), sheet, mid, F + 0.39, bz);
+      add(geoBox(0.2, 0.06, 0.36), sheet, head + dir * 0.15, F + 0.47, bz);
+      add(geoBox(0.5, 0.05, 0.56), blanket, head + dir * 0.6, F + 0.46, bz);
+      const isWakeBed = b.y === WAKE[1] && Math.abs(b.x - WAKE[0]) === 1;
+      if (i % 3 === 1 && !isWakeBed) {
+        add(own(new THREE.SphereGeometry(0.12, 10, 8)), lam(0xe0b48f), head + dir * 0.17, F + 0.56, bz);
+        add(geoBox(0.55, 0.12, 0.5), blanket, head + dir * 0.55, F + 0.5, bz);
+      }
+      if (i % 2 === 0) {
+        add(geoBox(0.03, 1.1, 0.03), steel, head + dir * 0.12, F + 0.55, bz + 0.38, false);
+        add(geoBox(0.1, 0.14, 0.04), lam(0xd8eef2, { transparent: true, opacity: 0.8 }), head + dir * 0.12, F + 1.02, bz + 0.38, false);
+      }
+    });
+
+    const fade: Fadeable = { walls: [...walls, ...panes, ...frames], mats: [mBrick, mFacade], props: [roof, ...rim, ...roofProps, sign, ...cross, ...windows], opacity: 1 };
+    fadeables.push(fade);
+    rooms.set(LOBBY.id, fade);
+  }
+
   // ---------- cooking stations: the barbecue (docs/design.md §13) ----------
   // A brick barbecue with a grill, glowing coals and a few flames, a warm light, and a gravel patch around it.
   for (const st of STATIONS) {
@@ -1341,6 +1533,8 @@ export function buildCity(scene: THREE.Scene) {
 
   return {
     fadeables,
+    /** The hospital's staircases (tap one to go up or down). */
+    stairs,
     /** Call every frame: the barbecue's flames flicker. */
     animate(t: number) {
       flames.forEach((f, i) => {
@@ -1365,7 +1559,7 @@ const ray = new THREE.Raycaster();
 export function updateFades(fadeables: Fadeable[], camera: THREE.Camera, target: THREE.Vector3, dt: number) {
   const hit = new Set<Fadeable>();
   for (const yOff of [0.3, 1.0]) {
-    const to = target.clone().setY(yOff);
+    const to = target.clone().setY(target.y + yOff);
     const dir = to.clone().sub(camera.position);
     const dist = dir.length();
     ray.set(camera.position, dir.normalize());

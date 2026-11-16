@@ -69,6 +69,13 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  hospital: (
+    <>
+      {/* a white cross on red */}
+      <rect x="4" y="4" width="16" height="16" rx="3" fill="#d9473a" />
+      <path d="M10 7 H14 V10 H17 V14 H14 V17 H10 V14 H7 V10 H10 Z" fill="#ffffff" />
+    </>
+  ),
   fire: (
     <>
       {/* a flame */}
