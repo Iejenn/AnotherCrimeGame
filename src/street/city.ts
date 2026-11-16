@@ -6,8 +6,9 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, H, LOT, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
+import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, GAS, H, LOT, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
 import { mulberry32 } from '../game/rng';
+import { buildCar } from './props';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
 const C = {
@@ -848,6 +849,86 @@ export function buildCity(scene: THREE.Scene) {
     add(own(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 6)), lam(0x5a5f66), X0 - 0.15, 0.65, Z0 - 0.15);
     const ps = add(own(new THREE.PlaneGeometry(0.4, 0.4)), own(new THREE.MeshBasicMaterial({ map: pSign, side: THREE.DoubleSide })), X0 - 0.15, 1.2, Z0 - 0.15, false);
     ps.rotation.y = Math.PI / 4;
+  }
+
+  // ---------- the gas station (Shoplift Gas Station) ----------
+  // A pale concrete shop with a blue-and-red trim and a yellow GAS & GO sign; inside, four shelves
+  // (spots, added by the Street view), a glowing drinks fridge, and the counter. Out front, two pumps
+  // under a lit canopy (which fades like a building when it hides you), a car filling up, and a
+  // tall price sign on the corner.
+  {
+    const bx0 = GAS.x0;
+    const bz0 = GAS.y0;
+    add(geoBox(5.6, 0.06, 5.6), pavement, bx0 + 2.5, 0.03, bz0 + 2.5, false);
+    const { Z0, t, cx } = shopShell(GAS, {
+      wall: 0x9a958a, trim: 0x2a4a7a, stripe: ['#b8282a', '#e8e2d0'], sign: 'GAS & GO', signBg: '#1a3a6a', signFg: '#ffd84a',
+      floor: ['#c8c4bc', '#a8a49c'], light: 0xfff0d8, height: 1.15,
+    });
+    counter(GAS, 0xd8d0c0, 0x2a4a7a);
+    // A tall drinks fridge, glowing blue-white.
+    const fr = FIXTURES.find((f) => f.kind === 'fridge' && inRect(GAS, f.x, f.y))!;
+    add(geoBox(0.8, 1.0, 0.4), lam(0xd8dde2), fr.x + 0.5, 0.52, Z0 + t + 0.2);
+    add(geoBox(0.66, 0.8, 0.02), lam(0x9fd0e8, { emissive: 0x9fd0e8, emissiveIntensity: 0.9 }), fr.x + 0.5, 0.55, Z0 + t + 0.41, false);
+    for (let i = 0; i < 6; i++) add(geoBox(0.08, 0.16, 0.08), lam([0xd9473a, 0x4fa04a, 0xf0b13c][i % 3]), fr.x + 0.25 + (i % 3) * 0.25, 0.35 + Math.floor(i / 3) * 0.35, Z0 + t + 0.35, false);
+    // The forecourt: oil-stained concrete, two pumps on islands, a canopy on four posts.
+    const fz = GAS.y1 + 1; // the row in front of the shop
+    add(geoBox(5, 0.03, 1.0), lam(0x5e5951), cx, 0.07, fz + 0.5, false);
+    const pumps = FIXTURES.filter((f) => f.kind === 'pump' && inRect({ x0: GAS.x0, y0: fz, x1: GAS.x1, y1: fz }, f.x, f.y));
+    for (const pmp of pumps) {
+      add(geoBox(0.7, 0.1, 0.45), lam(0x8a8478), pmp.x + 0.5, 0.1, pmp.y + 0.5);
+      add(geoBox(0.32, 0.62, 0.24), lam(0xb8282a), pmp.x + 0.5, 0.45, pmp.y + 0.5);
+      add(geoBox(0.22, 0.14, 0.02), lam(0xd8f0ff, { emissive: 0xa8d8ff, emissiveIntensity: 0.8 }), pmp.x + 0.5, 0.6, pmp.y + 0.37, false);
+      add(geoBox(0.34, 0.06, 0.26), lam(0xe8e2d0), pmp.x + 0.5, 0.79, pmp.y + 0.5);
+      add(geoBox(0.04, 0.3, 0.04), lam(0x1e1b18), pmp.x + 0.69, 0.4, pmp.y + 0.5, false); // the hose
+    }
+    // Canopy: a flat roof with a blue fascia and lights underneath.
+    const cMats = [lam(0xd8d4cc), lam(0x2a4a7a)];
+    const canopyZ = fz + 0.95; // over the pumps, a little in front of the shop (so its sign shows)
+    const canopy = add(geoBox(4.6, 0.1, 1.5), cMats[0], cx, 1.3, canopyZ);
+    // A thin blue band around the edge, with a red stripe, so from above it reads as a canopy.
+    const fascia = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.3, canopyZ + 0.77);
+    const fasciaBack = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.3, canopyZ - 0.77);
+    for (const ex of [cx - 2.33, cx + 2.33]) add(geoBox(0.06, 0.2, 1.6), cMats[1], ex, 1.3, canopyZ);
+    add(geoBox(4.72, 0.04, 0.07), lam(0xb8282a), cx, 1.25, canopyZ + 0.78, false);
+    for (const px of [cx - 1.6, cx + 1.6]) add(geoBox(0.1, 1.25, 0.1), lam(0xe8e2d0), px, 0.63, canopyZ);
+    for (let i = 0; i < 3; i++) add(geoBox(0.5, 0.02, 0.2), lam(0xffffff, { emissive: 0xfff4e0, emissiveIntensity: 1.6 }), cx - 1.4 + i * 1.4, 1.24, canopyZ, false);
+    const glow = new THREE.PointLight(0xfff0d8, 5, 4, 1.6);
+    glow.position.set(cx, 1.05, canopyZ);
+    scene.add(glow);
+    fadeables.push({ walls: [canopy, fascia, fasciaBack], mats: cMats, props: [], opacity: 1 });
+    // A car filling up at the left pump.
+    if (pumps[0]) {
+      const car = buildCar(0x6a4526);
+      car.position.set(pumps[0].x - 0.45, 0.02, pumps[0].y + 0.5);
+      car.rotation.y = Math.PI / 2;
+      car.scale.setScalar(0.92);
+      scene.add(car);
+    }
+    // The price sign on the corner: a tall post with a lit board.
+    const priceTex = own(
+      canvasTex(
+        64,
+        128,
+        (g) => {
+          g.fillStyle = '#1a3a6a';
+          g.fillRect(0, 0, 64, 128);
+          g.fillStyle = '#ffd84a';
+          g.font = 'bold 18px Arial, sans-serif';
+          g.textAlign = 'center';
+          g.fillText('GAS', 32, 24);
+          g.fillStyle = '#ff5a3a';
+          g.font = 'bold 22px monospace';
+          g.fillText('3.49', 32, 62);
+          g.fillText('3.89', 32, 98);
+        },
+        false,
+      ),
+    );
+    const sx = GAS.x1 + 1.15;
+    const sz = fz + 0.85;
+    add(geoBox(0.08, 2.0, 0.08), lam(0x5a5f66), sx, 1.0, sz);
+    const board = add(own(new THREE.PlaneGeometry(0.5, 1.0)), own(new THREE.MeshBasicMaterial({ map: priceTex, side: THREE.DoubleSide })), sx, 2.1, sz, false);
+    board.rotation.y = -Math.PI / 4;
   }
 
   // Build all instanced batches that were filled above.

@@ -93,23 +93,26 @@ export const STORE = room('store', "Eddy's General Store", 2, 1, true);
 export const CANDY = room('candy', 'Candy store', 3, 2, true);
 /** The bar (Pickpocket Drunks, level 15), above the basketball court. */
 export const BAR = room('bar', 'The bar', 1, 2, false);
-export const ROOMS: Room[] = [STORE, CANDY, BAR];
+/** The gas station shop (Shoplift Gas Station, level 25), below the parking lot. The shop is the top
+ *  four rows of the block; the pumps stand under a canopy along the front. */
+export const GAS = room('gas', 'Gas station', 5, 3, true, 4);
+export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 // ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
 // An open lot at the east edge of town, next to the beach. Meters along the bays, a guard booth,
-// and a guard who patrols with a flashlight. Layout (M = meter, B = booth):
+// four parked cars, and a guard who patrols with a flashlight. Layout (M = meter, C = car, B = booth):
 //   M . M . M
+//   . C . C .     cars nose-in at the north bays
 //   . . . . .
-//   . . . . .
-//   . . . . .
+//   . . C . C     cars nose-in at the south bays
 //   B M . M .
 export const LOT: Rect = blockRect(5, 2);
 /** Where the guard patrols: the lot and the pavement and road around it. */
 export const PATROL: Rect = { x0: LOT.x0 - 1, y0: LOT.y0 - 1, x1: LOT.x1 + 1, y1: LOT.y1 + 1 };
 
 /** Blocks that aren't normal buildings: the park, the court, the rooms, the lot… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2]];
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3]];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -178,7 +181,7 @@ export const BUILDINGS: Building[] = (() => {
 })();
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump';
 export interface Fixture {
   x: number;
   y: number;
@@ -236,6 +239,17 @@ export const FIXTURES: Fixture[] = (() => {
   for (let dx = 0; dx < 3; dx++) out.push({ x: BAR.x0 + dx, y: BAR.y0 + 2, kind: 'bar' });
   out.push({ x: BAR.x1, y: BAR.y0 + 3, kind: 'table' });
 
+  // The gas station shop. Layout (S = shelf you can steal from, F = drinks fridge, K = counter,
+  // D = door; P = pump outside under the canopy):
+  //   S S F S S
+  //   . . . . .
+  //   . . . K K
+  //   . . D . .     <- the clerk stands behind the counter
+  //   . P . P .
+  out.push({ x: GAS.x0 + 2, y: GAS.y0, kind: 'fridge' });
+  out.push({ x: GAS.x0 + 3, y: GAS.y0 + 2, kind: 'counter' }, { x: GAS.x0 + 4, y: GAS.y0 + 2, kind: 'counter' });
+  out.push({ x: GAS.x0 + 1, y: GAS.y1 + 1, kind: 'pump' }, { x: GAS.x0 + 3, y: GAS.y1 + 1, kind: 'pump' });
+
   // The guard booth in the parking lot's corner.
   out.push({ x: LOT.x0, y: LOT.y1, kind: 'booth' });
 
@@ -263,6 +277,11 @@ export const NODES: StreetNode[] = (() => {
   // Five parking meters: three along the north edge of the lot (facing in), two along the south edge.
   [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', LOT.x0 + dx, LOT.y0, { facing: 0 }));
   [1, 3].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', LOT.x0 + dx, LOT.y1, { facing: Math.PI }));
+  // Four parked cars (Steal From Cars): two nose-in at the north bays, two at the south bays.
+  [1, 3].forEach((dx, i) => node(`car_${i}`, 'steal_car', LOT.x0 + dx, LOT.y0 + 1, { facing: Math.PI / 2 }));
+  [2, 4].forEach((dx, i) => node(`car_${i + 2}`, 'steal_car', LOT.x0 + dx, LOT.y1 - 1, { facing: -Math.PI / 2 }));
+  // Four shelves at the gas station, either side of the fridge.
+  [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
 })();
 
@@ -316,6 +335,11 @@ export const NPCS: Npc[] = [
   {
     id: 'bartender', name: 'Bartender', role: 'The bar', kind: 'bartender', x: BAR.x0 + 1, y: BAR.y0 + 1,
     area: { x0: BAR.x0, y0: BAR.y0 + 1, x1: BAR.x0 + 2, y1: BAR.y0 + 1 }, named: true, catches: ['pick_drunk'],
+  },
+  // The gas station clerk stands behind the counter (and steps out to catch you).
+  {
+    id: 'gas_clerk', name: 'Clerk', role: 'Gas station', kind: 'clerk', x: GAS.x0 + 3, y: GAS.y1,
+    area: { x0: GAS.x0 + 3, y0: GAS.y1, x1: GAS.x0 + 4, y1: GAS.y1 }, named: true, catches: ['gas_station'],
   },
   // The parking lot guard patrols the lot with a flashlight.
   {

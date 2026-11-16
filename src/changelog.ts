@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.17.0',
+    date: '2026-11-16',
+    title: 'The gas station and the cars',
+    items: [
+      'Shoplift Gas Station (level 25): a gas station below the parking lot, with pumps under a canopy. Steal a sandwich (+2 HP) or a candy bar from the shelves. 40% odds; mess up and the clerk comes for you (−2 HP).',
+      'Steal From Cars (level 30): four cars are parked on the lot. 35% odds, $30–60. A failed attempt sets off the alarm, and the guard comes running (−3 HP, stunned 4s). He can also just see you in his flashlight beam.',
+      'That completes the new Street Crimes: seven crimes, each with its own place in town.',
+    ],
+  },
+  {
     version: '0.16.0',
     date: '2026-11-16',
     title: 'The parking lot',

@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest';
 import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, SPAWN, W, H, buildBlocked, canStep, inRect } from './map';
 import { findPath, neighbors } from './pathfind';
+import { CRIMES } from '../game/data/crimes';
 
-/** Crimes that have a place on the map so far (Street Crimes v2 is built step by step, design §4). */
-const PLACED = ['pick_tourist', 'gym_bags', 'candy_store', 'pick_drunk', 'parking_meter'];
+/** Every Street Crime has a place on the map (design §4). */
+const PLACED = CRIMES.map((c) => c.id);
 
 it('every street spot and NPC is reachable from spawn', () => {
   const b = buildBlocked();

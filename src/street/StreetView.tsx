@@ -197,6 +197,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       candy_clerk: [{ skin: 2, hair: 2, hairColor: 3, top: 5, bottom: 0 }, { apron: 0xff7ab8 }], // pink apron
       bartender: [{ skin: 1, hair: 0, hairColor: 0, top: 4, bottom: 0 }, { apron: 0x1e1b18 }], // white shirt, black apron
       guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, undefined], // navy uniform and cap
+      gas_clerk: [{ skin: 4, hair: 1, hairColor: 0, top: 0, bottom: 1 }, { apron: 0x2a4a7a }], // red shirt, blue apron
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];

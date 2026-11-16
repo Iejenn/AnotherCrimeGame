@@ -61,12 +61,9 @@ XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **e
 
 ## 4. Street Crimes (levels 1–30)
 
-> **Status: v2 being built, one place per step.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
-> Built: **1 Pickpocket Tourists** (big park), **5 Raid Gym Bags** (basketball court),
-> **10 Shoplift Candy Store** (candy store with a clerk), **15 Pickpocket Drunks** (the bar),
-> **20 Pry Open Parking Meters** (the parking lot with the guard). The rest show
-> "coming soon" in the Skills tab until their place exists. The rules for all seven (odds, rewards, getting caught,
-> shelves and meters that empty) are already in the game engine and tested.
+> **Status: v2 built (v0.13–v0.17).** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
+> All seven crimes have their place on the map and their NPCs. **XP is still the designer's first proposal and
+> needs a tuning pass** now that the NPCs exist (see "XP tuning" below).
 
 Something new unlocks **every 5 levels**. Each crime has its **own place on the map** and, from level 10 on,
 **NPCs that react to you**. Skills don't drop random loot any more (see §6): you get **dollars** directly, and the two
@@ -85,6 +82,24 @@ shoplifting crimes give **food**, which heals.
 **XP proposal:** pickpocketing earns ~5,400 XP/h if every attempt succeeds (~2,600 XP/h with real odds and stuns).
 Each next crime earns ~30% more **real** XP per hour, taking its odds, time, stun and (for Drunks and Meters)
 the time you spend waiting for the bartender or guard into account. To be tuned once those NPCs exist.
+
+### XP tuning (to do)
+
+Rough real XP per hour with today's numbers, counting odds, catches and waiting (estimates, not measured):
+
+| Crime | XP | Rough XP/h | Note |
+|---|---|---|---|
+| Pickpocket Tourists | 3 | ~2,600 | 65%, a fail costs a 2s stun |
+| Raid Gym Bags | 5 | ~3,400 | 55% |
+| Shoplift Candy Store | 10 | ~3,500 | 40%; a fail costs the clerk's walk (1.6s) + 2s stun |
+| Pickpocket Drunks | 8 | ~3,400 | one attempt per "back turned" window (~8.5s cycle) |
+| Pry Open Parking Meters | 7 | ~4,000–6,000 | depends on dodging the guard; meters refill in 15s |
+| Shoplift Gas Station | 21 | ~7,300 | 40%, like the candy store |
+| Steal From Cars | 56 | ~11,000 | 35% plus the guard |
+
+The target was "each next crime ~30% more real XP/h". Drunks don't beat the candy store yet, and the gas station
+and cars jump a lot. Suggestion: measure real play first, then tune the XP column (and maybe the bartender's
+timing) in `src/game/data/crimes.ts`.
 
 ### How each crime works
 
@@ -186,8 +201,13 @@ the time you spend waiting for the bartender or guard into account. To be tuned 
   when he sees you working. Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back
   to patrolling. Tuning constants at the top of `StreetView.tsx` (`GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`,
   `GUARD_LOOK`).
-- Still to come (see §4): **cars** on the lot (Steal From Cars) and the **gas station** next to it
-  (enterable, shop icon).
+- **Cars** (built): four parked cars nose-in at the lot's bays (Steal From Cars: 3s, 35%, $30–60). A failed
+  attempt sets off the car alarm and brings the guard; he can also simply see you in his beam.
+- **The gas station** (built), below the parking lot: a pale concrete shop with a blue trim and a yellow
+  GAS & GO sign, the top four rows of the block. Inside: four shelves either side of a glowing drinks fridge
+  (Shoplift Gas Station: sandwich or candy bar; shelves restock after 10s), and the counter with the **clerk**
+  behind it. Out front: two pumps under a lit canopy (it fades when it hides you), a car filling up, a price sign.
+  Shop icon on the minimap.
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.
