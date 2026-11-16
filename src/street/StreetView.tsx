@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { GameState, Look, Report } from '../game/types';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel } from '../game/engine';
+import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, hpAt, maxHp, skillLevel } from '../game/engine';
 import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
@@ -21,6 +21,8 @@ import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
 import { Hoops } from './hoops';
+import { ChatBox } from './ChatBox';
+import type { ChatLink } from '../net/chat';
 import { mulberry32 } from '../game/rng';
 
 interface Msg {
@@ -91,7 +93,7 @@ function along(from: [number, number], path: [number, number][], dist: number) {
   return { x, z, moving: false, facing };
 }
 
-export function StreetView({ s, api, onReport, world }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void; world?: WorldLink }) {
+export function StreetView({ s, api, onReport, world, chat }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void; world?: WorldLink; chat?: ChatLink }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
@@ -103,11 +105,13 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
   apiRef.current = api;
   const worldRef = useRef(world);
   worldRef.current = world;
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
   const zoomRef = useRef(15);
   const yawRef = useRef(0); // camera angle around you
   const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
   const [msgs, setMsgs] = useState<Msg[]>([{ t: gameNow(), text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' }]);
-  const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-3), { t: gameNow(), text }]));
+  const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-20), { t: gameNow(), text }]));
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
   const setTalkingRef = useRef(setTalking);
@@ -371,6 +375,9 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
 
     // ---------- other players (online) ----------
     const others = new Map<string, { g: THREE.Group; facing: number }>();
+    /** Chat over heads: who said what, until when; and the newest message already handled. */
+    const said = new Map<string, { text: string; until: number }>();
+    let lastSaid = Math.max(0, ...(chatRef.current?.messages ?? []).map((m) => m.id));
 
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
       const path = findPath(blocked, W, H, tileOf(me.pos.x, me.pos.z), goals, canStep);
@@ -672,6 +679,14 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
     const camTarget = me.pos.clone();
+    // ---------- your health bar over your head (OSRS-style) ----------
+    // Shows for a few seconds after you get hit, and stays while your health is low (30% or less).
+    const hpBar = document.createElement('div');
+    hpBar.className = 'hp-bar';
+    const hpFill = document.createElement('div');
+    hpBar.appendChild(hpFill);
+    labelLayer.appendChild(hpBar);
+    let hpBarUntil = 0;
     // ---------- floating "+$5" over your head ----------
     const off = onReport((r) => {
       // One line per attempt (attempts come every second, so separate lines would pile up),
@@ -699,6 +714,7 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
         setTimeout(() => el.remove(), 1300);
       };
       line(parts, '');
+      if (r.damage) hpBarUntil = performance.now() + 6000;
       if (r.died) {
         // You wake up at the start. Your stuff is in your grave.
         me.pos.copy(center(...SPAWN));
@@ -1045,6 +1061,35 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
           el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
         }
       }
+      // What people say in the chat shows over their head for a few seconds (yellow, like OSRS).
+      const ch = chatRef.current;
+      if (ch) {
+        for (const m of ch.messages) {
+          if (m.id <= lastSaid) continue;
+          lastSaid = m.id;
+          if (m.at > gameNow() - 6000) said.set(m.playerId, { text: m.body, until: now + 5000 });
+        }
+        for (const [pid, sp] of said) {
+          if (now > sp.until) {
+            said.delete(pid);
+            continue;
+          }
+          const pos = pid === ch.myId ? me.pos : others.get(pid)?.g.position;
+          if (!pos) continue;
+          const [x, y, depth] = project(pos.clone().setY(1.95));
+          if (depth > 1) continue;
+          let el = labelEls.get(`say:${pid}`);
+          if (!el) {
+            el = document.createElement('div');
+            el.className = 'node-label say';
+            labelLayer.appendChild(el);
+            labelEls.set(`say:${pid}`, el);
+          }
+          if (el.textContent !== sp.text) el.textContent = sp.text;
+          seen.add(`say:${pid}`);
+          el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+        }
+      }
       // Yells ("Hey!") in a speech bubble over whoever is shouting.
       for (const [id, y] of yells) {
         const g = npcGroups.get(id)!;
@@ -1125,6 +1170,19 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
           el.remove();
           labelEls.delete(id);
         }
+      {
+        const hpNow = hpAt(st, gameNow());
+        const hpMax = maxHp(st);
+        const show = now < hpBarUntil || hpNow / hpMax <= 0.3;
+        hpBar.style.display = show ? 'block' : 'none';
+        if (show) {
+          const [bx, by, depth] = project(me.pos.clone().setY(1.72));
+          hpBar.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
+          hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
+          hpFill.style.width = `${Math.max(0, Math.min(1, hpNow / hpMax)) * 100}%`;
+          hpBar.classList.toggle('low', hpNow / hpMax <= 0.3);
+        }
+      }
       const [hx, hy] = project(me.pos.clone().setY(1.5));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
@@ -1148,6 +1206,7 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
       renderer.domElement.removeEventListener('pointercancel', onUp);
       renderer.domElement.removeEventListener('wheel', onWheel);
       for (const el of labelEls.values()) el.remove();
+      hpBar.remove();
       geoms.forEach((g) => g.dispose());
       disposables.forEach((d) => d.dispose());
       (ring.material as THREE.Material).dispose();
@@ -1161,7 +1220,8 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
   const now = gameNow();
   const job = me.job;
   const crime = job ? CRIME_BY_ID[job.crimeId] : null;
-  const recent: Msg[] = [...msgs, ...s.log.slice(0, 4).map((l) => ({ t: l.t, text: l.text }))].sort((a, b) => a.t - b.t).slice(-4);
+  // The game's messages for the chat box: what the Street tells you, and your log.
+  const gameLines: Msg[] = [...msgs, ...s.log.slice(0, 40).map((l) => ({ t: l.t, text: l.text }))];
 
   return (
     <div className="street" ref={hostRef}>
@@ -1203,11 +1263,7 @@ export function StreetView({ s, api, onReport, world }: { s: GameState; api: Gam
         )}
       </div>
       {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
-      <div className="chatbox" aria-live="polite">
-        {recent.map((m, i) => (
-          <div key={`${m.t}-${i}`}>{m.text}</div>
-        ))}
-      </div>
+      <ChatBox game={gameLines} chat={chat} myName={s.name} />
     </div>
   );
 }

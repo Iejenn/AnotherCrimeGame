@@ -8,6 +8,29 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.24.0',
+    date: '2026-11-16',
+    title: 'Living dangerously',
+    items: [
+      'You can do crimes on any health now. But careful: on low health the next hit can kill you, and your stuff ends up in your grave.',
+      'A health bar shows over your head when you get hit, and stays there while your health is low.',
+      'The game now updates itself: when a new version is out, it tells you and reloads, so everyone plays the same version.',
+    ],
+  },
+  {
+    version: '0.23.0',
+    date: '2026-11-16',
+    title: 'Chat',
+    items: [
+      'Talk to everyone on the island: the box at the bottom of the Street is now a chat too. Type and press Enter.',
+      'What you say also pops up over your head for a few seconds.',
+      'Filter the box to just the game messages or just the chat, or fold it down with the arrow.',
+      'New gear button (top right): see which account you are on, and log out.',
+      'After 5 minutes without touching the game you are logged out automatically.',
+      'The tabs are now Street, Inventory, Skills, Quests, Highscores.',
+    ],
+  },
+  {
     version: '0.22.0',
     date: '2026-11-16',
     title: 'Underworld is online',

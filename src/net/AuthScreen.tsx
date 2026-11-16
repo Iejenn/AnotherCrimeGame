@@ -23,6 +23,16 @@ export function AuthScreen({ recovering = false, onDone }: { recovering?: boolea
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  // Logged out for being idle? Say so once.
+  const [idle] = useState(() => {
+    try {
+      const was = sessionStorage.getItem('underworld-idle-logout') === '1';
+      sessionStorage.removeItem('underworld-idle-logout');
+      return was;
+    } catch {
+      return false;
+    }
+  });
 
   const run = async (fn: () => Promise<{ error: { message: string } | null }>, success = '') => {
     setBusy(true);
@@ -61,6 +71,7 @@ export function AuthScreen({ recovering = false, onDone }: { recovering?: boolea
       <h1 className="title">Underworld</h1>
       <p className="kicker">A point-and-click crime RPG</p>
       <form className="auth-form" onSubmit={submit}>
+        {idle && mode === 'signin' && <p className="auth-notice">You were logged out after 5 minutes without activity. Sign in to carry on.</p>}
         <h2 className="headline">{titles[mode]}</h2>
         {mode !== 'newpass' && (
           <label className="field">

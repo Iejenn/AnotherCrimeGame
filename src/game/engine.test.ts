@@ -103,11 +103,16 @@ describe('working a crime (one tap = one attempt)', () => {
     expect(hpAt(s, T0 + 60_000)).toBe(10);
   });
 
-  it('below 3 HP you cannot start', () => {
+  it('low health does not stop you: with under 1 HP you can still try (and a fail kills you)', () => {
     const s = fresh();
-    s.hp = 2;
+    s.hp = 0.9; // (it regenerates a little during the attempt)
+    s.hpAt = T0;
+    s.player.pos = [18, 25];
     startJob(s, 'pick_tourist', T0);
-    expect(s.player.job).toBeNull();
+    expect(s.player.job).not.toBeNull();
+    const { state, report } = tick(s, T0 + 2000, () => 0.99); // fail: -1 HP
+    expect(report.died).toBe(true);
+    expect(state.hp).toBe(5);
   });
 
   it('a higher level improves the odds', () => {

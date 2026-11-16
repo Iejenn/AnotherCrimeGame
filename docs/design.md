@@ -152,7 +152,10 @@ timing) in `src/game/data/crimes.ts`.
 ## 5. Health
 
 - **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
-  Below 3 HP you can't start a job; at 0 the job stops. Real healing comes from items (see §9, Healing).
+  **No minimum health (decided, v0.24):** you can start a crime on any health. Low health is a risk, not a block:
+  the next hit can kill you (and your stuff goes into your grave). Below 3 HP you get a "badly hurt" warning.
+  A **health bar over your head** (OSRS-style) shows for 6 seconds after every hit, and stays (pulsing) while
+  you're at 30% or less. Real healing comes from items (see §9, Healing).
   **Decided:** failures keep costing 1 HP and regen stays slow. Tapping a pickpocket every 2 seconds fails
   about 4 times a minute, so 10 HP lasts roughly 2½ minutes of work. That is intended: health is a real limit
   from day one, and **food is a core system**, the main way to keep going. It matters even more once
@@ -246,6 +249,10 @@ rounded characters with walk and action animations.
 
 ## 8. Screens
 
+Tabs: Street · Inventory · Skills · Quests · Highscores. Top right: a **gear** menu (your account, Log out).
+**Idle log-out:** after 5 minutes without any tap, swipe, scroll or key press, your attempt stops and you are logged out
+(`IDLE_MS` in `src/net/OnlineGate.tsx`); the sign-in screen says why.
+
 Street (default) · Inventory (28 slots) · Quests (coming soon) · Skills (levels + guide + save codes).
 The start screen shows your character file and what's new.
 
@@ -289,6 +296,17 @@ server will run the same functions (ported to SQL, or shared TypeScript) to chec
 **Seeing each other (later):** Realtime Broadcast per area; a player sends their **route when they tap to walk**
 (not every step), other phones animate it. Presence shows who is online. This keeps message counts (the main
 Realtime cost) low.
+
+**Chat (built, v0.23):** one global chat for everyone (for testing), in the box at the bottom of the Street together
+with the game's messages, OSRS-style: filters All / Game / Chat, "Name: Press Enter to chat…", folds down to one
+line. What someone says also shows over their head (yellow) for 5 seconds. Messages go in only through
+`send_chat()`, which takes your name from the database (no faking), cleans the text, and allows at most 1 message
+per second and 5 per 10 seconds (200 letters max). Kept for 7 days. No word filter or muting yet.
+
+**Everyone on the same build (built, v0.24):** each build gets an id, baked into the game and published as
+`version.json` next to it (`vite.config.ts`). The game checks it every minute and when you come back to the tab;
+if a newer build is out it says "A new version of Underworld is out. Updating…" and reloads itself to `?v=<build>`
+(which skips cached copies of the page; it won't loop if that still isn't the new one). `src/useUpdateCheck.ts`.
 
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.

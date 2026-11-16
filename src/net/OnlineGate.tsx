@@ -1,7 +1,7 @@
 // The way into the game (it's online only): sign in, make (or bring along) your character on the server,
 // then play: the normal game screen, with every rule run by the server and the other players on the Street
 // (docs/design.md §11).
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { CreateCharacter } from '../components/CreateCharacter';
 import { syncClock } from '../game/clock';
@@ -9,6 +9,7 @@ import { fmtMoney } from '../game/engine';
 import { GameScreen } from '../components/GameScreen';
 import { useOnlineGame, type ServerAnswer } from './useOnlineGame';
 import { useWorld } from './world';
+import { useChat } from './chat';
 import { AuthScreen } from './AuthScreen';
 import { REASONS, supabase } from './supabase';
 import { loadGame } from '../game/save';
@@ -113,10 +114,44 @@ export function OnlineGate() {
   return <OnlinePlay first={player} userId={session.user.id} email={session.user.email ?? ''} />;
 }
 
+/** Log out after this long without touching the game (taps, swipes, scrolls, keys). */
+const IDLE_MS = 5 * 60_000;
+/** Tells the sign-in screen why you're there. */
+export const IDLE_FLAG = 'underworld-idle-logout';
+
 /** Playing online: the normal game screen, run by the server, with the other players around you. */
 function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: string; email: string }) {
   const g = useOnlineGame(first);
+  const apiRef = useRef(g.api);
+  apiRef.current = g.api;
+
+  // Idle for 5 minutes: stop what you were doing and log out.
+  useEffect(() => {
+    let last = Date.now();
+    const touch = () => {
+      last = Date.now();
+    };
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    for (const e of events) window.addEventListener(e, touch, { passive: true });
+    const id = setInterval(() => {
+      if (Date.now() - last < IDLE_MS) return;
+      clearInterval(id);
+      apiRef.current.stopAttempt();
+      try {
+        sessionStorage.setItem(IDLE_FLAG, '1');
+      } catch {
+        /* storage blocked: the sign-in screen just won't say why */
+      }
+      void supabase.auth.signOut();
+    }, 10_000);
+    return () => {
+      clearInterval(id);
+      for (const e of events) window.removeEventListener(e, touch);
+    };
+  }, []);
+
   const world = useWorld(userId, g.roster, g.refresh);
+  const chat = useChat(userId);
   return (
     <GameScreen
       state={g.state}
@@ -127,6 +162,7 @@ function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: str
       toasts={g.toasts}
       account={{ email, onSignOut: () => void supabase.auth.signOut() }}
       world={world}
+      chat={chat}
     />
   );
 }

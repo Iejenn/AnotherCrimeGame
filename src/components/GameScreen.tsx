@@ -1,4 +1,4 @@
-// The game itself: status bar, tabs (Street, Inventory, Highscores, Quests, Skills), toasts.
+// The game itself: status bar (with the gear menu), tabs (Street, Inventory, Skills, Quests, Highscores), toasts.
 // Every rule runs on the server (useOnlineGame); this screen only shows the game and passes on what you do.
 import { useState } from 'react';
 import type { GameState, Report, Toast } from '../game/types';
@@ -11,15 +11,16 @@ import { QuestsTab } from './QuestsTab';
 import { SkillsTab } from './SkillsTab';
 import { StartScreen } from './StartScreen';
 import { StreetView, type WorldLink } from '../street/StreetView';
+import type { ChatLink } from '../net/chat';
 import { HighscoresTab } from './HighscoresTab';
 
 type Tab = 'street' | 'inventory' | 'highscores' | 'quests' | 'skills';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'street', label: 'Street' },
   { id: 'inventory', label: 'Inventory' },
-  { id: 'highscores', label: 'Highscores' },
-  { id: 'quests', label: 'Quests' },
   { id: 'skills', label: 'Skills' },
+  { id: 'quests', label: 'Quests' },
+  { id: 'highscores', label: 'Highscores' },
 ];
 
 export interface GameScreenProps {
@@ -32,6 +33,7 @@ export interface GameScreenProps {
   /** Your account, and the shared world (other players). */
   account: { email: string; onSignOut: () => void };
   world: WorldLink;
+  chat: ChatLink;
 }
 
 export function GameScreen(p: GameScreenProps) {
@@ -40,7 +42,7 @@ export function GameScreen(p: GameScreenProps) {
   const bagFull = slotsUsed(state) >= INVENTORY_SLOTS;
   return (
     <div className="app">
-      <StatusBar s={state} now={gameNow()} />
+      <StatusBar s={state} now={gameNow()} account={p.account} />
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
@@ -50,7 +52,7 @@ export function GameScreen(p: GameScreenProps) {
         ))}
       </nav>
       <main className="content">
-        {tab === 'street' && <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} />}
+        {tab === 'street' && <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} chat={p.chat} />}
         {tab === 'inventory' && <InventoryTab s={state} api={p.api} />}
         {tab === 'highscores' && (
           <HighscoresTab myName={state.name} />

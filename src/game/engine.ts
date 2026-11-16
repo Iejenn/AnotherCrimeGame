@@ -18,8 +18,8 @@ export const CHANCE_PER_LEVEL = 0.005;
 export const INVENTORY_SLOTS = 28;
 /** Health regenerates 1 HP per minute. Healing faster comes from food. */
 const HP_REGEN_PER_MIN = 1;
-/** You need at least this much health to start a job. */
-export const MIN_HP_TO_WORK = 3;
+/** Below this much health you're "badly hurt": you get a warning (you can still work: the risk is dying). */
+export const LOW_HP = 3;
 /** When you die, your stuff waits in a grave this long (real minutes). */
 export const GRAVE_MINUTES = 5;
 /** You come back with this share of your max health (not full: dying shouldn't be a free heal). */
@@ -155,9 +155,9 @@ function getHit(s: GameState, crime: CrimeDef, t: number, report: Report, why: s
   report.hit = true;
   log(s, t, `${why} You're stunned. -${crime.failDamage} HP.`, 'fail');
   if (s.hp <= 0) return die(s, t, report);
-  if (s.hp < MIN_HP_TO_WORK) {
-    log(s, t, "You're too hurt to keep going. Eat something, or wait: health comes back slowly.", 'fail');
-    report.events.push('Too hurt to work');
+  if (s.hp < LOW_HP) {
+    log(s, t, "You're badly hurt. Eat something: the next hit could kill you.", 'fail');
+    report.events.push('Badly hurt');
   }
 }
 
@@ -179,7 +179,7 @@ function die(s: GameState, t: number, report: Report) {
   me.caught = null;
   me.stunnedUntil = 0;
   me.pos = null;
-  s.hp = Math.max(MIN_HP_TO_WORK, Math.ceil(maxHp(s) * RESPAWN_HP));
+  s.hp = Math.max(LOW_HP, Math.ceil(maxHp(s) * RESPAWN_HP));
   s.hpAt = t;
   s.stats.deaths = (s.stats.deaths ?? 0) + 1;
   report.died = true;
@@ -309,14 +309,13 @@ export function canStart(s: GameState, crimeId: string): string | null {
   return null;
 }
 
-/** Why you can't start an attempt right now (stun, eating, health), or null if you can. */
+/** Why you can't start an attempt right now (caught, stunned, eating), or null if you can.
+ *  Low health doesn't stop you (docs/design.md §5): it's a risk, the next hit can kill you. */
 export function busyReason(s: GameState, now: number): string | null {
   const me = s.player;
   if (me.caught) return "You've been caught!";
   if (me.stunnedUntil > now) return "You're still stunned.";
   if (me.eatingUntil > now) return "You're still eating.";
-  const hp = hpAt(s, now);
-  if (hp < MIN_HP_TO_WORK) return `You're too hurt to work (${Math.floor(hp)} HP). You need ${MIN_HP_TO_WORK} HP: eat something, or wait.`;
   return null;
 }
 

@@ -1,10 +1,22 @@
-// Slim header: who you are and your health. Cash lives in the Inventory.
+// Slim header: who you are, your health, and the gear menu (your account, log out). Cash lives in the Inventory.
+import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/types';
 import { hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
 
-export function StatusBar({ s, now }: { s: GameState; now: number }) {
+export function StatusBar({ s, now, account }: { s: GameState; now: number; account: { email: string; onSignOut: () => void } }) {
   const hp = Math.floor(hpAt(s, now));
   const max = maxHp(s);
+  const [menu, setMenu] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  // Tapping anywhere else closes the menu.
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [menu]);
   return (
     <header className="topbar">
       <span className="topbar-name">{s.name}</span>
@@ -12,6 +24,28 @@ export function StatusBar({ s, now }: { s: GameState; now: number }) {
       <span className={`topbar-hp ${hp <= 3 ? 'low' : ''}`} title="Health. Failed crimes cost a little; food heals; it also comes back on its own (1 per minute).">
         <span className="label">HP</span> <span className="mono">{hp}/{max}</span>
       </span>
+      <div className="gear" ref={ref}>
+        <button className="gear-btn" onClick={() => setMenu((m) => !m)} aria-label="Settings" aria-expanded={menu}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          </svg>
+        </button>
+        {menu && (
+          <div className="gear-menu" role="menu">
+            <p className="muted small">Signed in as {account.email}</p>
+            <button className="btn small block" role="menuitem" onClick={account.onSignOut}>
+              Log out
+            </button>
+          </div>
+        )}
+      </div>
     </header>
   );
 }
