@@ -12,7 +12,7 @@ interface Row {
   xp: number;
 }
 
-export function HighscoresTab({ online, myName }: { online: boolean; myName: string }) {
+export function HighscoresTab({ myName }: { myName: string }) {
   const [skill, setSkill] = useState<SkillId>('street');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [me, setMe] = useState<Row | null>(null);
@@ -33,7 +33,7 @@ export function HighscoresTab({ online, myName }: { online: boolean; myName: str
     };
   }, [skill]);
 
-  const mine = (r: Row) => online && r.name === myName;
+  const mine = (r: Row) => r.name === myName;
   return (
     <div className="highscores">
       <h2 className="headline">Highscores</h2>
@@ -44,7 +44,6 @@ export function HighscoresTab({ online, myName }: { online: boolean; myName: str
           </button>
         ))}
       </div>
-      {!online && <p className="muted small">These are the online players. Your offline character isn't on the list: play online (open the game with ?online) to join it.</p>}
       {error && <p className="auth-error">{error}</p>}
       {!rows && !error && <p className="muted">Loading…</p>}
       {rows && rows.length === 0 && <p className="muted">Nobody on the list yet. Be the first!</p>}
@@ -67,7 +66,7 @@ export function HighscoresTab({ online, myName }: { online: boolean; myName: str
                 <td className="mono">{Number(r.xp).toLocaleString('en-US')}</td>
               </tr>
             ))}
-            {online && me && !rows.some(mine) && (
+            {me && !rows.some(mine) && (
               <tr className="me">
                 <td className="mono">{me.rank}</td>
                 <td>{me.name}</td>

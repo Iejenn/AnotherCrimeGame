@@ -304,10 +304,11 @@ needs step 2 below.
 **Progress on step 1:**
 - Database (migration `0001_players`, see `supabase/`): players, graves, shared spot state, the crimes table;
   `create_character` and `get_my_player`. Tested in a rolled-back transaction.
-- **Sign-in: email + password** (decided). Online mode is a hidden test version: open the game with `?online`
-  (it stays on in that browser; `?offline` switches back). Sign in / create account / forgot password / new
-  password, then make your character on the server and see it loaded. The Supabase library only downloads in
-  online mode, so offline players don't pay for it.
+- **Sign-in: email + password** (decided). Sign in / create account / forgot password / new password, then make
+  your character on the server (or bring your old offline one along).
+- **Online only (decided, v0.22):** the normal link is the online game. There is no offline play any more. The
+  game rules still exist in the browser (`src/game/engine.ts`, tested), as the reference for the server's SQL and
+  to read old offline saves for "bring your character along".
 - **Online play (built, v0.20):** the whole game runs on the server (migration `0003_online_play`): every crime,
   the watchers' schedules (the SQL gives exactly the same answers as `watchers.ts`), getting hit, dying and graves,
   eating, selling (only inside Eddy's store), a walking-speed check against teleporting. The app (`useOnlineGame`)
@@ -320,7 +321,7 @@ needs step 2 below.
   changes on the `walks` table, whose rows say whose route it is. So nobody can show up as someone else.
   Other players show with a white name and as white dots on the minimap.
 - **Highscores (built, v0.20):** a Highscores tab with a table per skill (top 50, rank, name, level, XP; your
-  own row highlighted, and your rank if you're further down). Public, so offline players can look too.
+  own row highlighted, and your rank if you're further down).
 - Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).
 
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,

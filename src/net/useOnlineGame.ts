@@ -1,6 +1,6 @@
 // Online play (docs/design.md §11): the same game screen, but every rule runs on the server.
 // This hook mirrors your character from the server's answers (supabase/migrations/0003_online_play.sql)
-// and offers the same GameApi as offline play, so the screens don't know the difference.
+// and offers the GameApi (src/game/api.ts) the screens use.
 //
 // - Every action is a server function call. Calls run one at a time, in order (so "I'm standing here"
 //   always reaches the server before "collect my grave").
@@ -8,10 +8,9 @@
 //   schedules says you were seen, it asks early, so the catch starts at once; the server decides either way.
 // - A catcher's punch or an expired grave: the app asks the server to bring things up to date.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { GameState, LogEntry, Report } from '../game/types';
+import type { GameState, LogEntry, Report, Toast } from '../game/types';
 import { emptyReport } from '../game/types';
 import type { GameApi } from '../game/api';
-import type { Toast } from '../useGame';
 import { gameNow, syncClock } from '../game/clock';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';

@@ -59,7 +59,7 @@ export function AuthScreen({ recovering = false, onDone }: { recovering?: boolea
   return (
     <div className="create auth">
       <h1 className="title">Underworld</h1>
-      <p className="kicker">Online · test version</p>
+      <p className="kicker">A point-and-click crime RPG</p>
       <form className="auth-form" onSubmit={submit}>
         <h2 className="headline">{titles[mode]}</h2>
         {mode !== 'newpass' && (
@@ -97,7 +97,6 @@ export function AuthScreen({ recovering = false, onDone }: { recovering?: boolea
         {(mode === 'signup' || mode === 'forgot') && (
           <button className="btn link" onClick={() => setMode('signin')}>Back to sign in</button>
         )}
-        <a className="btn link" href="?offline">Play offline instead</a>
       </div>
     </div>
   );

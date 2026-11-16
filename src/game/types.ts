@@ -52,6 +52,13 @@ export interface Grave {
   expiresAt: number;
 }
 
+/** A short message that pops up (level-ups, events). */
+export interface Toast {
+  id: number;
+  text: string;
+  kind: 'level' | 'big' | 'bust' | 'event';
+}
+
 export type LogKind = 'success' | 'big' | 'fail' | 'bust' | 'level' | 'event' | 'info' | 'loot';
 
 export interface LogEntry {

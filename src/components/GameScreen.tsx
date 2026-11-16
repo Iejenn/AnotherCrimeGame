@@ -1,9 +1,8 @@
 // The game itself: status bar, tabs (Street, Inventory, Highscores, Quests, Skills), toasts.
-// The same screen runs offline (rules in this browser, useGame) and online (rules on the server, useOnlineGame).
-import { Suspense, lazy, useState } from 'react';
-import type { GameState, Report } from '../game/types';
+// Every rule runs on the server (useOnlineGame); this screen only shows the game and passes on what you do.
+import { useState } from 'react';
+import type { GameState, Report, Toast } from '../game/types';
 import type { GameApi } from '../game/api';
-import type { Toast } from '../useGame';
 import { gameNow } from '../game/clock';
 import { INVENTORY_SLOTS, slotsUsed } from '../game/engine';
 import { StatusBar } from './StatusBar';
@@ -12,8 +11,7 @@ import { QuestsTab } from './QuestsTab';
 import { SkillsTab } from './SkillsTab';
 import { StartScreen } from './StartScreen';
 import { StreetView, type WorldLink } from '../street/StreetView';
-// The highscores come from the server, so the Supabase library only downloads when you open the tab.
-const HighscoresTab = lazy(() => import('./HighscoresTab').then((m) => ({ default: m.HighscoresTab })));
+import { HighscoresTab } from './HighscoresTab';
 
 type Tab = 'street' | 'inventory' | 'highscores' | 'quests' | 'skills';
 const TABS: { id: Tab; label: string }[] = [
@@ -31,12 +29,9 @@ export interface GameScreenProps {
   welcome: boolean;
   dismissWelcome: () => void;
   toasts: Toast[];
-  /** Offline only: save codes. */
-  onImport?: () => void;
-  onReset?: () => void;
-  /** Online only: your account, and the shared world (other players). */
-  account?: { email: string; onSignOut: () => void };
-  world?: WorldLink;
+  /** Your account, and the shared world (other players). */
+  account: { email: string; onSignOut: () => void };
+  world: WorldLink;
 }
 
 export function GameScreen(p: GameScreenProps) {
@@ -58,12 +53,10 @@ export function GameScreen(p: GameScreenProps) {
         {tab === 'street' && <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} />}
         {tab === 'inventory' && <InventoryTab s={state} api={p.api} />}
         {tab === 'highscores' && (
-          <Suspense fallback={<p className="muted">Loading the highscores…</p>}>
-            <HighscoresTab online={!!p.account} myName={state.name} />
-          </Suspense>
+          <HighscoresTab myName={state.name} />
         )}
         {tab === 'quests' && <QuestsTab />}
-        {tab === 'skills' && <SkillsTab s={state} onImport={p.onImport} onReset={p.onReset} account={p.account} />}
+        {tab === 'skills' && <SkillsTab s={state} account={p.account} />}
       </main>
 
       {p.welcome && <StartScreen s={state} onClose={p.dismissWelcome} />}
