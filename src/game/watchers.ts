@@ -4,7 +4,6 @@
 //  - the game rules (and later the server) can check "was he looking during your attempt?" on their own,
 //    instead of trusting the 3D view (anti-cheat, docs/design.md §11).
 // The Street view only draws what these functions say. Same numbers → same answer, anywhere.
-import { mulberry32 } from './rng';
 
 // ---------------- the bartender ----------------
 /** His routine repeats in slots of this length: first he watches the room, then he turns his back. */
@@ -27,11 +26,20 @@ export interface BartenderState {
   sees: boolean;
 }
 
+/**
+ * A tiny whole-number dice roll ("MINSTD"): the same in the browser and in Postgres (see
+ * supabase/migrations/0003_online_play.sql, `uw_minstd`), with no rounding anywhere, so the server
+ * and every player agree on the bartender to the millisecond.
+ */
+const M = 2147483647;
+export const minstd = (x: number) => (x * 48271) % M;
+
 export function bartenderAt(t: number): BartenderState {
   const k = Math.floor(t / BAR_SLOT_MS);
-  const r = mulberry32(k * 7919 + 17);
-  const watchMs = (BAR_WATCH[0] + r() * (BAR_WATCH[1] - BAR_WATCH[0])) * 1000;
-  const spot = Math.floor(r() * BAR_SPOTS);
+  const h1 = minstd((k % M) + 1);
+  const h2 = minstd(h1);
+  const watchMs = BAR_WATCH[0] * 1000 + Math.floor((h1 * (BAR_WATCH[1] - BAR_WATCH[0]) * 1000) / M);
+  const spot = Math.floor((h2 * BAR_SPOTS) / M);
   const start = k * BAR_SLOT_MS;
   if (t - start < watchMs) return { watching: true, since: start, until: start + watchMs, spot, sees: t - start >= BAR_TURN_MS };
   return { watching: false, since: start + watchMs, until: start + BAR_SLOT_MS, spot, sees: false };
