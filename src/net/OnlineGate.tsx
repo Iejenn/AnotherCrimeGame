@@ -1,30 +1,24 @@
-// Online mode (test version, behind ?online): sign in, make your character on the server, and load it.
-// Step 1 of the multiplayer plan (docs/design.md §11). Playing online (crimes run by the server,
-// seeing other players) comes in the next steps; until then this screen shows your server character.
+// Online mode (test version, behind ?online): sign in, make (or bring along) your character on the server,
+// then play: the normal game screen, with every rule run by the server and the other players on the Street
+// (docs/design.md §11).
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { CreateCharacter } from '../components/CreateCharacter';
 import { syncClock } from '../game/clock';
-import { levelFromXp } from '../game/xp';
 import { fmtMoney } from '../game/engine';
+import { GameScreen } from '../components/GameScreen';
+import { useOnlineGame, type ServerAnswer } from './useOnlineGame';
+import { useWorld } from './world';
 import { AuthScreen } from './AuthScreen';
 import { REASONS, supabase } from './supabase';
 import { loadGame } from '../game/save';
 import { levelFromXp as lvl } from '../game/xp';
 
-/** A player row as the server sends it (see supabase/migrations/0001_players.sql). */
-interface PlayerRow {
-  name: string;
-  cash: number;
-  hp: number;
-  street_xp: number;
-  created_at: string;
-}
 
 export function OnlineGate() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [recovering, setRecovering] = useState(false);
-  const [player, setPlayer] = useState<PlayerRow | null | undefined>(undefined);
+  const [player, setPlayer] = useState<ServerAnswer | null | undefined>(undefined);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   /** The name to use when bringing an offline character along (it may need changing: online names are unique). */
@@ -43,10 +37,10 @@ export function OnlineGate() {
   /** Load your character (and line the game clock up with the server's). */
   const load = useCallback(async () => {
     const sentAt = Date.now();
-    const { data, error: e } = await supabase.rpc('get_my_player');
+    const { data, error: e } = await supabase.rpc('game_state');
     if (e) return setError(e.message);
     if (data?.server_now) syncClock(data.server_now, sentAt, Date.now());
-    if (data?.ok) setPlayer(data.player as PlayerRow);
+    if (data?.ok) setPlayer(data as ServerAnswer);
     else if (data?.reason === 'no_character') setPlayer(null);
     else setError(REASONS[data?.reason] ?? 'Something went wrong.');
   }, []);
@@ -116,22 +110,23 @@ export function OnlineGate() {
     );
   }
 
+  return <OnlinePlay first={player} userId={session.user.id} email={session.user.email ?? ''} />;
+}
+
+/** Playing online: the normal game screen, run by the server, with the other players around you. */
+function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: string; email: string }) {
+  const g = useOnlineGame(first);
+  const world = useWorld(userId, g.state.name, g.state.look);
   return (
-    <div className="create">
-      <div className="kicker">Underworld · online test</div>
-      <h1 className="title">{player.name}</h1>
-      <p className="deck">Your character lives on the server now. Signed in as {session.user.email}.</p>
-      <div className="stats-grid">
-        <div><span className="muted">Street Crimes</span><strong>Lv {levelFromXp(player.street_xp)}</strong></div>
-        <div><span className="muted">Cash</span><strong>{fmtMoney(player.cash)}</strong></div>
-        <div><span className="muted">Health</span><strong>{Math.floor(player.hp)} HP</strong></div>
-        <div><span className="muted">Since</span><strong>{new Date(player.created_at).toLocaleDateString('en-US')}</strong></div>
-      </div>
-      <p className="small">Playing online (crimes checked by the server, seeing other players) arrives in the next updates.</p>
-      <div className="save-row">
-        <button className="btn small" onClick={() => supabase.auth.signOut()}>Sign out</button>
-        <a className="btn small" href="?offline">Back to offline play</a>
-      </div>
-    </div>
+    <GameScreen
+      state={g.state}
+      api={g.api}
+      onReport={g.onReport}
+      welcome={g.welcome}
+      dismissWelcome={g.dismissWelcome}
+      toasts={g.toasts}
+      account={{ email, onSignOut: () => void supabase.auth.signOut() }}
+      world={world}
+    />
   );
 }

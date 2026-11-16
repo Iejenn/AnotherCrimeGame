@@ -4,7 +4,7 @@
 // who catch you (clerks, the bartender, the guard). Drag to rotate the camera, pinch (or wheel) to zoom.
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import type { GameState, Report } from '../game/types';
+import type { GameState, Look, Report } from '../game/types';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel } from '../game/engine';
@@ -57,7 +57,41 @@ function startLine(n: StreetNode) {
   }
 }
 
-export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void }) {
+/** Another player on the Street (online), as shared over the world channel (src/net/world.ts). */
+export interface OtherPlayer {
+  id: string;
+  name: string;
+  look: Look;
+  /** Where their current walk started, the tiles they walk through, and when they set off (game time). */
+  from: [number, number];
+  path: [number, number][];
+  at: number;
+}
+/** The shared world, online: who else is here, and how to tell them where you walk. */
+export interface WorldLink {
+  others: () => OtherPlayer[];
+  move: (from: [number, number], path: [number, number][]) => void;
+}
+
+/** Where someone is `dist` tiles along a walk (from `from` through `path`), and which way they face. */
+function along(from: [number, number], path: [number, number][], dist: number) {
+  let x = from[0] + 0.5;
+  let z = from[1] + 0.5;
+  let facing: number | null = null;
+  for (const [tx, ty] of path) {
+    const nx = tx + 0.5;
+    const nz = ty + 0.5;
+    const seg = Math.hypot(nx - x, nz - z);
+    facing = Math.atan2(nx - x, nz - z);
+    if (dist < seg) return { x: x + ((nx - x) * dist) / seg, z: z + ((nz - z) * dist) / seg, moving: true, facing };
+    dist -= seg;
+    x = nx;
+    z = nz;
+  }
+  return { x, z, moving: false, facing };
+}
+
+export function StreetView({ s, api, onReport, world }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void; world?: WorldLink }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
@@ -67,6 +101,8 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
   sRef.current = s;
   const apiRef = useRef(api);
   apiRef.current = api;
+  const worldRef = useRef(world);
+  worldRef.current = world;
   const zoomRef = useRef(15);
   const yawRef = useRef(0); // camera angle around you
   const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
@@ -331,6 +367,10 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
       }
     }
     player.position.copy(me.pos);
+    worldRef.current?.move(tileOf(me.pos.x, me.pos.z), []);
+
+    // ---------- other players (online) ----------
+    const others = new Map<string, { g: THREE.Group; facing: number }>();
 
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
       const path = findPath(blocked, W, H, tileOf(me.pos.x, me.pos.z), goals, canStep);
@@ -339,6 +379,7 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
         return false;
       }
       me.path = path;
+      worldRef.current?.move(tileOf(me.pos.x, me.pos.z), path);
       me.goal = goal;
       me.goalNpc = npc;
       me.goalGrave = false;
@@ -534,6 +575,7 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
         dot(w.pos.x, w.pos.z, 2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
       for (const r of ROOMS.filter((x) => x.shop)) upright((r.x0 + r.x1 + 1) / 2, (r.y0 + r.y1 + 1) / 2, () => drawBag(g, 0, 0, 10));
+      for (const e of others.values()) dot(e.g.position.x, e.g.position.z, 2.6, '#ffffff', '#141210');
       for (const npc of NPCS.filter((n) => n.named)) {
         const ep = npcWalk.get(npc.id)!.pos;
         dot(ep.x, ep.z, 2.2, '#f2d27a', '#141210');
@@ -660,6 +702,7 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
       if (r.died) {
         // You wake up at the start. Your stuff is in your grave.
         me.pos.copy(center(...SPAWN));
+        worldRef.current?.move(SPAWN, []);
         me.path = [];
         me.goal = null;
         me.goalNpc = null;
@@ -907,6 +950,30 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
 
+      // Other players: walk them along the route they shared.
+      const list = worldRef.current?.others() ?? [];
+      const here = new Set<string>();
+      for (const o of list) {
+        here.add(o.id);
+        let e = others.get(o.id);
+        if (!e) {
+          const g = buildCharacter(o.look);
+          scene.add(g);
+          e = { g, facing: 0 };
+          others.set(o.id, e);
+        }
+        const at = along(o.from, o.path, Math.max(0, ((gameNow() - o.at) / 1000) * WALK_SPEED));
+        if (at.facing !== null && at.moving) e.facing = at.facing;
+        e.g.position.set(at.x, 0.03, at.z);
+        e.g.rotation.y = e.facing;
+        animateCharacter(e.g, at.moving ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
+      }
+      for (const [id, e] of others)
+        if (!here.has(id)) {
+          scene.remove(e.g);
+          others.delete(id);
+        }
+
       // Your grave, if you have one.
       const gr = st.grave;
       grave.visible = !!gr;
@@ -942,6 +1009,24 @@ export function StreetView({ s, api, onReport }: { s: GameState; api: GameApi; o
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Other players' names (white), from far away.
+      for (const [id, e] of others) {
+        const o = list.find((x) => x.id === id);
+        if (!o || e.g.position.distanceTo(me.pos) > NPC_LABEL_RANGE * 1.5) continue;
+        const [x, y, depth] = project(e.g.position.clone().setY(1.55));
+        if (depth > 1) continue;
+        let el = labelEls.get(`player:${id}`);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label player';
+          labelLayer.appendChild(el);
+          labelEls.set(`player:${id}`, el);
+        }
+        if (el.textContent !== o.name) el.textContent = o.name;
+        seen.add(`player:${id}`);
+        placed.push([x, y, o.name.length * 6 + 10]);
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
       // "Your grave · 4:31" over your grave (from further away than other labels).
       if (gr) {
         const [x, y, depth] = project(grave.position.clone().setY(0.95));

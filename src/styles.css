@@ -427,3 +427,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .auth-error { color: var(--red-ink); font-size: 0.85rem; margin: 0; }
 .auth-info { color: var(--money); font-size: 0.85rem; margin: 0; }
 .auth-links { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 10px; }
+/* ---------- highscores ---------- */
+.hs-skills { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.hs-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.hs-table th { text-align: left; font: 600 0.65rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--rule-strong); padding: 6px 4px; }
+.hs-table td { padding: 6px 4px; border-bottom: 1px solid var(--rule); }
+.hs-table tr.me td { background: #f2d27a22; color: #f2d27a; font-weight: 700; }
+.node-label.player { color: #ffffff; font-weight: 700; border-bottom: 1px solid #e8e2d6; }
+/* Five tabs must fit a phone: share the width evenly and tighten the letters on narrow screens. */
+.tab { flex: 1 1 auto; text-align: center; }
+@media (max-width: 480px) {
+  .tab { padding: 12px 4px 10px; letter-spacing: 0.04em; font-size: 0.68rem; }
+}

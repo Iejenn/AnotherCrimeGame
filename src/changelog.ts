@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.20.0',
+    date: '2026-11-16',
+    title: 'Online: play together',
+    items: [
+      'Online test version: open the game with ?online, make an account, and play on the server. Your character is saved to your account, on every device.',
+      'See your friends: other players walk around the island with their name over their head (and as white dots on the minimap).',
+      'Played offline before? When you first sign in, you can bring that character along.',
+      'New Highscores tab: a table for every skill. Can you get to the top?',
+    ],
+  },
+  {
     version: '0.19.0',
     date: '2026-11-16',
     title: 'Groundwork for multiplayer',

@@ -308,8 +308,17 @@ needs step 2 below.
   (it stays on in that browser; `?offline` switches back). Sign in / create account / forgot password / new
   password, then make your character on the server and see it loaded. The Supabase library only downloads in
   online mode, so offline players don't pay for it.
-- Next: the server-side actions (`start_attempt`, `finish_attempt`, eating, selling, graves) and a
-  `supabaseApi`, so the whole game runs online.
+- **Online play (built, v0.20):** the whole game runs on the server (migration `0003_online_play`): every crime,
+  the watchers' schedules (the SQL gives exactly the same answers as `watchers.ts`), getting hit, dying and graves,
+  eating, selling (only inside Eddy's store), a walking-speed check against teleporting. The app (`useOnlineGame`)
+  sends what you do and shows the server's answers. Shelves and meters emptied by anyone are empty for everyone.
+  Not online yet: the random encounters and their boosts (offline only for now).
+- **Seeing each other (built, v0.20):** a private Realtime channel `world`; each player shares their walking
+  route when they tap, other phones animate it. Other players show with a white name and as white dots on the
+  minimap. (Known gap: what you share about yourself isn't checked by the server yet; it's only visual.)
+- **Highscores (built, v0.20):** a Highscores tab with a table per skill (top 50, rank, name, level, XP; your
+  own row highlighted, and your rank if you're further down). Public, so offline players can look too.
+- Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).
 
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
 shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
