@@ -21,9 +21,9 @@ it('every placed crime has spots, and nothing stands on a fixture', () => {
   for (const p of NPCS) expect(fixtures.has(`${p.x},${p.y}`), p.id).toBe(false);
 });
 
-it('the two tourists stroll inside the park', () => {
+it('the three tourists stroll inside the park', () => {
   const tourists = NODES.filter((n) => n.crimeId === 'pick_tourist');
-  expect(tourists).toHaveLength(2);
+  expect(tourists).toHaveLength(3);
   for (const t of tourists) {
     expect(t.wanders).toEqual(PARK);
     expect(inRect(PARK, t.x, t.y)).toBe(true);

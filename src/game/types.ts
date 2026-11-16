@@ -36,6 +36,18 @@ export interface PlayerState {
   caught?: { crimeId: string; at: number } | null;
   /** Spot id → time it's full again (shelves you emptied, meters you pried open). */
   emptySpots?: Record<string, number>;
+  /** The Street tile you're standing on (kept when you switch tabs or reload). null = at the start. */
+  pos?: [number, number] | null;
+}
+
+/** Where you died: your cash and items wait there until you collect them, or until it crumbles. */
+export interface Grave {
+  x: number;
+  y: number;
+  cash: number;
+  items: Record<string, number>;
+  diedAt: number;
+  expiresAt: number;
 }
 
 export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
@@ -72,7 +84,9 @@ export interface GameState {
   /** Item id → how many (food stacks). Each different item takes one inventory slot. */
   inventory: Record<string, number>;
   buffs: Buff[];
-  stats: { jobs: number; bigScores: number; earned: number; fails: number };
+  /** Your grave, if you died and haven't collected your stuff yet. */
+  grave?: Grave | null;
+  stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };
   log: LogEntry[];
   nextId: number;
 }
@@ -93,8 +107,10 @@ export interface Report {
   hit: boolean;
   /** Items you got (food from shoplifting). */
   items: Record<string, number>;
+  /** You died this tick (the Street moves you back to the start). */
+  died: boolean;
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0, hit: false, items: {} };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0, hit: false, items: {}, died: false };
 }

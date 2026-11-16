@@ -1,4 +1,4 @@
-# Underworld Idle — Design
+# Underworld — Design
 
 This file is the source of truth. When the plan changes, change this file first, then the code.
 Numbers marked *(tunable)* live in data tables in `src/game/` and can change without new code.
@@ -158,6 +158,13 @@ timing) in `src/game/data/crimes.ts`.
   from day one, and **food is a core system**, the main way to keep going. It matters even more once
   combat arrives. Food is the next thing to scope.
 - **Heat and jail:** removed. Getting caught by an NPC (HP loss + stun) is the punishment (§4).
+- **Dying (built, v0.18):** at 0 HP you die. **All your cash and items drop into a grave** on the tile where you
+  died, and you wake up at the start with **half your max health** (not full, so dying isn't a free heal).
+  Walk back and tap the grave to get everything back (items that don't fit stay in it). The grave lasts
+  **5 minutes** (real time), then it crumbles and the stuff is gone. Dying again while you have a grave
+  replaces it (the old one's contents are lost). Tuning: `GRAVE_MINUTES`, `RESPAWN_HP` in `engine.ts`.
+- **Your position** on the Street is saved (every time you stop walking, and when you leave the Street), so
+  switching tabs or reloading keeps you where you were.
 
 ## 6. Economy and items
 
@@ -172,9 +179,10 @@ timing) in `src/game/data/crimes.ts`.
 - An **island in the ocean**: a sandy beach with rocks around the city, then open sea.
 - 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
   a block can hold one large building or several smaller ones, with some parks.
-- **The big park** (built): the old small park below where you start, doubled in size over the road next to it.
-  Lawns, hedges with gaps where the paths come in, gravel paths in a cross, a **fountain** in the middle with
-  benches, trees, flowerbeds and two old lamps. Two tourists stroll around in it.
+- **Central Park** (built): right below where you start, **2×2 blocks** plus the roads and crossing between them
+  (12×12 tiles). Lawns, hedges with gaps where the paths come in, gravel paths in a **#** shape, a **fountain** in
+  the middle with benches, a **pond** with lily pads, trees, flowerbeds and four old lamps.
+  **Three tourists** stroll around in it.
 - **The basketball court** (built), left of the park: painted court with lines, a chain-link fence on three sides
   (you get in at the two front corners), two hoops, a floodlight. Two players dribble, pass, shoot and chase
   rebounds. Their gym bags lie on the bench on the street side.
@@ -212,8 +220,12 @@ timing) in `src/game/data/crimes.ts`.
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.
   The store has a **shopping-bag icon** on the minimap.
-- **Minimap** in the top-right corner of the Street: roads, buildings, river, you, Eddy, and crime spots
-  (greyed out until you have the level).
+- **Minimap** (top-right of the Street): **round, centred on you, and turned with the camera** (what's ahead of you
+  is up; an N on the rim marks north), RuneScape-style, so it keeps working as the map grows. Shows crime spots
+  (greyed out until you have the level), tourists, shops (bag icon), named NPCs, your grave, and you. Tap it to walk.
+- **World map**: the map button at the bottom of the minimap opens the whole island with an **icon per place**.
+  Tap one for its details (what it is, its crimes with level, odds and take, who's there) and "Walk there".
+  New places only need an entry in `AREAS` (map.ts).
 
 ## 7b. Visual direction
 

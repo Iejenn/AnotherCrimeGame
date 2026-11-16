@@ -1,4 +1,4 @@
-# Underworld Idle
+# Underworld
 
 A text-based **idle crime RPG** for people who are busy. Every crime family is its own skill to level up.
 Plan a shift, close the tab, come back to a "While you were away" report.

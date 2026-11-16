@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyReason, cantEat, crimeStats, eat, emptyFor, giveItem, hpAt, itemPrice, maxHp, newGame, sellItem, spotted, startJob, tick, totalLevel } from './engine';
+import { GRAVE_MINUTES, busyReason, cantEat, collectGrave, crimeStats, eat, emptyFor, giveItem, hpAt, itemPrice, maxHp, newGame, sellItem, spotted, startJob, tick, totalLevel } from './engine';
 import { CATCH_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
@@ -181,6 +181,50 @@ describe('getting caught (design §4)', () => {
     }
     expect(state.stats.fails).toBe(0);
     expect(state.cash).toBeGreaterThanOrEqual(10 + 30 * 15);
+  });
+});
+
+describe('dying and your grave', () => {
+  const dying = () => {
+    const s = fresh();
+    s.skills.street.xp = totalXpForLevel(20);
+    s.hp = 3;
+    s.cash = 40;
+    giveItem(s, 'sandwich', 2);
+    s.player.pos = [38, 23];
+    startJob(s, 'parking_meter', T0, 'meter_0');
+    spotted(s, T0 + 1000);
+    s.hp = 2; // (health regenerates a little meanwhile; make sure the hit is deadly)
+    s.hpAt = T0 + 1000;
+    return tick(s, T0 + 1000 + CATCH_SECONDS * 1000); // the guard's hit (-3 HP) lands
+  };
+
+  it('at 0 HP you drop everything in a grave where you stood, and wake up at the start with half health', () => {
+    const { state, report } = dying();
+    expect(report.died).toBe(true);
+    expect(state.grave).toMatchObject({ x: 38, y: 23, cash: 40, items: { sandwich: 2 } });
+    expect(state.cash).toBe(0);
+    expect(state.inventory).toEqual({});
+    expect(state.player.pos).toBeNull();
+    expect(state.hp).toBe(5);
+    expect(state.stats.deaths).toBe(1);
+    expect(busyReason(state, T0 + 3000)).toBeNull(); // no stun after respawning
+  });
+
+  it('collecting the grave gives it all back', () => {
+    const { state } = dying();
+    collectGrave(state, T0 + 60_000);
+    expect(state.cash).toBe(40);
+    expect(state.inventory).toEqual({ sandwich: 2 });
+    expect(state.grave).toBeNull();
+  });
+
+  it(`the grave crumbles after ${GRAVE_MINUTES} minutes and the stuff is gone`, () => {
+    const { state } = dying();
+    const later = tick(state, state.grave!.expiresAt);
+    expect(later.state.grave).toBeNull();
+    collectGrave(later.state, state.grave!.expiresAt + 1);
+    expect(later.state.cash).toBe(0);
   });
 });
 

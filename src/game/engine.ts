@@ -21,6 +21,10 @@ export const INVENTORY_SLOTS = 28;
 const HP_REGEN_PER_MIN = 1;
 /** You need at least this much health to start a job. */
 export const MIN_HP_TO_WORK = 3;
+/** When you die, your stuff waits in a grave this long (real minutes). */
+export const GRAVE_MINUTES = 5;
+/** You come back with this share of your max health (not full: dying shouldn't be a free heal). */
+export const RESPAWN_HP = 0.5;
 
 // ---------------- Lookups ----------------
 
@@ -178,10 +182,51 @@ function getHit(s: GameState, crime: CrimeDef, t: number, report: Report, why: s
   report.damage += crime.failDamage;
   report.hit = true;
   log(s, t, `${why} You're stunned. -${crime.failDamage} HP.`, 'fail');
+  if (s.hp <= 0) return die(s, t, report);
   if (s.hp < MIN_HP_TO_WORK) {
     log(s, t, "You're too hurt to keep going. Eat something, or wait: health comes back slowly.", 'fail');
     report.events.push('Too hurt to work');
   }
+}
+
+/**
+ * You died: your cash and items drop into a grave where you stood (an older grave crumbles), and you
+ * wake up at the start with half health. Walk back and tap the grave within GRAVE_MINUTES to get it all back.
+ */
+function die(s: GameState, t: number, report: Report) {
+  const me = s.player;
+  const hasStuff = s.cash > 0 || Object.keys(s.inventory).length > 0;
+  if (s.grave) log(s, t, 'Your old grave crumbled. What was in it is gone.', 'fail');
+  s.grave = null;
+  if (hasStuff && me.pos) {
+    s.grave = { x: me.pos[0], y: me.pos[1], cash: s.cash, items: { ...s.inventory }, diedAt: t, expiresAt: t + GRAVE_MINUTES * 60_000 };
+    s.cash = 0;
+    s.inventory = {};
+  }
+  me.job = null;
+  me.caught = null;
+  me.stunnedUntil = 0;
+  me.pos = null;
+  s.hp = Math.max(MIN_HP_TO_WORK, Math.ceil(maxHp(s) * RESPAWN_HP));
+  s.hpAt = t;
+  s.stats.deaths = (s.stats.deaths ?? 0) + 1;
+  report.died = true;
+  report.events.push('You died');
+  log(s, t, s.grave ? `You died. Your stuff is in your grave: get it back within ${GRAVE_MINUTES} minutes.` : 'You died.', 'fail');
+}
+
+/** Collect everything from your grave (stand next to it). Items that don't fit stay in it. */
+export function collectGrave(s: GameState, now: number) {
+  const g = s.grave;
+  if (!g || g.expiresAt <= now) return;
+  s.cash += g.cash;
+  g.cash = 0;
+  for (const [id, n] of Object.entries(g.items)) {
+    if (giveItem(s, id, n)) delete g.items[id];
+  }
+  const left = Object.keys(g.items).length;
+  log(s, now, left ? 'You took what fits in your bag. The rest is still in your grave.' : 'You got your stuff back from your grave.', 'info');
+  if (!left) s.grave = null;
 }
 
 /** An NPC caught you: he yells now and his hit lands a moment later (he walks over first). */
@@ -249,7 +294,8 @@ export function tick(prev: GameState, now: number, rng: Rng = Math.random): { st
   const jobDue = !!prev.player.job && prev.player.job.endsAt <= now;
   const c = prev.player.caught;
   const hitDue = !!c && c.at + CATCH_SECONDS * 1000 <= now;
-  if (!jobDue && !hitDue) return { state: prev, report };
+  const graveDue = !!prev.grave && prev.grave.expiresAt <= now;
+  if (!jobDue && !hitDue && !graveDue) return { state: prev, report };
   const s = structuredClone(prev);
   if (jobDue) resolveAttempt(s, s.player.job!.endsAt, rng, report);
   const caught = s.player.caught;
@@ -257,6 +303,11 @@ export function tick(prev: GameState, now: number, rng: Rng = Math.random): { st
     s.player.caught = null;
     const crime = CRIME_BY_ID[caught.crimeId];
     if (crime) getHit(s, crime, caught.at + CATCH_SECONDS * 1000, report, HIT_LINES[crime.catcher ?? ''] ?? 'You get hit.');
+  }
+  if (s.grave && s.grave.expiresAt <= now) {
+    s.grave = null;
+    log(s, now, 'Your grave crumbled. What was in it is gone.', 'fail');
+    report.events.push('Your grave crumbled');
   }
   return { state: s, report };
 }

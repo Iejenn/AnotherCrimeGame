@@ -116,3 +116,22 @@ export function setSpotEmpty(g: THREE.Object3D, empty: boolean) {
   const mark = g.userData.emptyMark as THREE.Object3D | undefined;
   if (mark) mark.visible = empty;
 }
+
+/** Your grave: a rounded headstone with a cross, on a little mound of dirt, and a faint glow so you spot it. */
+export function buildGrave(): THREE.Group {
+  const g = new THREE.Group();
+  const mound = add(g, new THREE.SphereGeometry(0.42, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x4a3a2a, 0, 0.02, 0.12);
+  mound.scale.set(1, 0.28, 1.3);
+  add(g, boxGeo(0.46, 0.5, 0.12), 0x8e877b, 0, 0.28, -0.22);
+  const top = add(g, cylGeo(0.23, 0.12, 12), 0x8e877b, 0, 0.53, -0.22);
+  top.rotation.x = Math.PI / 2;
+  add(g, boxGeo(0.05, 0.26, 0.02), 0x2b2b2e, 0, 0.36, -0.15, false);
+  add(g, boxGeo(0.18, 0.05, 0.02), 0x2b2b2e, 0, 0.42, -0.15, false);
+  const glow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.6, 16).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xbfd8ff, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  glow.position.y = 0.09;
+  g.add(glow);
+  return g;
+}

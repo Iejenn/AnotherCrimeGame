@@ -8,6 +8,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.18.0',
+    date: '2026-11-16',
+    title: 'Graves, a world map, and a bigger park',
+    items: [
+      'The game is now called Underworld.',
+      'Dying: at 0 HP your cash and items drop into a grave where you fell, and you wake up at the start with half health. Walk back and tap the grave within 5 minutes to get it all back.',
+      'Switching tabs (or reloading) no longer sends you back to the start: you stay where you were.',
+      'The minimap is round now, follows you and turns with the camera. Tap the map button under it for the world map: tap a place to see its crimes and who is there, and walk there.',
+      'Central Park is twice as big again (four blocks), with a pond, more paths and lamps, and three tourists instead of two.',
+      'Cash, candy bars and sandwiches have pictures in your bag.',
+    ],
+  },
+  {
     version: '0.17.0',
     date: '2026-11-16',
     title: 'The gas station and the cars',

@@ -97,7 +97,7 @@ export function CreateCharacter({ onCreate, onImport }: { onCreate: (name: strin
     <div className="create">
       <div className="kicker">A point-and-click crime RPG</div>
       <h1 className="title">
-        Underworld <em>Idle</em>
+        Underworld
       </h1>
       <p className="deck">Every legend starts on a street corner.</p>
       {oldSave && (

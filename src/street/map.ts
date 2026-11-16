@@ -63,9 +63,10 @@ export function isRoad(x: number, y: number) {
 }
 
 // ---------- the big park (Pickpocket Tourists, level 1) ----------
-// Two blocks plus the road between them, right below where you start: lawns, hedges with gaps,
-// paths in a cross, a fountain in the middle with benches, trees and flowerbeds.
-export const PARK: Rect = { x0: 2 * BLOCK + 2, y0: 3 * BLOCK + 2, x1: 3 * BLOCK + 6, y1: 3 * BLOCK + 6 };
+// Four blocks (2×2) plus the roads and the crossing between them, right below where you start:
+// 12×12 tiles of lawn with hedges around the edge, gravel paths in a # shape, a fountain in the
+// middle with benches, a pond, trees and flowerbeds. Three tourists stroll around in it.
+export const PARK: Rect = { x0: 2 * BLOCK + 2, y0: 3 * BLOCK + 2, x1: 3 * BLOCK + 6, y1: 4 * BLOCK + 6 };
 
 // ---------- the basketball court (Raid Gym Bags, level 5) ----------
 // A fenced court left of the park. The open (north) side faces the street, with a bench where the
@@ -117,7 +118,7 @@ export const PATROL: Rect = { x0: LOT.x0 - 1, y0: GAS.y1 + 2, x1: LOT.x1 + 1, y1
 export const NO_ROAD: Rect[] = [PARK, STATION];
 
 /** Blocks that aren't normal buildings: the park, the court, the rooms, the lot… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3]];
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [2, 4], [3, 4], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3]];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -186,7 +187,7 @@ export const BUILDINGS: Building[] = (() => {
 })();
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump';
 export interface Fixture {
   x: number;
   y: number;
@@ -206,23 +207,27 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: S.x0, y: S.y0 + 2, kind: 'counter' }, { x: S.x0 + 1, y: S.y0 + 2, kind: 'counter' });
   out.push({ x: S.x1, y: S.y0 + 2, kind: 'shelf' }, { x: S.x1, y: S.y0 + 3, kind: 'shelf' });
 
-  // The park: hedges around the edge with gaps where the paths come in, trees in the corners,
-  // a fountain in the middle with benches either side, two more trees and two flowerbeds.
+  // The park (12×12). Offsets from its top-left corner:
+  //  - hedges all around, with gaps where the paths come in (north/south at 3 and 8, west/east at 2 and 9),
+  //    and a tree in each corner;
+  //  - gravel paths in a # shape: rows 2 and 9, columns 3 and 8 (walkable, drawn in city.ts);
+  //  - a 2×2 fountain in the middle (5–6, 5–6) with benches above and below it;
+  //  - a 2×2 pond in the east, and trees and flowerbeds in the lawns.
   const P = PARK;
-  const midY = P.y0 + 2;
-  const gapsX = [P.x0 + 3, P.x1 - 3];
-  for (let x = P.x0; x <= P.x1; x++)
-    for (const y of [P.y0, P.y1]) {
-      const corner = x === P.x0 || x === P.x1;
-      if (corner) out.push({ x, y, kind: 'tree' });
-      else if (!gapsX.includes(x)) out.push({ x, y, kind: 'hedge' });
+  const at = (dx: number, dy: number, kind: FixtureKind) => out.push({ x: P.x0 + dx, y: P.y0 + dy, kind });
+  for (let d = 0; d < 12; d++) {
+    const corner = d === 0 || d === 11;
+    for (const e of [0, 11]) {
+      if (corner) at(d, e, 'tree');
+      else if (d !== 3 && d !== 8) at(d, e, 'hedge'); // north and south edges
+      if (!corner && d !== 2 && d !== 9) at(e, d, 'hedge'); // west and east edges
     }
-  for (let y = P.y0 + 1; y < P.y1; y++) for (const x of [P.x0, P.x1]) if (y !== midY) out.push({ x, y, kind: 'hedge' });
-  const cx = (P.x0 + P.x1 + 1) / 2; // the old road's middle: the fountain sits on it
-  out.push({ x: cx - 1, y: midY, kind: 'fountain' }, { x: cx, y: midY, kind: 'fountain' });
-  for (const x of [cx - 1, cx]) out.push({ x, y: midY - 1, kind: 'bench' }, { x, y: midY + 1, kind: 'bench' });
-  out.push({ x: P.x0 + 2, y: P.y0 + 1, kind: 'tree' }, { x: P.x1 - 2, y: P.y1 - 1, kind: 'tree' });
-  out.push({ x: P.x1 - 2, y: P.y0 + 1, kind: 'flowers' }, { x: P.x0 + 2, y: P.y1 - 1, kind: 'flowers' });
+  }
+  for (const dx of [5, 6]) for (const dy of [5, 6]) at(dx, dy, 'fountain');
+  for (const dx of [5, 6]) at(dx, 4, 'bench'), at(dx, 7, 'bench');
+  for (const dx of [9, 10]) for (const dy of [6, 7]) at(dx, dy, 'pond');
+  for (const [dx, dy] of [[1, 1], [4, 1], [1, 5], [1, 8], [4, 10], [10, 10], [9, 4]]) at(dx, dy, 'tree');
+  for (const [dx, dy] of [[7, 1], [10, 1], [1, 10], [7, 10]]) at(dx, dy, 'flowers');
 
   // The candy store. Layout (S = shelf you can steal from, see NODES; C = counter with the register):
   //   S S . S S
@@ -269,9 +274,10 @@ export const NODES: StreetNode[] = (() => {
     const c = CRIME_BY_ID[crimeId];
     out.push({ id, crimeId, kind: c.spot.kind, label: c.spot.label, x, y, ...extra });
   };
-  // Two tourists strolling around the park.
-  node('tourist_0', 'pick_tourist', PARK.x0 + 1, PARK.y0 + 2, { wanders: PARK });
-  node('tourist_1', 'pick_tourist', PARK.x1 - 1, PARK.y0 + 2, { wanders: PARK });
+  // Three tourists strolling around the park.
+  node('tourist_0', 'pick_tourist', PARK.x0 + 2, PARK.y0 + 2, { wanders: PARK });
+  node('tourist_1', 'pick_tourist', PARK.x0 + 9, PARK.y0 + 2, { wanders: PARK });
+  node('tourist_2', 'pick_tourist', PARK.x0 + 4, PARK.y0 + 9, { wanders: PARK });
   // Two gym bags on the bench at the court.
   node('bag_0', 'gym_bags', COURT.x0 + 1, COURT.y0, { facing: 0 });
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
@@ -363,3 +369,48 @@ export function buildBlocked(): Uint8Array {
   for (const n of NODES) if (!n.wanders) g[n.y * W + n.x] = 1;
   return g;
 }
+
+// ---------- areas (for the world map) ----------
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot';
+export interface Area {
+  id: string;
+  name: string;
+  rect: Rect;
+  icon: AreaIcon;
+  blurb: string;
+  /** Crimes you can do here. */
+  crimes: string[];
+  /** NPC ids who live here. */
+  npcs: string[];
+}
+
+export const AREAS: Area[] = [
+  {
+    id: 'park', name: 'Central Park', rect: PARK, icon: 'park', crimes: ['pick_tourist'], npcs: [],
+    blurb: 'Lawns, hedges, a fountain and a pond. Tourists stroll around with their wallets in their back pockets.',
+  },
+  {
+    id: 'court', name: 'Basketball court', rect: COURT, icon: 'court', crimes: ['gym_bags'], npcs: [],
+    blurb: 'Two guys shoot hoops all evening. Their gym bags sit on the bench by the street.',
+  },
+  {
+    id: 'store', name: "Eddy's General Store", rect: STORE, icon: 'shop', crimes: [], npcs: ['eddy'],
+    blurb: "Eddy buys what you've got, no questions asked.",
+  },
+  {
+    id: 'candy', name: 'Candy store', rect: CANDY, icon: 'candy', crimes: ['candy_store'], npcs: ['candy_clerk'],
+    blurb: 'Shelves full of candy bars. The clerk keeps an eye out from behind the register.',
+  },
+  {
+    id: 'bar', name: 'The bar', rect: BAR, icon: 'bar', crimes: ['pick_drunk'], npcs: ['bartender'],
+    blurb: 'Regulars too drunk to notice a hand in their pocket. The bartender notices, when he is looking.',
+  },
+  {
+    id: 'gas', name: 'Gas & Go', rect: { ...GAS, y1: GAS.y1 + 1 }, icon: 'gas', crimes: ['gas_station'], npcs: ['gas_clerk'],
+    blurb: 'A gas station with sandwiches and candy on the shelves, and a clerk behind the counter.',
+  },
+  {
+    id: 'lot', name: 'Parking lot', rect: { ...LOT, y0: GAS.y1 + 2 }, icon: 'lot', crimes: ['parking_meter', 'steal_car'], npcs: ['guard'],
+    blurb: 'Meters full of quarters and cars with unlocked doors. A guard patrols with a flashlight.',
+  },
+];
