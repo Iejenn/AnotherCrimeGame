@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
+// Online mode (and the Supabase library) only downloads for people who switch it on.
+import { onlineMode } from './net/mode';
+const OnlineGate = lazy(() => import('./net/OnlineGate').then((m) => ({ default: m.OnlineGate })));
 import { gameNow } from './game/clock';
 import { useGame } from './useGame';
 import { CreateCharacter } from './components/CreateCharacter';
@@ -19,7 +22,20 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'skills', label: 'Skills' },
 ];
 
+/** ?online switches this browser to the online test version (docs/design.md §11); everyone else plays offline. */
+const ONLINE = onlineMode();
+
 export default function App() {
+  return ONLINE ? (
+    <Suspense fallback={<div className="create"><p className="muted">Connecting…</p></div>}>
+      <OnlineGate />
+    </Suspense>
+  ) : (
+    <OfflineApp />
+  );
+}
+
+function OfflineApp() {
   const { state, api, create, replace, onReport, welcome, dismissWelcome, toasts } = useGame();
   const [tab, setTab] = useState<Tab>('street');
   const now = gameNow();

@@ -295,6 +295,16 @@ working at once. Small, indexed queries, but plan for the Pro plan at that size.
 
 **Launch:** accounts start fresh ("Season 1"). Local saves can be edited, so they won't be imported.
 
+**Progress on step 1:**
+- Database (migration `0001_players`, see `supabase/`): players, graves, shared spot state, the crimes table;
+  `create_character` and `get_my_player`. Tested in a rolled-back transaction.
+- **Sign-in: email + password** (decided). Online mode is a hidden test version: open the game with `?online`
+  (it stays on in that browser; `?offline` switches back). Sign in / create account / forgot password / new
+  password, then make your character on the server and see it loaded. The Supabase library only downloads in
+  online mode, so offline players don't pay for it.
+- Next: the server-side actions (`start_attempt`, `finish_attempt`, eating, selling, graves) and a
+  `supabaseApi`, so the whole game runs online.
+
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
 shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
 

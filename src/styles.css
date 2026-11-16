@@ -421,3 +421,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .map-crimes li { margin: 3px 0; }
 .map-crimes li.locked { color: var(--muted); }
 .worldmap-hint { margin: 10px 0 0; }
+/* ---------- online sign-in ---------- */
+.auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.auth-form input { width: 100%; }
+.auth-error { color: var(--red-ink); font-size: 0.85rem; margin: 0; }
+.auth-info { color: var(--money); font-size: 0.85rem; margin: 0; }
+.auth-links { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 10px; }

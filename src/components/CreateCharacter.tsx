@@ -87,7 +87,8 @@ function Swatches({ label, colors, value, onPick }: { label: string; colors: num
   );
 }
 
-export function CreateCharacter({ onCreate, onImport }: { onCreate: (name: string, look: Look) => void; onImport: () => void }) {
+/** `onImport` is only offered offline; online, `error` shows why the server refused (e.g. name taken). */
+export function CreateCharacter({ onCreate, onImport, error, busy = false }: { onCreate: (name: string, look: Look) => void; onImport?: () => void; error?: string; busy?: boolean }) {
   const [name, setName] = useState('');
   const [look, setLook] = useState<Look>(DEFAULT_LOOK);
   const [oldSave] = useState(hasOldSave);
@@ -137,12 +138,15 @@ export function CreateCharacter({ onCreate, onImport }: { onCreate: (name: strin
         </div>
       </div>
 
-      <button className="btn primary block" disabled={!name.trim()} onClick={() => onCreate(name, look)}>
+      {error && <p className="auth-error">{error}</p>}
+      <button className="btn primary block" disabled={!name.trim() || busy} onClick={() => onCreate(name, look)}>
         Hit the streets
       </button>
-      <button className="btn link" onClick={onImport}>
-        I have a save code
-      </button>
+      {onImport && (
+        <button className="btn link" onClick={onImport}>
+          I have a save code
+        </button>
+      )}
     </div>
   );
 }
