@@ -2,16 +2,16 @@
 import { useState } from 'react';
 import type { GameState } from '../game/types';
 import { ITEM_BY_ID } from '../game/data/items';
-import { INVENTORY_SLOTS, cantEat, dropItem, eat, fmtMoney, slotsUsed } from '../game/engine';
+import { INVENTORY_SLOTS, cantEat, fmtMoney, slotsUsed } from '../game/engine';
+import { gameNow } from '../game/clock';
+import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from './Bag';
 
-type Act = (fn: (d: GameState, now: number) => void) => void;
-
-export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
+export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
   const [sel, setSel] = useState<string>('cash');
   const slots = bagSlots(s);
   const selected = slots.find((sl) => slotKey(sl) === sel) ?? slots[0];
-  const now = Date.now();
+  const now = gameNow();
 
   return (
     <div className="inventory">
@@ -43,14 +43,14 @@ export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
                 <p className="muted small">Eddy at the General Store pays {fmtMoney(def.value)} each.</p>
                 <div className="save-row">
                   {def.heal > 0 && (
-                    <button className="btn small primary" disabled={!!why} title={why ?? ''} onClick={() => act((d, t) => eat(d, selected.id, t))}>
+                    <button className="btn small primary" disabled={!!why} title={why ?? ''} onClick={() => api.eat(selected.id)}>
                       Eat (+{def.heal} HP)
                     </button>
                   )}
                   <button
                     className="btn small"
                     onClick={() => {
-                      if (confirm(`Drop all ${selected.count} ${def.name}? They're gone for good.`)) act((d) => dropItem(d, selected.id));
+                      if (confirm(`Drop all ${selected.count} ${def.name}? They're gone for good.`)) api.drop(selected.id);
                     }}
                   >
                     Drop

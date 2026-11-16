@@ -7,6 +7,7 @@ import { ITEM_BY_ID } from './data/items';
 import { RANKS } from './data/world';
 import { levelFromXp, MAX_LEVEL } from './xp';
 import { pick, randRange, type Rng } from './rng';
+import { firstSeen } from './watchers';
 import { emptyReport } from './types';
 
 export const LOG_CAP = 150;
@@ -291,6 +292,15 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
 /** Resolve the current attempt if it has finished by `now`, and land a pending punch. */
 export function tick(prev: GameState, now: number, rng: Rng = Math.random): { state: GameState; report: Report } {
   const report = emptyReport();
+  // The bartender or the guard may have seen you mid-attempt (their schedules are fixed: watchers.ts).
+  const pj = prev.player.job;
+  const watcher = pj ? CRIME_BY_ID[pj.crimeId]?.catcher : undefined;
+  const seenAt = pj && (watcher === 'bartender' || watcher === 'guard') ? firstSeen(watcher, pj.pos, pj.startedAt, Math.min(now, pj.endsAt)) : null;
+  if (seenAt !== null) {
+    const s = structuredClone(prev);
+    spotted(s, seenAt);
+    return tick(s, now, rng); // and let the rest of the tick (e.g. the hit landing) happen as usual
+  }
   const jobDue = !!prev.player.job && prev.player.job.endsAt <= now;
   const c = prev.player.caught;
   const hitDue = !!c && c.at + CATCH_SECONDS * 1000 <= now;
@@ -353,15 +363,15 @@ export function emptyFor(s: GameState, spotId: string, now: number) {
   return until > now ? (until - now) / 1000 : 0;
 }
 
-/** Start one attempt at a crime (one tap = one attempt), optionally at a given spot. */
-export function startJob(s: GameState, crimeId: string, now: number, spotId?: string) {
+/** Start one attempt at a crime (one tap = one attempt), optionally at a given spot, standing on tile `pos`. */
+export function startJob(s: GameState, crimeId: string, now: number, spotId?: string, pos?: [number, number] | null) {
   const me = s.player;
   if (me.job || canStart(s, crimeId) || busyReason(s, now)) return;
   if (spotId && emptyFor(s, spotId, now)) return;
   // Forget spots that have filled up again.
   if (me.emptySpots) for (const [k, t] of Object.entries(me.emptySpots)) if (t <= now) delete me.emptySpots[k];
   const crime = CRIME_BY_ID[crimeId];
-  me.job = { crimeId, startedAt: now, endsAt: now + crime.duration * 1000, spotId };
+  me.job = { crimeId, startedAt: now, endsAt: now + crime.duration * 1000, spotId, pos: pos ?? me.pos ?? null };
 }
 
 export function stopJob(s: GameState) {

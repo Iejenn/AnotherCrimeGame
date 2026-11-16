@@ -4,6 +4,7 @@ import { CATCH_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes'
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
 import { mulberry32 } from './rng';
+import { BAR_SLOT_MS, GUARD_LOOP_MS, bartenderAt, guardAt, inBeam } from './watchers';
 import { DEFAULT_LOOK } from '../street/character';
 
 const T0 = Date.UTC(2026, 0, 1);
@@ -181,6 +182,84 @@ describe('getting caught (design §4)', () => {
     }
     expect(state.stats.fails).toBe(0);
     expect(state.cash).toBeGreaterThanOrEqual(10 + 30 * 15);
+  });
+});
+
+describe('watchers on fixed schedules (design §4, §11)', () => {
+  /** The next moment after t when the bartender turns his back for at least `ms`. */
+  const nextBackWindow = (t: number, ms: number) => {
+    for (let x = t; x < t + BAR_SLOT_MS * 20; x += 50) {
+      const b = bartenderAt(x);
+      if (!b.watching && b.until - x >= ms) return x;
+    }
+    throw new Error('no window');
+  };
+
+  it('the bartender is the same for everyone: his routine depends only on the time', () => {
+    for (const t of [T0, T0 + 12_345, T0 + 999_999]) expect(bartenderAt(t)).toEqual(bartenderAt(t));
+    // Every slot: watching first, then his back turned.
+    const slot = Math.ceil(T0 / BAR_SLOT_MS) * BAR_SLOT_MS;
+    expect(bartenderAt(slot).watching).toBe(true);
+    expect(bartenderAt(slot + BAR_SLOT_MS - 1).watching).toBe(false);
+  });
+
+  it('pickpocketing a drunk while his back is turned always works', () => {
+    const s = fresh();
+    s.skills.street.xp = totalXpForLevel(15);
+    const t = nextBackWindow(T0, 3200);
+    startJob(s, 'pick_drunk', t, 'drunk_0', [9, 19]);
+    const { state, report } = tick(s, t + 3000, mulberry32(1));
+    expect(report.jobs).toBe(1);
+    expect(state.stats.fails).toBe(0);
+    expect(state.cash).toBeGreaterThanOrEqual(20);
+  });
+
+  it('starting just before he turns round gets you caught the moment he sees you', () => {
+    const s = fresh();
+    s.skills.street.xp = totalXpForLevel(15);
+    const back = bartenderAt(nextBackWindow(T0, 1000));
+    const t = back.until - 1000; // he turns round 1s into the attempt
+    startJob(s, 'pick_drunk', t, 'drunk_0', [9, 19]);
+    const { state } = tick(s, t + 3000);
+    expect(state.player.job).toBeNull();
+    expect(state.player.caught?.crimeId).toBe('pick_drunk');
+    expect(state.player.caught!.at).toBeGreaterThanOrEqual(back.until);
+    expect(state.player.caught!.at).toBeLessThan(back.until + 1000);
+  });
+
+  it('the guard walks his route in a loop and sees what is in front of him', () => {
+    const a = guardAt(T0);
+    const b = guardAt(T0 + GUARD_LOOP_MS);
+    for (const k of ['x', 'z', 'yaw'] as const) expect(b[k]).toBeCloseTo(a[k], 5);
+    // Something 2 tiles straight ahead of him is in the beam; 2 tiles behind him is not.
+    expect(inBeam(a, a.x + Math.sin(a.yaw) * 2, a.z + Math.cos(a.yaw) * 2)).toBe(true);
+    expect(inBeam(a, a.x - Math.sin(a.yaw) * 2, a.z - Math.cos(a.yaw) * 2)).toBe(false);
+  });
+
+  it('prying a meter in the guard\'s beam gets you caught; out of sight it always pays', () => {
+    const s = fresh();
+    s.skills.street.xp = totalXpForLevel(20);
+    // Find a moment where the guard looks straight at tile (38, 22) and one where he's far away.
+    let seenT = 0;
+    let safeT = 0;
+    for (let t = T0; t < T0 + GUARD_LOOP_MS && (!seenT || !safeT); t += 100) {
+      const g = guardAt(t);
+      if (!seenT && inBeam(g, 38.5, 22.5)) seenT = t;
+      let clear = true;
+      for (let x = t; x <= t + 3000; x += 100) if (inBeam(guardAt(x), 38.5, 22.5)) clear = false;
+      if (!safeT && clear) safeT = t;
+    }
+    const caught = structuredClone(s);
+    startJob(caught, 'parking_meter', seenT, 'meter_0', [38, 22]);
+    const hit = tick(caught, seenT + 3000); // seen at once; his hit (−3 HP) has landed by the end
+    expect(hit.state.stats.fails).toBe(1);
+    expect(hit.report.damage).toBe(3);
+    expect(hit.report.cash).toBe(0);
+    const fine = structuredClone(s);
+    startJob(fine, 'parking_meter', safeT, 'meter_0', [38, 22]);
+    const r = tick(fine, safeT + 3000, mulberry32(2));
+    expect(r.state.stats.fails).toBe(0);
+    expect(r.report.cash).toBeGreaterThanOrEqual(15);
   });
 });
 

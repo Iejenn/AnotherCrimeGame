@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { gameNow } from './game/clock';
 import { useGame } from './useGame';
 import { CreateCharacter } from './components/CreateCharacter';
 import { StatusBar } from './components/StatusBar';
@@ -19,9 +20,9 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function App() {
-  const { state, act, create, replace, onReport, welcome, dismissWelcome, toasts } = useGame();
+  const { state, api, create, replace, onReport, welcome, dismissWelcome, toasts } = useGame();
   const [tab, setTab] = useState<Tab>('street');
-  const now = Date.now();
+  const now = gameNow();
 
   const doImport = async () => {
     const text = prompt('Paste your save code:');
@@ -54,8 +55,8 @@ export default function App() {
         ))}
       </nav>
       <main className="content">
-        {tab === 'street' && <StreetView s={state} act={act} onReport={onReport} />}
-        {tab === 'inventory' && <InventoryTab s={state} act={act} />}
+        {tab === 'street' && <StreetView s={state} api={api} onReport={onReport} />}
+        {tab === 'inventory' && <InventoryTab s={state} api={api} />}
         {tab === 'quests' && <QuestsTab />}
         {tab === 'skills' && <SkillsTab s={state} onImport={doImport} onReset={doReset} />}
       </main>

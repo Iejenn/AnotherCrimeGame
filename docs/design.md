@@ -196,19 +196,20 @@ timing) in `src/game/data/crimes.ts`.
 - **The bar** (built), above the basketball court: walk in like a shop. Dark wood, a red neon BAR sign, a back bar of
   glowing bottles with a mirror, a jukebox, the counter with beer taps and pendant lamps, a small table with a candle.
   **Three drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
-  The **bartender** works behind the counter: he **watches the room for 3–5.5s**, then **turns his back for 3.5–5s**
-  to polish the bottles. His label says "watching" (red) or "back turned" (green). If he is facing the room at any
-  moment of your attempt, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP,
-  stunned 3s). The timings are constants at the top of `StreetView.tsx` (`BAR_WATCH`, `BAR_BACK`).
+  The **bartender** works behind the counter on a **fixed schedule** (the same for every player, see §11): every
+  8.5s he **watches the room for 3.5–5s**, then **turns his back** for the rest, polishing bottles at one of three
+  spots. Turning round takes 0.6s before he sees anything. His label says "watching" (red) or "back turned" (green).
+  If he sees the room at any moment of your attempt, he yells "Leave my guests alone!", comes round the counter
+  and punches you (−2 HP, stunned 3s). Timings: `BAR_SLOT_MS`, `BAR_WATCH`, `BAR_TURN_MS` in `src/game/watchers.ts`.
 - **The parking lot** (built), at the east edge of town by the beach, south of the gas station: dark asphalt with white bays, wheel stops and
   oil stains, a guard booth with a lit window and a barrier arm, two tall sodium lamps, a blue P sign.
   **Five parking meters** (tap one: 3s, always works if unseen, $15–30). An emptied meter's light turns red and
   it fills up again after 15s.
-  The **guard** patrols the lot and the pavement around it: he walks to a spot, stops, and sweeps his
-  **flashlight** left and right. The beam is drawn on the ground (about 4.5 tiles long, ~86° wide) and turns red
-  when he sees you working. Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back
-  to patrolling. Tuning constants at the top of `StreetView.tsx` (`GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`,
-  `GUARD_LOOK`).
+  The **guard** walks a **fixed patrol route** (the same for every player, see §11): along the driveway, the
+  roads around the lot and its middle lane, stopping at each corner for 2.5s to sweep his **flashlight** left and
+  right. The beam is drawn on the ground (4.5 tiles long, ~86° wide) and turns red when you're working inside it.
+  Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back to his route. Route and
+  numbers: `GUARD_ROUTE`, `GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`, `GUARD_STOP_MS` in `src/game/watchers.ts`.
 - **Cars** (built): four parked cars nose-in at the lot's bays (Steal From Cars: 3s, 35%, $30–60). A failed
   attempt sets off the car alarm and brings the guard; he can also simply see you in his beam.
 - **The gas station** (built), at the north end of the parking lot (the road between them is gone: gas station, driveway and lot form one big rectangle): a pale concrete shop with a blue trim and a yellow
@@ -255,7 +256,47 @@ The start screen shows your character file and what's new.
 - **Health:** trained by taking damage, eating, or a gym?
 - **Healing / food:** now part of Street Crimes v2 (candy store and gas station shoplifting, §4). Eating rules: §4 question 6.
 - Quests: who gives them, and what do they unlock?
-- Multiplayer: server-side rules (Supabase) before any leaderboard.
+- Multiplayer: see §11.
+
+## 11. Multiplayer (MMO) plan
+
+**Goal:** one shared island where players see each other, with all rules on the server so nobody can cheat.
+**Stack:** Supabase, in its own organization (separate from Soccer RPG): Auth (accounts), Postgres (all game
+state, changed only by SECURITY DEFINER functions; RLS blocks direct writes), Realtime (seeing each other).
+
+**How a crime works online (the same model as Soccer RPG's `play_match`):**
+1. `start_attempt(spot_id, pos)`: the server checks level, health, stun, that the spot isn't empty, and that
+   `pos` is next to the spot and reachable from your last position at walking speed (no teleporting). It stores
+   the attempt with the server's start time.
+2. `finish_attempt()`: called when the time is up. The server checks the time, checks the watchers' schedules
+   (below), rolls the dice itself, pays out, and returns the new values for the client to show.
+3. Shelves and meters you empty are stored per spot, **shared by everyone**.
+
+**Watchers on fixed schedules (built, v0.19):** the bartender's routine and the guard's patrol are worked out
+from the game clock (`src/game/watchers.ts`), not random per phone. Everyone sees the same NPC, and the game rules
+decide "were you seen?" on their own, every tick of an attempt (`firstSeen`); the 3D view only draws it. The
+server will run the same functions (ported to SQL, or shared TypeScript) to check each attempt.
+
+**Foundation already in the code (v0.19):**
+- **One actions layer** (`src/game/api.ts`): every player action (start/stop an attempt, eat, sell, drop,
+  collect your grave, save your position) goes through `GameApi`. Today `localApi` runs the rules in the
+  browser; a `supabaseApi` will call the RPCs above with the same method names, so the screens don't change.
+- **One game clock** (`src/game/clock.ts`): everything reads time from `gameNow()`; `syncClock()` will line it
+  up with the server, so changing your phone's clock does nothing.
+- **Watchers on fixed schedules**, as above.
+- **Your position** is part of the game state (needed for the guard, graves, and later for others to see you).
+
+**Seeing each other (later):** Realtime Broadcast per area; a player sends their **route when they tap to walk**
+(not every step), other phones animate it. Presence shows who is online. This keeps message counts (the main
+Realtime cost) low.
+
+**Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
+working at once. Small, indexed queries, but plan for the Pro plan at that size.
+
+**Launch:** accounts start fresh ("Season 1"). Local saves can be edited, so they won't be imported.
+
+**Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
+shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
 
 ## 10. How we work
 

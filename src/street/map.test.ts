@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
-import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, SPAWN, W, H, buildBlocked, canStep, inRect } from './map';
+import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, PATROL, SPAWN, W, H, buildBlocked, canStep, inRect } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
+import { GUARD_ROUTE } from '../game/watchers';
 
 /** Every Street Crime has a place on the map (design §4). */
 const PLACED = CRIMES.map((c) => c.id);
@@ -61,4 +62,19 @@ it('every catcher can walk over to wherever you stand at the crimes he watches',
       }
     }
   }
+});
+
+it("the guard's patrol route is walkable, straight, and stays in his patrol area", () => {
+  const b = buildBlocked();
+  GUARD_ROUTE.forEach(([x0, y0], i) => {
+    const [x1, y1] = GUARD_ROUTE[(i + 1) % GUARD_ROUTE.length];
+    expect(x0 === x1 || y0 === y1, `leg ${i} is straight`).toBe(true);
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (let k = 0; k <= n; k++) {
+      const x = x0 + Math.sign(x1 - x0) * k;
+      const y = y0 + Math.sign(y1 - y0) * k;
+      expect(b[y * W + x], `${x},${y} free`).toBe(0);
+      expect(inRect(PATROL, x, y), `${x},${y} in patrol area`).toBe(true);
+    }
+  });
 });

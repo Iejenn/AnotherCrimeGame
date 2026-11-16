@@ -24,6 +24,8 @@ export interface Job {
   endsAt: number;
   /** Which spot on the Street (a shelf, a meter…), so an emptied one can't be used again right away. */
   spotId?: string;
+  /** The tile you stand on while doing it (the guard checks whether his flashlight reaches you there). */
+  pos?: [number, number] | null;
 }
 
 export interface PlayerState {

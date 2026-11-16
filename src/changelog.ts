@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.19.0',
+    date: '2026-11-16',
+    title: 'Groundwork for multiplayer',
+    items: [
+      'The bartender and the parking lot guard now follow fixed routines: every 8.5 seconds the bartender watches, then turns his back; the guard walks the same patrol route around the lot. Learn their timing!',
+      'Behind the scenes: every action now goes through one place, and the game has one clock, so it can move to a server later without cheating.',
+    ],
+  },
+  {
     version: '0.18.0',
     date: '2026-11-16',
     title: 'Graves, a world map, and a bigger park',

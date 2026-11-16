@@ -2,11 +2,13 @@
 // exposes `act()` for player actions. Only active play counts (docs/design.md §2):
 // when the app is hidden, closed, or asleep for more than a few seconds, your job stops
 // and the time in between gives nothing.
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { GameState, Look, Report } from './game/types';
 import { newGame, stopJob, tick } from './game/engine';
 import { SKILL_BY_ID } from './game/data/skills';
 import { loadGame, saveGame } from './game/save';
+import { gameNow } from './game/clock';
+import { localApi, type GameApi } from './game/api';
 
 export interface Toast {
   id: number;
@@ -75,12 +77,12 @@ export function useGame() {
     let lastTick = Date.now();
     const id = setInterval(() => {
       const s = ref.current;
-      const now = Date.now();
-      const gap = now - lastTick;
-      lastTick = now;
+      const wall = Date.now();
+      const gap = wall - lastTick;
+      lastTick = wall;
       if (!s) return;
       if (gap > AWAY_MS) return stopForAway();
-      const { state, report } = tick(s, now);
+      const { state, report } = tick(s, gameNow());
       if (state !== s) {
         commit(state);
         pushToasts(report);
@@ -106,7 +108,7 @@ export function useGame() {
     (fn: (draft: GameState, now: number) => void) => {
       const s = ref.current;
       if (!s) return;
-      const now = Date.now();
+      const now = gameNow();
       const { state, report } = tick(s, now);
       const draft = structuredClone(state);
       fn(draft, now);
@@ -116,7 +118,9 @@ export function useGame() {
     [commit, pushToasts],
   );
 
-  const create = useCallback((name: string, look: Look) => commit(newGame(name, look, Date.now()), true), [commit]);
+  const create = useCallback((name: string, look: Look) => commit(newGame(name, look, gameNow()), true), [commit]);
+  /** Player actions (docs/design.md §11): local rules for now, a Supabase version later. */
+  const api: GameApi = useMemo(() => localApi(act), [act]);
   const replace = useCallback((s: GameState | null) => {
     if (s) {
       s.player.job = null;
@@ -134,5 +138,5 @@ export function useGame() {
     };
   }, []);
 
-  return { state: ref.current, act, create, replace, onReport, welcome, dismissWelcome: () => setWelcome(false), toasts };
+  return { state: ref.current, act, api, create, replace, onReport, welcome, dismissWelcome: () => setWelcome(false), toasts };
 }
