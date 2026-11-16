@@ -1,10 +1,10 @@
 // Core game rules (docs/design.md). Plain functions on a GameState, so the same logic could
 // later run server-side (e.g. a Supabase function) for anti-cheat.
 import type { Buff, GameState, Look, LogKind, Report, SkillId } from './types';
-import { SKILL_BY_ID, SKILL_IDS, FAIL_LINES } from './data/skills';
-import { CRIME_BY_ID, EAT_SECONDS, STUN_SECONDS, type CrimeDef } from './data/crimes';
+import { SKILL_BY_ID, SKILL_IDS } from './data/skills';
+import { CATCH_SECONDS, CRIME_BY_ID, EAT_SECONDS, type CrimeDef } from './data/crimes';
 import { ITEM_BY_ID } from './data/items';
-import { MARKS, PLACES, RANKS } from './data/world';
+import { RANKS } from './data/world';
 import { levelFromXp, MAX_LEVEL } from './xp';
 import { pick, randRange, type Rng } from './rng';
 import { emptyReport } from './types';
@@ -50,9 +50,6 @@ export function hpAt(s: GameState, t: number) {
   return Math.min(maxHp(s), s.hp + mins * HP_REGEN_PER_MIN);
 }
 
-/** Health lost on a failed attempt. */
-export const FAIL_DAMAGE = 1;
-
 // ---------------- Crime stats ----------------
 
 export interface CrimeStats {
@@ -66,8 +63,10 @@ export interface CrimeStats {
 
 export function crimeStats(s: GameState, crime: CrimeDef): CrimeStats {
   const lvl = skillLevel(s, crime.skill);
-  // 65% at the level you unlock a crime, +0.5% for every level above that.
-  const chance = Math.min(0.97, Math.max(0.05, crime.baseChance + Math.max(0, lvl - crime.level) * CHANCE_PER_LEVEL + buffSum(s, 'success')));
+  // The crime's odds at the level you unlock it, +0.5% for every level above that. Crimes at 100%
+  // (the bar, the parking meters) always work: the risk there is being seen.
+  const cap = crime.baseChance >= 1 ? 1 : 0.97;
+  const chance = Math.min(cap, Math.max(0.05, crime.baseChance + Math.max(0, lvl - crime.level) * CHANCE_PER_LEVEL + buffSum(s, 'success')));
   return {
     xp: Math.round(crime.xp * Math.max(0.1, 1 + buffSum(s, 'xp'))),
     chance,
@@ -98,12 +97,6 @@ export function newGame(name: string, look: Look, now: number): GameState {
 function log(s: GameState, t: number, text: string, kind: LogKind) {
   s.log.unshift({ t, text, kind });
   if (s.log.length > LOG_CAP) s.log.length = LOG_CAP;
-}
-
-function fill(text: string, rng: Rng) {
-  const out = text.replace(/\{mark\}/g, () => pick(rng, MARKS)).replace(/\{place\}/g, () => pick(rng, PLACES));
-  // "{mark} grabbed…" → "A tourist grabbed…": capitalise the start of each sentence.
-  return out.replace(/(^|[.!?]\s+)([a-z])/g, (_, pre: string, c: string) => pre + c.toUpperCase());
 }
 
 // Money is always dollars (docs/design.md §6). All numbers use en-US grouping (1,234) on purpose:
@@ -170,9 +163,37 @@ const ENCOUNTERS: Encounter[] = [
 
 // ---------------- Resolving one attempt ----------------
 
+/** How each catcher hits you when he reaches you. */
+const HIT_LINES: Record<string, string> = {
+  clerk: 'The clerk shoves you into a shelf.',
+  bartender: 'The bartender grabs you by the collar and punches you.',
+  guard: 'The guard whacks you with his flashlight.',
+};
+
+/** Get hit: lose health and get stunned (a failed attempt, or an NPC's punch landing). */
+function getHit(s: GameState, crime: CrimeDef, t: number, report: Report, why: string) {
+  s.player.stunnedUntil = t + crime.failStun * 1000;
+  s.hp = Math.max(0, hpAt(s, t) - crime.failDamage);
+  s.hpAt = t;
+  report.damage += crime.failDamage;
+  report.hit = true;
+  log(s, t, `${why} You're stunned. -${crime.failDamage} HP.`, 'fail');
+  if (s.hp < MIN_HP_TO_WORK) {
+    log(s, t, "You're too hurt to keep going. Eat something, or wait: health comes back slowly.", 'fail');
+    report.events.push('Too hurt to work');
+  }
+}
+
+/** An NPC caught you: he yells now and his hit lands a moment later (he walks over first). */
+function getCaught(s: GameState, crime: CrimeDef, t: number, rng: Rng) {
+  s.player.caught = { crimeId: crime.id, at: t };
+  log(s, t, `${pick(rng, crime.failLines)} "${crime.yell}"`, 'fail');
+}
+
 function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
   const me = s.player;
-  const crime = CRIME_BY_ID[me.job!.crimeId];
+  const job = me.job!;
+  const crime = CRIME_BY_ID[job.crimeId];
   me.job = null; // one tap = one attempt: the job is done. Tap again for the next one.
   if (!crime) return;
   const st = crimeStats(s, crime);
@@ -180,30 +201,36 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
   s.stats.jobs++;
 
   if (rng() < st.chance) {
-    // Success: dollars (and XP). A Big Score doubles both.
+    // Success: dollars or food (and XP). A Big Score doubles both.
     const big = rng() < st.crit;
-    const base = Math.min(crime.cashMax, Math.floor(randRange(rng, crime.cashMin, crime.cashMax + 1)));
-    const cash = Math.max(crime.cashMin, Math.round(base * st.cashMult)) * (big ? 2 : 1);
     const xp = st.xp * (big ? 2 : 1);
-    earn(s, cash, report);
+    let what = '';
+    if (crime.items?.length) {
+      const id = pick(rng, crime.items);
+      const n = big ? 2 : 1;
+      const got = giveItem(s, id, n);
+      if (got) report.items[id] = (report.items[id] ?? 0) + got;
+      what = got ? `+${got} ${ITEM_BY_ID[id].name}` : 'Your bag is full, so you put it back';
+    } else {
+      const base = Math.min(crime.cashMax, Math.floor(randRange(rng, crime.cashMin, crime.cashMax + 1)));
+      const cash = Math.max(crime.cashMin, Math.round(base * st.cashMult)) * (big ? 2 : 1);
+      earn(s, cash, report);
+      what = `+${fmtMoney(cash)}`;
+    }
     addXp(s, crime.skill, xp, t, report);
     if (big) {
       report.bigScores++;
       s.stats.bigScores++;
     }
-    log(s, t, `${big ? 'BIG SCORE — ' : ''}${fill(pick(rng, crime.flavor), rng)} +${fmtMoney(cash)}, +${xp} XP`, big ? 'big' : 'success');
+    if (crime.refill && job.spotId) (me.emptySpots ??= {})[job.spotId] = t + crime.refill * 1000;
+    log(s, t, `${big ? 'BIG SCORE — ' : ''}${pick(rng, crime.flavor)} ${what}, +${xp} XP`, big ? 'big' : 'success');
   } else {
-    // Failure: no XP, a little damage, a short stun.
+    // Failure: no XP. Where a clerk or guard is around, he catches you; otherwise you get hurt right away.
     s.stats.fails++;
     report.fails++;
-    me.stunnedUntil = t + STUN_SECONDS * 1000;
-    s.hp = Math.max(0, hpAt(s, t) - FAIL_DAMAGE);
-    s.hpAt = t;
-    report.damage += FAIL_DAMAGE;
-    log(s, t, `${fill(pick(rng, FAIL_LINES), rng)} You're stunned. -${FAIL_DAMAGE} HP.`, 'fail');
-    if (s.hp < MIN_HP_TO_WORK) {
-      log(s, t, "You're too hurt to keep going. Eat something, or wait: health comes back slowly.", 'fail');
-      report.events.push('Too hurt to work');
+    if (crime.catcher) getCaught(s, crime, t, rng);
+    else {
+      getHit(s, crime, t, report, pick(rng, crime.failLines));
     }
   }
   useBuffs(s);
@@ -216,13 +243,36 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
   }
 }
 
-/** Resolve the current attempt if it has finished by `now`. */
+/** Resolve the current attempt if it has finished by `now`, and land a pending punch. */
 export function tick(prev: GameState, now: number, rng: Rng = Math.random): { state: GameState; report: Report } {
   const report = emptyReport();
-  if (!prev.player.job || prev.player.job.endsAt > now) return { state: prev, report };
+  const jobDue = !!prev.player.job && prev.player.job.endsAt <= now;
+  const c = prev.player.caught;
+  const hitDue = !!c && c.at + CATCH_SECONDS * 1000 <= now;
+  if (!jobDue && !hitDue) return { state: prev, report };
   const s = structuredClone(prev);
-  resolveAttempt(s, s.player.job!.endsAt, rng, report);
+  if (jobDue) resolveAttempt(s, s.player.job!.endsAt, rng, report);
+  const caught = s.player.caught;
+  if (caught && caught.at + CATCH_SECONDS * 1000 <= now) {
+    s.player.caught = null;
+    const crime = CRIME_BY_ID[caught.crimeId];
+    if (crime) getHit(s, crime, caught.at + CATCH_SECONDS * 1000, report, HIT_LINES[crime.catcher ?? ''] ?? 'You get hit.');
+  }
   return { state: s, report };
+}
+
+/**
+ * The bartender or the guard saw you mid-attempt: the attempt is lost and he's coming for you.
+ * Called by the Street view, which knows where everyone is looking.
+ */
+export function spotted(s: GameState, now: number, rng: Rng = Math.random) {
+  const job = s.player.job;
+  if (!job) return;
+  const crime = CRIME_BY_ID[job.crimeId];
+  if (!crime?.catcher || crime.catcher === 'clerk') return;
+  s.player.job = null;
+  s.stats.fails++;
+  getCaught(s, crime, now, rng);
 }
 
 // ---------------- Player actions (all mutate a draft) ----------------
@@ -238,6 +288,7 @@ export function canStart(s: GameState, crimeId: string): string | null {
 /** Why you can't start an attempt right now (stun, eating, health), or null if you can. */
 export function busyReason(s: GameState, now: number): string | null {
   const me = s.player;
+  if (me.caught) return "You've been caught!";
   if (me.stunnedUntil > now) return "You're still stunned.";
   if (me.eatingUntil > now) return "You're still eating.";
   const hp = hpAt(s, now);
@@ -245,12 +296,21 @@ export function busyReason(s: GameState, now: number): string | null {
   return null;
 }
 
-/** Start one attempt at a crime (one tap = one attempt). */
-export function startJob(s: GameState, crimeId: string, now: number) {
+/** Seconds until an emptied spot (a shelf, a meter) is full again; 0 if it's full now. */
+export function emptyFor(s: GameState, spotId: string, now: number) {
+  const until = s.player.emptySpots?.[spotId] ?? 0;
+  return until > now ? (until - now) / 1000 : 0;
+}
+
+/** Start one attempt at a crime (one tap = one attempt), optionally at a given spot. */
+export function startJob(s: GameState, crimeId: string, now: number, spotId?: string) {
   const me = s.player;
   if (me.job || canStart(s, crimeId) || busyReason(s, now)) return;
+  if (spotId && emptyFor(s, spotId, now)) return;
+  // Forget spots that have filled up again.
+  if (me.emptySpots) for (const [k, t] of Object.entries(me.emptySpots)) if (t <= now) delete me.emptySpots[k];
   const crime = CRIME_BY_ID[crimeId];
-  me.job = { crimeId, startedAt: now, endsAt: now + crime.duration * 1000 };
+  me.job = { crimeId, startedAt: now, endsAt: now + crime.duration * 1000, spotId };
 }
 
 export function stopJob(s: GameState) {

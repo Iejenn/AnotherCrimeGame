@@ -65,6 +65,7 @@ export function useGame() {
     const saved = loadGame();
     if (!saved) return rerender();
     if (saved.player.job) saved.player.job = null;
+    saved.player.caught = null; // a punch that was on its way when you left doesn't follow you
     commit(saved, true);
     setWelcome(true);
   }, [commit]);
@@ -117,7 +118,10 @@ export function useGame() {
 
   const create = useCallback((name: string, look: Look) => commit(newGame(name, look, Date.now()), true), [commit]);
   const replace = useCallback((s: GameState | null) => {
-    if (s) s.player.job = null;
+    if (s) {
+      s.player.job = null;
+      s.player.caught = null;
+    }
     ref.current = s;
     if (s) saveGame(s);
     rerender();

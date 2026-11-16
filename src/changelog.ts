@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.13.0',
+    date: '2026-11-16',
+    title: 'The big park and the basketball court',
+    items: [
+      'Street Crimes v2 has started. Crimes now have their own places: level 1 and 5 are open, the rest follow one by one.',
+      'Pickpocket Tourists (level 1): the park below where you start is twice as big, with a fountain, benches, hedges, flowerbeds and paths. Two tourists stroll around in it. 65%, $1–3.',
+      'Raid Gym Bags (level 5): a new basketball court left of the park. Two players shoot hoops while their bags sit on the bench. 55%, $2–6.',
+      'The Skills tab shows where each crime is, what it pays (dollars or food), and what happens when it goes wrong.',
+    ],
+  },
+  {
     version: '0.12.0',
     date: '2026-11-16',
     title: 'Dollars, food, and an island in the ocean',

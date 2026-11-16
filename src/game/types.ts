@@ -22,6 +22,8 @@ export interface Job {
   startedAt: number;
   /** When it finishes. */
   endsAt: number;
+  /** Which spot on the Street (a shelf, a meter…), so an emptied one can't be used again right away. */
+  spotId?: string;
 }
 
 export interface PlayerState {
@@ -30,6 +32,10 @@ export interface PlayerState {
   stunnedUntil: number;
   /** Eating takes 1 tick: you can't start a crime or eat again until this time. */
   eatingUntil: number;
+  /** An NPC caught you and is on his way to hit you (the hit lands CATCH_SECONDS after `at`). */
+  caught?: { crimeId: string; at: number } | null;
+  /** Spot id → time it's full again (shelves you emptied, meters you pried open). */
+  emptySpots?: Record<string, number>;
 }
 
 export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
@@ -81,10 +87,14 @@ export interface Report {
   events: string[];
   /** Health lost to failed jobs. */
   damage: number;
-  /** Failed attempts (not busts): drives the screen shake and stun. */
+  /** Failed attempts (including getting seen). */
   fails: number;
+  /** You got hit (a failure, or an NPC's punch landing): drives the screen shake and "Stunned!". */
+  hit: boolean;
+  /** Items you got (food from shoplifting). */
+  items: Record<string, number>;
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0 };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0, hit: false, items: {} };
 }

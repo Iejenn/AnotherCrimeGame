@@ -61,12 +61,13 @@ XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **e
 
 ## 4. Street Crimes (levels 1–30)
 
-> **Status: v2 scoped, not built yet.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
-> The v1 crimes in the game today (Lift a Wallet … Mug a Banker) will be replaced by the list below.
-> Items marked ❓ are open questions (see the end of this section).
+> **Status: v2 being built, one place per step.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
+> Built: **1 Pickpocket Tourists** (big park), **5 Raid Gym Bags** (basketball court). The rest show
+> "coming soon" in the Skills tab until their place exists. The rules for all seven (odds, rewards, getting caught,
+> shelves and meters that empty) are already in the game engine and tested.
 
 Something new unlocks **every 5 levels**. Each crime has its **own place on the map** and, from level 10 on,
-**NPCs that react to you**. Skills don't drop random loot any more (see §6): you get **coins** directly, and the two
+**NPCs that react to you**. Skills don't drop random loot any more (see §6): you get **dollars** directly, and the two
 shoplifting crimes give **food**, which heals.
 
 | Lv | Crime | Where | Odds at unlock | Reward | On fail | Time | XP (proposal) |
@@ -105,6 +106,11 @@ the time you spend waiting for the bartender or guard into account. To be tuned 
    Success: $30–60.
 
 ### Getting caught (NPCs that react)
+
+- **How it works in the game:** when someone catches you, he yells right away and walks over; his hit lands
+  **1.6 seconds** later (`CATCH_SECONDS`). Until then you can't act. Then: HP loss and the crime's stun.
+- Pickpocket Tourists and Raid Gym Bags have nobody to catch you: a failure hurts right away (the tourist shoves you,
+  a ball hits you).
 
 - **Shop clerks** (candy store, gas station): on a failed shoplift the clerk yells **"Hey!"**, walks over and hits you.
 - **The bartender and the guard** watch with a view cone. If they see you working a crime, they catch you: they yell
@@ -146,12 +152,17 @@ the time you spend waiting for the bartender or guard into account. To be tuned 
 
 ## 7. The map
 
-- An **island in the ocean** (planned: replace the river ring with open sea, beaches/rocks at the edge).
+- An **island in the ocean**: a sandy beach with rocks around the city, then open sea.
 - 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
   a block can hold one large building or several smaller ones, with some parks.
-- Street Crimes v2 places (planned, see §4): a **bigger park** with paths (tourists), a **basketball court**,
-  a **candy store** (enterable, shop icon), a **bar** (enterable), a **parking lot at the edge of town** with
-  meters, cars and a guard, and a **gas station** next to it (enterable, shop icon).
+- **The big park** (built): the old small park below where you start, doubled in size over the road next to it.
+  Lawns, hedges with gaps where the paths come in, gravel paths in a cross, a **fountain** in the middle with
+  benches, trees, flowerbeds and two old lamps. Two tourists stroll around in it.
+- **The basketball court** (built), left of the park: painted court with lines, a chain-link fence on three sides
+  (you get in at the two front corners), two hoops, a floodlight. Two players dribble, pass, shoot and chase
+  rebounds. Their gym bags lie on the bench on the street side.
+- Still to come (see §4): a **candy store** (enterable, shop icon), a **bar** (enterable), a **parking lot at the
+  edge of town** with meters, cars and a guard, and a **gas station** next to it (enterable, shop icon).
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.

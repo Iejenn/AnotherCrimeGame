@@ -1,7 +1,7 @@
 // The city grid (docs/design.md §7). Roads are 2 tiles wide every 7 tiles; the 5×5 squares
-// between them are blocks. A block is a park, Eddy's store, or a cluster of buildings in one of
-// a few layouts (one big building, two or four smaller ones, sometimes with an alley you can
-// walk through). The whole city is an island in the ocean, with a beach around it (drawn in city.ts).
+// between them are blocks. Most blocks are a cluster of buildings in one of a few layouts; some are
+// small parks; and some are special places where a crime happens (the big park, the basketball
+// court, shops you can walk into…). The whole city is an island in the ocean, with a beach around it.
 import type { SpotKind } from '../game/data/crimes';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { mulberry32 } from '../game/rng';
@@ -14,6 +14,17 @@ export const H = ROWS * BLOCK + 2;
 /** How wide the beach around the city is, in tiles (then it's open ocean). */
 export const BEACH = 2;
 
+/** A rectangle of tiles, corners included. */
+export interface Rect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+export const inRect = (r: Rect, x: number, y: number) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+/** The 5×5 tiles inside block (bx, by). */
+const blockRect = (bx: number, by: number): Rect => ({ x0: bx * BLOCK + 2, y0: by * BLOCK + 2, x1: bx * BLOCK + 6, y1: by * BLOCK + 6 });
+
 export interface StreetNode {
   id: string;
   crimeId: string;
@@ -21,11 +32,13 @@ export interface StreetNode {
   label: string;
   x: number;
   y: number;
-  /** Tourists stroll around; everything else stays put. */
-  wanders?: boolean;
+  /** People who stroll around stay inside this area. Everything else stays put. */
+  wanders?: Rect;
+  /** Which way the thing faces (radians around the vertical, 0 = +z / south). */
+  facing?: number;
 }
 
-export type BlockKind = { type: 'park' } | { type: 'buildings' } | { type: 'store' };
+export type BlockKind = { type: 'park' } | { type: 'buildings' } | { type: 'special' };
 
 export interface Building {
   /** Top-left tile and size in tiles. */
@@ -38,35 +51,60 @@ export interface Building {
   color: number;
 }
 
-const PARKS: [number, number][] = [[3, 3], [0, 4], [5, 0], [1, 0]];
-/** Eddy's General Store: the block just north of where you start. */
-export const STORE_BLOCK: [number, number] = [2, 1];
+/** Small parks (one block each). */
+const PARKS: [number, number][] = [[0, 4], [5, 0], [1, 0]];
 
 export const SPAWN: [number, number] = [2 * BLOCK + 4, 3 * BLOCK + 1];
 
-/**
- * Where each crime's spot is: [block x, block y, 0 = left end / 4 = right end of the block's south side].
- * Level 1 and 5 are right where you start; higher levels are further out.
- */
-const SPOTS: Record<string, [number, number, 0 | 4]> = {
-  pick_wallet: [2, 2, 0],
-  shoplift: [2, 2, 4],
-  strip_car: [3, 2, 0],
-  shell_game: [3, 2, 4],
-  burgle_house: [1, 2, 4],
-  rob_store: [4, 2, 4],
-  mug_banker: [4, 1, 0],
-};
-
 export function isRoad(x: number, y: number) {
-  return x % BLOCK < 2 || y % BLOCK < 2;
+  return (x % BLOCK < 2 || y % BLOCK < 2) && !inRect(PARK, x, y);
 }
+
+// ---------- the big park (Pickpocket Tourists, level 1) ----------
+// Two blocks plus the road between them, right below where you start: lawns, hedges with gaps,
+// paths in a cross, a fountain in the middle with benches, trees and flowerbeds.
+export const PARK: Rect = { x0: 2 * BLOCK + 2, y0: 3 * BLOCK + 2, x1: 3 * BLOCK + 6, y1: 3 * BLOCK + 6 };
+
+// ---------- the basketball court (Raid Gym Bags, level 5) ----------
+// A fenced court left of the park. The open (north) side faces the street, with a bench where the
+// players left their gym bags. Two players shoot hoops inside.
+export const COURT: Rect = blockRect(1, 3);
+
+// ---------- Eddy's General Store (you can walk in) ----------
+export const STORE: Rect & { door: [number, number] } = { ...blockRect(2, 1), door: [2 * BLOCK + 4, BLOCK + 6] };
+
+/** Blocks that aren't normal buildings: the park, the court, the store… */
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1]];
+
+/**
+ * Areas with walls or a fence around them. You can only cross their edge through an opening:
+ * a step from an inside tile to the outside tile right next to it.
+ */
+export interface Enclosure {
+  id: string;
+  rect: Rect;
+  openings: { inside: [number, number]; outside: [number, number] }[];
+}
+export const ENCLOSURES: Enclosure[] = [
+  { id: 'store', rect: STORE, openings: [{ inside: STORE.door, outside: [STORE.door[0], STORE.door[1] + 1] }] },
+  {
+    id: 'court',
+    rect: COURT,
+    openings: [
+      { inside: [COURT.x0, COURT.y0], outside: [COURT.x0, COURT.y0 - 1] },
+      { inside: [COURT.x1, COURT.y0], outside: [COURT.x1, COURT.y0 - 1] },
+    ],
+  },
+];
+export const enclosureAt = (x: number, y: number) => ENCLOSURES.find((e) => inRect(e.rect, x, y));
+/** Rooms with a roof (the camera looks in when you're inside). */
+export const inStore = (x: number, y: number) => inRect(STORE, x, y);
 
 export const BLOCKS: Map<string, BlockKind> = (() => {
   const m = new Map<string, BlockKind>();
   for (let bx = 0; bx < COLS; bx++) for (let by = 0; by < ROWS; by++) m.set(`${bx},${by}`, { type: 'buildings' });
   for (const [bx, by] of PARKS) m.set(`${bx},${by}`, { type: 'park' });
-  m.set(STORE_BLOCK.join(','), { type: 'store' });
+  for (const [bx, by] of SPECIAL) m.set(`${bx},${by}`, { type: 'special' });
   return m;
 })();
 
@@ -106,87 +144,113 @@ export const BUILDINGS: Building[] = (() => {
   return out;
 })();
 
-export const NODES: StreetNode[] = (() => {
-  const out: StreetNode[] = [];
-  for (const [crimeId, [bx, by, end]] of Object.entries(SPOTS)) {
-    const c = CRIME_BY_ID[crimeId];
-    out.push({ id: crimeId, crimeId, kind: c.spot.kind, label: c.spot.label, x: bx * BLOCK + 2 + end, y: by * BLOCK + 7 });
-  }
-  // A few extra tourists wandering around the middle of town.
-  const rng = mulberry32(7);
-  for (let i = 0; i < 5; i++) {
-    let x = 0;
-    let y = 0;
-    do {
-      x = 9 + Math.floor(rng() * 20);
-      y = 9 + Math.floor(rng() * 20);
-    } while (!isRoad(x, y) || out.some((n) => n.x === x && n.y === y));
-    out.push({ id: `tourist_${i}`, crimeId: 'pick_wallet', kind: 'person', label: 'Tourist', x, y, wanders: true });
-  }
+// ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers';
+export interface Fixture {
+  x: number;
+  y: number;
+  kind: FixtureKind;
+}
+
+export const FIXTURES: Fixture[] = (() => {
+  const out: Fixture[] = [];
+  const S = STORE;
+  // Eddy's store. Layout (S = shelf, C = counter, D = door):
+  //   S S . S S
+  //   . . . . .
+  //   C C . . S
+  //   . . . . S
+  //   . . D . .
+  for (const dx of [0, 1, 3, 4]) out.push({ x: S.x0 + dx, y: S.y0, kind: 'shelf' });
+  out.push({ x: S.x0, y: S.y0 + 2, kind: 'counter' }, { x: S.x0 + 1, y: S.y0 + 2, kind: 'counter' });
+  out.push({ x: S.x1, y: S.y0 + 2, kind: 'shelf' }, { x: S.x1, y: S.y0 + 3, kind: 'shelf' });
+
+  // The park: hedges around the edge with gaps where the paths come in, trees in the corners,
+  // a fountain in the middle with benches either side, two more trees and two flowerbeds.
+  const P = PARK;
+  const midY = P.y0 + 2;
+  const gapsX = [P.x0 + 3, P.x1 - 3];
+  for (let x = P.x0; x <= P.x1; x++)
+    for (const y of [P.y0, P.y1]) {
+      const corner = x === P.x0 || x === P.x1;
+      if (corner) out.push({ x, y, kind: 'tree' });
+      else if (!gapsX.includes(x)) out.push({ x, y, kind: 'hedge' });
+    }
+  for (let y = P.y0 + 1; y < P.y1; y++) for (const x of [P.x0, P.x1]) if (y !== midY) out.push({ x, y, kind: 'hedge' });
+  const cx = (P.x0 + P.x1 + 1) / 2; // the old road's middle: the fountain sits on it
+  out.push({ x: cx - 1, y: midY, kind: 'fountain' }, { x: cx, y: midY, kind: 'fountain' });
+  for (const x of [cx - 1, cx]) out.push({ x, y: midY - 1, kind: 'bench' }, { x, y: midY + 1, kind: 'bench' });
+  out.push({ x: P.x0 + 2, y: P.y0 + 1, kind: 'tree' }, { x: P.x1 - 2, y: P.y1 - 1, kind: 'tree' });
+  out.push({ x: P.x1 - 2, y: P.y0 + 1, kind: 'flowers' }, { x: P.x0 + 2, y: P.y1 - 1, kind: 'flowers' });
+
+  // The court's bench (the gym bags on it are spots, see NODES).
+  out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
   return out;
 })();
 
-// ---------- Eddy's General Store (you can walk inside) ----------
-// The store fills its 5×5 block. Its walls run along the block edge, so you can only get in or out
-// through the door in the middle of the south wall. Inside: shelves along the walls and a counter.
-export const STORE = (() => {
-  const x0 = STORE_BLOCK[0] * BLOCK + 2;
-  const y0 = STORE_BLOCK[1] * BLOCK + 2;
-  return { x0, y0, x1: x0 + 4, y1: y0 + 4, door: [x0 + 2, y0 + 4] as [number, number] };
+export const NODES: StreetNode[] = (() => {
+  const out: StreetNode[] = [];
+  const node = (id: string, crimeId: string, x: number, y: number, extra: Partial<StreetNode> = {}) => {
+    const c = CRIME_BY_ID[crimeId];
+    out.push({ id, crimeId, kind: c.spot.kind, label: c.spot.label, x, y, ...extra });
+  };
+  // Two tourists strolling around the park.
+  node('tourist_0', 'pick_tourist', PARK.x0 + 1, PARK.y0 + 2, { wanders: PARK });
+  node('tourist_1', 'pick_tourist', PARK.x1 - 1, PARK.y0 + 2, { wanders: PARK });
+  // Two gym bags on the bench at the court.
+  node('bag_0', 'gym_bags', COURT.x0 + 1, COURT.y0, { facing: 0 });
+  node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
+  return out;
 })();
 
-export function inStore(x: number, y: number) {
-  return x >= STORE.x0 && x <= STORE.x1 && y >= STORE.y0 && y <= STORE.y1;
-}
-
-/** Solid things inside the store. Layout (S = shelf, C = counter, D = door):
- *   S S . S S
- *   . . . . .
- *   C C . . S
- *   . . . . S
- *   . . D . .   */
-export const STORE_FIXTURES: { x: number; y: number; kind: 'shelf' | 'counter' }[] = [
-  ...[0, 1, 3, 4].map((dx) => ({ x: STORE.x0 + dx, y: STORE.y0, kind: 'shelf' as const })),
-  { x: STORE.x0, y: STORE.y0 + 2, kind: 'counter' },
-  { x: STORE.x0 + 1, y: STORE.y0 + 2, kind: 'counter' },
-  { x: STORE.x1, y: STORE.y0 + 2, kind: 'shelf' },
-  { x: STORE.x1, y: STORE.y0 + 3, kind: 'shelf' },
-];
-
 /**
- * Can you step from tile a to tile b? Inside↔outside the store only through the door
- * (straight, not diagonally). Everything else is decided by the blocked grid.
+ * Can you step from tile a to tile b? Crossing the edge of a walled or fenced area only works
+ * through one of its openings (straight, not diagonally). Everything else is decided by the blocked grid.
  */
 export function canStep(ax: number, ay: number, bx: number, by: number) {
-  const ia = inStore(ax, ay);
-  const ib = inStore(bx, by);
-  if (ia === ib) return true;
+  const ea = enclosureAt(ax, ay);
+  const eb = enclosureAt(bx, by);
+  if (ea === eb) return true;
   if (ax !== bx && ay !== by) return false;
-  const [dx, dy] = STORE.door;
-  const inside = ia ? [ax, ay] : [bx, by];
-  const outside = ia ? [bx, by] : [ax, ay];
-  return inside[0] === dx && inside[1] === dy && outside[0] === dx && outside[1] === dy + 1;
+  for (const e of [ea, eb]) {
+    if (!e) continue;
+    const inside = e === ea ? [ax, ay] : [bx, by];
+    const outside = e === ea ? [bx, by] : [ax, ay];
+    const ok = e.openings.some((o) => o.inside[0] === inside[0] && o.inside[1] === inside[1] && o.outside[0] === outside[0] && o.outside[1] === outside[1]);
+    if (!ok) return false;
+  }
+  return true;
 }
 
 // ---------- NPCs ----------
+export type NpcKind = 'shopkeeper' | 'baller';
 export interface Npc {
   id: string;
   name: string;
   role: string;
-  /** The tile they start on (you talk to them from a tile next to where they are). */
+  kind: NpcKind;
+  /** The tile they start on. */
   x: number;
   y: number;
-  /** Eddy wanders around inside his store. */
-  wanders?: 'store';
+  /** They wander around inside this area. */
+  area: Rect;
+  /** Tiles in the area they never stand on (e.g. the shop door). */
+  avoid?: [number, number][];
+  /** Name shown in yellow (people you can talk to, or who can catch you). */
+  named: boolean;
 }
 
-export const NPCS: Npc[] = [{ id: 'eddy', name: 'Eddy', role: 'General store', x: STORE.x0 + 2, y: STORE.y0 + 1, wanders: 'store' }];
+export const NPCS: Npc[] = [
+  { id: 'eddy', name: 'Eddy', role: 'General store', kind: 'shopkeeper', x: STORE.x0 + 2, y: STORE.y0 + 1, area: STORE, avoid: [STORE.door], named: true },
+  { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
+  { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
+];
 
-/** Tiles you can't walk through: buildings, store shelves/counter, and fixed spots. Roads, alleys, parks and the store floor are open. */
+/** Tiles you can't walk through: buildings, fixtures, and fixed spots. Roads, alleys, parks and shop floors are open. */
 export function buildBlocked(): Uint8Array {
   const g = new Uint8Array(W * H);
   for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
-  for (const f of STORE_FIXTURES) g[f.y * W + f.x] = 1;
+  for (const f of FIXTURES) g[f.y * W + f.x] = 1;
   for (const n of NODES) if (!n.wanders) g[n.y * W + n.x] = 1;
   return g;
 }
