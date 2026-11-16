@@ -7,9 +7,11 @@ import * as THREE from 'three';
 import type { GameState, Report } from '../game/types';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { MIN_HP_TO_WORK, bail, bailCost, canStart, fmtDuration, fmtMoney, hpAt, skillLevel, startJob, stopJob } from '../game/engine';
-import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
-import { buildCharacter } from './character';
+import { bail, bailCost, busyReason, canStart, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
+import { BLOCK, BLOCKS, BUILDINGS, H, NODES, NPCS, SPAWN, W, buildBlocked, isRoad, type Npc, type StreetNode } from './map';
+import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
+import { buildCity, updateFades } from './city';
+import { CAR_COLORS, buildCar, buildCardTable, buildCrate, buildDoor } from './props';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
 import { mulberry32 } from '../game/rng';
@@ -24,26 +26,6 @@ const WALK_SPEED = 4; // tiles per second
 const LABEL_RANGE = 5; // tiles
 const NPC_LABEL_RANGE = 9; // NPC names show from further away
 
-/** A flat sign with text on it, drawn on a canvas. */
-function signTexture(text: string) {
-  const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 96;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#1f2a1c';
-  g.fillRect(0, 0, 512, 96);
-  g.strokeStyle = '#d9a441';
-  g.lineWidth = 6;
-  g.strokeRect(6, 6, 500, 84);
-  g.fillStyle = '#f2d27a';
-  g.font = 'bold 54px Georgia, serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(text, 256, 52);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
 const MAX_LABELS = 6;
 function lockMessage(s: GameState, crimeId: string) {
   const crime = CRIME_BY_ID[crimeId];
@@ -93,187 +75,61 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     const tileOf = (x: number, z: number): [number, number] => [Math.floor(x), Math.floor(z)];
     const center = (tx: number, ty: number) => new THREE.Vector3(tx + 0.5, 0, ty + 0.5);
 
-    // ---------- renderer / scene ----------
+    // ---------- renderer / scene: dusk, long soft shadows, fog (docs/design.md §7b) ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.prepend(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x141210);
-    scene.fog = new THREE.Fog(0x141210, 18, 42);
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
-    scene.add(new THREE.HemisphereLight(0xfff1dc, 0x1b1916, 1.25));
-    const sun = new THREE.DirectionalLight(0xffdcb0, 1.4);
-    sun.position.set(-20, 40, 15);
-    scene.add(sun);
+    const SKY = 0x1c2230;
+    scene.background = new THREE.Color(SKY);
+    scene.fog = new THREE.Fog(SKY, 22, 60);
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 220);
+    // Cool blue sky light from above, warm low sun from the side.
+    scene.add(new THREE.HemisphereLight(0x8fa3c7, 0x2a2420, 1.25));
+    const sun = new THREE.DirectionalLight(0xffa864, 1.8);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    const sc = sun.shadow.camera;
+    sc.left = -16;
+    sc.right = 16;
+    sc.top = 16;
+    sc.bottom = -16;
+    sc.near = 1;
+    sc.far = 80;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.03;
+    scene.add(sun, sun.target);
+    const SUN_OFFSET = new THREE.Vector3(-24, 13, 8); // low sun = long shadows
 
-    const mats = new Map<number, THREE.MeshLambertMaterial>();
-    const mat = (c: number) => {
-      if (!mats.has(c)) mats.set(c, new THREE.MeshLambertMaterial({ color: c }));
-      return mats.get(c)!;
-    };
     const geoms: THREE.BufferGeometry[] = [];
     const disposables: { dispose: () => void }[] = [];
-    const box = (w: number, h: number, d: number) => {
-      const g = new THREE.BoxGeometry(w, h, d);
-      geoms.push(g);
-      return g;
-    };
-
-    // The city is an island: far bank (grass), then the river, then a stone quay wall, then the streets.
-    const farBank = new THREE.Mesh(new THREE.PlaneGeometry(W + 120, H + 120), mat(0x2f4527));
-    farBank.rotation.x = -Math.PI / 2;
-    farBank.position.set(W / 2, -0.35, H / 2);
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(W + RIVER * 2, H + RIVER * 2), mat(0x2e6584));
-    water.rotation.x = -Math.PI / 2;
-    water.position.set(W / 2, -0.3, H / 2);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat(0x2d2a26));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(W / 2, 0, H / 2);
-    scene.add(farBank, water, ground);
-    geoms.push(farBank.geometry, water.geometry, ground.geometry);
-    // Quay wall + railing along all four sides.
-    const quay = mat(0x8a8276);
-    const rail = mat(0x3a352f);
-    for (const [x, z, w, d] of [
-      [W / 2, -0.1, W + 0.4, 0.2], [W / 2, H + 0.1, W + 0.4, 0.2], [-0.1, H / 2, 0.2, H], [W + 0.1, H / 2, 0.2, H],
-    ] as const) {
-      const wall = new THREE.Mesh(box(w, 0.45, d), quay);
-      wall.position.set(x, -0.12, z);
-      const bar = new THREE.Mesh(box(w, 0.05, d * 0.4), rail);
-      bar.position.set(x, 0.32, z);
-      scene.add(wall, bar);
-    }
-    // Trees on the far bank, just across the water.
-    const treeRng = mulberry32(5);
-    for (let i = 0; i < 70; i++) {
-      const side = i % 4;
-      const along = treeRng();
-      const out = RIVER + 1 + treeRng() * 6;
-      const x = side < 2 ? along * (W + 2 * out) - out : side === 2 ? -out : W + out;
-      const z = side >= 2 ? along * (H + 2 * out) - out : side === 0 ? -out : H + out;
-      const top = new THREE.Mesh(box(1, 1, 1), mat(0x2f5a2b));
-      top.position.set(x, 0.4 + treeRng() * 0.4, z);
-      scene.add(top);
-    }
-
-    // Sidewalk rings around each block, buildings, parks.
-    const rng = mulberry32(11);
-    for (let bx = 0; bx < COLS; bx++)
-      for (let by = 0; by < ROWS; by++) {
-        const kind = BLOCKS.get(`${bx},${by}`)!;
-        const cx = bx * BLOCK + 2 + 2.5;
-        const cz = by * BLOCK + 2 + 2.5;
-        const walk = new THREE.Mesh(box(6.6, 0.06, 6.6), mat(0x3a3631));
-        walk.position.set(cx, 0.03, cz);
-        scene.add(walk);
-        if (kind.type === 'park') {
-          const grass = new THREE.Mesh(box(5, 0.1, 5), mat(0x2f4a2c));
-          grass.position.set(cx, 0.06, cz);
-          scene.add(grass);
-          for (let i = 0; i < 4; i++) {
-            const tx = cx - 1.8 + rng() * 3.6;
-            const tz = cz - 1.8 + rng() * 3.6;
-            const trunk = new THREE.Mesh(box(0.15, 0.6, 0.15), mat(0x4a3726));
-            trunk.position.set(tx, 0.4, tz);
-            const top = new THREE.Mesh(box(0.8, 0.8, 0.8), mat(0x3d6b37));
-            top.position.set(tx, 1.0, tz);
-            scene.add(trunk, top);
-          }
-          continue;
-        }
-        if (kind.type === 'store') {
-          // Eddy's General Store: a green storefront with an awning and a sign facing the street.
-          const sh = 1.4;
-          const shop = new THREE.Mesh(box(5, sh, 5), mat(0x4a5a3e));
-          shop.position.set(cx, sh / 2, cz);
-          const top = new THREE.Mesh(box(5.1, 0.12, 5.1), mat(0x5f7350));
-          top.position.set(cx, sh + 0.06, cz);
-          const awning = new THREE.Mesh(box(3.0, 0.06, 0.45), mat(0x7b3b2a));
-          awning.position.set(cx, 1.2, cz + 2.5 + 0.2);
-          awning.rotation.x = 0.3;
-          const tex = signTexture('GENERAL STORE');
-          const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.64), new THREE.MeshBasicMaterial({ map: tex }));
-          geoms.push(sign.geometry);
-          disposables.push(tex, sign.material as THREE.Material);
-          sign.position.set(cx, sh + 0.45, cz + 2.52);
-          const door = new THREE.Mesh(box(0.7, 0.9, 0.06), mat(0x2a1d14));
-          door.position.set(cx - 0.5 + 0.5, 0.45, cz + 2.52);
-          const win1 = new THREE.Mesh(box(0.9, 0.5, 0.05), mat(0xe8c87a));
-          win1.position.set(cx - 1.5, 0.6, cz + 2.52);
-          const win2 = win1.clone();
-          win2.position.x = cx + 1.5;
-          scene.add(shop, top, awning, sign, door, win1, win2);
-          continue;
-        }
-      }
-
-    // Buildings: different sizes and heights per block (see BUILDINGS in map.ts), with a roof
-    // ledge and a few lit windows on the street-facing side.
-    for (const b of BUILDINGS) {
-      const bcx = b.x + b.w / 2;
-      const bcz = b.y + b.h / 2;
-      const wall = new THREE.Mesh(box(b.w - 0.1, b.height, b.h - 0.1), mat(b.color));
-      wall.position.set(bcx, b.height / 2, bcz);
-      const roof = new THREE.Mesh(box(b.w, 0.1, b.h), mat(new THREE.Color(b.color).multiplyScalar(0.7).getHex()));
-      roof.position.set(bcx, b.height + 0.05, bcz);
-      scene.add(wall, roof);
-      for (let i = 0; i < b.w; i++) {
-        if (rng() < 0.45) continue;
-        const win = new THREE.Mesh(box(0.35, 0.28, 0.04), mat(rng() < 0.6 ? 0xe8c87a : 0x2a3140));
-        win.position.set(b.x + i + 0.5, Math.min(b.height - 0.3, 0.75), b.y + b.h - 0.03);
-        scene.add(win);
-      }
-    }
+    const city = buildCity(scene);
+    disposables.push(city);
 
     // ---------- tappable spots ----------
     const pickables: THREE.Object3D[] = [];
     const nodeGroups = new Map<string, THREE.Group>();
-    const personMesh = (body: number, head = 0xd9b99a) => {
-      const g = new THREE.Group();
-      const torso = new THREE.Mesh(box(0.42, 0.6, 0.3), mat(body));
-      torso.position.y = 0.55;
-      const legs = new THREE.Mesh(box(0.36, 0.3, 0.26), mat(0x23201c));
-      legs.position.y = 0.15;
-      const headM = new THREE.Mesh(box(0.3, 0.3, 0.3), mat(head));
-      headM.position.y = 1.0;
-      g.add(torso, legs, headM);
-      return g;
-    };
+    // People on the street use the same model as your character, with a random (but fixed) look.
+    const lookRng = mulberry32(99);
+    const people = new Map<string, THREE.Group>();
     for (const n of NODES) {
       let g: THREE.Group;
       const c = center(n.x, n.y);
       if (n.kind === 'person') {
-        g = personMesh(n.wanders ? 0x6d86a3 : 0x7d5a8a);
+        g = buildCharacter(randomLook(lookRng));
+        people.set(n.id, g);
       } else if (n.kind === 'car') {
-        g = new THREE.Group();
-        const body = new THREE.Mesh(box(0.85, 0.35, 0.55), mat(n.crimeId === 'armored' ? 0x55616a : 0x8a3a2f + (n.x % 3) * 0x101008));
-        body.position.y = 0.28;
-        const cabin = new THREE.Mesh(box(0.5, 0.25, 0.48), mat(0x1f2730));
-        cabin.position.set(-0.05, 0.57, 0);
-        g.add(body, cabin);
+        g = buildCar(CAR_COLORS[(n.x + n.y) % CAR_COLORS.length]);
       } else if (n.kind === 'crate') {
-        g = new THREE.Group();
-        const cr = new THREE.Mesh(box(0.7, 0.55, 0.7), mat(0x7a5b36));
-        cr.position.y = 0.28;
-        g.add(cr);
+        g = buildCrate();
       } else if (n.kind === 'table') {
-        g = new THREE.Group();
-        const top = new THREE.Mesh(box(0.8, 0.08, 0.5), mat(0x6b4a2e));
-        top.position.y = 0.5;
-        const leg = new THREE.Mesh(box(0.1, 0.5, 0.1), mat(0x3a2a1c));
-        leg.position.y = 0.25;
-        g.add(top, leg);
+        g = buildCardTable();
       } else {
-        // A door: lit doorway on the building face, on the side of this tile that touches the building.
-        g = new THREE.Group();
+        // A door on the building face, on the side of this tile that touches the building.
         const dir = neighbors(n.x, n.y).find(([x, y]) => !isRoad(x, y) && blocked[y * W + x]);
-        const dx = dir ? dir[0] - n.x : 0;
-        const dz = dir ? dir[1] - n.y : -1;
-        const door = new THREE.Mesh(box(dx ? 0.08 : 0.6, 0.95, dz ? 0.08 : 0.6), mat(0xd9a441));
-        door.position.set(dx * 0.48, 0.48, dz * 0.48);
-        const mat2 = new THREE.Mesh(box(0.7, 0.03, 0.7), mat(0x5a2620));
-        mat2.position.y = 0.02;
-        g.add(door, mat2);
+        g = buildDoor(dir ? dir[0] - n.x : 0, dir ? dir[1] - n.y : -1);
       }
       g.position.copy(c);
       g.traverse((o) => (o.userData.nodeId = n.id));
@@ -285,10 +141,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     // NPCs: Eddy stands in front of his store. Green apron, flat cap, faces the street.
     const npcGroups = new Map<string, THREE.Group>();
     for (const npc of NPCS) {
-      const g = personMesh(0x3f6b3a);
-      const cap = new THREE.Mesh(box(0.34, 0.08, 0.38), mat(0x3a2f25));
-      cap.position.y = 1.19;
-      g.add(cap);
+      // Eddy: flat cap, green top, white apron.
+      const g = buildCharacter({ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xf2efe8 });
       g.position.copy(center(npc.x, npc.y));
       g.traverse((o) => (o.userData.npcId = npc.id));
       scene.add(g);
@@ -297,7 +151,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     }
 
     // Wandering tourists keep their own position.
-    const walkers = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; wait: number }>();
+    const walkers = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; wait: number; moving?: boolean }>();
     for (const n of NODES.filter((x) => x.wanders)) walkers.set(n.id, { pos: center(n.x, n.y), target: center(n.x, n.y), wait: Math.random() * 2 });
     const nodeTile = (n: StreetNode): [number, number] => {
       const w = walkers.get(n.id);
@@ -305,9 +159,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     };
 
     // ---------- player and crew ----------
-    const player = buildCharacter(sRef.current.look, mat, box);
+    const player = buildCharacter(sRef.current.look);
     scene.add(player);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 24), new THREE.MeshBasicMaterial({ color: 0xebe4d6, transparent: true, opacity: 0 }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.08;
     scene.add(ring);
@@ -320,6 +174,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       goalNpc: null as Npc | null,
       attached: null as StreetNode | null,
       attachedAt: 0,
+      /** The spot you last worked, so "You size up the tourist…" only shows the first time. */
+      lastSpot: '' as string,
       facing: 0,
     };
     const findNodeFor = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders);
@@ -364,16 +220,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       me.attached = n;
       me.attachedAt = performance.now();
       if (job && job.crimeId === n.crimeId) return;
-      const hp = hpAt(st, Date.now());
-      if (hp < MIN_HP_TO_WORK) {
-        me.attached = null;
-        say(`You're too hurt to work (${Math.floor(hp)} HP). Rest a few minutes: health comes back on its own.`);
-        return;
-      }
-      say(startLine(n));
+      const busy = busyReason(st, Date.now());
+      if (busy) return say(busy);
+      if (me.lastSpot !== n.id) say(startLine(n));
+      me.lastSpot = n.id;
       actRef.current((d, t) => {
         if (d.player.job) stopJob(d);
-        startJob(d, n.crimeId, t); // repeats until you walk away
+        startJob(d, n.crimeId, t); // one tap = one attempt
       });
     };
 
@@ -411,7 +264,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         setTalkingRef.current(null);
         const n = NODES.find((x) => x.id === hit.object.userData.nodeId)!;
         if (canStart(st, n.crimeId)) return say(lockMessage(st, n.crimeId));
-        if (me.attached?.id === n.id && st.player.job?.crimeId === n.crimeId) return say("You're already on it.");
+        if (me.attached?.id === n.id && st.player.job?.crimeId === n.crimeId) return; // mid-attempt: ignore extra taps
         stopWorking();
         const [nx, ny] = nodeTile(n);
         if (walkTo(neighbors(nx, ny), n)) {
@@ -469,15 +322,15 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         g.fillStyle = c;
         g.fillRect((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, w * MINI_PX, h * MINI_PX);
       };
-      g.fillStyle = '#2e6584';
+      g.fillStyle = '#1f4558';
       g.fillRect(0, 0, miniW, miniH);
-      tile(0, 0, W, H, '#5a544c');
+      tile(0, 0, W, H, '#55585e');
       for (const [key, kind] of BLOCKS) {
         const [bx, by] = key.split(',').map(Number);
-        if (kind.type === 'park') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#3d6b37');
-        if (kind.type === 'store') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#6b8a55');
+        if (kind.type === 'park') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#45663a');
+        if (kind.type === 'store') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#2f7a46');
       }
-      for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#22201d');
+      for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#8a7f70');
     }
     const drawMini = () => {
       const g = mini.getContext('2d')!;
@@ -602,7 +455,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         setTimeout(() => el.remove(), 1300);
       };
       line(parts, '');
+      if (r.fails) big.push(['Stunned!', 'f-bust']);
       line(big, 'float-big');
+      if (r.fails || r.busts) {
+        host.classList.remove('shake');
+        void host.offsetWidth; // restart the animation
+        host.classList.add('shake');
+      }
     });
 
     // ---------- labels for nearby spots ----------
@@ -673,7 +532,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         const [nx, ny] = nodeTile(me.attached);
         me.facing = Math.atan2(nx + 0.5 - me.pos.x, ny + 0.5 - me.pos.z);
       }
-      player.position.set(me.pos.x, working ? Math.abs(Math.sin(now / 160)) * 0.06 : me.path.length ? Math.abs(Math.sin(now / 90)) * 0.05 : 0, me.pos.z);
+      player.position.set(me.pos.x, 0.03, me.pos.z);
+      const stunned = meCrew.stunnedUntil > Date.now();
+      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working ? 'work' : 'idle';
+      animateCharacter(player, pose, now);
       player.rotation.y = me.facing;
       player.visible = !jailed;
 
@@ -695,10 +557,19 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           } else {
             w.pos.add(d.clampLength(0, 1.4 * dt));
             nodeGroups.get(id)!.rotation.y = Math.atan2(d.x, d.z);
+            w.moving = true;
           }
         }
         nodeGroups.get(id)!.position.copy(w.pos);
       }
+      // Everyone breathes, tourists walk; Eddy idles.
+      let k = 0;
+      for (const [id, g] of people) {
+        const w = walkers.get(id);
+        animateCharacter(g, w?.moving ? 'walk' : 'idle', now, k++ * 0.7);
+        if (w) w.moving = false;
+      }
+      for (const g of npcGroups.values()) animateCharacter(g, 'idle', now, 3.1);
 
       // Tap ring fades out.
       const rm = ring.material as THREE.MeshBasicMaterial;
@@ -715,6 +586,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         camTarget.z + Math.cos(yaw) * r * Math.cos(pitch),
       );
       camera.lookAt(camTarget.x, 0, camTarget.z);
+      sun.position.copy(camTarget).add(SUN_OFFSET);
+      sun.target.position.copy(camTarget);
+      updateFades(city.fadeables, camera, me.pos, dt);
 
       // Progress bar for the current action.
       if (progressRef.current) {
@@ -806,7 +680,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       for (const el of labelEls.values()) el.remove();
       geoms.forEach((g) => g.dispose());
       disposables.forEach((d) => d.dispose());
-      mats.forEach((m) => m.dispose());
       (ring.material as THREE.Material).dispose();
       renderer.dispose();
       renderer.domElement.remove();
@@ -834,17 +707,17 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
               Bail · {fmtMoney(bailCost(me, now))}
             </button>
           </>
+        ) : me.stunnedUntil > now ? (
+          <span className="alert">Stunned · {fmtDuration(Math.max(0.1, (me.stunnedUntil - now) / 1000))}</span>
         ) : crime && job ? (
           <>
-            <span>
-              {crime.name} <span className="muted mono">#{job.attempts + 1}</span>
-            </span>
+            <span>{crime.name}</span>
             <div className="bar bar-job">
               <div className="bar-fill" ref={progressRef} />
             </div>
           </>
         ) : (
-          <span className="muted">Idle — tap something</span>
+          <span className="muted">Tap something to work it</span>
         )}
       </div>
       {talking && <NpcDialog npc={talking} s={s} act={act} onClose={() => setTalking(null)} />}

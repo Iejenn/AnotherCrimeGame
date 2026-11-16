@@ -12,11 +12,12 @@ const CODE_PREFIX = 'UI2.';
 export function migrate(raw: any): GameState | null {
   if (raw?.version !== 2 || !raw.skills || !raw.look) return null;
   // Early v0.7 test saves had a one-person `crew` list and mastery stars; both are gone.
-  if (!raw.player) raw.player = { job: null, jailedUntil: raw.crew?.[0]?.jailedUntil ?? 0 };
+  if (!raw.player) raw.player = { job: null, jailedUntil: raw.crew?.[0]?.jailedUntil ?? 0, stunnedUntil: 0 };
   delete raw.crew;
   delete raw.mastery;
   delete raw.lastSeen;
   raw.player.job = null; // nothing carries over from last time: only active play counts
+  raw.player.stunnedUntil ??= 0;
   // Skills that didn't exist in a save start at 0 XP.
   for (const id of ['street', 'melee', 'defense', 'gunfire', 'health']) raw.skills[id] ??= { xp: 0 };
   raw.inventory ??= {};

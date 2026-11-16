@@ -6,20 +6,22 @@ Numbers marked *(tunable)* live in data tables in `src/game/` and can change wit
 ## 1. What the game is
 
 A point-and-click crime RPG in the browser, played mostly on phones. You walk an island city
-RuneScape-style: tap the street to walk, tap a person, car or door to start working it.
-Your character keeps doing that action until you tap somewhere else. Skills level up from
-doing things. "Numbers go up" is the core reward.
+RuneScape-style: tap the street to walk, tap a person, car or door to try a crime.
+**One tap = one attempt.** Nothing repeats on its own: you tap again for the next attempt.
+Skills level up from doing things. "Numbers go up" is the core reward.
 
 **Only active play is rewarded.** Nothing happens while the app is closed or in the background.
 When you come back, your character is standing idle.
 
-## 2. Actions and timing
+## 2. Ticks and timing
 
-- The game runs on **actions of 0.5 seconds**.
-- Every crime takes a fixed number of actions per attempt. A petty crime is **2 actions (1 second)**.
-- After an attempt, the next one starts straight away until you walk away, get busted, or run out of health.
+- The game runs on **ticks of 0.5 seconds**.
+- Every crime takes a fixed number of ticks per attempt. A pickpocket is **4 ticks (2 seconds)**.
+- **One tap = one attempt.** When it finishes you stand there; tap the spot again for the next one.
+  Tapping somewhere else mid-attempt cancels it.
+- **Failing** shakes the screen briefly and **stuns you for 2 seconds** (you can't start another attempt).
 - If the app is hidden or closed, or more than 5 seconds pass without the game running (phone asleep),
-  the current job stops and nothing in between counts.
+  the current attempt is cancelled and nothing in between counts.
 
 ## 3. Skills
 
@@ -52,21 +54,24 @@ Something new unlocks **every 5 levels**. Target: **about 16 hours of active pla
 Each band of 5 levels takes about twice as long as the one before. Each new crime pays more XP
 and gold per hour than the previous one, so moving up always feels like progress.
 
-| Lv | Crime | Spot on the map | Actions (time) | Base odds | XP | Gold | Band time |
+| Lv | Crime | Spot on the map | Ticks (time) | Base odds | XP | Gold | Band time |
 |---|---|---|---|---|---|---|---|
-| 1 | Lift a Wallet | Tourist (they wander) | 2 (1s) | 85% | 8 | 1–3 | 1→5: ~12 min |
-| 5 | Shoplift | Corner shop | 3 (1.5s) | 82% | 15 | 2–5 | 5→10: ~30 min |
-| 10 | Strip a Parked Car | Parked car | 4 (2s) | 80% | 25 | 4–9 | 10→15: ~1 h |
-| 15 | Run a Shell Game | Card table | 5 (2.5s) | 78% | 40 | 6–14 | 15→20: ~2 h |
-| 20 | Burgle a House | Family house | 6 (3s) | 76% | 60 | 10–22 | 20→25: ~4 h |
-| 25 | Rob a Corner Store | Corner store | 8 (4s) | 74% | 100 | 18–36 | 25→30: ~8 h |
-| 30 | Mug a Banker | Banker | 10 (5s) | 72% | 160 | 30–60 | — (cap) |
+| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 85% | 19 | 1–3 | 1→5: ~12 min |
+| 5 | Shoplift | Corner shop | 5 (2.5s) | 82% | 28 | 2–5 | 5→10: ~30 min |
+| 10 | Strip a Parked Car | Parked car | 6 (3s) | 80% | 43 | 4–9 | 10→15: ~1 h |
+| 15 | Run a Shell Game | Card table | 7 (3.5s) | 78% | 63 | 6–14 | 15→20: ~2 h |
+| 20 | Burgle a House | Family house | 8 (4s) | 76% | 90 | 10–22 | 20→25: ~4 h |
+| 25 | Rob a Corner Store | Corner store | 10 (5s) | 74% | 141 | 18–36 | 25→30: ~8 h |
+| 30 | Mug a Banker | Banker | 12 (6s) | 72% | 212 | 30–60 | — (cap) |
 
-XP per success is worked out from the band times: XP per hour needed ÷ attempts per hour ÷ odds.
+XP per success is worked out from the band times: XP per hour needed ÷ attempts per hour ÷ odds,
+where an attempt costs its own time plus, on a failure, the 2-second stun. It assumes you tap again
+right away; real play (walking, resting for health) will be slower.
 
 **Per attempt:**
 - **Success:** gold and XP. 5% chance of a **Big Score** (double gold and XP).
-- **Failure:** a quarter of the XP and **−1 HP**. Some failures turn into a **bust** (jail).
+- **Failure:** a quarter of the XP, **−1 HP**, a screen shake and a **2-second stun**.
+  Some failures turn into a **bust** (jail) instead.
 - **Odds** rise 2% per level above the crime's requirement (max +12%) and drop as heat rises.
 - **Loot** drops about 0.4 times per minute of work; longer crimes drop more per attempt.
 
@@ -74,8 +79,8 @@ XP per success is worked out from the band times: XP per hour needed ÷ attempts
 
 - **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
   Below 3 HP you can't start a job; at 0 the job stops. Real healing comes from items (see §9, Healing).
-  **Decided:** failures keep costing 1 HP and regen stays slow. At 1 attempt per second a pickpocket fails
-  about 9 times a minute, so 10 HP lasts roughly a minute of work. That is intended: health is a real limit
+  **Decided:** failures keep costing 1 HP and regen stays slow. Tapping a pickpocket every 2 seconds fails
+  about 4 times a minute, so 10 HP lasts roughly 2½ minutes of work. That is intended: health is a real limit
   from day one, and **food is a core system**, the main way to keep going. It matters even more once
   combat arrives. Food is the next thing to scope.
 - **Heat:** 0–100. Working adds heat per minute (more for bigger crimes); it cools by 2 per minute.
@@ -96,6 +101,22 @@ Planned: Eddy's stock (bandages first), then other shops.
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot.
 - **Minimap** in the top-right corner of the Street: roads, buildings, river, you, Eddy, and crime spots
   (greyed out until you have the level).
+
+## 7b. Visual direction
+
+**Style:** chunky **low-poly** shapes like a tabletop model town (the reference image): buildings with window grids,
+parapets and rooftop props, shop awnings, lane lines and zebra crossings, round faceted trees, cartoon cars,
+rounded characters with walk and action animations.
+
+**Mood: dark and gritty.** It's a crime game, so the model-town shapes sit in a dusk/evening city:
+- **Light:** dark blue-grey evening sky with fog in the distance; a low orange sun with long shadows.
+- **Palette:** brick, grimy concrete and soot instead of fresh cream; muted trims (oxblood, teal, mustard, navy);
+  dark asphalt with worn paint; dark green parks; a dark river.
+- **Lights in the dark:** some windows glow warm yellow (different per building); street lamps are sodium-orange
+  and throw a pool of light on the pavement; the store sign stands out.
+- **Grime:** dumpsters and trash bags on the pavements.
+- **Readability:** your character is never hidden: a building between the camera and you fades out.
+  Floating text and labels have dark outlines so they read on any background.
 
 ## 8. Screens
 

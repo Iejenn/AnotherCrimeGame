@@ -8,14 +8,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.9.0',
+    date: '2026-11-15',
+    title: 'A brand new look',
+    items: [
+      'The city got a full makeover in a chunky low-poly style, at dusk: brick and concrete buildings with lit windows, rooftop air-cons, shop awnings, lane lines and zebra crossings, round trees, dumpsters and trash bags.',
+      'Orange street lamps throw pools of light on the pavement. Long evening shadows, fog in the distance, a dark river around the island.',
+      'New rounded characters for everyone, with walk, pickpocket and stunned animations. Eddy wears an apron now.',
+      'Buildings between the camera and you fade out, so you are never hidden.',
+      'Chunky cars, a proper card table, and shop doors with glass.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-11-15',
     title: 'Street Crimes 1–30, a minimap, and a city that looks like a city',
     items: [
       'Street Crimes now goes to level 30, with a new crime every 5 levels: Lift a Wallet, Shoplift, Strip a Parked Car, Run a Shell Game, Burgle a House, Rob a Corner Store and Mug a Banker.',
       'Each level needs 20% more XP than the last. About 16 hours of play to reach 30.',
-      'Everything is faster: an action takes half a second, and picking a pocket takes 2 actions (1 second).',
-      'Only active play counts now. Close or hide the app and your character stops; nothing happens while you are away.',
+      'One tap = one attempt. Picking a pocket takes 4 ticks (2 seconds); tap the tourist again for the next one.',
+      'A failed attempt shakes the screen and stuns you for 2 seconds.',
+      'Only active play counts now. Nothing happens while the app is closed or hidden.',
       'Minimap in the top-right corner. Tap it to walk there.',
       'Buildings now come in different sizes and heights, with alleys you can walk through.',
     ],

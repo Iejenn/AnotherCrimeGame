@@ -15,20 +15,20 @@ export interface Look {
   bottom: number;
 }
 
-/** What you're working right now. It repeats until you walk away (active play only). */
+/** The attempt you're doing right now. One tap = one attempt; it does not repeat. */
 export interface Job {
   crimeId: string;
-  /** When the current attempt started (for progress bars). */
+  /** When the attempt started (for the progress bar). */
   startedAt: number;
-  /** When the current attempt finishes. */
+  /** When it finishes. */
   endsAt: number;
-  /** Attempts finished so far on this job. */
-  attempts: number;
 }
 
 export interface PlayerState {
   job: Job | null;
   jailedUntil: number;
+  /** After a failed attempt you're stunned until this time and can't start another. */
+  stunnedUntil: number;
 }
 
 export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
@@ -83,8 +83,10 @@ export interface Report {
   events: string[];
   /** Health lost to failed jobs. */
   damage: number;
+  /** Failed attempts (not busts): drives the screen shake and stun. */
+  fails: number;
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], events: [], damage: 0 };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], events: [], damage: 0, fails: 0 };
 }
