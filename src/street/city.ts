@@ -423,6 +423,21 @@ export function buildCity(scene: THREE.Scene) {
   const atlases = [1, 2, 3, 4].map((seed) => windowAtlas(seed * 977));
   for (const a of atlases) own(a.map), own(a.glow);
   const fadeables: Fadeable[] = [];
+  /** Bare brick (one floor high, one tile wide per repeat) for boarded-up buildings. */
+  const brickTex = own(
+    canvasTex(64, 96, (g) => {
+      g.fillStyle = '#d8d0c4';
+      g.fillRect(0, 0, 64, 96);
+      for (let row = 0; row < 12; row++) {
+        const off = row % 2 ? 0 : 16;
+        for (let col = -1; col < 3; col++) {
+          const shade = 200 + ((row * 7 + col * 13) % 5) * 9;
+          g.fillStyle = `rgb(${shade},${shade - 12},${shade - 22})`;
+          g.fillRect(col * 32 + off + 1, row * 8 + 1, 30, 6);
+        }
+      }
+    }),
+  );
   // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
   // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
   const FLOOR = 1.45;
@@ -442,8 +457,15 @@ export function buildCity(scene: THREE.Scene) {
       return t;
     };
     // Each building gets its own materials so it can fade on its own.
-    const mX = lam(wall, { map: tex(atlas.map, b.w), emissiveMap: tex(atlas.glow, b.w), emissive: C.litWindow, emissiveIntensity: 1 });
-    const mZ = lam(wall, { map: tex(atlas.map, b.h), emissiveMap: tex(atlas.glow, b.h), emissive: C.litWindow, emissiveIntensity: 1 });
+    // Boarded-up buildings (the Yard's) are bare brick: their windows get planks below, and the walls take graffiti.
+    const brick = (across: number) => {
+      const t = own(brickTex.clone());
+      t.repeat.set(across, floors);
+      t.needsUpdate = true;
+      return t;
+    };
+    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : lam(wall, { map: tex(atlas.map, b.w), emissiveMap: tex(atlas.glow, b.w), emissive: C.litWindow, emissiveIntensity: 1 });
+    const mZ = b.boarded ? lam(wall, { map: brick(b.h) }) : lam(wall, { map: tex(atlas.map, b.h), emissiveMap: tex(atlas.glow, b.h), emissive: C.litWindow, emissiveIntensity: 1 });
     const mRoof = lam(C.roof);
     const mTrim = lam(trim);
     const bw = b.w - 0.1;
@@ -469,6 +491,29 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Every building has a front door at person size (on its street side), with a step and a lamp: so you can
     // tell how big it is, and that people live there.
+    if (b.boarded) {
+      // Windows on the upper floors, nailed shut: a dark hole with three rough planks across it, on every side.
+      const faces = [
+        { n: b.w, at: (i: number) => [b.x + 0.5 + i, b.y + 0.02] as const, rot: 0 },
+        { n: b.w, at: (i: number) => [b.x + 0.5 + i, b.y + b.h - 0.02] as const, rot: 0 },
+        { n: b.h, at: (i: number) => [b.x + 0.02, b.y + 0.5 + i] as const, rot: Math.PI / 2 },
+        { n: b.h, at: (i: number) => [b.x + b.w - 0.02, b.y + 0.5 + i] as const, rot: Math.PI / 2 },
+      ];
+      for (const f of faces)
+        for (let i = 0; i < f.n; i++)
+          for (let fl = 1; fl < floors; fl++) {
+            const [x, z] = f.at(i);
+            const y = fl * FLOOR + 0.8;
+            const hole = add(geoBox(0.5, 0.7, 0.03), lam(0x141210), x, y, z, false);
+            hole.rotation.y = f.rot;
+            props.push(hole);
+            for (const dy of [-0.22, 0.02, 0.24]) {
+              const plank = add(geoBox(0.62, 0.11, 0.04), lam(0x7a5a3a, { flatShading: true }), x, y + dy + (rng() - 0.5) * 0.04, z, false);
+              plank.rotation.set(0, f.rot, (rng() - 0.5) * 0.25);
+              props.push(plank);
+            }
+          }
+    }
     // The front faces the street: south for most, north for buildings along a block's north edge (s = which way
     // "out" is along z).
     const sgn = b.front === 'n' ? -1 : 1;
@@ -1121,29 +1166,81 @@ export function buildCity(scene: THREE.Scene) {
     for (let i = 0; i < 14; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
     cracks.build(scene);
     // Graffiti: tags on the side walls (facing in) and the back wall.
-    const graffiti = (text: string, color: string, w: number, x: number, z: number, rotY: number) => {
-      const mat = own(new THREE.MeshBasicMaterial({
-        map: own(canvasTex(256, 96, (g) => {
-          g.clearRect(0, 0, 256, 96);
-          g.font = 'italic bold 54px Impact, Arial Black, sans-serif';
-          g.textAlign = 'center';
-          g.textBaseline = 'middle';
-          g.lineWidth = 8;
-          g.strokeStyle = '#141210';
-          g.strokeText(text, 128, 50);
-          g.fillStyle = color;
-          g.fillText(text, 128, 50);
-        }, false)),
-        transparent: true,
-        depthWrite: false,
-      }));
-      const m = add(own(new THREE.PlaneGeometry(w, w * 0.375)), mat, x, 0.75, z, false);
+    /** Spray-paint graffiti: fat letters in a colour fade, a white then a black outline, a highlight, drips and
+     *  overspray, a little crooked. Drawn on a transparent plane in front of a wall. */
+    const sprayTex = (text: string, c1: string, c2: string) =>
+      own(
+        canvasTex(
+          512,
+          192,
+          (g) => {
+            g.clearRect(0, 0, 512, 192);
+            const mist = g.createRadialGradient(256, 96, 30, 256, 96, 250);
+            mist.addColorStop(0, `${c1}44`);
+            mist.addColorStop(1, `${c1}00`);
+            g.fillStyle = mist;
+            g.fillRect(0, 0, 512, 192);
+            g.save();
+            g.translate(256, 92);
+            g.rotate(-0.07);
+            g.font = '900 104px "Arial Black", Impact, Arial, sans-serif';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            const sc = Math.min(1, 470 / g.measureText(text).width);
+            g.scale(sc, 1.05);
+            g.lineJoin = 'round';
+            g.lineWidth = 26;
+            g.strokeStyle = '#141210';
+            g.strokeText(text, 0, 0);
+            g.lineWidth = 12;
+            g.strokeStyle = '#f2ece0';
+            g.strokeText(text, 0, 0);
+            const fill = g.createLinearGradient(0, -52, 0, 52);
+            fill.addColorStop(0, c1);
+            fill.addColorStop(1, c2);
+            g.fillStyle = fill;
+            g.fillText(text, 0, 0);
+            g.globalAlpha = 0.35;
+            g.fillStyle = '#ffffff';
+            g.fillText(text, -3, -6);
+            g.globalAlpha = 1;
+            g.fillStyle = fill;
+            g.fillText(text, 0, 2);
+            g.restore();
+            // Paint drips running down from the letters.
+            g.fillStyle = c2;
+            for (let i = 0; i < 16; i++) {
+              const x = 50 + rng() * 410;
+              const y0 = 118 + rng() * 22;
+              const len = 8 + rng() * 44;
+              g.fillRect(x, y0, 3, len);
+              g.beginPath();
+              g.arc(x + 1.5, y0 + len, 3.2, 0, Math.PI * 2);
+              g.fill();
+            }
+          },
+          false,
+        ),
+      );
+    const graffiti = (text: string, c1: string, c2: string, w: number, x: number, y: number, z: number, rotY: number) => {
+      const mat = own(new THREE.MeshBasicMaterial({ map: sprayTex(text, c1, c2), transparent: true, depthWrite: false }));
+      const m = add(own(new THREE.PlaneGeometry(w, w * 0.375)), mat, x, y, z, false);
       m.rotation.y = rotY;
       m.receiveShadow = false;
     };
-    graffiti('YARD', '#e0473a', 2.2, X0 + 0.02, cz - 0.6, Math.PI / 2); // west wall, facing east
-    graffiti('KEEP OUT', '#f2d27a', 2.6, X1 - 0.02, cz - 0.4, -Math.PI / 2); // east wall, facing west
-    graffiti('NO SNITCH', '#5bd06a', 2.6, cx, Z0 + 0.02, 0); // the back wall
+    // On the bare ground floors of the two side buildings, facing into the Yard.
+    graffiti('YARD', '#ff5a4a', '#a8201a', 2.6, X0 + 0.03, 0.62, cz - 0.3, Math.PI / 2);
+    graffiti('KEEP OUT', '#ffd84a', '#d07a1a', 3.0, X1 - 0.03, 0.62, cz - 0.2, -Math.PI / 2);
+    // The back wall has windows: that tag goes on a sheet of plywood leaning against it, next to the couch.
+    {
+      const px = X1 - 1.4;
+      const pz = Z0 + 0.22;
+      const ply = add(geoBox(2.2, 1.2, 0.05), lam(0xb8935a, { flatShading: true }), px, 0.62, pz);
+      ply.rotation.x = -0.12;
+      const m = add(own(new THREE.PlaneGeometry(2.1, 0.79)), own(new THREE.MeshBasicMaterial({ map: sprayTex('NO SNITCH', '#5bd06a', '#1e7a3a'), transparent: true, depthWrite: false })), px, 0.64, pz + 0.035, false);
+      m.rotation.x = -0.12;
+      m.receiveShadow = false;
+    }
     // The old couch (two tiles, against the back).
     const couch = FIXTURES.filter((f) => f.kind === 'couch');
     if (couch.length) {

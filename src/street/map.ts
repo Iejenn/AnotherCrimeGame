@@ -110,6 +110,8 @@ export interface Building {
   color: number;
   /** Which side its front door is on: the side facing a street. */
   front: 'n' | 's';
+  /** Run down: the windows are boarded up and the ground floor is bare brick (the Yard's buildings, for graffiti). */
+  boarded?: boolean;
 }
 
 /** Pocket parks (one lot each). */
@@ -286,7 +288,7 @@ export const BUILDINGS: Building[] = (() => {
     }
   }
   // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
-  for (const b of YARD_SIDES) out.push({ ...b, height: 2.2, color: WALL_COLORS[2], front: 's' });
+  for (const b of YARD_SIDES) out.push({ ...b, height: 1.5, color: WALL_COLORS[2], front: 's', boarded: true });
   return out;
 })();
 
