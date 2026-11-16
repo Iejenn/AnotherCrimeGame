@@ -1,6 +1,6 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, H, LOTS, PARK, PARKING, PARK_PATHS, ROOMS, W, blockRect, type Rect } from './map';
+import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, H, HOSPITAL, LOTS, PARK, PARKING, PARK_PATHS, ROOMS, W, blockRect, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
@@ -47,6 +47,10 @@ export function drawWorld(px: number): HTMLCanvasElement {
   for (const r of PARKING) area(r, '#34363c'); // the parking lot (an L around the gas station)
   tile(GAS.x0, GAS.y1 + 1, GAS.x1 - GAS.x0 + 1, 1, '#34363c'); // the pumps' forecourt
   for (const r of ROOMS) area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
+  // The hospital: pale walls, a red cross on the ward's roof.
+  area(HOSPITAL, '#c9c4b8');
+  tile(HOSPITAL.x0 + 2, HOSPITAL.y0 + 1, 1, 3, '#d9473a');
+  tile(HOSPITAL.x0 + 1, HOSPITAL.y0 + 2, 3, 1, '#d9473a');
   for (const b of BUILDINGS) {
     tile(b.x, b.y, b.w, b.h, '#8a7f70');
     tile(b.x + 0.15, b.y + 0.15, b.w - 0.3, b.h - 0.3, '#7a6f62');

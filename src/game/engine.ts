@@ -167,7 +167,7 @@ function getHit(s: GameState, crime: CrimeDef, t: number, report: Report, why: s
 
 /**
  * You died: your cash and items drop into a grave where you stood (an older grave crumbles), and you
- * wake up at the start with half health. Walk back and tap the grave within GRAVE_MINUTES to get it all back.
+ * wake up (online: in the hospital ward, see game.die) with half health. Walk back and tap the grave within GRAVE_MINUTES to get it all back.
  */
 function die(s: GameState, t: number, report: Report) {
   const me = s.player;

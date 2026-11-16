@@ -42,9 +42,9 @@ This page and the picture are generated from the game's map: after changing `src
 | 004-C | The bar | 7–11 | 29–33 |
 | 004-D | Buildings | 12–16 | 29–33 |
 | 005-A | Buildings | 24–28 | 24–28 |
-| 005-B | Buildings | 29–33 | 24–28 |
+| 005-B | Hospital (ward, upstairs) | 29–33 | 24–28 |
 | 005-C | Candy store | 24–28 | 29–33 |
-| 005-D | Buildings | 29–33 | 29–33 |
+| 005-D | Hospital (lobby) | 29–33 | 29–33 |
 | 006-A | Gas & Go | 41–45 | 24–28 |
 | 006-B | Parking lot | 46–50 | 24–28 |
 | 006-C | Parking lot | 41–45 | 29–33 |

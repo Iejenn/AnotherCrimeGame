@@ -1,10 +1,10 @@
 // The real city on its own (see city.html): buildCity plus a character at (x, z), with the game's lights and camera.
 import * as THREE from 'three';
-import { buildCity } from '../../src/street/city';
+import { buildCity, updateFades } from '../../src/street/city';
 import { animateCharacter, buildCharacter } from '../../src/street/character';
 import { buildBigCar } from '../../src/street/streetLife';
 import { buildMeter } from '../../src/street/props';
-import { NODES } from '../../src/street/map';
+import { NODES, NPCS, floorY } from '../../src/street/map';
 import { thugAt } from '../../src/game/enemies';
 import { setGear } from '../../src/street/props';
 
@@ -31,7 +31,7 @@ Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, n
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
-buildCity(scene);
+const city = buildCity(scene);
 // The spots that look like things (meters, cars), as the Street view adds them.
 for (const n of NODES) {
   if (n.kind !== 'car' && n.kind !== 'meter') continue;
@@ -52,19 +52,36 @@ for (let i = 0; i < 3; i++) {
   animateCharacter(g, 'idle', 0);
   scene.add(g);
 }
+// The hospital's staff.
+for (const n of NPCS.filter((n) => n.kind === 'doctor' || n.kind === 'receptionist')) {
+  const g =
+    n.kind === 'doctor'
+      ? buildCharacter({ skin: n.id === 'doctor_0' ? 1 : 2, hair: n.id === 'doctor_0' ? 2 : 1, hairColor: 1, top: 4, bottom: 0 }, { scrubs: n.id === 'doctor_0' ? 0x2f6b4a : 0x7ab0d8, coat: true })
+      : buildCharacter({ skin: 1, hair: 2, hairColor: 2, top: 1, bottom: 0 });
+  g.position.set(n.x + 0.5, floorY(n.x + 0.5, n.y + 0.5) + 0.03, n.y + 0.5);
+  g.rotation.y = n.kind === 'doctor' ? 1.2 : 0;
+  animateCharacter(g, 'idle', 0);
+  scene.add(g);
+}
 const you = buildCharacter({ skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 });
-you.position.set(x, 0.03, z);
+you.position.set(x, floorY(x, z) + 0.03, z);
 animateCharacter(you, 'idle', 0);
 scene.add(you);
 
 const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 400);
 const pitch = cam === 'low' ? 0.8 : cam === 'top' ? 1.5 : 1.16;
 const r = (cam === 'low' ? 11 : cam === 'far' ? 24 : cam === 'top' ? 62 : 15) * 1.25;
-const target = cam === 'top' ? new THREE.Vector3(29, 0, 29) : new THREE.Vector3(x, 0, z);
-camera.position.set(target.x + Math.sin(yaw) * r * Math.cos(pitch), r * Math.sin(pitch), target.z + Math.cos(yaw) * r * Math.cos(pitch));
+const target = cam === 'top' ? new THREE.Vector3(29, 0, 29) : new THREE.Vector3(x, floorY(x, z), z);
+camera.position.set(target.x + Math.sin(yaw) * r * Math.cos(pitch), target.y + r * Math.sin(pitch), target.z + Math.cos(yaw) * r * Math.cos(pitch));
 camera.lookAt(target);
 sun.position.copy(target).add(new THREE.Vector3(-24, 13, 8));
 sun.target.position.copy(target);
 if (cam === 'top') Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40 }), sun.shadow.camera.updateProjectionMatrix();
+// ?inside=hospital: as if you're inside that room (its walls faded, the roof off).
+const inside = q.get('inside');
+if (inside) {
+  city.rooms.get(inside)!.force = true;
+  for (let i = 0; i < 40; i++) updateFades(city.fadeables, camera, you.position, 0.05);
+}
 renderer.render(scene, camera);
 (window as unknown as { ready: boolean }).ready = true;

@@ -167,7 +167,49 @@ export const GAS = room('gas', 'Gas station', lot('006', 'A'), true, 4);
 /** Ray's weapon store (combat, docs/design.md §12), next to Eddy's. The server checks you're inside it when you buy
  *  (buy_item). */
 export const WEAPONS = room('weapons', "Ray's Arms", lot('002', 'D'), true);
-export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS, WEAPONS];
+
+// ---------- the hospital (where you wake up after passing out; docs/design.md §5) ----------
+// A two-storey building on 005-B and 005-D, facing the park. The front half (D) is a tall lobby (open up to the
+// roof) with a wide glass entrance, a reception desk and two staircases along the side walls at the back. The back
+// half (B) is the ward, upstairs: beds along both walls, two doctors walking around, a railing where it looks down
+// into the lobby. The ward's tiles are the B tiles, drawn one storey up (floorY), so walking up the stairs is just
+// walking north (the server sees normal steps). Downstairs you can't walk under the ward: only the stairs go there.
+//   ward (B, upstairs)      lobby (D)
+//   b . . . b   24          ^ . . . ^   29   ^ = stairs (going up to the north)
+//   b . . . b               ^ . R . ^        R = the receptionist, behind her desk
+//   b . . . b               . r r . .        r = the reception desk (staff walk round its end)
+//   . . . . .               . . . . .
+//   ^ . . . ^   28          . E E E .   33   E = the entrance (3 wide)
+const HOSPITAL_LOTS = { b: lot('005', 'B'), d: lot('005', 'D') };
+/** The whole building. */
+export const HOSPITAL: Rect = { x0: HOSPITAL_LOTS.b.x0, y0: HOSPITAL_LOTS.b.y0, x1: HOSPITAL_LOTS.d.x1, y1: HOSPITAL_LOTS.d.y1 };
+/** Upstairs: the ward. */
+export const WARD: Rect = HOSPITAL_LOTS.b;
+/** Downstairs: the lobby (a room you walk into, like the shops). */
+export const LOBBY: Room = { ...HOSPITAL_LOTS.d, id: 'hospital', name: 'Hospital', door: [HOSPITAL_LOTS.d.x0 + 2, HOSPITAL_LOTS.d.y1], shop: false };
+/** How high the ward's floor is (one storey, world units). */
+export const FLOOR_H = 1.75;
+/** The two staircases: the columns they're in, and their two tiles (bottom, top) in the lobby's back rows. */
+export const STAIRS = [LOBBY.x0, LOBBY.x1].map((x, i) => ({ id: `stairs_${i}`, x, bottom: [x, LOBBY.y0 + 1] as [number, number], top: [x, LOBBY.y0] as [number, number] }));
+/** Where you wake up after passing out: in the ward, next to a bed. The server has the same tile (game.die). */
+export const WAKE: [number, number] = [WARD.x0 + 1, WARD.y0 + 1];
+/** A tile on one of the staircases. */
+export const onStairs = (x: number, y: number) => STAIRS.some((s) => s.x === x && (y === s.top[1] || y === s.bottom[1]));
+/** You're upstairs. */
+export const isUpstairs = (x: number, y: number) => inRect(WARD, x, y);
+/**
+ * How high the floor is at world point (x, z): the ward's floor, the stairs going up, or the street (0).
+ * Everyone who walks (you, other players, the doctors) stands on this.
+ */
+export function floorY(x: number, z: number) {
+  const tx = Math.floor(x);
+  if (tx < HOSPITAL.x0 || tx > HOSPITAL.x1 || z < HOSPITAL.y0 || z >= LOBBY.y0 + 2) return 0;
+  if (z < LOBBY.y0) return FLOOR_H;
+  // On the stairs: from the bottom of the lower stair tile (0) to the top of the upper one (a full storey).
+  if (STAIRS.some((s) => s.x === tx)) return FLOOR_H * Math.min(1, Math.max(0, (LOBBY.y0 + 2 - z) / 2));
+  return 0;
+}
+export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS, WEAPONS, LOBBY];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 // ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
@@ -195,6 +237,7 @@ const SPECIAL: [string, LotLetter][] = [
   ['006', 'A'], ['006', 'B'], ['006', 'C'], ['006', 'D'], // the gas station and its parking lot
   ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
   ['007', 'C'], ['007', 'D'], // the Yard (thugs)
+  ['005', 'B'], ['005', 'D'], // the hospital
 ];
 
 // ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
@@ -227,7 +270,17 @@ export interface Enclosure {
   openings: { inside: [number, number]; outside: [number, number] }[];
 }
 export const ENCLOSURES: Enclosure[] = [
-  ...ROOMS.map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
+  ...ROOMS.filter((r) => r !== LOBBY).map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
+  // The hospital: a wide entrance (3 tiles), and the stairs are the only way between the lobby and the ward.
+  {
+    id: 'hospital',
+    rect: LOBBY,
+    openings: [
+      ...[-1, 0, 1].map((d) => ({ inside: [LOBBY.door[0] + d, LOBBY.y1] as [number, number], outside: [LOBBY.door[0] + d, LOBBY.y1 + 1] as [number, number] })),
+      ...STAIRS.map((s) => ({ inside: s.top, outside: [s.x, WARD.y1] as [number, number] })),
+    ],
+  },
+  { id: 'ward', rect: WARD, openings: STAIRS.map((s) => ({ inside: [s.x, WARD.y1] as [number, number], outside: s.top })) },
   {
     id: 'court',
     rect: COURT,
@@ -305,7 +358,7 @@ export const BBQ_PARK: Rect = lot('003', 'B');
 export const STATIONS: Station[] = [{ id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 }];
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk';
 export interface Fixture {
   x: number;
   y: number;
@@ -396,6 +449,11 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: YARD.x0 + 3, y: YARD.y0 + 2, kind: 'barrel' });
   for (let x = YARD.x0; x <= YARD.x1; x++) if (!YARD_GATES.some(([gx]) => gx === x)) out.push({ x, y: YARD.y1, kind: 'fence' });
 
+  // The hospital: three beds along each wall of the ward, the reception desk in the lobby (the receptionist stands
+  // behind it, in the middle).
+  for (const x of [WARD.x0, WARD.x1]) for (let dy = 0; dy < 3; dy++) out.push({ x, y: WARD.y0 + dy, kind: 'bed' });
+  for (const dx of [1, 2]) out.push({ x: LOBBY.x0 + dx, y: LOBBY.y0 + 2, kind: 'desk' });
+
   // Cooking stations (the barbecue), so you walk around them.
   for (const st of STATIONS) out.push({ x: st.x, y: st.y, kind: st.kind });
 
@@ -437,6 +495,8 @@ export const NODES: StreetNode[] = (() => {
  * through one of its openings (straight, not diagonally). Everything else is decided by the blocked grid.
  */
 export function canStep(ax: number, ay: number, bx: number, by: number) {
+  // Stairs only go up and down: no stepping on or off them sideways.
+  if (ax !== bx && (onStairs(ax, ay) || onStairs(bx, by))) return false;
   const ea = enclosureAt(ax, ay);
   const eb = enclosureAt(bx, by);
   if (ea === eb) return true;
@@ -452,7 +512,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor';
 export interface Npc {
   id: string;
   name: string;
@@ -495,6 +555,10 @@ export const NPCS: Npc[] = [
     id: 'guard', name: 'Guard', role: 'Parking lot', kind: 'guard', x: PARKING_NE.x0, y: PARKING_NE.y0 + 3,
     area: PATROL, named: true, catches: ['parking_meter', 'steal_car'],
   },
+  // The hospital: the receptionist behind her desk, and two doctors walking around the ward (between the beds).
+  { id: 'receptionist', name: 'Receptionist', role: 'Hospital', kind: 'receptionist', x: LOBBY.x0 + 2, y: LOBBY.y0 + 1, area: { x0: LOBBY.x0 + 2, y0: LOBBY.y0 + 1, x1: LOBBY.x0 + 2, y1: LOBBY.y0 + 1 }, named: true },
+  { id: 'doctor_0', name: 'Doctor', role: 'Hospital', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: false },
+  { id: 'doctor_1', name: 'Doctor', role: 'Hospital', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: false },
   { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
   { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
 ];
@@ -506,6 +570,8 @@ export interface ParkedCar {
   y: number;
   along: 'x' | 'y';
   color: number;
+  /** The ambulance parked by the hospital. */
+  ambulance?: boolean;
 }
 export const PARKED_CARS: ParkedCar[] = (() => {
   const out: ParkedCar[] = [];
@@ -529,6 +595,8 @@ export const PARKED_CARS: ParkedCar[] = (() => {
       const y = by * PITCH + STREET + 3 + Math.floor(rng() * 2);
       out.push({ x: lane, y, along: 'y', color: colors[Math.floor(rng() * colors.length)] });
     }
+  // The car parked along the hospital's side is an ambulance.
+  for (const c of out) if (c.along === 'y' && c.x > HOSPITAL.x1 && c.x <= HOSPITAL.x1 + STREET && c.y >= HOSPITAL.y0 && c.y <= HOSPITAL.y1) c.ambulance = true;
   return out;
 })();
 export const parkedTiles = (c: ParkedCar): [number, number][] =>
@@ -545,7 +613,7 @@ export function buildBlocked(): Uint8Array {
 }
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital';
 export interface Area {
   id: string;
   name: string;
@@ -559,6 +627,10 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'hospital', name: 'Hospital', rect: HOSPITAL, icon: 'hospital', crimes: [], npcs: ['receptionist'],
+    blurb: 'Where you wake up after passing out, in the ward upstairs. Take the stairs down to get back out.',
+  },
   {
     id: 'yard', name: 'The Yard', rect: YARD, icon: 'thugs', crimes: [], npcs: [],
     blurb: 'A rough courtyard where three thugs hang around with knives (level 5). Fight them for cash, and now and then a knife.',

@@ -167,6 +167,14 @@ timing) in `src/game/data/crimes.ts`.
   Walk back and tap the grave to get everything back (items that don't fit stay in it). The grave lasts
   **5 minutes** (real time), then it crumbles and the stuff is gone. Dying again while you have a grave
   replaces it (the old one's contents are lost). Tuning: `GRAVE_MINUTES`, `RESPAWN_HP` in `engine.ts`.
+- **Passing out and the hospital (v0.36):** at 0 HP the screen fades to black ("You passed out") and back in, and
+  you wake up in the **hospital** (005-B + 005-D, facing the park), in the ward upstairs next to a bed
+  (`WAKE` in `map.ts`; the server sets the same tile in `game.die`, migration 0017). New players still start in the
+  park. The hospital is two storeys: a tall lobby with a wide glass entrance, a reception desk with a receptionist and
+  two staircases up the side walls; the ward upstairs has three beds along each wall, two doctors walking around, and
+  a glass railing over the lobby. **Floors:** the ward's tiles are the B tiles drawn one storey up (`floorY`), so the
+  stairs are ordinary steps north (the server checks nothing new); downstairs you can't walk under the ward, only up
+  the stairs (`canStep`), and nobody steps on or off a staircase sideways. **Tap the stairs** to go up or down.
 - **Your position** on the Street is saved (every time you stop walking, and when you leave the Street), so
   switching tabs or reloading keeps you where you were.
 
@@ -558,7 +566,8 @@ Pigeon in a fight stands still where it was attacked.
 - **The barbecue** (`public.stations`, `STATIONS` in map.ts) in the pocket park on **003-B** (fire icon on the map).
   Tap it: you walk next to it and your bag opens; tap something raw to **cook all of it**, one item every **2 ticks
   (1 s)**, until it runs out or you walk away (28 s for a full bag). The server times and rolls every one
-  (`start_cook`, `cook_step`, `stop_cook`).
+  (`start_cook`, `cook_step`, `stop_cook`). While you cook, a small bar over your head fills up (dark brown to clay) for the piece
+  on the grill.
 - **Recipes** (`public.recipes`, `src/game/data/recipes.ts`): raw bird meat → cooked bird meat, Cooking level 1,
   **5 XP**, burn chance **50% at level 1, falling to 0% at level 15**. Burnt food is lost and gives no XP. Cooked
   bird meat heals **1 HP**.
