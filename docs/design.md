@@ -71,57 +71,62 @@ shoplifting crimes give **food**, which heals.
 
 | Lv | Crime | Where | Odds at unlock | Reward | On fail | Time | XP (proposal) |
 |---|---|---|---|---|---|---|---|
-| 1 | **Pickpocket Tourists** | 2 tourists wander a park | 65% | 1–3 coins | −1 HP | 2s | 3 |
-| 5 | **Raid Gym Bags** | 2 guys play basketball; bags on the bench | 55% | 2–6 coins | −1 HP | 2s | 5 |
-| 10 | **Shoplift Candy Store** | candy store; clerk + shelves | 40% | 1 candy bar | −1 HP | 2s | 10 |
-| 15 | **Pickpocket Drunks** | bar; bartender + guests | ❓ (50%?) | 10–20 coins | −2 HP, stunned 3s | 3s | 14 |
-| 20 | **Pry Open Parking Meters** | parking lot at the edge of town; 4–5 meters; a guard | ❓ (45%?) | 15–30 coins | −3 HP, stunned 4s | 3s | 24 |
-| 25 | **Shoplift Gas Station** | gas station next to the parking lot; clerk + shelves | 40% | 1 sandwich or 1 candy bar | −1 HP ❓ | 2s | 21 |
-| 30 | **Steal From Cars** | 3–4 cars on the same parking lot; the same guard | 35% | 30–60 coins | −3 HP, stunned 4s | 3s | 56 |
+| 1 | **Pickpocket Tourists** | 2 tourists wander a park | 65% | $1–3 | −1 HP | 2s | 3 |
+| 5 | **Raid Gym Bags** | 2 guys play basketball; bags on the bench | 55% | $2–6 | −1 HP | 2s | 5 |
+| 10 | **Shoplift Candy Store** | candy store; clerk + shelves | 40% | 1 candy bar | −1 HP, the clerk catches you | 2s | 10 |
+| 15 | **Pickpocket Drunks** | bar; bartender + guests | **100%** (risk = being seen) | $10–20 | −2 HP, stunned 3s | 3s | 8 |
+| 20 | **Pry Open Parking Meters** | parking lot at the edge of town; 4–5 meters; a guard | **100%** (risk = being seen) | $15–30 | −3 HP, stunned 4s | 3s | 7 |
+| 25 | **Shoplift Gas Station** | gas station next to the parking lot; clerk + shelves | 40% | 1 sandwich or 1 candy bar | −2 HP, the clerk catches you | 2s | 21 |
+| 30 | **Steal From Cars** | 3–4 cars on the same parking lot; the same guard | 35% | $30–60 | −3 HP, stunned 4s | 3s | 56 |
 
 **XP proposal:** pickpocketing earns ~5,400 XP/h if every attempt succeeds (~2,600 XP/h with real odds and stuns).
-Each next crime earns ~30% more **real** XP per hour, taking its lower odds, longer time and stun into account.
-To be tuned once guards, the bartender and refill times exist (they slow some crimes down).
+Each next crime earns ~30% more **real** XP per hour, taking its odds, time, stun and (for Drunks and Meters)
+the time you spend waiting for the bartender or guard into account. To be tuned once those NPCs exist.
 
 ### How each crime works
 
-1. **Pickpocket Tourists (1).** Two tourists stroll around the park. Tap one to try. Success: 1–3 coins.
+1. **Pickpocket Tourists (1).** Two tourists stroll around the park. Tap one to try. Success: $1–3.
 2. **Raid Gym Bags (5).** Two NPCs play basketball on a court; their gym bags sit on a bench at the side.
-   Tap a bag. Success: 2–6 coins.
+   Tap a bag. Success: $2–6.
 3. **Shoplift Candy Store (10).** An enterable shop (like Eddy's) with a **clerk** wandering around the register
    and some **shelves**. Tap a shelf. Success: **1 candy bar** (food, +1 HP when eaten). A shelf you stole from is
-   **empty** for a while ❓ (refill time).
+   **empty for 10 seconds**. Failure: the clerk yells **"Hey!"**, comes over and hits you (−1 HP).
 4. **Pickpocket Drunks (15).** A bar inside a building, with a **bartender** and bar guests. Every few seconds the
-   bartender **turns his back** for a few seconds. Pickpocket guests while he isn't looking. If he sees you, he yells
-   **"Leave my guests alone!"**, walks over and hits you (−2 HP, stunned 3s).
-5. **Pry Open Parking Meters (20).** A parking lot at the edge of town with 4–5 meters. An emptied meter needs
-   **30 seconds** to fill up again. A **guard** patrols the lot; if he spots you at a meter he yells **"I saw that!"**,
-   walks over and hits you (−3 HP, stunned 4s), then goes back to patrolling.
-6. **Shoplift Gas Station (25).** An enterable gas station next to the parking lot, same system as the candy store.
-   Success: **1 sandwich** (+2 HP) or **1 candy bar** (+1 HP).
-7. **Steal From Cars (30).** 3–4 cars on the same parking lot, with the same guard as the meters.
-   Success: 30–60 coins.
+   bartender **turns his back** for a few seconds. A pickpocket here **always works**; the risk is being seen.
+   If he sees you mid-attempt, he yells **"Leave my guests alone!"**, walks over and hits you (−2 HP, stunned 3s),
+   and the attempt is lost.
+5. **Pry Open Parking Meters (20).** A parking lot at the edge of town with 4–5 meters. Prying one open **always works**
+   if nobody sees you. An emptied meter needs **15 seconds** to fill up again. A **guard** patrols the lot; if he spots
+   you at a meter he yells **"I saw that!"**, walks over and hits you (−3 HP, stunned 4s), then goes back to patrolling.
+6. **Shoplift Gas Station (25).** An enterable gas station next to the parking lot, same system as the candy store
+   (shelves empty for 10 seconds). Success: **1 sandwich** (+2 HP) or **1 candy bar** (+1 HP).
+   Failure: the clerk yells **"Hey!"**, comes over and hits you (−2 HP).
+7. **Steal From Cars (30).** 3–4 cars on the same parking lot, with the same guard as the meters (35% odds on top).
+   Success: $30–60.
 
-### Getting caught (NPCs that watch)
+### Getting caught (NPCs that react)
 
-- The **bartender** and the **guard** have a view cone. If you're working a crime inside it, they catch you:
-  they yell their line, walk to you, hit you (HP loss + stun), then go back to what they were doing.
-- Clerks in the shops ❓: do they catch you too, or only the shelf odds?
-- Being caught replaces "bust/jail" ❓ (see questions).
+- **Shop clerks** (candy store, gas station): on a failed shoplift the clerk yells **"Hey!"**, walks over and hits you.
+- **The bartender and the guard** watch with a view cone. If they see you working a crime, they catch you: they yell
+  their line, walk to you, hit you (HP loss + stun), then go back to what they were doing.
+- **No heat, no jail, no bail.** Getting caught (HP loss and a stun) is the only punishment.
 
-### Open questions for Street Crimes v2
+### Food
 
-1. ❓ **Starting odds** for Pickpocket Drunks (15) and Parking Meters (20) are empty in the sheet. Proposal: 50% and 45%.
-2. ❓ **Gas station row**: the columns looked shifted. Read as: reward = 1 sandwich (+2 HP) or 1 candy bar (+1 HP),
-   on fail = −1 HP, 2 seconds. Correct?
-3. ❓ **Shelf refill time** in the shops. Proposal: 30 seconds, like the parking meters.
-4. ❓ **Heat and jail**: the sheet doesn't use them; NPCs catching you replaces that. Proposal: remove heat, jail and bail.
-5. ❓ **Shop clerks**: just decoration, or do they catch you like the guard?
-6. ❓ **Eating**: tap food in your inventory to eat it (+HP). Does food stack in one slot? Is there a short delay
-   between bites? Proposal: stacks, no delay for now.
-7. ❓ **Gold vs coins**: the sheet says "coins". Rename gold → coins everywhere?
+- Food **stacks** in one inventory slot.
+- **Eating takes 1 tick (0.5 seconds)**: tap the food to eat one. Candy bar +1 HP, sandwich +2 HP.
 
-## 5. Health, heat and jail
+### Decided (answers to the open questions)
+
+- Drunks and Parking Meters: 100% success; the risk is being seen. Steal From Cars keeps 35% plus the guard.
+- Gas station: reward 1 sandwich or candy bar, on fail −2 HP, 2 seconds; the clerk catches you.
+- Shelves refill in 10 seconds, parking meters in 15.
+- Heat, jail and bail are removed.
+- Clerks catch you on a failed shoplift.
+- Food stacks; eating is 1 tick.
+- **Money is always dollars ($)**: no coins or gold.
+
+## 5. Health
 
 - **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
   Below 3 HP you can't start a job; at 0 the job stops. Real healing comes from items (see §9, Healing).
@@ -129,13 +134,11 @@ To be tuned once guards, the bartender and refill times exist (they slow some cr
   about 4 times a minute, so 10 HP lasts roughly 2½ minutes of work. That is intended: health is a real limit
   from day one, and **food is a core system**, the main way to keep going. It matters even more once
   combat arrives. Food is the next thing to scope.
-- **Heat:** 0–100. Working adds heat per minute (more for bigger crimes); it cools by 2 per minute.
-  High heat lowers odds and raises bust risk. A bust drops heat by 25.
-- **Jail:** a bust locks you up for 10–60 seconds. Bail costs 1 gold per 5 seconds left.
+- **Heat and jail:** removed. Getting caught by an NPC (HP loss + stun) is the punishment (§4).
 
 ## 6. Economy and items
 
-- Currency: **gold** today (the Street Crimes sheet calls it **coins**, see §4 question 7).
+- Money is **dollars ($)**. Always: never coins or gold.
 - **Items must mean something.** Skills like Street Crimes **don't drop random loot** any more: crimes pay
   coins directly. The only items from Street Crimes are **food** from the two shoplifting crimes, and food heals.
 - **Combat (future):** enemies have **loot tables**; killing an enemy grants a drop. That's where most items will come from.
