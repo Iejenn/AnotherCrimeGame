@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.30.0',
+    date: '2026-11-16',
+    title: 'A city your size',
+    items: [
+      'The buildings are now drawn at your scale: 2 or 3 floors with windows a person fits behind, instead of toy towers with rows of tiny windows.',
+      'Every building has a front door with a step and a lamp, and shop windows sit at eye level.',
+      'The shops are a proper storey tall, with a door you fit through. The gas station canopy is high enough to stand under.',
+      'Tip: drag up or down to tilt the camera lower and look down the street.',
+    ],
+  },
+  {
     version: '0.29.0',
     date: '2026-11-16',
     title: 'Pigeon manners',
