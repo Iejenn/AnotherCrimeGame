@@ -17,7 +17,7 @@ import { animateCharacter, buildCharacter, randomLook, type Pose } from './chara
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, buildCar, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
-import type { EnemyState, FightEvent } from '../net/useOnlineGame';
+import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
@@ -242,6 +242,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       target: THREE.Vector3;
       wait: number;
       moving: boolean;
+      /** When they last moved at walking speed (performance.now()): keeps the walk pose steady between frames. */
+      lastMove?: number;
       /** normal = their usual routine; rush = coming to hit you; hit = swinging; back = walking back. */
       mode: 'normal' | 'rush' | 'hit' | 'back';
       path: [number, number][];
@@ -417,6 +419,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const e = worldRef.current?.enemies().find((x) => x.id === id);
       if (!e || e.deadUntil) return;
       const w = worldRef.current!;
+      if (e.returning && !e.fighter && gameNow() < e.returning.at + RETURN_MS) return say("It's heading back to its spot. Give it a moment.");
       if (e.fighter && e.fighter !== w.myId) return say(`Someone else is fighting that ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'thing'}.`);
       const at = enemyAt(e);
       const [ex, ey] = tileOf(at.x, at.z);
@@ -451,10 +454,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const delay = Math.min(1200, Math.max(0, ev.at - first));
         setTimeout(() => {
           const view = target ? enemyViews.get(target) : undefined;
-          if (ev.killed) {
-            if (view) view.dyingUntil = performance.now() + 700;
-            return;
-          }
+          if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
             me.punchUntil = performance.now() + 350;
             if (view) hitsplat(view.g.position, ev.dmg ?? 0);
@@ -559,6 +559,13 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         setTalkingRef.current(null);
         if (me.attached && sRef.current.player.job) stopWorking();
         chases = 0;
+        const ev = enemyViews.get(hit.object.userData.enemyId);
+        if (ev) {
+          // The tap ring under the pigeon (red: an attack), like the yellow one when you walk.
+          ring.position.set(ev.g.position.x, 0.08, ev.g.position.z);
+          (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
+          (ring.material as THREE.MeshBasicMaterial).color.set(0xe0473a);
+        }
         goFight(hit.object.userData.enemyId);
         return;
       }
@@ -849,7 +856,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       for (const [id, n] of Object.entries(r.items)) parts.push([`+${n} ${ITEM_BY_ID[id]?.name ?? id}`, 'f-cash']);
       const xp = Object.values(r.xp).reduce((a, b) => a + (b ?? 0), 0);
       if (xp) parts.push([`+${Math.round(xp).toLocaleString('en-US')} xp`, 'f-xp']);
-      if (r.damage) parts.push([`-${r.damage} HP`, 'f-bust']);
+      if (r.damage && !r.combat) parts.push([`-${r.damage} HP`, 'f-bust']);
       const big: [string, string][] = [];
       if (r.bigScores) big.push(['Big score!', 'f-level']);
       for (const l of r.levelUps) big.push([`${SKILL_BY_ID[l.skill].name} level ${l.level}!`, 'f-level']);
@@ -1082,8 +1089,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         } else if (npc.kind === 'baller') {
           // Ballers are moved by the basketball game (except the one throwing a ball at you).
           const b = hoops.player(npc.id === 'baller_0' ? 0 : 1, now / 1000);
+          // Walking or not by SPEED, held for a moment: per frame the distance is tiny on a fast (144 Hz) screen, so a
+          // per-frame check flipped between walk and idle every frame (legs and arms glitching).
           const d = b.pos.clone().sub(w.pos);
-          w.moving = d.length() > 0.01;
+          if (d.length() / Math.max(dt, 0.001) > 0.3) w.lastMove = now;
+          w.moving = now - (w.lastMove ?? 0) < 200;
           w.pos.copy(b.pos);
           const throwing = toss?.baller === npc.id && now - toss.t0 < THROW_MS;
           g.rotation.y = throwing ? Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z) : b.facing;
@@ -1177,15 +1187,39 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           v.pos = null;
           continue;
         }
+        // Dying: it falls where it was hit, it doesn't fly back to its spot first.
+        if (dying && v.pos) {
+          v.g.position.set(v.pos.x, 0.03, v.pos.z);
+          animatePigeon(v.g, 'dead', now, e.index * 1.3);
+          continue;
+        }
         const at = enemyAt(e);
-        const goal = new THREE.Vector3(at.x, 0, at.z);
-        if (!v.pos) v.pos = goal.clone();
-        v.pos.lerp(goal, Math.min(1, dt * 12));
-        const d = goal.clone().sub(v.g.position).setY(0);
-        if (d.length() > 0.02) v.g.rotation.y = Math.atan2(d.x, d.z);
+        const t = gameNow();
+        const ret = e.returning && !e.fighter && t < e.returning.at + RETURN_MS ? e.returning : null;
+        if (!v.pos) v.pos = ret ? new THREE.Vector3(ret.from[0] + 0.5, 0, ret.from[1] + 0.5) : new THREE.Vector3(at.x, 0, at.z);
+        const before = v.pos.clone();
+        let flying = at.flying;
+        if (ret) {
+          // Walked away from: it follows that player for 5 s (keeping a step away), then walks back to where its
+          // routine has it now, arriving as the 10 s run out. Walking, not flying or teleporting.
+          flying = false;
+          const who = ret.by === worldRef.current?.myId ? me.pos : others.get(ret.by)?.pos;
+          const following = t - ret.at < RETURN_MS / 2 && who && who.distanceTo(v.pos) < 10;
+          if (following) {
+            const gap = who.clone().sub(v.pos).setY(0);
+            if (gap.length() > 1) v.pos.add(gap.clampLength(0, Math.min(gap.length() - 1, 2.2 * dt)));
+          } else {
+            const gap = new THREE.Vector3(at.x - v.pos.x, 0, at.z - v.pos.z);
+            const left = Math.max(0.05, (ret.at + RETURN_MS - t) / 1000);
+            v.pos.add(gap.clampLength(0, Math.max(1.5, gap.length() / left) * dt));
+          }
+        } else v.pos.lerp(new THREE.Vector3(at.x, 0, at.z), Math.min(1, dt * 12));
+        const d = v.pos.clone().sub(before).setY(0);
+        const walking = d.length() / Math.max(dt, 0.001) > 0.3;
+        if (d.length() > 0.002) v.g.rotation.y = Math.atan2(d.x, d.z);
         if (e.fighter && foe === e.id) v.g.rotation.y = Math.atan2(me.pos.x - v.pos.x, me.pos.z - v.pos.z);
-        v.g.position.set(v.pos.x, 0.03 + (at.flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
-        animatePigeon(v.g, dying ? 'dead' : at.flying ? 'fly' : now < v.peckUntil ? 'attack' : 'peck', now, e.index * 1.3);
+        v.g.position.set(v.pos.x, 0.03 + (flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
+        animatePigeon(v.g, flying ? 'fly' : now < v.peckUntil ? 'attack' : walking && ret ? 'walk' : 'peck', now, e.index * 1.3);
       }
 
       // Other players: walk them along the route they shared.

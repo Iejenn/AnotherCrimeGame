@@ -478,6 +478,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (min-width: 721px) {
   .app { max-width: none; padding: 10px 20px 14px; }
   .content > :not(.street) { max-width: 1080px; margin-left: auto; margin-right: auto; }
+  /* The bag stays bag-sized (OSRS-like, ~70px slots), not stretched across the screen. */
+  .content > .inventory { max-width: 320px; }
   .street { height: calc(100dvh - 132px); }
 }
 /* The chat takes less room: a bit lower on phones; on desktop an OSRS-style panel in the bottom-left corner. */

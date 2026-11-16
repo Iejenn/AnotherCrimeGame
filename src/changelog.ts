@@ -8,6 +8,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.29.0',
+    date: '2026-11-16',
+    title: 'Pigeon manners',
+    items: [
+      'Walk away from a Pigeon and it follows you for 5 seconds, then walks back to its spot. No more teleporting. It can\'t be attacked again until it\'s back.',
+      'A killed Pigeon drops right where it was hit, instead of flying back to its spot first.',
+      'Tapping a Pigeon shows a red ring under it.',
+      'A Pigeon\'s peck no longer shakes the screen or says "Stunned!": the hitsplat and your health bar show it.',
+      'On a computer the inventory is bag-sized again instead of filling the screen.',
+      'Fixed the basketball players\' arms and legs glitching while they walk on fast screens.',
+    ],
+  },
+  {
     version: '0.28.0',
     date: '2026-11-16',
     title: 'Watch your back',

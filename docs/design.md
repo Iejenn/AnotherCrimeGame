@@ -486,7 +486,8 @@ that's ~4 Pigeons before you need to eat: food matters (§5).
 
 Tap a Pigeon → you walk up (following it if it flutters off) and fight. Hitsplats like OSRS: **red with the damage**,
 **blue 0 for a miss**. The enemy shows "Pigeon (level 1)" and a health bar once hurt. A killed Pigeon drops dead and
-comes back after 25 s. Tapping anywhere else walks you away and ends the fight. Others see who's fighting what: a
+comes back after 25 s. Tapping anywhere else walks you away and ends the fight. The Pigeon then follows you for 5 s and walks back to its spot (5 s);
+it can't be attacked meanwhile. A killed Pigeon falls where it was hit. Others see who's fighting what: a
 Pigeon in a fight stands still where it was attacked.
 
 ### Build order

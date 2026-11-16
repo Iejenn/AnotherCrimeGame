@@ -53,6 +53,9 @@ export interface ServerAnswer {
   events?: FightEvent[];
 }
 
+/** How long an enemy you walked away from takes to follow you (first half) and walk back (second half). */
+export const RETURN_MS = 10_000;
+
 /** An enemy as the server describes it. */
 export interface EnemyState {
   id: string;
@@ -64,6 +67,8 @@ export interface EnemyState {
   /** Who's fighting it, and where it stands still meanwhile. */
   fighter: string | null;
   fightPos: [number, number] | null;
+  /** A fight just ended without it dying: it follows `by` for 5 s from `from`, then walks back (10 s in all). */
+  returning?: { by: string; from: [number, number]; at: number } | null;
 }
 
 /** One swing in a fight: yours or the enemy's, how much damage (0 = miss), or the enemy dying. */
@@ -93,6 +98,7 @@ const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_f
 const SAY: Record<string, string> = {
   enemy_busy: 'Someone else is already fighting that.',
   enemy_dead: "It's gone. It'll be back soon.",
+  enemy_returning: "It's heading back to its spot. Give it a moment.",
   cant_equip: "You can't wear that.",
   bag_full: 'Your bag is full.',
   not_enough_cash: "You don't have enough cash.",
@@ -184,7 +190,13 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       const lines: LogEntry[] = (a.log ?? []).map((text) => ({ t, text, kind: /stunned|died|saw you|spotted|alarm/i.test(text) ? 'fail' : 'success' }));
       ref.current = fromServer(a, [...lines.reverse(), ...ref.current.log].slice(0, 150));
       const report: Report = { ...emptyReport(), ...a.report } as Report;
-      if (report.jobs || report.events.length || report.hit || report.died || Object.keys(report.items).length) listeners.current.forEach((fn) => fn(report));
+      // A peck in a fight is not a stun: no screen shake or "Stunned!" (fight answers carry `events`). The damage
+      // still counts, so your health bar shows.
+      if (a.events) {
+        report.hit = false;
+        report.combat = true;
+      }
+      if (report.jobs || report.events.length || report.hit || report.died || report.damage || Object.keys(report.items).length) listeners.current.forEach((fn) => fn(report));
       toast([
         ...report.levelUps.map((l) => ({ text: `${SKILL_BY_ID[l.skill].name} → Lv ${l.level}`, kind: 'level' as const })),
         ...report.events.map((e) => ({ text: e, kind: 'event' as const })),
@@ -310,7 +322,11 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
     const ch = supabase
       .channel('enemies')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'enemies' }, (msg) => {
-        const r = msg.new as { id: string; kind: string; idx: number; hp: number; dead_until: string | null; fighter: string | null; fight_x: number | null; fight_y: number | null; fight_seen: string | null };
+        const r = msg.new as {
+          id: string; kind: string; idx: number; hp: number; dead_until: string | null; fighter: string | null;
+          fight_x: number | null; fight_y: number | null; fight_seen: string | null;
+          left_at: string | null; left_by: string | null; left_x: number | null; left_y: number | null;
+        };
         const now = gameNow();
         const dead = r.dead_until ? Date.parse(r.dead_until) : 0;
         const fighting = !!r.fighter && !!r.fight_seen && Date.parse(r.fight_seen) > now - 5000;
@@ -322,6 +338,10 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
           deadUntil: dead > now ? dead : null,
           fighter: fighting ? r.fighter : null,
           fightPos: fighting && r.fight_x !== null && r.fight_y !== null ? [r.fight_x, r.fight_y] : null,
+          returning:
+            r.left_at && r.left_by && r.left_x !== null && r.left_y !== null && dead <= now && Date.parse(r.left_at) > now - RETURN_MS
+              ? { by: r.left_by, from: [r.left_x, r.left_y], at: Date.parse(r.left_at) }
+              : null,
         };
         enemies.current = [...enemies.current.filter((e) => e.id !== r.id), next];
       })
