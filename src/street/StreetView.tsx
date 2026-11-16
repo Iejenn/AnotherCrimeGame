@@ -190,6 +190,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const tileOf = (x: number, z: number): [number, number] => [Math.floor(x), Math.floor(z)];
     const center = (tx: number, ty: number) => new THREE.Vector3(tx + 0.5, 0, ty + 0.5);
     /** A point `h` above the floor at v (the street, or the hospital's ward upstairs): for labels over heads. */
+    /** How far something is from you along the ground (ignoring height: things in the ward or the sewer are drawn a
+     *  storey up or deep down, while your own position stays at height 0). */
+    const flat = (v: THREE.Vector3) => Math.hypot(v.x - me.pos.x, v.z - me.pos.z);
     const lift = (v: THREE.Vector3, h: number) => new THREE.Vector3(v.x, floorY(v.x, v.z) + h, v.z);
 
     // ---------- renderer / scene: dusk, long soft shadows, fog (docs/design.md §7b) ----------
@@ -1622,7 +1625,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Things on the ground, nearby: their name (cash: the amount).
       for (const it of st.ground ?? []) {
         const v = groundViews.get(it.id);
-        if (!v || v.position.distanceTo(me.pos) > LABEL_RANGE) continue;
+        if (!v || flat(v.position) > LABEL_RANGE) continue;
         const [x, y, depth] = project(lift(v.position, 0.35));
         if (depth > 1 || placed.some(([px, py, w]) => Math.abs(px - x) < w / 2 + 30 && Math.abs(py - y) < 14)) continue;
         const key = `ground:${it.id}`;
@@ -1643,7 +1646,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       for (const e of worldRef.current?.enemies() ?? []) {
         const v = enemyViews.get(e.id);
         const k = ENEMY_KINDS[e.kind];
-        if (!v || !v.g.visible || !k || v.g.position.distanceTo(me.pos) > LABEL_RANGE + 2) continue;
+        if (!v || !v.g.visible || !k || flat(v.g.position) > LABEL_RANGE + 2) continue;
         const [x, y, depth] = project(lift(v.g.position, e.kind === 'pigeon' ? 0.75 : 1.6));
         if (depth > 1) continue;
         let el = labelEls.get(`enemy:${e.id}`);
@@ -1668,7 +1671,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Other players' names (white), from far away.
       for (const [id, e] of others) {
         const o = list.find((x) => x.id === id);
-        if (!o || e.g.position.distanceTo(me.pos) > NPC_LABEL_RANGE * 1.5) continue;
+        if (!o || flat(e.g.position) > NPC_LABEL_RANGE * 1.5) continue;
         const [x, y, depth] = project(lift(e.g.position, 1.55));
         if (depth > 1) continue;
         let el = labelEls.get(`player:${id}`);
@@ -1687,7 +1690,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // "Your grave · 4:31" over your grave (from further away than other labels).
       if (gr) {
         const [x, y, depth] = project(lift(grave.position, 0.95));
-        if (depth <= 1 && grave.position.distanceTo(me.pos) < NPC_LABEL_RANGE * 1.5) {
+        if (depth <= 1 && flat(grave.position) < NPC_LABEL_RANGE * 1.5) {
           let el = labelEls.get('grave');
           if (!el) {
             el = document.createElement('div');
@@ -1756,7 +1759,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const g = npcGroups.get(npc.id)!;
         let el = labelEls.get(`npc:${npc.id}`);
         const [x, y, depth] = project(lift(g.position, 1.55));
-        if (g.position.distanceTo(me.pos) > NPC_LABEL_RANGE || depth > 1) continue;
+        if (flat(g.position) > NPC_LABEL_RANGE || depth > 1) continue;
         if (!el) {
           el = document.createElement('div');
           el.className = 'node-label npc';
