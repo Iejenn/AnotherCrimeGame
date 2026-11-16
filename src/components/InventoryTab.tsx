@@ -1,8 +1,8 @@
 // RuneScape-style bag: 28 slots. Cash always sits in the first one, then items (food stacks).
 import { useState } from 'react';
 import type { GameState } from '../game/types';
-import { ITEM_BY_ID } from '../game/data/items';
-import { INVENTORY_SLOTS, cantEat, fmtMoney, slotsUsed } from '../game/engine';
+import { ITEM_BY_ID, buyerOf } from '../game/data/items';
+import { INVENTORY_SLOTS, cantEat, fmtMoney, itemPrice, slotsUsed } from '../game/engine';
 import { gameNow } from '../game/clock';
 import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from './Bag';
@@ -40,14 +40,18 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
             return (
               <>
                 <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? 'Weapon' : 'Item'}</div>
-                <strong className="detail-name">
-                  {def.name} {selected.count > 1 && <span className="muted mono">×{selected.count}</span>}
-                </strong>
-                {def.value > 0 ? (
-                  <p className="muted small">Eddy at the General Store pays {fmtMoney(def.value)} each.</p>
-                ) : def.gear ? (
-                  <p className="muted small">+{(def.gear.damage ?? 1) - 1} damage over your fists. Same speed. Never wears out.</p>
-                ) : null}
+                <strong className="detail-name">{def.name}</strong>
+                {def.gear && (
+                  <p className="muted small">
+                    +{(def.gear.damage ?? 1) - 1} damage over your fists, a swing every {((def.gear.speed ?? 3) * 0.5).toFixed(1)}s
+                    {def.gear.needs && def.gear.needs.level > 1 ? `, needs Melee ${def.gear.needs.level}` : ''}. Never wears out.
+                  </p>
+                )}
+                {itemPrice(selected.id) > 0 && (
+                  <p className="muted small">
+                    {buyerOf(selected.id) === 'ray' ? "Ray at Ray's Arms" : 'Eddy at the General Store'} pays {fmtMoney(itemPrice(selected.id))} for it.
+                  </p>
+                )}
                 <div className="save-row">
                   {def.gear && (
                     <button className="btn small primary" onClick={() => api.equip(selected.id)}>
@@ -62,7 +66,7 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
                   <button
                     className="btn small"
                     onClick={() => {
-                      if (confirm(`Drop all ${selected.count} ${def.name}? They're gone for good.`)) api.drop(selected.id);
+                      if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
                     }}
                   >
                     Drop

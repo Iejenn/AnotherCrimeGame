@@ -33,6 +33,8 @@ interface Msg {
   text: string;
 }
 
+/** How a weapon's swing looks (see ItemDef.gear.anim). */
+const weaponAnim = (id: string | undefined) => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
 const WALK_SPEED = 4; // tiles per second
 const LABEL_RANGE = 5; // tiles
 const NPC_LABEL_RANGE = 9; // NPC names show from further away
@@ -381,6 +383,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       goalEnemy: null as string | null,
       /** Throwing a punch (pose) until this time. */
       punchUntil: 0,
+      /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
+      punchAt: 0,
     };
     /** Remember the tile you're on in the save (so switching tabs or reloading keeps you here). */
     const savePos = () => {
@@ -460,7 +464,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           const view = target ? enemyViews.get(target) : undefined;
           if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
-            me.punchUntil = performance.now() + 350;
+            // A punch is quick; a bat swing takes a moment (it lands as the hitsplat shows).
+            const swing = weaponAnim(sRef.current.equipment?.weapon) === 'swing';
+            me.punchAt = performance.now() - (swing ? 380 : 0);
+            me.punchUntil = me.punchAt + (swing ? 900 : 350);
             if (view) hitsplat(view.g.position, ev.dmg ?? 0);
           } else {
             if (view) view.peckUntil = performance.now() + 350;
@@ -990,8 +997,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       setGear(player, st.equipment);
       player.position.set(me.pos.x, 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
-      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working || now < me.punchUntil ? 'work' : 'idle';
-      animateCharacter(player, pose, now);
+      const swinging = now < me.punchUntil && weaponAnim(st.equipment?.weapon) === 'swing';
+      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || now < me.punchUntil ? 'work' : 'idle';
+      animateCharacter(player, pose, now, 0, (now - me.punchAt) / (me.punchUntil - me.punchAt));
       player.rotation.y = me.facing;
 
       // Tourists stroll (unless you're targeting or working one).
@@ -1261,7 +1269,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             const v = enemyViews.get(os.fightEnemy);
             if (v?.g.visible) {
               e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
-              pose = 'work';
+              pose = weaponAnim(o.equipment?.weapon) === 'swing' ? 'swing' : 'work';
             }
           } else if (os.spot && os.jobEndsAt > t) {
             const n = NODES.find((x) => x.id === os.spot);
@@ -1302,7 +1310,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         e.g.position.set(e.pos.x, 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
         setGear(e.g, o.equipment);
-        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37);
+        // Someone else swinging a bat: their swings loop at the weapon's speed (we don't see their exact timing).
+        const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 6) * 500;
+        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'swing' ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, 900) : 0);
       }
       for (const [id, e] of others)
         if (!here.has(id)) {

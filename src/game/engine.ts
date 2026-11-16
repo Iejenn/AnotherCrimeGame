@@ -3,7 +3,7 @@
 import type { GameState, Look, LogKind, Report, SkillId } from './types';
 import { SKILL_BY_ID, SKILL_IDS } from './data/skills';
 import { CATCH_SECONDS, CRIME_BY_ID, EAT_SECONDS, type CrimeDef } from './data/crimes';
-import { ITEM_BY_ID } from './data/items';
+import { ITEM_BY_ID, SELL_SHARE } from './data/items';
 import { RANKS } from './data/world';
 import { levelFromXp, MAX_LEVEL, totalXpForLevel } from './xp';
 import { pick, randRange, type Rng } from './rng';
@@ -36,8 +36,9 @@ export function rankFor(total: number) {
   return { name: RANKS[idx][1], next: RANKS[idx + 1] ?? null, current: RANKS[idx] };
 }
 
+/** Bag slots in use: cash takes one, and every item one of its own (nothing stacks except cash). */
 export function slotsUsed(s: GameState) {
-  return 1 + Object.keys(s.inventory).length;
+  return 1 + Object.values(s.inventory).reduce((n, c) => n + c, 0);
 }
 
 
@@ -343,12 +344,13 @@ export function stopJob(s: GameState) {
   s.player.job = null;
 }
 
-/** Add items to your bag. A new kind of item needs a free slot; returns how many fitted. */
+/** Add items to your bag, one slot each, as many as fit; returns how many fitted. */
 export function giveItem(s: GameState, id: string, count = 1): number {
   if (!ITEM_BY_ID[id] || count <= 0) return 0;
-  if (!s.inventory[id] && slotsUsed(s) >= INVENTORY_SLOTS) return 0;
-  s.inventory[id] = (s.inventory[id] ?? 0) + count;
-  return count;
+  const n = Math.min(count, INVENTORY_SLOTS - slotsUsed(s));
+  if (n <= 0) return 0;
+  s.inventory[id] = (s.inventory[id] ?? 0) + n;
+  return n;
 }
 
 /** Why you can't eat this right now, or null if you can. */
@@ -373,8 +375,8 @@ export function eat(s: GameState, id: string, now: number) {
   log(s, now, `You eat the ${item.name.toLowerCase()}. +${item.heal} HP.`, 'info');
 }
 
-/** What Eddy pays for one. */
-export const itemPrice = (id: string) => ITEM_BY_ID[id]?.value ?? 0;
+/** What a shop pays for one: a quarter of what it's worth, rounded down (Ray for weapons, Eddy for the rest). */
+export const itemPrice = (id: string) => Math.floor((ITEM_BY_ID[id]?.value ?? 0) * SELL_SHARE);
 
 /** Sell one of an item to the store. */
 export function sellItem(s: GameState, id: string) {
@@ -386,9 +388,11 @@ export function sellItem(s: GameState, id: string) {
   s.stats.earned += itemPrice(id);
 }
 
-/** Throw away a stack. */
+/** Throw one away. */
 export function dropItem(s: GameState, id: string) {
-  delete s.inventory[id];
+  const have = s.inventory[id] ?? 0;
+  if (have <= 1) delete s.inventory[id];
+  else s.inventory[id] = have - 1;
 }
 
 export { MAX_LEVEL };

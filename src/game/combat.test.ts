@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { attackRoll, combatLevel, defenceRoll, hitChance, maxHit, UNARMED, weaponStats } from './combat';
 import { ENEMIES, ENEMY_KINDS, PIGEON_FLY_MS, PIGEON_HOP_MS, PIGEON_TILES, pigeonAt } from './enemies';
 import { ITEM_BY_ID, SHOPS } from './data/items';
-import { maxHp, newGame } from './engine';
+import { itemPrice, maxHp, newGame } from './engine';
 import { DEFAULT_LOOK } from '../street/character';
 import { FIXTURES, PARK, inRect } from '../street/map';
 
@@ -25,7 +25,14 @@ describe('combat maths (design §12)', () => {
     expect(maxHit(k.damage!, 1)).toBe(2);
     expect(k.speed).toBe(UNARMED.speed);
     expect(k.defence ?? 0).toBe(0);
-    expect(SHOPS.weapons).toEqual([{ item: 'brass_knuckles', price: 50 }]);
+    expect(SHOPS.weapons).toEqual([{ item: 'brass_knuckles', price: 50 }, { item: 'baseball_bat', price: 250 }]);
+    // The bat: +4 damage (max hit 5 at Melee 3), a swing every 3 s, needs Melee 3. Selling gives a quarter back.
+    const bat = ITEM_BY_ID.baseball_bat.gear!;
+    expect([bat.damage, bat.speed, bat.needs?.level]).toEqual([5, 6, 3]);
+    expect(maxHit(bat.damage!, 3)).toBe(5);
+    expect(itemPrice('baseball_bat')).toBe(62);
+    expect(itemPrice('candy_bar')).toBe(1);
+    expect(itemPrice('sandwich')).toBe(2);
   });
 
   it('combat level: a new character is 3; everything at 30 is 30', () => {

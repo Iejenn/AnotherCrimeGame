@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.32.0',
+    date: '2026-11-16',
+    title: 'Batter up',
+    items: [
+      "Ray now sells a baseball bat for $250 (needs Melee 3). It hits hard, up to 5 damage, but slowly: a big swing every 3 seconds.",
+      'Shops buy things back for a quarter of what they are worth. Ray buys weapons; Eddy buys everything else.',
+      'Nothing stacks in your bag any more except cash: every item takes a slot of its own. Dropping drops one at a time.',
+    ],
+  },
+  {
     version: '0.31.0',
     date: '2026-11-16',
     title: 'Underworld as an app',

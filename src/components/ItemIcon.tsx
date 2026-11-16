@@ -56,7 +56,19 @@ const BrassKnuckles = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles };
+const BaseballBat = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    {/* a wooden bat lying diagonally: black grip tape at the handle, the barrel thickening to the end */}
+    <g transform="rotate(-40 20 20)">
+      <path d="M4 19 L10 18.4 L34 16.5 Q37.5 16.6 37.5 20 Q37.5 23.4 34 23.5 L10 21.6 L4 21 Z" fill="#c08a4a" stroke="#5a3a1a" strokeWidth="1.1" strokeLinejoin="round" />
+      <rect x="4" y="18.6" width="8" height="2.8" rx="0.8" fill="#2b2b2e" />
+      <rect x="2.4" y="17.8" width="2" height="4.4" rx="0.8" fill="#8a5a2a" stroke="#5a3a1a" strokeWidth="0.8" />
+      <path d="M16 18.6 L33 17.4" stroke="#e0b070" strokeWidth="0.9" opacity="0.8" />
+    </g>
+  </svg>
+);
+
+const ICONS: Record<string, () => JSX.Element> = { cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {

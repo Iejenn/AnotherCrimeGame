@@ -469,6 +469,11 @@ Starter ladders *(examples, to tune)*:
 
 Where gear comes from: **shops** (a place to spend dollars) and later **enemy loot tables** (§6).
 
+**v0.32 (decided):** Ray also sells a **baseball bat** for **$250**: needs **Melee 3**, damage 5 (+4 over fists), a
+swing every **6 ticks (3 s)**, and its own big swing animation (weapons name their animation: `gear.anim`).
+**Selling:** every item has a value; shops buy it back for **25%** of that, rounded down (`SELL_SHARE`). **Ray buys
+weapons, Eddy everything else.** **Nothing stacks in the bag except cash**: every item takes a slot of its own.
+
 **v1:** only the weapon slot. **Ray's Arms** (top row, 5th block) — Ray sells **brass knuckles for $50**: damage 2
 (+1 over fists), no accuracy or defence bonus, same speed as fists (3 ticks). **Weapons never wear out.** Equip from
 the Inventory tab (Wield); the Equipment panel there shows your weapon, max hit, speed and combat level. Knuckles

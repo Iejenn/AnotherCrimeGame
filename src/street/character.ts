@@ -131,10 +131,13 @@ export function buildCharacter(look: Look, extra?: { apron?: number }): THREE.Gr
   return root;
 }
 
-export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit';
+export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'swing';
 
-/** Animate a character built by buildCharacter. `t` is time in ms; `phase` offsets different characters. */
-export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 0) {
+/**
+ * Animate a character built by buildCharacter. `t` is time in ms; `phase` offsets different characters.
+ * `p` (0–1) is how far through a one-off move it is: the 'swing' pose (a weapon swung from the side) uses it.
+ */
+export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 0, p = 0) {
   const rig = g.userData.rig as Rig | undefined;
   if (!rig) return;
   const s = t / 1000 + phase;
@@ -144,7 +147,37 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
   let bob = 0;
   let wobble = 0;
   let armRSide = 0;
-  if (pose === 'walk') {
+  let twist = 0;
+  if (pose === 'swing') {
+    p = Math.min(1, Math.max(0, p));
+    // A big two-handed swing: wind back to the side (first 40%), whip through (next 25%), follow through and
+    // come back to rest. Arm out (armRSide) and body twist carry it, so it reads from above.
+    const ease = (x: number) => x * x * (3 - 2 * x);
+    let out;
+    let tw;
+    let fw;
+    if (p < 0.4) {
+      const k = ease(p / 0.4);
+      out = 1.3 * k;
+      tw = 0.7 * k;
+      fw = -0.9 * k;
+    } else if (p < 0.65) {
+      const k = ease((p - 0.4) / 0.25);
+      out = 1.3 - 1.6 * k;
+      tw = 0.7 - 1.4 * k;
+      fw = -0.9 - 0.5 * k;
+    } else {
+      const k = ease((p - 0.65) / 0.35);
+      out = -0.3 * (1 - k);
+      tw = -0.7 * (1 - k);
+      fw = -1.4 * (1 - k);
+    }
+    armR = fw;
+    armRSide = out;
+    armL = fw * 0.5; // the free hand comes along a little, close to the body
+    twist = tw;
+    bob = 0.01;
+  } else if (pose === 'walk') {
     legSwing = Math.sin(s * 11) * 0.65;
     armL = -legSwing * 0.8;
     armR = legSwing * 0.8;
@@ -176,8 +209,9 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
   rig.legR.rotation.x = pose === 'sit' ? legSwing : -legSwing; // sitting: both legs forward
   rig.armL.rotation.x = armL;
   rig.armR.rotation.x = armR;
-  rig.armL.rotation.z = -armRSide;
+  rig.armL.rotation.z = pose === 'swing' ? -0.1 : -armRSide; // a swing only moves the right arm out
   rig.armR.rotation.z = armRSide;
   rig.body.position.y = bob;
   rig.body.rotation.z = wobble;
+  rig.body.rotation.y = twist;
 }

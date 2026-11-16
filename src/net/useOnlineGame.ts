@@ -112,7 +112,8 @@ const SAY: Record<string, string> = {
   level_too_low: "Your level is too low for that.",
   caught: "You've been caught!",
   full_health: "You're already at full health.",
-  not_at_store: 'You need to be in the store to sell.',
+  not_at_store: "Sell weapons to Ray at Ray's Arms, everything else to Eddy at the General Store.",
+  nothing_to_sell: "They won't buy that.",
   no_grave: 'Your grave is gone.',
 };
 
