@@ -465,3 +465,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .gear-menu p { margin: 0 0 8px; overflow-wrap: anywhere; }
 .btn.block { width: 100%; }
 .auth-notice { color: #f2d27a; font-size: 0.85rem; margin: 0 0 8px; }
+/* Your health bar over your head: green on red, like OSRS; it pulses while your health is low. */
+.hp-bar { position: absolute; left: 0; top: 0; width: 42px; height: 6px; background: #b8282a; border: 1px solid #000; box-shadow: 0 1px 3px #000a; pointer-events: none; display: none; }
+.hp-bar > div { height: 100%; background: #3fbf4f; }
+.hp-bar.low { animation: hp-pulse 1s ease-in-out infinite; }
+@keyframes hp-pulse { 50% { box-shadow: 0 0 6px 2px #e2604c; } }
+@media (prefers-reduced-motion: reduce) { .hp-bar.low { animation: none; } }

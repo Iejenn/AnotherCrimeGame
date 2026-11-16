@@ -152,7 +152,10 @@ timing) in `src/game/data/crimes.ts`.
 ## 5. Health
 
 - **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
-  Below 3 HP you can't start a job; at 0 the job stops. Real healing comes from items (see §9, Healing).
+  **No minimum health (decided, v0.24):** you can start a crime on any health. Low health is a risk, not a block:
+  the next hit can kill you (and your stuff goes into your grave). Below 3 HP you get a "badly hurt" warning.
+  A **health bar over your head** (OSRS-style) shows for 6 seconds after every hit, and stays (pulsing) while
+  you're at 30% or less. Real healing comes from items (see §9, Healing).
   **Decided:** failures keep costing 1 HP and regen stays slow. Tapping a pickpocket every 2 seconds fails
   about 4 times a minute, so 10 HP lasts roughly 2½ minutes of work. That is intended: health is a real limit
   from day one, and **food is a core system**, the main way to keep going. It matters even more once

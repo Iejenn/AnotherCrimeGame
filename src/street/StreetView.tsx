@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { GameState, Look, Report } from '../game/types';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel } from '../game/engine';
+import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, hpAt, maxHp, skillLevel } from '../game/engine';
 import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
@@ -679,6 +679,14 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
     const camTarget = me.pos.clone();
+    // ---------- your health bar over your head (OSRS-style) ----------
+    // Shows for a few seconds after you get hit, and stays while your health is low (30% or less).
+    const hpBar = document.createElement('div');
+    hpBar.className = 'hp-bar';
+    const hpFill = document.createElement('div');
+    hpBar.appendChild(hpFill);
+    labelLayer.appendChild(hpBar);
+    let hpBarUntil = 0;
     // ---------- floating "+$5" over your head ----------
     const off = onReport((r) => {
       // One line per attempt (attempts come every second, so separate lines would pile up),
@@ -706,6 +714,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         setTimeout(() => el.remove(), 1300);
       };
       line(parts, '');
+      if (r.damage) hpBarUntil = performance.now() + 6000;
       if (r.died) {
         // You wake up at the start. Your stuff is in your grave.
         me.pos.copy(center(...SPAWN));
@@ -1161,6 +1170,19 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           el.remove();
           labelEls.delete(id);
         }
+      {
+        const hpNow = hpAt(st, gameNow());
+        const hpMax = maxHp(st);
+        const show = now < hpBarUntil || hpNow / hpMax <= 0.3;
+        hpBar.style.display = show ? 'block' : 'none';
+        if (show) {
+          const [bx, by, depth] = project(me.pos.clone().setY(1.72));
+          hpBar.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
+          hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
+          hpFill.style.width = `${Math.max(0, Math.min(1, hpNow / hpMax)) * 100}%`;
+          hpBar.classList.toggle('low', hpNow / hpMax <= 0.3);
+        }
+      }
       const [hx, hy] = project(me.pos.clone().setY(1.5));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
@@ -1184,6 +1206,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       renderer.domElement.removeEventListener('pointercancel', onUp);
       renderer.domElement.removeEventListener('wheel', onWheel);
       for (const el of labelEls.values()) el.remove();
+      hpBar.remove();
       geoms.forEach((g) => g.dispose());
       disposables.forEach((d) => d.dispose());
       (ring.material as THREE.Material).dispose();
