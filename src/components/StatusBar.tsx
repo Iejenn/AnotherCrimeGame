@@ -2,11 +2,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/types';
 import { hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
+import { useInstall } from '../useInstall';
 
 export function StatusBar({ s, now, account }: { s: GameState; now: number; account: { email: string; onSignOut: () => void } }) {
   const hp = Math.floor(hpAt(s, now));
   const max = maxHp(s);
   const [menu, setMenu] = useState(false);
+  const [iosHelp, setIosHelp] = useState(false);
+  const app = useInstall();
   const ref = useRef<HTMLDivElement>(null);
   // Tapping anywhere else closes the menu.
   useEffect(() => {
@@ -40,6 +43,24 @@ export function StatusBar({ s, now, account }: { s: GameState; now: number; acco
         {menu && (
           <div className="gear-menu" role="menu">
             <p className="muted small">Signed in as {account.email}</p>
+            {/* Install the game as an app (home screen icon, full screen). */}
+            {app.mode === 'prompt' && (
+              <button className="btn small block primary" role="menuitem" onClick={() => void app.install()}>
+                Install app
+              </button>
+            )}
+            {app.mode === 'ios' && (
+              <>
+                <button className="btn small block primary" role="menuitem" onClick={() => setIosHelp((v) => !v)}>
+                  Install app
+                </button>
+                {iosHelp && (
+                  <p className="small install-help">
+                    In Safari, tap <strong>Share</strong> (the square with an arrow), then <strong>Add to Home Screen</strong>.
+                  </p>
+                )}
+              </>
+            )}
             <button className="btn small block" role="menuitem" onClick={account.onSignOut}>
               Log out
             </button>

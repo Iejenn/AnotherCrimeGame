@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.31.0',
+    date: '2026-11-16',
+    title: 'Underworld as an app',
+    items: [
+      'Install Underworld as an app: open the gear menu (top right) and tap "Install app". It gets its own icon and opens full screen.',
+      'On iPhone and iPad: tap Share in Safari, then "Add to Home Screen".',
+      'Underworld has an icon now: the city under a red moon.',
+    ],
+  },
+  {
     version: '0.30.2',
     date: '2026-11-16',
     title: 'Skills, tidied',

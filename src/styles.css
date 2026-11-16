@@ -501,3 +501,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .equip-row { display: flex; gap: 10px; align-items: center; }
 .equip-row > .slot { width: 56px; flex: none; align-items: center; justify-content: center; cursor: default; }
 .equip-info { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+/* "Install app" in the gear menu. */
+.gear-menu .btn + .btn, .gear-menu .install-help + .btn { margin-top: 8px; }
+.install-help { margin: 8px 0 0; color: var(--paper); }
