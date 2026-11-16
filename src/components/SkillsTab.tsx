@@ -30,7 +30,8 @@ function risk(c: CrimeDef) {
   return `On a fail: ${hurt}`;
 }
 
-export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: () => void; onReset: () => void }) {
+/** Offline: save codes (onImport/onReset). Online: who you're signed in as (account). */
+export function SkillsTab({ s, onImport, onReset, account }: { s: GameState; onImport?: () => void; onReset?: () => void; account?: { email: string; onSignOut: () => void } }) {
   const [open, setOpen] = useState<SkillId>('street');
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
@@ -129,19 +130,6 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
         )}
       </section>
 
-      {s.buffs.length > 0 && (
-        <section>
-          <h3 className="rule-head">Active boosts</h3>
-          <ul className="plain small">
-            {s.buffs.map((b) => (
-              <li key={b.id}>
-                {b.label}: +{Math.round(b.value * 100)}% {b.kind}, {b.uses} more jobs
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       <section>
         <h3 className="rule-head">Record</h3>
         <div className="stats-grid">
@@ -152,6 +140,17 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
         </div>
       </section>
 
+      {account && (
+        <section>
+          <h3 className="rule-head">Account</h3>
+          <p className="muted small">You play online: your character is saved on the server, on every device you sign in on. Signed in as {account.email}.</p>
+          <div className="save-row">
+            <button className="btn small" onClick={account.onSignOut}>Sign out</button>
+            <a className="btn small" href="?offline">Play offline instead</a>
+          </div>
+        </section>
+      )}
+      {onImport && onReset && (
       <section>
         <h3 className="rule-head">Save</h3>
         <p className="muted small">Saves automatically in this browser. Use a save code to move to another device.</p>
@@ -170,6 +169,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
           </div>
         )}
       </section>
+      )}
     </div>
   );
 }

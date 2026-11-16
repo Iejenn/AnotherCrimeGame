@@ -8,6 +8,48 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.21.0',
+    date: '2026-11-16',
+    title: 'Fair play',
+    items: [
+      "Other players' names and looks now come straight from the server, so nobody can pretend to be someone else.",
+      'Random encounters and their boosts (old-timer tips, lucky streaks…) are gone.',
+    ],
+  },
+  {
+    version: '0.20.0',
+    date: '2026-11-16',
+    title: 'Online: play together',
+    items: [
+      'Online test version: open the game with ?online, make an account, and play on the server. Your character is saved to your account, on every device.',
+      'See your friends: other players walk around the island with their name over their head (and as white dots on the minimap).',
+      'Played offline before? When you first sign in, you can bring that character along.',
+      'New Highscores tab: a table for every skill. Can you get to the top?',
+    ],
+  },
+  {
+    version: '0.19.0',
+    date: '2026-11-16',
+    title: 'Groundwork for multiplayer',
+    items: [
+      'The bartender and the parking lot guard now follow fixed routines: every 8.5 seconds the bartender watches, then turns his back; the guard walks the same patrol route around the lot. Learn their timing!',
+      'Behind the scenes: every action now goes through one place, and the game has one clock, so it can move to a server later without cheating.',
+    ],
+  },
+  {
+    version: '0.18.0',
+    date: '2026-11-16',
+    title: 'Graves, a world map, and a bigger park',
+    items: [
+      'The game is now called Underworld.',
+      'Dying: at 0 HP your cash and items drop into a grave where you fell, and you wake up at the start with half health. Walk back and tap the grave within 5 minutes to get it all back.',
+      'Switching tabs (or reloading) no longer sends you back to the start: you stay where you were.',
+      'The minimap is round now, follows you and turns with the camera. Tap the map button under it for the world map: tap a place to see its crimes and who is there, and walk there.',
+      'Central Park is twice as big again (four blocks), with a pond, more paths and lamps, and three tourists instead of two.',
+      'Cash, candy bars and sandwiches have pictures in your bag.',
+    ],
+  },
+  {
     version: '0.17.0',
     date: '2026-11-16',
     title: 'The gas station and the cars',

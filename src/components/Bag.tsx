@@ -2,6 +2,7 @@
 import type { GameState } from '../game/types';
 import { ITEM_BY_ID } from '../game/data/items';
 import { INVENTORY_SLOTS, fmtMoney } from '../game/engine';
+import { ItemIcon } from './ItemIcon';
 
 export type Slot = { kind: 'cash' } | { kind: 'loot'; id: string; count: number };
 
@@ -39,7 +40,8 @@ export function Bag({ s, selected, onSelect, compact = false }: { s: GameState; 
           cls = def.heal ? 'slot-food' : '';
         }
         return (
-          <button key={k} className={`slot ${cls} ${selected === k ? 'selected' : ''}`} onClick={() => onSelect(k)}>
+          <button key={k} className={`slot ${cls} ${selected === k ? 'selected' : ''}`} onClick={() => onSelect(k)} title={name} aria-label={`${name}${sub ? ` ${sub}` : ''}`}>
+            <ItemIcon id={sl.kind === 'cash' ? 'cash' : sl.id} />
             <span className="slot-name">{name}</span>
             {sub && <span className="slot-sub">{sub}</span>}
           </button>

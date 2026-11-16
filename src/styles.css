@@ -1,4 +1,4 @@
-/* Underworld Idle — "case file" look.
+/* Underworld — "case file" look.
    Ink-black paper, off-white type, one red stamp accent. Serif for headlines,
    mono for every number, plain sans for reading. Rules instead of boxes. */
 :root {
@@ -367,7 +367,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* ---------- minimap ---------- */
-.minimap { position: absolute; top: 10px; right: 10px; z-index: 3; border: 2px solid #8a8276; border-radius: 3px; box-shadow: 0 2px 10px #000a; cursor: pointer; touch-action: none; }
+.minimap-wrap { position: absolute; top: 10px; right: 10px; z-index: 3; width: 132px; height: 146px; }
+.minimap { display: block; border: 2px solid #8a8276; border-radius: 50%; box-shadow: 0 2px 10px #000a, inset 0 0 12px #000a; cursor: pointer; touch-action: none; background: #15303f; }
+/* The world-map button sits on the bottom of the round minimap. */
+.map-btn { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 34px; height: 34px; border-radius: 50%; border: 2px solid #8a8276; background: #2a2622; padding: 5px; cursor: pointer; box-shadow: 0 2px 6px #000a; }
+.map-btn svg { width: 100%; height: 100%; display: block; }
 .street-status { max-width: calc(100% - 180px); }
 
 /* ---------- failed attempt: a short screen shake ---------- */
@@ -389,3 +393,49 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* NPC labels that warn you: red while the bartender watches, green while his back is turned. */
 .node-label.npc[data-tone='alert'] { color: #ff9a8a; border-bottom-color: #e0473a; }
 .node-label.npc[data-tone='safe'] { color: #a8e88a; border-bottom-color: #5bd06a; }
+/* Item pictures in the bag: the picture fills the slot; name and count sit on top of it. */
+.slot { position: relative; }
+.item-icon { position: absolute; inset: 14% 10% 18%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.item-icon svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 2px #0009); }
+.slot .slot-name, .slot .slot-sub { position: relative; z-index: 1; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+.slot:has(.item-icon) .slot-name { font-size: 0.62rem; color: var(--muted); }
+.bag.compact .item-icon { inset: 12% 18% 16%; }
+/* Your grave's label: pale, like the stone. */
+.node-label.grave { color: #e8eef8; border-bottom: 1px solid #bfd8ff; }
+/* ---------- world map ---------- */
+.worldmap-backdrop { position: absolute; inset: 0; z-index: 20; background: rgba(10, 9, 8, 0.78); display: flex; align-items: flex-start; justify-content: center; padding: 10px; overflow-y: auto; }
+.worldmap { width: 100%; max-width: 560px; background: var(--ink); border: 1px solid var(--rule-strong); border-radius: 4px; padding: 10px 12px 14px; box-shadow: 0 8px 30px #000c; }
+.worldmap-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.worldmap-head .headline { margin: 0; }
+.worldmap-canvas { position: relative; width: 100%; border-radius: 3px; overflow: hidden; border: 1px solid var(--rule); }
+.worldmap-canvas canvas { width: 100%; height: 100%; display: block; }
+.map-icon { position: absolute; transform: translate(-50%, -50%); width: 30px; height: 30px; padding: 3px; border-radius: 50%; background: #1c1a17; border: 2px solid #8a8276; cursor: pointer; box-shadow: 0 2px 6px #000c; }
+.map-icon svg { width: 100%; height: 100%; display: block; }
+.map-icon.active { border-color: #f2d27a; box-shadow: 0 0 0 3px #f2d27a55, 0 2px 6px #000c; }
+.map-icon.locked { opacity: 0.6; filter: grayscale(0.7); }
+.map-marker { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+.map-marker.you { width: 10px; height: 10px; border-radius: 50%; background: #e2604c; border: 2px solid #fff; box-shadow: 0 0 0 3px #e2604c55; }
+.map-marker.grave { width: 10px; height: 13px; border-radius: 5px 5px 1px 1px; background: #d8d4cc; border: 1px solid #141210; }
+.worldmap-info { margin-top: 10px; }
+.worldmap-info .rule-head { margin-top: 0; }
+.map-crimes li { margin: 3px 0; }
+.map-crimes li.locked { color: var(--muted); }
+.worldmap-hint { margin: 10px 0 0; }
+/* ---------- online sign-in ---------- */
+.auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.auth-form input { width: 100%; }
+.auth-error { color: var(--red-ink); font-size: 0.85rem; margin: 0; }
+.auth-info { color: var(--money); font-size: 0.85rem; margin: 0; }
+.auth-links { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 10px; }
+/* ---------- highscores ---------- */
+.hs-skills { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.hs-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.hs-table th { text-align: left; font: 600 0.65rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--rule-strong); padding: 6px 4px; }
+.hs-table td { padding: 6px 4px; border-bottom: 1px solid var(--rule); }
+.hs-table tr.me td { background: #f2d27a22; color: #f2d27a; font-weight: 700; }
+.node-label.player { color: #ffffff; font-weight: 700; border-bottom: 1px solid #e8e2d6; }
+/* Five tabs must fit a phone: share the width evenly and tighten the letters on narrow screens. */
+.tab { flex: 1 1 auto; text-align: center; }
+@media (max-width: 480px) {
+  .tab { padding: 12px 4px 10px; letter-spacing: 0.04em; font-size: 0.68rem; }
+}

@@ -24,6 +24,8 @@ export interface Job {
   endsAt: number;
   /** Which spot on the Street (a shelf, a meter…), so an emptied one can't be used again right away. */
   spotId?: string;
+  /** The tile you stand on while doing it (the guard checks whether his flashlight reaches you there). */
+  pos?: [number, number] | null;
 }
 
 export interface PlayerState {
@@ -36,16 +38,18 @@ export interface PlayerState {
   caught?: { crimeId: string; at: number } | null;
   /** Spot id → time it's full again (shelves you emptied, meters you pried open). */
   emptySpots?: Record<string, number>;
+  /** The Street tile you're standing on (kept when you switch tabs or reload). null = at the start. */
+  pos?: [number, number] | null;
 }
 
-export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
-
-export interface Buff {
-  id: string;
-  label: string;
-  kind: BuffKind;
-  value: number;
-  uses: number;
+/** Where you died: your cash and items wait there until you collect them, or until it crumbles. */
+export interface Grave {
+  x: number;
+  y: number;
+  cash: number;
+  items: Record<string, number>;
+  diedAt: number;
+  expiresAt: number;
 }
 
 export type LogKind = 'success' | 'big' | 'fail' | 'bust' | 'level' | 'event' | 'info' | 'loot';
@@ -71,8 +75,9 @@ export interface GameState {
   player: PlayerState;
   /** Item id → how many (food stacks). Each different item takes one inventory slot. */
   inventory: Record<string, number>;
-  buffs: Buff[];
-  stats: { jobs: number; bigScores: number; earned: number; fails: number };
+  /** Your grave, if you died and haven't collected your stuff yet. */
+  grave?: Grave | null;
+  stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };
   log: LogEntry[];
   nextId: number;
 }
@@ -93,8 +98,10 @@ export interface Report {
   hit: boolean;
   /** Items you got (food from shoplifting). */
   items: Record<string, number>;
+  /** You died this tick (the Street moves you back to the start). */
+  died: boolean;
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0, hit: false, items: {} };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0, hit: false, items: {}, died: false };
 }

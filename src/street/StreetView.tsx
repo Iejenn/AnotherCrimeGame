@@ -4,21 +4,25 @@
 // who catch you (clerks, the bartender, the guard). Drag to rotate the camera, pinch (or wheel) to zoom.
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import type { GameState, Report } from '../game/types';
+import type { GameState, Look, Report } from '../game/types';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel, spotted, startJob, stopJob } from '../game/engine';
+import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel } from '../game/engine';
+import type { GameApi } from '../game/api';
+import { gameNow } from '../game/clock';
+import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
-import { BLOCK, BLOCKS, BUILDINGS, COURT, GAS, H, LOT, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
+import { COURT, H, NODES, NPCS, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, buildCar, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, buildCar, buildGrave, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
+import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
+import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
 import { Hoops } from './hoops';
 import { mulberry32 } from '../game/rng';
 
-type Act = (fn: (d: GameState, now: number) => void) => void;
 interface Msg {
   t: number;
   text: string;
@@ -29,18 +33,6 @@ const LABEL_RANGE = 5; // tiles
 const NPC_LABEL_RANGE = 9; // NPC names show from further away
 
 const MAX_LABELS = 6;
-/** The bartender watches the room for 3–5.5s, then turns his back for 3.5–5s (seconds, min–max). */
-const BAR_WATCH: [number, number] = [3, 5.5];
-const BAR_BACK: [number, number] = [3.5, 5];
-/** The guard's flashlight: how far it reaches (tiles) and half its width (radians, so 0.75 ≈ 86° wide). */
-const GUARD_RANGE = 4.5;
-const GUARD_HALF = 0.75;
-/** He walks the lot at this speed (tiles/s) and stops to look around for 1.5–4s. */
-const GUARD_SPEED = 1.2;
-const GUARD_LOOK: [number, number] = [1.5, 4];
-const between = ([a, b]: [number, number]) => (a + Math.random() * (b - a)) * 1000;
-/** Smallest signed difference between two angles. */
-const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 /** Turn angle `a` towards `goal` by at most `step` radians. */
 const turnTowards = (a: number, goal: number, step: number) => a + Math.max(-step, Math.min(step, angDiff(goal, a)));
 function lockMessage(s: GameState, crimeId: string) {
@@ -65,7 +57,41 @@ function startLine(n: StreetNode) {
   }
 }
 
-export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onReport: (fn: (r: Report) => void) => () => void }) {
+/** Another player on the Street (online), as shared over the world channel (src/net/world.ts). */
+export interface OtherPlayer {
+  id: string;
+  name: string;
+  look: Look;
+  /** Where their current walk started, the tiles they walk through, and when they set off (game time). */
+  from: [number, number];
+  path: [number, number][];
+  at: number;
+}
+/** The shared world, online: who else is here, and how to tell them where you walk. */
+export interface WorldLink {
+  others: () => OtherPlayer[];
+  move: (from: [number, number], path: [number, number][]) => void;
+}
+
+/** Where someone is `dist` tiles along a walk (from `from` through `path`), and which way they face. */
+function along(from: [number, number], path: [number, number][], dist: number) {
+  let x = from[0] + 0.5;
+  let z = from[1] + 0.5;
+  let facing: number | null = null;
+  for (const [tx, ty] of path) {
+    const nx = tx + 0.5;
+    const nz = ty + 0.5;
+    const seg = Math.hypot(nx - x, nz - z);
+    facing = Math.atan2(nx - x, nz - z);
+    if (dist < seg) return { x: x + ((nx - x) * dist) / seg, z: z + ((nz - z) * dist) / seg, moving: true, facing };
+    dist -= seg;
+    x = nx;
+    z = nz;
+  }
+  return { x, z, moving: false, facing };
+}
+
+export function StreetView({ s, api, onReport, world }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void; world?: WorldLink }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
@@ -73,18 +99,25 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
   const progressRef = useRef<HTMLDivElement>(null);
   const sRef = useRef(s);
   sRef.current = s;
-  const actRef = useRef(act);
-  actRef.current = act;
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const worldRef = useRef(world);
+  worldRef.current = world;
   const zoomRef = useRef(15);
   const yawRef = useRef(0); // camera angle around you
   const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
-  const [msgs, setMsgs] = useState<Msg[]>([{ t: Date.now(), text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' }]);
-  const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-3), { t: Date.now(), text }]));
+  const [msgs, setMsgs] = useState<Msg[]>([{ t: gameNow(), text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' }]);
+  const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-3), { t: gameNow(), text }]));
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
   const setTalkingRef = useRef(setTalking);
   const talkingIdRef = useRef<string | null>(null);
   talkingIdRef.current = talking?.id ?? null;
+  // The world map (opened from the button under the minimap), and how it makes you walk somewhere.
+  const [mapOpen, setMapOpen] = useState(false);
+  const walkRef = useRef<(x: number, y: number) => void>(() => {});
+  /** Where you are, for the world map's "you are here". */
+  const herePos = useRef<[number, number]>(SPAWN);
 
   useEffect(() => {
     const host = hostRef.current!;
@@ -182,7 +215,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       mode: 'normal' | 'rush' | 'hit' | 'back';
       path: [number, number][];
       speed: number;
-      /** When the hit lands (Date.now() time), or when the swing ends (performance.now() time). */
+      /** When the hit lands (game time), or when the swing ends (performance.now() time). */
       until: number;
     }
     const npcWalk = new Map<string, NpcState>();
@@ -245,14 +278,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       yell(npc.id, crime.yell ?? 'Hey!');
       const [px, py] = tileOf(me.pos.x, me.pos.z);
       const path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), neighbors(px, py), canStep) ?? [];
-      const timeLeft = Math.max(0.4, CATCH_SECONDS - (Date.now() - at) / 1000 - 0.3);
+      const timeLeft = Math.max(0.4, CATCH_SECONDS - (gameNow() - at) / 1000 - 0.3);
       w.mode = 'rush';
       w.path = path;
       w.speed = Math.max(2.5, (path.length + 0.5) / timeLeft);
       w.until = at + CATCH_SECONDS * 1000;
     };
-    /** The guard: where he looks when he stops (he sweeps his flashlight left and right around it). */
-    const guardState = { baseYaw: 0, lookT0: 0, sees: false };
+
     // His flashlight beam on the ground: a soft cone that turns red when he sees you.
     const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
     const beam = new THREE.Mesh(new THREE.CircleGeometry(GUARD_RANGE, 20, -Math.PI / 2 - GUARD_HALF, GUARD_HALF * 2).rotateX(-Math.PI / 2), beamMat);
@@ -261,17 +293,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     scene.add(beam);
     geoms.push(beam.geometry);
     disposables.push(beamMat);
-    /** Is the point inside the guard's flashlight beam? */
-    const inBeam = (gx: number, gz: number, yaw: number, p: THREE.Vector3) => {
-      const dx = p.x - gx;
-      const dz = p.z - gz;
-      return Math.hypot(dx, dz) <= GUARD_RANGE && Math.abs(angDiff(Math.atan2(dx, dz), yaw)) <= GUARD_HALF;
-    };
-    /** The bartender's routine: watching the room, or his back turned (polishing bottles). */
-    const barState = { watching: true, until: performance.now() + between(BAR_WATCH), sees: false };
     /** The name over an NPC's head, and whether it's a warning (red) or safe (green). */
     const npcLabel = (npc: Npc): [string, string] => {
-      if (npc.kind === 'bartender') return barState.watching ? [`${npc.name} · watching`, 'alert'] : [`${npc.name} · back turned`, 'safe'];
+      if (npc.kind === 'bartender') return bartenderAt(gameNow()).watching ? [`${npc.name} · watching`, 'alert'] : [`${npc.name} · back turned`, 'safe'];
       return [npc.name, ''];
     };
     /** Move an NPC along its path; true when it has arrived. */
@@ -314,12 +338,24 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       /** The spot you last worked, so "You size up the tourist…" only shows the first time. */
       lastSpot: '' as string,
       facing: 0,
+      /** Walking to your grave to pick up your stuff. */
+      goalGrave: false,
+    };
+    /** Remember the tile you're on in the save (so switching tabs or reloading keeps you here). */
+    const savePos = () => {
+      const t = tileOf(me.pos.x, me.pos.z);
+      const cur = sRef.current.player.pos;
+      if (cur && cur[0] === t[0] && cur[1] === t[1]) return;
+      apiRef.current.savePos(t);
     };
     const findNodeFor = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders);
     const standSpot = (n: StreetNode) => {
       const [nx, ny] = nodeTile(n);
       return neighbors(nx, ny).find(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !blocked[y * W + x]) ?? SPAWN;
     };
+    // Back on the Street (after another tab, or a reload): stand where you were.
+    const saved = sRef.current.player.pos;
+    if (saved && saved[0] >= 0 && saved[1] >= 0 && saved[0] < W && saved[1] < H && !blocked[saved[1] * W + saved[0]]) me.pos = center(...saved);
     // Coming back to the Street mid-job: stand where that job happens.
     const myJob = sRef.current.player.job;
     if (myJob) {
@@ -331,6 +367,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       }
     }
     player.position.copy(me.pos);
+    worldRef.current?.move(tileOf(me.pos.x, me.pos.z), []);
+
+    // ---------- other players (online) ----------
+    const others = new Map<string, { g: THREE.Group; facing: number }>();
 
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
       const path = findPath(blocked, W, H, tileOf(me.pos.x, me.pos.z), goals, canStep);
@@ -339,14 +379,17 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         return false;
       }
       me.path = path;
+      worldRef.current?.move(tileOf(me.pos.x, me.pos.z), path);
       me.goal = goal;
       me.goalNpc = npc;
+      me.goalGrave = false;
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
         if (npc) setTalkingRef.current(npc);
         me.goal = null;
         me.goalNpc = null;
+        savePos();
       }
       return true;
     };
@@ -357,21 +400,36 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       me.attached = n;
       me.attachedAt = performance.now();
       if (job && job.crimeId === n.crimeId) return;
-      const busy = busyReason(st, Date.now());
+      const busy = busyReason(st, gameNow());
       if (busy) return say(busy);
-      const empty = emptyFor(st, n.id, Date.now());
+      const empty = emptyFor(st, n.id, gameNow());
       if (empty) return say(`It's empty. ${n.kind === 'meter' ? 'It fills up again' : "It's restocked"} in ${Math.ceil(empty)}s.`);
       if (me.lastSpot !== n.id) say(startLine(n));
       me.lastSpot = n.id;
-      actRef.current((d, t) => {
-        if (d.player.job) stopJob(d);
-        startJob(d, n.crimeId, t, n.id); // one tap = one attempt
-      });
+      // One tap = one attempt. Where you stand matters: the guard checks it, and your grave goes there.
+      apiRef.current.startAttempt(n.crimeId, n.id, tileOf(me.pos.x, me.pos.z));
+    };
+
+    // ---------- your grave (docs/design.md §5) ----------
+    const grave = buildGrave();
+    grave.visible = false;
+    grave.traverse((o) => (o.userData.grave = true));
+    scene.add(grave);
+    pickables.push(grave);
+    const openGrave = () => {
+      const g = sRef.current.grave;
+      if (!g) return;
+      if (g.expiresAt <= gameNow()) return say('Your grave has crumbled. Your stuff is gone.');
+      apiRef.current.collectGrave();
+    };
+    const graveTime = (ms: number) => {
+      const sec = Math.max(0, Math.ceil(ms / 1000));
+      return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
     };
 
     const stopWorking = () => {
       if (me.attached && sRef.current.player.job) {
-        actRef.current((d) => stopJob(d));
+        apiRef.current.stopAttempt();
         say('You stop what you were doing.');
       }
       me.attached = null;
@@ -384,7 +442,21 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(pickables, true)[0];
+      const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.grave) {
+        const g = st.grave;
+        if (!g) return;
+        stopWorking();
+        setTalkingRef.current(null);
+        if (walkTo(neighbors(g.x, g.y).concat([[g.x, g.y]]), null)) {
+          me.goalGrave = true;
+          if (!me.path.length) {
+            me.goalGrave = false;
+            openGrave();
+          }
+        }
+        return;
+      }
       if (hit?.object.userData.npcId) {
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
         if (npc.kind === 'baller') return say("They're busy playing. Their bags on the bench aren't watched much…");
@@ -441,106 +513,109 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     };
 
     // ---------- minimap (top-right) ----------
-    // The static map (river, roads, buildings, parks, store) is drawn once; you, Eddy and the
-    // crime spots are drawn on top a few times a second. Tapping it walks you there.
+    // Round, centred on you, and turned with the camera (what's ahead of you is up), like RuneScape.
+    // The island is drawn once (mapArt.ts); every tenth of a second we draw the piece around you, then
+    // spots, shops, NPCs, your grave and you on top. Tapping it walks you there. "N" marks north.
     const mini = miniRef.current!;
-    const MINI_PX = 3; // CSS pixels per tile
-    const MINI_EDGE = 2; // tiles of river shown around the city
-    const miniW = (W + MINI_EDGE * 2) * MINI_PX;
-    const miniH = (H + MINI_EDGE * 2) * MINI_PX;
+    const MINI_SIZE = 132; // CSS pixels across
+    const MINI_TILE = 5.5; // CSS pixels per tile
+    const BASE_PX = 12; // canvas pixels per tile in the pre-drawn island
     const dpr = Math.min(window.devicePixelRatio, 2);
-    mini.width = miniW * dpr;
-    mini.height = miniH * dpr;
-    mini.style.width = `${miniW}px`;
-    mini.style.height = `${miniH}px`;
-    const base = document.createElement('canvas');
-    base.width = mini.width;
-    base.height = mini.height;
-    {
-      const g = base.getContext('2d')!;
-      g.scale(dpr, dpr);
-      const tile = (x: number, y: number, w: number, h: number, c: string) => {
-        g.fillStyle = c;
-        g.fillRect((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, w * MINI_PX, h * MINI_PX);
-      };
-      g.fillStyle = '#15303f';
-      g.fillRect(0, 0, miniW, miniH);
-      tile(-1, -1, W + 2, H + 2, '#7d705a'); // beach
-      tile(0, 0, W, H, '#55585e');
-      for (const [key, kind] of BLOCKS) {
-        const [bx, by] = key.split(',').map(Number);
-        if (kind.type === 'park') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#45663a');
-      }
-      const area = (r: { x0: number; y0: number; x1: number; y1: number }, c: string) => tile(r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1, c);
-      area(PARK, '#45663a');
-      tile(PARK.x0, PARK.y0 + 2, PARK.x1 - PARK.x0 + 1, 1, '#8a8070'); // the path across
-      area(COURT, '#7a3b2c');
-      area({ ...LOT, y0: GAS.y1 + 1 }, '#3a3c42'); // forecourt, driveway and lot in one
-      const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#7a6a3a' };
-      for (const r of ROOMS) area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
-      for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#8a7f70');
-    }
+    mini.width = MINI_SIZE * dpr;
+    mini.height = MINI_SIZE * dpr;
+    mini.style.width = `${MINI_SIZE}px`;
+    mini.style.height = `${MINI_SIZE}px`;
+    const base = drawWorld(BASE_PX);
     const drawMini = () => {
       const g = mini.getContext('2d')!;
-      g.setTransform(1, 0, 0, 1, 0, 0);
-      g.drawImage(base, 0, 0);
-      g.scale(dpr, dpr);
-      const dot = (x: number, y: number, r: number, fill: string, stroke?: string) => {
-        g.beginPath();
-        g.arc((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, r, 0, Math.PI * 2);
-        g.fillStyle = fill;
-        g.fill();
-        if (stroke) {
-          g.lineWidth = 1;
-          g.strokeStyle = stroke;
-          g.stroke();
-        }
+      const R = MINI_SIZE / 2;
+      const yaw = yawRef.current;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, MINI_SIZE, MINI_SIZE);
+      g.save();
+      g.beginPath();
+      g.arc(R, R, R - 1, 0, Math.PI * 2);
+      g.clip();
+      g.fillStyle = '#15303f';
+      g.fillRect(0, 0, MINI_SIZE, MINI_SIZE);
+      // World → minimap: centre on you, turn with the camera, scale.
+      g.translate(R, R);
+      g.rotate(yaw);
+      g.scale(MINI_TILE, MINI_TILE);
+      g.translate(-me.pos.x, -me.pos.z);
+      g.drawImage(base, -MAP_EDGE, -MAP_EDGE, base.width / BASE_PX, base.height / BASE_PX);
+      /** Draw something upright (not turned with the map) at world point (x, z), in CSS pixels. */
+      const upright = (x: number, z: number, draw: () => void) => {
+        g.save();
+        g.translate(x, z);
+        g.rotate(-yaw);
+        g.scale(1 / MINI_TILE, 1 / MINI_TILE);
+        draw();
+        g.restore();
       };
+      const dot = (x: number, z: number, r: number, fill: string, stroke?: string) =>
+        upright(x, z, () => {
+          g.beginPath();
+          g.arc(0, 0, r, 0, Math.PI * 2);
+          g.fillStyle = fill;
+          g.fill();
+          if (stroke) {
+            g.lineWidth = 1;
+            g.strokeStyle = stroke;
+            g.stroke();
+          }
+        });
       const st = sRef.current;
       for (const n of NODES) {
         if (n.wanders) continue;
-        dot(n.x + 0.5, n.y + 0.5, 2.2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
+        dot(n.x + 0.5, n.y + 0.5, 2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
-      // Shopping bag icons on the shops.
-      for (const r of ROOMS.filter((x) => x.shop)) {
-        const bx = ((r.x0 + r.x1 + 1) / 2 + MINI_EDGE) * MINI_PX;
-        const by = ((r.y0 + r.y1 + 1) / 2 + 0.2 + MINI_EDGE) * MINI_PX;
-        g.fillStyle = '#f2d27a';
-        g.strokeStyle = '#141210';
-        g.lineWidth = 1;
-        g.beginPath();
-        g.rect(bx - 5, by - 3, 10, 8);
-        g.fill();
-        g.stroke();
-        g.beginPath();
-        g.arc(bx, by - 3, 3, Math.PI, 0);
-        g.strokeStyle = '#f2d27a';
-        g.lineWidth = 1.5;
-        g.stroke();
+      for (const [id, w] of walkers) {
+        const n = NODES.find((x) => x.id === id)!;
+        dot(w.pos.x, w.pos.z, 2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
+      for (const r of ROOMS.filter((x) => x.shop)) upright((r.x0 + r.x1 + 1) / 2, (r.y0 + r.y1 + 1) / 2, () => drawBag(g, 0, 0, 10));
+      for (const e of others.values()) dot(e.g.position.x, e.g.position.z, 2.6, '#ffffff', '#141210');
       for (const npc of NPCS.filter((n) => n.named)) {
         const ep = npcWalk.get(npc.id)!.pos;
         dot(ep.x, ep.z, 2.2, '#f2d27a', '#141210');
       }
-      // You: a red dot with a tick showing which way the camera looks.
-      const px = me.pos.x;
-      const pz = me.pos.z;
+      if (st.grave) upright(st.grave.x + 0.5, st.grave.y + 0.5, () => drawGrave(g, 0, 0, 10));
+      g.restore();
+      // You, in the middle.
       g.beginPath();
-      g.moveTo((px + MINI_EDGE) * MINI_PX, (pz + MINI_EDGE) * MINI_PX);
-      g.lineTo((px + MINI_EDGE - Math.sin(yawRef.current) * 3) * MINI_PX, (pz + MINI_EDGE - Math.cos(yawRef.current) * 3) * MINI_PX);
-      g.strokeStyle = 'rgba(235, 228, 214, 0.8)';
-      g.lineWidth = 1.5;
+      g.arc(R, R, 3.2, 0, Math.PI * 2);
+      g.fillStyle = '#e2604c';
+      g.fill();
+      g.lineWidth = 1.2;
+      g.strokeStyle = '#ffffff';
       g.stroke();
-      dot(px, pz, 3, '#e2604c', '#ffffff');
+      // North marker on the rim.
+      const nx = R + Math.sin(yaw) * (R - 9);
+      const ny = R - Math.cos(yaw) * (R - 9);
+      g.beginPath();
+      g.arc(nx, ny, 7, 0, Math.PI * 2);
+      g.fillStyle = '#141210';
+      g.fill();
+      g.fillStyle = '#e8e2d6';
+      g.font = 'bold 9px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('N', nx, ny + 0.5);
     };
     const onMiniTap = (e: PointerEvent) => {
       e.stopPropagation();
       const r = mini.getBoundingClientRect();
-      const tx = Math.floor((e.clientX - r.left) / (r.width / (W + MINI_EDGE * 2))) - MINI_EDGE;
-      const ty = Math.floor((e.clientY - r.top) / (r.height / (H + MINI_EDGE * 2))) - MINI_EDGE;
-      walkToTile(tx, ty);
+      // Undo the minimap's turn and scale to find the tile you tapped.
+      const dx = (e.clientX - r.left - r.width / 2) / MINI_TILE;
+      const dy = (e.clientY - r.top - r.height / 2) / MINI_TILE;
+      const yaw = yawRef.current;
+      const wx = me.pos.x + dx * Math.cos(yaw) + dy * Math.sin(yaw);
+      const wz = me.pos.z - dx * Math.sin(yaw) + dy * Math.cos(yaw);
+      walkToTile(Math.floor(wx), Math.floor(wz));
     };
     mini.addEventListener('pointerup', onMiniTap);
+    walkRef.current = (x, y) => walkToTile(x, y);
     let lastMini = 0;
 
     // Gestures: a short press without moving = tap (walk / work). One finger dragging = rotate the
@@ -596,6 +671,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     renderer.domElement.addEventListener('pointercancel', onUp);
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
+    const camTarget = me.pos.clone();
     // ---------- floating "+$5" over your head ----------
     const off = onReport((r) => {
       // One line per attempt (attempts come every second, so separate lines would pile up),
@@ -623,7 +699,20 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         setTimeout(() => el.remove(), 1300);
       };
       line(parts, '');
-      if (r.hit) big.push(['Stunned!', 'f-bust']);
+      if (r.died) {
+        // You wake up at the start. Your stuff is in your grave.
+        me.pos.copy(center(...SPAWN));
+        worldRef.current?.move(SPAWN, []);
+        me.path = [];
+        me.goal = null;
+        me.goalNpc = null;
+        me.goalGrave = false;
+        me.attached = null;
+        camTarget.copy(me.pos);
+        setTalkingRef.current(null);
+        say(sRef.current.grave ? 'You wake up at the start. Your stuff is in your grave: go and get it.' : 'You wake up at the start.');
+        big.push(['You died!', 'f-bust']);
+      } else if (r.hit) big.push(['Stunned!', 'f-bust']);
       line(big, 'float-big');
       if (r.hit) {
         host.classList.remove('shake');
@@ -654,7 +743,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     // ---------- main loop ----------
     let last = performance.now();
     let raf = 0;
-    const camTarget = me.pos.clone();
+    camTarget.copy(me.pos);
     const loop = () => {
       raf = requestAnimationFrame(loop);
       const now = performance.now();
@@ -676,6 +765,11 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
             arrive(me.goal);
             me.goal = null;
           }
+          if (!me.path.length && me.goalGrave) {
+            me.goalGrave = false;
+            openGrave();
+          }
+          if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
             const ep = npcWalk.get(npc.id)!.pos;
@@ -705,7 +799,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         if (catcher) me.facing = Math.atan2(catcher.pos.x - me.pos.x, catcher.pos.z - me.pos.z);
       }
       player.position.set(me.pos.x, 0.03, me.pos.z);
-      const stunned = meCrew.stunnedUntil > Date.now();
+      const stunned = meCrew.stunnedUntil > gameNow();
       const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working ? 'work' : 'idle';
       animateCharacter(player, pose, now);
       player.rotation.y = me.facing;
@@ -753,7 +847,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           if (w.mode === 'rush') {
             if (followPath(w, g, dt)) {
               g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
-              if (Date.now() >= w.until) {
+              if (gameNow() >= w.until) {
                 w.mode = 'hit';
                 w.until = now + 450;
               }
@@ -763,15 +857,14 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
             if (now >= w.until) {
               w.mode = 'back';
               w.speed = 1.6;
-              w.path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), [[npc.x, npc.y]], canStep) ?? [];
+              // Walk back to where his routine has him now (the bartender's spot, the guard's place on his route).
+          const home: [number, number] =
+            npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? [npc.area.x0 + bartenderAt(gameNow()).spot, npc.area.y0] : [npc.x, npc.y];
+          w.path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
             }
           } else if (followPath(w, g, dt)) {
             w.mode = 'normal';
             w.target.copy(w.pos);
-            if (npc.kind === 'bartender') {
-              barState.watching = true;
-              barState.until = now + between(BAR_WATCH);
-            }
           }
           g.position.set(w.pos.x, 0.03, w.pos.z);
           animateCharacter(g, w.mode === 'hit' ? 'work' : w.moving ? 'walk' : 'idle', now, 3.1);
@@ -781,50 +874,29 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           w.target.copy(center(...tileOf(w.pos.x, w.pos.z)));
           if (talkingNow === npc.id) g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
         } else if (npc.kind === 'bartender') {
-          // Every few seconds he turns his back to polish the bottles (walking to another spot along
-          // the back bar first), then turns around and watches the room again.
-          if (now > barState.until) {
-            barState.watching = !barState.watching;
-            barState.until = now + between(barState.watching ? BAR_WATCH : BAR_BACK);
-            if (!barState.watching) {
-              const x = npc.area.x0 + Math.floor(Math.random() * (npc.area.x1 - npc.area.x0 + 1));
-              w.target = center(x, npc.area.y0);
-            }
-          }
+          // His routine is a fixed schedule (game/watchers.ts): watch the room, then turn his back and
+          // polish the bottles at one of three spots. We only draw it; the game rules decide if he saw you.
+          const b = bartenderAt(gameNow());
+          if (!b.watching) w.target = center(npc.area.x0 + b.spot, npc.area.y0);
           const d = w.target.clone().sub(w.pos);
           if (d.length() > 0.02) {
-            w.pos.add(d.clampLength(0, 1.3 * dt));
+            w.pos.add(d.clampLength(0, 1.6 * dt));
             g.rotation.y = Math.atan2(d.x, d.z);
             w.moving = true;
           } else {
-            g.rotation.y = turnTowards(g.rotation.y, barState.watching ? 0 : Math.PI, dt * 6);
+            g.rotation.y = turnTowards(g.rotation.y, b.watching ? 0 : Math.PI, dt * 6);
           }
-          // He sees the whole room once he's fully turned towards it.
-          barState.sees = barState.watching && !w.moving && Math.abs(angDiff(g.rotation.y, 0)) < 0.6;
           g.position.set(w.pos.x, 0.03, w.pos.z);
-          animateCharacter(g, w.moving ? 'walk' : barState.watching ? 'idle' : 'work', now, 2.3);
+          animateCharacter(g, w.moving ? 'walk' : b.watching ? 'idle' : 'work', now, 2.3);
           continue;
         } else if (npc.kind === 'guard') {
-          // Patrol: walk to a random spot around the lot, stop, sweep the flashlight left and right, repeat.
-          if (w.path.length) {
-            w.speed = GUARD_SPEED;
-            if (followPath(w, g, dt)) {
-              guardState.baseYaw = g.rotation.y;
-              guardState.lookT0 = now;
-              w.wait = between(GUARD_LOOK) / 1000;
-            }
-          } else {
-            g.rotation.y = guardState.baseYaw + Math.sin(((now - guardState.lookT0) / 1000) * 1.2) * 0.9;
-            w.wait -= dt;
-            if (w.wait <= 0) {
-              const a = npc.area;
-              const tx = a.x0 + Math.floor(Math.random() * (a.x1 - a.x0 + 1));
-              const ty = a.y0 + Math.floor(Math.random() * (a.y1 - a.y0 + 1));
-              if (!blocked[ty * W + tx]) w.path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), [[tx, ty]], canStep) ?? [];
-              w.wait = 0.3;
-            }
-          }
-          guardState.sees = inBeam(w.pos.x, w.pos.z, g.rotation.y, me.pos);
+          // His patrol is a fixed schedule too (same route and timing for everyone). Catch up smoothly
+          // if he's just walked back from hitting someone.
+          const gs = guardAt(gameNow());
+          const d = new THREE.Vector3(gs.x - w.pos.x, 0, gs.z - w.pos.z);
+          w.pos.add(d.length() > 0.05 ? d.multiplyScalar(Math.min(1, dt * 4)) : d);
+          w.moving = gs.moving;
+          g.rotation.y = gs.yaw;
           g.position.set(w.pos.x, 0.03, w.pos.z);
           animateCharacter(g, w.moving ? 'walk' : 'idle', now, 4.2);
           continue;
@@ -865,23 +937,48 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           beam.position.set(gw.pos.x, 0.1, gw.pos.z);
           beam.rotation.y = gg.rotation.y;
           beam.visible = gw.mode === 'normal';
+          // Red while you're working inside his beam (he's about to catch you: the game rules decide that).
           const working = !!job && CRIME_BY_ID[job.crimeId]?.catcher === 'guard';
-          beamMat.color.set(guardState.sees && working ? 0xff3a2a : 0xfff0b0);
-          beamMat.opacity = guardState.sees && working ? 0.55 : 0.3;
+          const sees = inBeam(guardAt(gameNow()), me.pos.x, me.pos.z);
+          beamMat.color.set(sees && working ? 0xff3a2a : 0xfff0b0);
+          beamMat.opacity = sees && working ? 0.55 : 0.3;
         }
-        // Only an NPC in his usual routine can see you.
-        if (gw?.mode !== 'normal') guardState.sees = false;
-      }
-      // Seen mid-attempt by someone who watches (the bartender): the attempt is lost and he comes for you.
-      if (job && !st.player.caught) {
-        const watcher = CRIME_BY_ID[job.crimeId]?.catcher;
-        if ((watcher === 'bartender' && barState.sees) || (watcher === 'guard' && guardState.sees)) actRef.current((d, t) => spotted(d, t));
       }
       // Spots that were emptied (shelves, meters) look empty until they refill.
-      for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, Date.now()) > 0);
+      for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, gameNow()) > 0);
       // Inside a room: fade its walls and lift the roof so you can see in.
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
+
+      // Other players: walk them along the route they shared.
+      const list = worldRef.current?.others() ?? [];
+      const here = new Set<string>();
+      for (const o of list) {
+        here.add(o.id);
+        let e = others.get(o.id);
+        if (!e) {
+          const g = buildCharacter(o.look);
+          scene.add(g);
+          e = { g, facing: 0 };
+          others.set(o.id, e);
+        }
+        const at = along(o.from, o.path, Math.max(0, ((gameNow() - o.at) / 1000) * WALK_SPEED));
+        if (at.facing !== null && at.moving) e.facing = at.facing;
+        e.g.position.set(at.x, 0.03, at.z);
+        e.g.rotation.y = e.facing;
+        animateCharacter(e.g, at.moving ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
+      }
+      for (const [id, e] of others)
+        if (!here.has(id)) {
+          scene.remove(e.g);
+          others.delete(id);
+        }
+
+      // Your grave, if you have one.
+      const gr = st.grave;
+      grave.visible = !!gr;
+      if (gr) grave.position.set(gr.x + 0.5, 0.03, gr.y + 0.5);
+      herePos.current = tileOf(me.pos.x, me.pos.z);
 
       // Tap ring fades out.
       const rm = ring.material as THREE.MeshBasicMaterial;
@@ -904,7 +1001,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
 
       // Progress bar for the current action.
       if (progressRef.current) {
-        const p = working && job ? (Date.now() - job.startedAt) / (job.endsAt - job.startedAt) : 0;
+        const p = working && job ? (gameNow() - job.startedAt) / (job.endsAt - job.startedAt) : 0;
         progressRef.current.style.width = `${Math.max(0, Math.min(1, p)) * 100}%`;
       }
 
@@ -912,6 +1009,42 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Other players' names (white), from far away.
+      for (const [id, e] of others) {
+        const o = list.find((x) => x.id === id);
+        if (!o || e.g.position.distanceTo(me.pos) > NPC_LABEL_RANGE * 1.5) continue;
+        const [x, y, depth] = project(e.g.position.clone().setY(1.55));
+        if (depth > 1) continue;
+        let el = labelEls.get(`player:${id}`);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label player';
+          labelLayer.appendChild(el);
+          labelEls.set(`player:${id}`, el);
+        }
+        if (el.textContent !== o.name) el.textContent = o.name;
+        seen.add(`player:${id}`);
+        placed.push([x, y, o.name.length * 6 + 10]);
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
+      // "Your grave · 4:31" over your grave (from further away than other labels).
+      if (gr) {
+        const [x, y, depth] = project(grave.position.clone().setY(0.95));
+        if (depth <= 1 && grave.position.distanceTo(me.pos) < NPC_LABEL_RANGE * 1.5) {
+          let el = labelEls.get('grave');
+          if (!el) {
+            el = document.createElement('div');
+            el.className = 'node-label grave';
+            labelLayer.appendChild(el);
+            labelEls.set('grave', el);
+          }
+          const text = `Your grave · ${graveTime(gr.expiresAt - gameNow())}`;
+          if (el.textContent !== text) el.textContent = text;
+          seen.add('grave');
+          placed.push([x, y, text.length * 6 + 10]);
+          el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+        }
+      }
       // Yells ("Hey!") in a speech bubble over whoever is shouting.
       for (const [id, y] of yells) {
         const g = npcGroups.get(id)!;
@@ -970,7 +1103,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         }
         const crime = CRIME_BY_ID[n.crimeId];
         const locked = !!canStart(st, n.crimeId);
-        const empty = !locked && emptyFor(st, n.id, Date.now()) > 0;
+        const empty = !locked && emptyFor(st, n.id, gameNow()) > 0;
         const text = locked ? `${n.label} · Lv ${crime.level}` : empty ? `${n.label} · empty` : n.label;
         if (el.textContent !== text) el.textContent = text;
         const wpx = text.length * 6 + 10;
@@ -1004,6 +1137,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     loop();
 
     return () => {
+      savePos();
       cancelAnimationFrame(raf);
       off();
       ro.disconnect();
@@ -1024,7 +1158,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
 
   // ---------- overlay ----------
   const me = s.player;
-  const now = Date.now();
+  const now = gameNow();
   const job = me.job;
   const crime = job ? CRIME_BY_ID[job.crimeId] : null;
   const recent: Msg[] = [...msgs, ...s.log.slice(0, 4).map((l) => ({ t: l.t, text: l.text }))].sort((a, b) => a.t - b.t).slice(-4);
@@ -1033,7 +1167,27 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     <div className="street" ref={hostRef}>
       <div className="street-labels" ref={labelsRef} />
       <div className="street-floats" ref={floatsRef} />
-      <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
+      <div className="minimap-wrap">
+        <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
+        <button className="map-btn" onClick={() => setMapOpen(true)} aria-label="Open the world map" title="World map">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6 L9 3.5 L15 6 L21 3.5 V18 L15 20.5 L9 18 L3 20.5 Z" fill="#e8dcc0" stroke="#141210" strokeWidth="1.4" strokeLinejoin="round" />
+            <path d="M9 3.5 V18 M15 6 V20.5" stroke="#141210" strokeWidth="1.2" />
+            <circle cx="12" cy="11" r="1.8" fill="#d9473a" />
+          </svg>
+        </button>
+      </div>
+      {mapOpen && (
+        <WorldMap
+          s={s}
+          here={herePos.current}
+          onClose={() => setMapOpen(false)}
+          onWalk={(x, y) => {
+            setMapOpen(false);
+            walkRef.current(x, y);
+          }}
+        />
+      )}
       <div className="street-status">
         {me.stunnedUntil > now ? (
           <span className="alert">Stunned · {fmtDuration(Math.max(0.1, (me.stunnedUntil - now) / 1000))}</span>
@@ -1048,7 +1202,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           <span className="muted">Tap something to work it</span>
         )}
       </div>
-      {talking && <NpcDialog npc={talking} s={s} act={act} onClose={() => setTalking(null)} />}
+      {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
       <div className="chatbox" aria-live="polite">
         {recent.map((m, i) => (
           <div key={`${m.t}-${i}`}>{m.text}</div>

@@ -5,10 +5,9 @@ import { useMemo, useState } from 'react';
 import type { GameState } from '../game/types';
 import type { Npc } from './map';
 import { ITEM_BY_ID } from '../game/data/items';
-import { fmtMoney, itemPrice, sellItem } from '../game/engine';
+import { fmtMoney, itemPrice } from '../game/engine';
+import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from '../components/Bag';
-
-type Act = (fn: (d: GameState, now: number) => void) => void;
 
 const GREETINGS = [
   "Welcome to Eddy's General Store! Need something, or got something to sell?",
@@ -16,7 +15,7 @@ const GREETINGS = [
   "Back again? What'll it be, friend?",
 ];
 
-export function NpcDialog({ npc, s, act, onClose }: { npc: Npc; s: GameState; act: Act; onClose: () => void }) {
+export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; api: GameApi; onClose: () => void }) {
   const [mode, setMode] = useState<'greet' | 'buy' | 'sell'>('greet');
   const [sel, setSel] = useState<string | null>(null);
   const greeting = useMemo(() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)], []);
@@ -32,7 +31,7 @@ export function NpcDialog({ npc, s, act, onClose }: { npc: Npc; s: GameState; ac
     const def = ITEM_BY_ID[slot.id];
     if (sel === key) {
       // Second tap on the same item: sell one.
-      act((d) => sellItem(d, slot.id));
+      api.sell(slot.id);
       setLine(`Sold ${def.name} for ${fmtMoney(itemPrice(slot.id))}.${slot.count > 1 ? ' Tap again to sell another.' : ''}`);
       if (slot.count <= 1) setSel(null);
       return;

@@ -1,4 +1,5 @@
 // Start-up screen: your character file and what's new. (Nothing happens while you're away, so no "since you left".)
+import { gameNow } from '../game/clock';
 import { useMemo } from 'react';
 import type { GameState } from '../game/types';
 import { SKILLS } from '../game/data/skills';
@@ -17,7 +18,7 @@ function isNewer(a: string, b: string | null) {
 }
 
 export function StartScreen({ s, onClose }: { s: GameState; onClose: () => void }) {
-  const now = Date.now();
+  const now = gameNow();
   // Read once on open, so the NEW stamps stay visible until the screen closes.
   const seen = useMemo(() => getSeenVersion(), []);
   const total = totalLevel(s);

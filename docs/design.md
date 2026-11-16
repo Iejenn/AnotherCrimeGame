@@ -1,4 +1,4 @@
-# Underworld Idle — Design
+# Underworld — Design
 
 This file is the source of truth. When the plan changes, change this file first, then the code.
 Numbers marked *(tunable)* live in data tables in `src/game/` and can change without new code.
@@ -158,6 +158,13 @@ timing) in `src/game/data/crimes.ts`.
   from day one, and **food is a core system**, the main way to keep going. It matters even more once
   combat arrives. Food is the next thing to scope.
 - **Heat and jail:** removed. Getting caught by an NPC (HP loss + stun) is the punishment (§4).
+- **Dying (built, v0.18):** at 0 HP you die. **All your cash and items drop into a grave** on the tile where you
+  died, and you wake up at the start with **half your max health** (not full, so dying isn't a free heal).
+  Walk back and tap the grave to get everything back (items that don't fit stay in it). The grave lasts
+  **5 minutes** (real time), then it crumbles and the stuff is gone. Dying again while you have a grave
+  replaces it (the old one's contents are lost). Tuning: `GRAVE_MINUTES`, `RESPAWN_HP` in `engine.ts`.
+- **Your position** on the Street is saved (every time you stop walking, and when you leave the Street), so
+  switching tabs or reloading keeps you where you were.
 
 ## 6. Economy and items
 
@@ -172,9 +179,10 @@ timing) in `src/game/data/crimes.ts`.
 - An **island in the ocean**: a sandy beach with rocks around the city, then open sea.
 - 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
   a block can hold one large building or several smaller ones, with some parks.
-- **The big park** (built): the old small park below where you start, doubled in size over the road next to it.
-  Lawns, hedges with gaps where the paths come in, gravel paths in a cross, a **fountain** in the middle with
-  benches, trees, flowerbeds and two old lamps. Two tourists stroll around in it.
+- **Central Park** (built): right below where you start, **2×2 blocks** plus the roads and crossing between them
+  (12×12 tiles). Lawns, hedges with gaps where the paths come in, gravel paths in a **#** shape, a **fountain** in
+  the middle with benches, a **pond** with lily pads, trees, flowerbeds and four old lamps.
+  **Three tourists** stroll around in it.
 - **The basketball court** (built), left of the park: painted court with lines, a chain-link fence on three sides
   (you get in at the two front corners), two hoops, a floodlight. Two players dribble, pass, shoot and chase
   rebounds. Their gym bags lie on the bench on the street side.
@@ -188,19 +196,20 @@ timing) in `src/game/data/crimes.ts`.
 - **The bar** (built), above the basketball court: walk in like a shop. Dark wood, a red neon BAR sign, a back bar of
   glowing bottles with a mirror, a jukebox, the counter with beer taps and pendant lamps, a small table with a candle.
   **Three drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
-  The **bartender** works behind the counter: he **watches the room for 3–5.5s**, then **turns his back for 3.5–5s**
-  to polish the bottles. His label says "watching" (red) or "back turned" (green). If he is facing the room at any
-  moment of your attempt, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP,
-  stunned 3s). The timings are constants at the top of `StreetView.tsx` (`BAR_WATCH`, `BAR_BACK`).
+  The **bartender** works behind the counter on a **fixed schedule** (the same for every player, see §11): every
+  8.5s he **watches the room for 3.5–5s**, then **turns his back** for the rest, polishing bottles at one of three
+  spots. Turning round takes 0.6s before he sees anything. His label says "watching" (red) or "back turned" (green).
+  If he sees the room at any moment of your attempt, he yells "Leave my guests alone!", comes round the counter
+  and punches you (−2 HP, stunned 3s). Timings: `BAR_SLOT_MS`, `BAR_WATCH`, `BAR_TURN_MS` in `src/game/watchers.ts`.
 - **The parking lot** (built), at the east edge of town by the beach, south of the gas station: dark asphalt with white bays, wheel stops and
   oil stains, a guard booth with a lit window and a barrier arm, two tall sodium lamps, a blue P sign.
   **Five parking meters** (tap one: 3s, always works if unseen, $15–30). An emptied meter's light turns red and
   it fills up again after 15s.
-  The **guard** patrols the lot and the pavement around it: he walks to a spot, stops, and sweeps his
-  **flashlight** left and right. The beam is drawn on the ground (about 4.5 tiles long, ~86° wide) and turns red
-  when he sees you working. Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back
-  to patrolling. Tuning constants at the top of `StreetView.tsx` (`GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`,
-  `GUARD_LOOK`).
+  The **guard** walks a **fixed patrol route** (the same for every player, see §11): along the driveway, the
+  roads around the lot and its middle lane, stopping at each corner for 2.5s to sweep his **flashlight** left and
+  right. The beam is drawn on the ground (4.5 tiles long, ~86° wide) and turns red when you're working inside it.
+  Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back to his route. Route and
+  numbers: `GUARD_ROUTE`, `GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`, `GUARD_STOP_MS` in `src/game/watchers.ts`.
 - **Cars** (built): four parked cars nose-in at the lot's bays (Steal From Cars: 3s, 35%, $30–60). A failed
   attempt sets off the car alarm and brings the guard; he can also simply see you in his beam.
 - **The gas station** (built), at the north end of the parking lot (the road between them is gone: gas station, driveway and lot form one big rectangle): a pale concrete shop with a blue trim and a yellow
@@ -212,8 +221,12 @@ timing) in `src/game/data/crimes.ts`.
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.
   The store has a **shopping-bag icon** on the minimap.
-- **Minimap** in the top-right corner of the Street: roads, buildings, river, you, Eddy, and crime spots
-  (greyed out until you have the level).
+- **Minimap** (top-right of the Street): **round, centred on you, and turned with the camera** (what's ahead of you
+  is up; an N on the rim marks north), RuneScape-style, so it keeps working as the map grows. Shows crime spots
+  (greyed out until you have the level), tourists, shops (bag icon), named NPCs, your grave, and you. Tap it to walk.
+- **World map**: the map button at the bottom of the minimap opens the whole island with an **icon per place**.
+  Tap one for its details (what it is, its crimes with level, odds and take, who's there) and "Walk there".
+  New places only need an entry in `AREAS` (map.ts).
 
 ## 7b. Visual direction
 
@@ -243,7 +256,75 @@ The start screen shows your character file and what's new.
 - **Health:** trained by taking damage, eating, or a gym?
 - **Healing / food:** now part of Street Crimes v2 (candy store and gas station shoplifting, §4). Eating rules: §4 question 6.
 - Quests: who gives them, and what do they unlock?
-- Multiplayer: server-side rules (Supabase) before any leaderboard.
+- Multiplayer: see §11.
+
+## 11. Multiplayer (MMO) plan
+
+**Goal:** one shared island where players see each other, with all rules on the server so nobody can cheat.
+**Stack:** Supabase, in its own organization (separate from Soccer RPG): Auth (accounts), Postgres (all game
+state, changed only by SECURITY DEFINER functions; RLS blocks direct writes), Realtime (seeing each other).
+
+**How a crime works online (the same model as Soccer RPG's `play_match`):**
+1. `start_attempt(spot_id, pos)`: the server checks level, health, stun, that the spot isn't empty, and that
+   `pos` is next to the spot and reachable from your last position at walking speed (no teleporting). It stores
+   the attempt with the server's start time.
+2. `finish_attempt()`: called when the time is up. The server checks the time, checks the watchers' schedules
+   (below), rolls the dice itself, pays out, and returns the new values for the client to show.
+3. Shelves and meters you empty are stored per spot, **shared by everyone**.
+
+**Watchers on fixed schedules (built, v0.19):** the bartender's routine and the guard's patrol are worked out
+from the game clock (`src/game/watchers.ts`), not random per phone. Everyone sees the same NPC, and the game rules
+decide "were you seen?" on their own, every tick of an attempt (`firstSeen`); the 3D view only draws it. The
+server will run the same functions (ported to SQL, or shared TypeScript) to check each attempt.
+
+**Foundation already in the code (v0.19):**
+- **One actions layer** (`src/game/api.ts`): every player action (start/stop an attempt, eat, sell, drop,
+  collect your grave, save your position) goes through `GameApi`. Today `localApi` runs the rules in the
+  browser; a `supabaseApi` will call the RPCs above with the same method names, so the screens don't change.
+- **One game clock** (`src/game/clock.ts`): everything reads time from `gameNow()`; `syncClock()` will line it
+  up with the server, so changing your phone's clock does nothing.
+- **Watchers on fixed schedules**, as above.
+- **Your position** is part of the game state (needed for the guard, graves, and later for others to see you).
+
+**Seeing each other (later):** Realtime Broadcast per area; a player sends their **route when they tap to walk**
+(not every step), other phones animate it. Presence shows who is online. This keeps message counts (the main
+Realtime cost) low.
+
+**Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
+working at once. Small, indexed queries, but plan for the Pro plan at that size.
+
+**Bringing offline characters along (decided):** the first testers can move their offline character into their
+new account once (`import_local_character`), when they sign in for the first time on the device they played on.
+Because a browser save can be edited, the server caps everything (XP 20,000 per skill, $250,000, 500 of each
+food, unknown items dropped), and importing **closes on 1 March 2027**. After that, new players start fresh.
+
+**One world:** everyone plays on the same server and the same island (one Supabase project). Seeing each other
+needs step 2 below.
+
+**Progress on step 1:**
+- Database (migration `0001_players`, see `supabase/`): players, graves, shared spot state, the crimes table;
+  `create_character` and `get_my_player`. Tested in a rolled-back transaction.
+- **Sign-in: email + password** (decided). Online mode is a hidden test version: open the game with `?online`
+  (it stays on in that browser; `?offline` switches back). Sign in / create account / forgot password / new
+  password, then make your character on the server and see it loaded. The Supabase library only downloads in
+  online mode, so offline players don't pay for it.
+- **Online play (built, v0.20):** the whole game runs on the server (migration `0003_online_play`): every crime,
+  the watchers' schedules (the SQL gives exactly the same answers as `watchers.ts`), getting hit, dying and graves,
+  eating, selling (only inside Eddy's store), a walking-speed check against teleporting. The app (`useOnlineGame`)
+  sends what you do and shows the server's answers. Shelves and meters emptied by anyone are empty for everyone.
+- **Random encounters and boosts: removed (v0.21, decided).** No more old-timer's tricks, lucky streaks, etc.
+- **Seeing each other (built v0.20, made tamper-proof v0.21):** everything about other players comes from the
+  database. Who's online (heard from in the last 30s) with their **name and look** comes from the server
+  (`game_state` → "world"). Your route goes through `walk()`, which knows who you are and checks the route
+  (could you have got to its start, neighbouring tiles only, on the map); other phones hear it through Realtime
+  changes on the `walks` table, whose rows say whose route it is. So nobody can show up as someone else.
+  Other players show with a white name and as white dots on the minimap.
+- **Highscores (built, v0.20):** a Highscores tab with a table per skill (top 50, rank, name, level, XP; your
+  own row highlighted, and your rank if you're further down). Public, so offline players can look too.
+- Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).
+
+**Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
+shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
 
 ## 10. How we work
 
