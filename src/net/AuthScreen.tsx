@@ -1,7 +1,7 @@
 // Signing in to Underworld online: email + password (docs/design.md §11). Also: making an account,
 // "forgot password" (Supabase emails a link), and setting a new password after following that link.
 import { useState } from 'react';
-import { returnUrl, supabase } from './supabase';
+import { LOGOUT_REASON, returnUrl, supabase } from './supabase';
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'newpass';
 
@@ -23,14 +23,14 @@ export function AuthScreen({ recovering = false, onDone }: { recovering?: boolea
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  // Logged out for being idle? Say so once.
-  const [idle] = useState(() => {
+  // Logged out by the game (idle, or another device took over)? Say so once.
+  const [why] = useState(() => {
     try {
-      const was = sessionStorage.getItem('underworld-idle-logout') === '1';
-      sessionStorage.removeItem('underworld-idle-logout');
-      return was;
+      const reason = sessionStorage.getItem(LOGOUT_REASON);
+      sessionStorage.removeItem(LOGOUT_REASON);
+      return reason;
     } catch {
-      return false;
+      return null;
     }
   });
 
@@ -71,7 +71,10 @@ export function AuthScreen({ recovering = false, onDone }: { recovering?: boolea
       <h1 className="title">Underworld</h1>
       <p className="kicker">A point-and-click crime RPG</p>
       <form className="auth-form" onSubmit={submit}>
-        {idle && mode === 'signin' && <p className="auth-notice">You were logged out after 5 minutes without activity. Sign in to carry on.</p>}
+        {why === 'idle' && mode === 'signin' && <p className="auth-notice">You were logged out after 5 minutes without activity. Sign in to carry on.</p>}
+        {why === 'replaced' && mode === 'signin' && (
+          <p className="auth-notice">You were logged out because this account started playing on another device. One device at a time.</p>
+        )}
         <h2 className="headline">{titles[mode]}</h2>
         {mode !== 'newpass' && (
           <label className="field">

@@ -315,6 +315,13 @@ The game clock moves gently towards each server answer instead of jumping to it.
 route from a tile's middle) and clock corrections made players hop. Measured after: biggest step 11 px per 100 ms
 (normal walking speed) while the other player re-tapped every 1.2 s.
 
+**One device at a time (built, v0.26):** each open game makes up a session id and sends it with every request
+(header `x-game-session`). Opening the game claims the account (`claim_session`). If it's being played on another
+device right now (heard from in the last 30s), you're asked: **Play here** (the other device is logged out) or
+Log out. The server refuses game actions and chat from any other session (`session_replaced`); that device notices
+within ~10 seconds, logs out (on that device only) and the sign-in screen says why. Logging out (gear menu, idle)
+only logs out the device you're on.
+
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.
 

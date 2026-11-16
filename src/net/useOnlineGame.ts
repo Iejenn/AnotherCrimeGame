@@ -100,12 +100,14 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
   };
 }
 
-export function useOnlineGame(first: ServerAnswer) {
+export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
   const ref = useRef<GameState>(fromServer(first, []));
   const [, rerender] = useReducer((x: number) => x + 1, 0);
   const [welcome, setWelcome] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(1);
+  const replacedRef = useRef(onReplaced);
+  replacedRef.current = onReplaced;
   const listeners = useRef(new Set<(r: Report) => void>());
   /** The chain of server calls (one at a time, in order). */
   const queue = useRef<Promise<unknown>>(Promise.resolve());
@@ -151,6 +153,11 @@ export function useOnlineGame(first: ServerAnswer) {
       const run = async () => {
         const sentAt = Date.now();
         const { data, error } = await supabase.rpc(fn, args);
+        // The account was taken over by another device: this one stops here.
+        if (error && /session_replaced/.test(error.message)) {
+          replacedRef.current();
+          return null;
+        }
         if (error) {
           toast([{ text: "Can't reach the server. Check your connection.", kind: 'event' }]);
           return null;

@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.26.0',
+    date: '2026-11-16',
+    title: 'One device at a time',
+    items: [
+      'Your account can only play on one device at a time. Signing in somewhere else asks if you want to play there; the other device is then logged out.',
+      'Logging out (or the idle log-out) now only logs out the device you are on.',
+    ],
+  },
+  {
     version: '0.25.0',
     date: '2026-11-16',
     title: 'Stop that!',
