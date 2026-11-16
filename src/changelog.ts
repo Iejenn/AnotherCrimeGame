@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.37.0',
+    date: '2026-11-16',
+    title: 'Snack attack',
+    items: [
+      'A quick-eat button on the Street, bottom right, whenever you carry food. Tap it to eat: it picks the food that heals the most without going over your max.',
+      'Hold it to choose a food yourself.',
+      'You can eat in the middle of a fight, but eating takes 1.5 seconds and you don\'t swing meanwhile. Time it right after a swing and it costs you nothing.',
+      'The button pulses red when your health is low.',
+    ],
+  },
+  {
     version: '0.36.0',
     date: '2026-11-16',
     title: 'Off to the hospital',

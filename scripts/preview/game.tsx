@@ -21,6 +21,9 @@ function App() {
   const [s, setS] = useState<GameState>(() => {
     const g = newGame('Tester', { skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 }, gameNow());
     g.player.pos = [Number(q.get('x') ?? 31), Number(q.get('y') ?? 36)];
+    // ?food=1: a sandwich and two candy bars in the bag; ?hp=2: hurt.
+    if (q.get('food')) g.inventory = { sandwich: 1, candy_bar: 2, cooked_bird_meat: 3 };
+    if (q.get('hp')) g.hp = Number(q.get('hp'));
     return g;
   });
   useEffect(() => {

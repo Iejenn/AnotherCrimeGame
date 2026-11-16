@@ -528,3 +528,20 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .passout.on { opacity: 1; pointer-events: auto; transition: opacity 0.8s ease-out; }
 .passout.on span { opacity: 1; transition: opacity 0.8s 0.4s; }
 @media (prefers-reduced-motion: reduce) { .passout, .passout.on, .passout span, .passout.on span { transition: none; } }
+/* Quick-eat (docs/design.md §12): a round food button bottom-right, just above the chat. Tap = eat the best fit,
+   hold = pick a food. The ring (--eat, 1 → 0) sweeps while you're still eating. Pulses red at low health. */
+.quick-eat { position: absolute; right: 10px; bottom: calc(clamp(110px, 30%, 200px) + 10px); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.quick-eat-btn { --eat: 0; position: relative; width: 54px; height: 54px; border-radius: 50%; border: 2px solid #141210; background: conic-gradient(rgba(0, 0, 0, 0.62) calc(var(--eat) * 360deg), transparent 0) , radial-gradient(circle, #3a3229 0 60%, #2a241e 61%); box-shadow: 0 0 0 2px #6a6258, 0 3px 10px #000a; display: grid; place-items: center; padding: 0; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.quick-eat-btn .item-icon { width: 32px; height: 32px; pointer-events: none; }
+.quick-eat-btn .item-icon svg { width: 100%; height: 100%; }
+.quick-eat-btn.full { opacity: 0.55; }
+.quick-eat-btn.low { box-shadow: 0 0 0 2px #e2604c, 0 3px 10px #000a; animation: hp-pulse 1s ease-in-out infinite; }
+.qe-count { position: absolute; right: -4px; bottom: -4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #141210; border: 1px solid #6a6258; color: #f2e8d6; font: 700 0.7rem/16px var(--mono); text-align: center; pointer-events: none; }
+.quick-eat-menu { display: flex; gap: 6px; padding: 6px; background: rgba(20, 18, 16, 0.96); border: 1px solid var(--rule-strong); border-top: 3px solid #d9a441; border-radius: 4px; box-shadow: 0 6px 18px #000c; }
+.quick-eat-food { position: relative; width: 48px; height: 48px; border-radius: 4px; border: 1px solid #4a4239; background: #2a241e; display: grid; place-items: center; padding: 0; cursor: pointer; }
+.quick-eat-food .item-icon { width: 30px; height: 30px; }
+.quick-eat-food .item-icon svg { width: 100%; height: 100%; }
+.qe-heal { position: absolute; left: 2px; top: 1px; font: 700 0.62rem var(--mono); color: #7fd08a; text-shadow: 0 1px 0 #000; }
+.quick-eat-food .qe-count { right: -5px; bottom: -5px; }
+@media (min-width: 721px) { .quick-eat { bottom: 14px; } }
+@media (prefers-reduced-motion: reduce) { .quick-eat-btn.low { animation: none; } }

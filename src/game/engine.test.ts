@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRAVE_MINUTES, busyReason, cantEat, collectGrave, crimeStats, eat, emptyFor, giveItem, hpAt, itemPrice, maxHp, newGame, sellItem, spotted, startJob, tick, totalLevel } from './engine';
+import { GRAVE_MINUTES, busyReason, cantEat, collectGrave, crimeStats, eat, emptyFor, giveItem, hpAt, itemPrice, pickFood, maxHp, newGame, sellItem, spotted, startJob, tick, totalLevel } from './engine';
 import { CATCH_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
@@ -390,5 +390,22 @@ describe('saves', () => {
   it('saves from before v0.7 are not loaded', async () => {
     const { migrate } = await import('./save');
     expect(migrate({ version: 1, skills: { petty: { xp: 10 } }, crew: [] })).toBeNull();
+  });
+});
+
+describe('quick-eat picks the food', () => {
+  it('the biggest that fits, else the smallest', () => {
+    const s = newGame('T', DEFAULT_LOOK, T0);
+    expect(pickFood(s, T0)).toBeNull();
+    s.inventory = { sandwich: 1, candy_bar: 2, raw_bird_meat: 3 };
+    s.hp = 1; // 1/10: both fit, the sandwich (+2) heals more
+    s.hpAt = T0;
+    expect(pickFood(s, T0)).toBe('sandwich');
+    s.hp = 9; // 9/10: only the candy bar (+1) fits
+    expect(pickFood(s, T0)).toBe('candy_bar');
+    s.hp = 9.5; // both would go over: the smallest
+    expect(pickFood(s, T0)).toBe('candy_bar');
+    s.inventory = { sandwich: 1 };
+    expect(pickFood(s, T0)).toBe('sandwich');
   });
 });

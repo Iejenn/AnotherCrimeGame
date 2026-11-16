@@ -20,6 +20,7 @@ import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMe
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
+import { QuickEat } from './QuickEat';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
@@ -146,6 +147,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   const labelsRef = useRef<HTMLDivElement>(null);
   const floatsRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const eatRingRef = useRef<HTMLButtonElement>(null);
   const sRef = useRef(s);
   sRef.current = s;
   const apiRef = useRef(api);
@@ -1764,6 +1766,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           cookFill.style.background = `rgb(${mix(92, 196)}, ${mix(58, 112)}, ${mix(34, 64)})`;
         }
       }
+      // The quick-eat button's ring: how much of the current bite is left (1.5 s in a fight, 0.5 s otherwise).
+      if (eatRingRef.current) {
+        const left = st.player.eatingUntil - gameNow();
+        eatRingRef.current.style.setProperty('--eat', String(left > 0 ? Math.min(1, left / (st.fight ? 1500 : 500)) : 0));
+      }
       const [hx, hy] = project(lift(me.pos, 1.5));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
@@ -1848,6 +1855,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       </div>
       {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
       {cookAt && <CookDialog s={s} api={api} pos={cookAt} onClose={() => setCookAt(null)} />}
+      <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
       <ChatBox game={gameLines} chat={chat} myName={s.name} />
     </div>
   );
