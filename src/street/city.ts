@@ -331,9 +331,11 @@ export function buildCity(scene: THREE.Scene) {
   const atlases = [1, 2, 3, 4].map((seed) => windowAtlas(seed * 977));
   for (const a of atlases) own(a.map), own(a.glow);
   const fadeables: Fadeable[] = [];
-  const FLOOR = 0.55;
+  // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
+  // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
+  const FLOOR = 1.45;
   for (const b of BUILDINGS) {
-    const floors = Math.max(1, Math.round(b.height / FLOOR));
+    const floors = b.height > 1.8 ? 3 : 2;
     const height = floors * FLOOR + 0.12;
     const wall = C.walls[Math.floor(rng() * C.walls.length)];
     const trim = C.trims[Math.floor(rng() * C.trims.length)];
@@ -373,13 +375,25 @@ export function buildCity(scene: THREE.Scene) {
       const ant = add(own(new THREE.CylinderGeometry(0.015, 0.015, 0.7, 4)), lam(0x6a6f76), b.x + b.w - 0.4, height + 0.35, b.y + 0.4);
       props.push(ant);
     }
-    // Some ground floors are shops facing the street (south side): glass front + striped awning.
+    // Every building has a front door at person size (on its street side), with a step and a lamp: so you can
+    // tell how big it is, and that people live there.
+    const front = b.y + b.h - 0.05;
+    const doorX = b.x + 0.5 + Math.floor(rng() * Math.max(1, b.w - 1));
+    props.push(
+      add(geoBox(0.62, 1.12, 0.06), lam(trim), doorX, 0.56, front + 0.02, false), // frame
+      add(geoBox(0.5, 1.02, 0.07), lam(0x3a2a20), doorX, 0.53, front + 0.03, false), // door
+      add(geoBox(0.8, 0.08, 0.3), lam(0x8a857c), doorX, 0.04, front + 0.15, false), // step
+      add(geoBox(0.12, 0.12, 0.08), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.2 }), doorX + 0.42, 1.0, front + 0.06, false), // lamp
+    );
+    // Some ground floors are shops facing the street (south side): a shop window at person height + an awning.
     const facesStreet = (b.y + b.h) % BLOCK === 0;
-    if (facesStreet && rng() < 0.55) {
-      const glass = add(geoBox(Math.max(0.6, bw - 0.5), 0.42, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 0.7 }), cx, 0.27, b.y + b.h - 0.04, false);
+    if (facesStreet && b.w >= 2 && rng() < 0.55) {
+      const gw = Math.max(0.6, bw - 1.1);
+      const gx = doorX < cx ? cx + 0.3 : cx - 0.3;
+      const glass = add(geoBox(gw, 0.8, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 0.7 }), gx, 0.55, front + 0.01, false);
       const stripe = own(stripeTex(`#${C.trims[Math.floor(rng() * C.trims.length)].toString(16).padStart(6, '0')}`, '#b8b0a0'));
       stripe.repeat.set(Math.max(1, Math.round(bw)), 1);
-      const awning = add(geoBox(Math.max(0.7, bw - 0.3), 0.04, 0.38), lam(0xffffff, { map: stripe }), cx, 0.6, b.y + b.h + 0.12);
+      const awning = add(geoBox(Math.max(0.7, bw - 0.3), 0.04, 0.42), lam(0xffffff, { map: stripe }), cx, 1.3, b.y + b.h + 0.14);
       awning.rotation.x = 0.35;
       props.push(glass, awning);
     }
@@ -586,7 +600,9 @@ export function buildCity(scene: THREE.Scene) {
     const Z1 = r.y1 + 1;
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
-    const sh = st.height ?? 1.25;
+    // One storey a person fits in (with room above their head), with the sign above it.
+    const sh = (st.height ?? 1.25) * 1.4;
+    const DOOR = 1.2;
     const t = 0.12; // wall thickness
     const [doorX] = r.door;
     add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
@@ -599,18 +615,18 @@ export function buildCity(scene: THREE.Scene) {
       add(geoBox(t, sh, Z1 - Z0), mWall, X1 - t / 2, sh / 2, cz), // east
       add(geoBox(doorX - X0, sh, t), mWall, (X0 + doorX) / 2, sh / 2, Z1 - t / 2), // front, left of the door
       add(geoBox(X1 - doorX - 1, sh, t), mWall, (doorX + 1 + X1) / 2, sh / 2, Z1 - t / 2), // front, right of the door
-      add(geoBox(1, sh - 0.85, t), mWall, doorX + 0.5, 0.85 + (sh - 0.85) / 2, Z1 - t / 2), // above the door
+      add(geoBox(1, sh - DOOR, t), mWall, doorX + 0.5, DOOR + (sh - DOOR) / 2, Z1 - t / 2), // above the door
     ];
     const roof = add(geoBox(X1 - X0, 0.08, Z1 - Z0), mRoof, cx, sh + 0.04, cz);
     const trimBand = parapet(cx, cz, X1 - X0 + 0.06, Z1 - Z0 + 0.06, sh + 0.06, mTrim);
     // Shop windows either side of the door, lit from inside.
     const glassMat = lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 });
-    const winL = add(geoBox(1.3, 0.5, 0.04), glassMat, X0 + 1, 0.55, Z1 + 0.005, false);
-    const winR = add(geoBox(1.3, 0.5, 0.04), glassMat, X1 - 1, 0.55, Z1 + 0.005, false);
-    const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, 0.86, Z1 - t / 2, false);
+    const winL = add(geoBox(1.3, 0.85, 0.04), glassMat, X0 + 1, 0.68, Z1 + 0.005, false);
+    const winR = add(geoBox(1.3, 0.85, 0.04), glassMat, X1 - 1, 0.68, Z1 + 0.005, false);
+    const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, DOOR + 0.01, Z1 - t / 2, false);
     const stripe = own(stripeTex(st.stripe[0], st.stripe[1]));
     stripe.repeat.set(5, 1);
-    const awning = add(geoBox(X1 - X0 - 0.8, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.98, Z1 + 0.22);
+    const awning = add(geoBox(X1 - X0 - 0.8, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, DOOR + 0.18, Z1 + 0.22);
     awning.rotation.x = 0.4;
     const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture(st.sign, st.signBg, st.signFg)) }));
     const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, Z1 + 0.03, false);
@@ -636,7 +652,7 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(0.8, 0.02, 0.5), lam(st.trim), doorX + 0.5, 0.075, Z1 - 0.4, false);
     // Warm light inside, so the shop glows when you look in.
     const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
-    lamp.position.set(cx, 1.1, cz);
+    lamp.position.set(cx, sh - 0.2, cz);
     scene.add(lamp);
     const fade: Fadeable = {
       walls: [...walls, ...trimBand],
@@ -940,16 +956,16 @@ export function buildCity(scene: THREE.Scene) {
     // Canopy: a flat roof with a blue fascia and lights underneath.
     const cMats = [lam(0xd8d4cc), lam(0x2a4a7a)];
     const canopyZ = fz + 0.95; // over the pumps, a little in front of the shop (so its sign shows)
-    const canopy = add(geoBox(4.6, 0.1, 1.5), cMats[0], cx, 1.3, canopyZ);
+    const canopy = add(geoBox(4.6, 0.1, 1.5), cMats[0], cx, 1.9, canopyZ);
     // A thin blue band around the edge, with a red stripe, so from above it reads as a canopy.
-    const fascia = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.3, canopyZ + 0.77);
-    const fasciaBack = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.3, canopyZ - 0.77);
-    for (const ex of [cx - 2.33, cx + 2.33]) add(geoBox(0.06, 0.2, 1.6), cMats[1], ex, 1.3, canopyZ);
-    add(geoBox(4.72, 0.04, 0.07), lam(0xb8282a), cx, 1.25, canopyZ + 0.78, false);
-    for (const px of [cx - 1.6, cx + 1.6]) add(geoBox(0.1, 1.25, 0.1), lam(0xe8e2d0), px, 0.63, canopyZ);
-    for (let i = 0; i < 3; i++) add(geoBox(0.5, 0.02, 0.2), lam(0xffffff, { emissive: 0xfff4e0, emissiveIntensity: 1.6 }), cx - 1.4 + i * 1.4, 1.24, canopyZ, false);
+    const fascia = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.9, canopyZ + 0.77);
+    const fasciaBack = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.9, canopyZ - 0.77);
+    for (const ex of [cx - 2.33, cx + 2.33]) add(geoBox(0.06, 0.2, 1.6), cMats[1], ex, 1.9, canopyZ);
+    add(geoBox(4.72, 0.04, 0.07), lam(0xb8282a), cx, 1.85, canopyZ + 0.78, false);
+    for (const px of [cx - 1.6, cx + 1.6]) add(geoBox(0.1, 1.85, 0.1), lam(0xe8e2d0), px, 0.93, canopyZ);
+    for (let i = 0; i < 3; i++) add(geoBox(0.5, 0.02, 0.2), lam(0xffffff, { emissive: 0xfff4e0, emissiveIntensity: 1.6 }), cx - 1.4 + i * 1.4, 1.84, canopyZ, false);
     const glow = new THREE.PointLight(0xfff0d8, 5, 4, 1.6);
-    glow.position.set(cx, 1.05, canopyZ);
+    glow.position.set(cx, 1.6, canopyZ);
     scene.add(glow);
     fadeables.push({ walls: [canopy, fascia, fasciaBack], mats: cMats, props: [], opacity: 1 });
     // A car filling up at the left pump.

@@ -130,9 +130,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   worldRef.current = world;
   const chatRef = useRef(chat);
   chatRef.current = chat;
-  const zoomRef = useRef(15);
+  const zoomRef = useRef(11);
   const yawRef = useRef(0); // camera angle around you
-  const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
+  const pitchRef = useRef(0.8); // how steeply the camera looks down (radians)
   // The log always starts with the welcome (time 0, so it sorts above everything else), then the how-to line.
   const [msgs, setMsgs] = useState<Msg[]>([
     { t: 0, text: 'Welcome to Underworld.' },
