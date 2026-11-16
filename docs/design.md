@@ -534,3 +534,23 @@ Pigeon in a fight stands still where it was attacked.
 
 - Change this doc first, then build one playable slice per PR, with a "What's new" entry.
 - Tuning numbers live in data tables: `src/game/data/crimes.ts`, `src/game/xp.ts`, `src/game/data/world.ts`.
+
+## 13. Loot, ground items and Cooking (v0.33)
+
+- **Loot tables** (`public.loot`): per enemy kind, rows of item (or `cash` = dollars), chance and amount. Rolled by the
+  server when you kill it. Pigeons: **raw bird meat, 100%**. (Thugs, coming: 1/5 $5–10, 1/20 a knife.)
+- **Loot lands on the ground** where the enemy died (`public.ground_items`), RuneScape-style: only the killer sees it
+  for **60 s**, then everyone; it disappears after **3 minutes**. Tap it to walk over and pick it up (`pick_up`: you
+  must stand on it or next to it, and have room in your bag; cash goes straight to your cash). Orange name labels.
+- **Nothing stacks except cash** (v0.32): so a bag holds at most 27 pieces of meat.
+- **The barbecue** (`public.stations`, `STATIONS` in map.ts) in the pocket park on **003-B** (fire icon on the map).
+  Tap it: you walk next to it and your bag opens; tap something raw to **cook all of it**, one item every **2 ticks
+  (1 s)**, until it runs out or you walk away (28 s for a full bag). The server times and rolls every one
+  (`start_cook`, `cook_step`, `stop_cook`).
+- **Recipes** (`public.recipes`, `src/game/data/recipes.ts`): raw bird meat → cooked bird meat, Cooking level 1,
+  **5 XP**, burn chance **50% at level 1, falling to 0% at level 15**. Burnt food is lost and gives no XP. Cooked
+  bird meat heals **1 HP**.
+- **Cooking** is the sixth skill (after Street Crimes), on the Skills and Highscores tabs, and counts towards your
+  total level.
+- Everything is data: a new drop is a row in `loot`, a new recipe a row in `recipes` (+ the item), a new cooking spot a
+  row in `stations` (+ `STATIONS`).

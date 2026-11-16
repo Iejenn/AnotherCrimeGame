@@ -267,8 +267,20 @@ export const BUILDINGS: Building[] = (() => {
   return out;
 })();
 
+// ---------- cooking stations (docs/design.md §13) ----------
+// Where you cook: stand next to one. The server has the same list (public.stations): keep them in step.
+export interface Station {
+  id: string;
+  kind: 'bbq';
+  x: number;
+  y: number;
+}
+/** The pocket park with the barbecue (003-B). */
+export const BBQ_PARK: Rect = lot('003', 'B');
+export const STATIONS: Station[] = [{ id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 }];
+
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq';
 export interface Fixture {
   x: number;
   y: number;
@@ -353,6 +365,9 @@ export const FIXTURES: Fixture[] = (() => {
 
   // The guard booth in the parking lot's south-west corner.
   out.push({ x: PARKING_S.x0, y: PARKING_S.y1, kind: 'booth' });
+
+  // Cooking stations (the barbecue), so you walk around them.
+  for (const st of STATIONS) out.push({ x: st.x, y: st.y, kind: st.kind });
 
   // The court's bench (the gym bags on it are spots, see NODES).
   out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
@@ -500,7 +515,7 @@ export function buildBlocked(): Uint8Array {
 }
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire';
 export interface Area {
   id: string;
   name: string;
@@ -514,6 +529,10 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'bbq', name: 'The barbecue', rect: BBQ_PARK, icon: 'fire', crimes: [], npcs: [],
+    blurb: 'A public barbecue in the pocket park. Cook raw food here to make it edible (Cooking).',
+  },
   {
     id: 'park', name: 'Central Park', rect: PARK, icon: 'park', crimes: ['pick_tourist'], npcs: [],
     blurb: 'Lawns, hedges, a fountain and a pond. Tourists stroll around with their wallets in their back pockets.',

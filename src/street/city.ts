@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
-  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -279,7 +279,14 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(5, 0.075, 5), pavement, cx, 0.037, cz, false);
     if (lot.kind === 'park') {
       add(geoBox(4.8, 0.09, 4.8), grassMat, cx, 0.045, cz, false);
-      for (let i = 0; i < 5; i++) tree(cx - 1.8 + rng() * 3.6, cz - 1.8 + rng() * 3.6, 1.1 + rng() * 0.5);
+      for (let i = 0; i < 5; i++) {
+        const tx = cx - 1.8 + rng() * 3.6;
+        const tz = cz - 1.8 + rng() * 3.6;
+        const s = 1.1 + rng() * 0.5;
+        // Keep the trees off the barbecue and the tiles around it (where you stand to cook).
+        if (STATIONS.some((st) => Math.abs(tx - st.x - 0.5) < 1.8 && Math.abs(tz - st.y - 0.5) < 1.8)) continue;
+        tree(tx, tz, s);
+      }
     }
   }
   // Street trees in pits along the sidewalks, a few per block side (never in front of a door or a spot).
@@ -1092,6 +1099,32 @@ export function buildCity(scene: THREE.Scene) {
 
   shopFronts();
 
+  // ---------- cooking stations: the barbecue (docs/design.md §13) ----------
+  // A brick barbecue with a grill, glowing coals and a few flames, a warm light, and a gravel patch around it.
+  const flames: THREE.Mesh[] = [];
+  const fireLights: THREE.PointLight[] = [];
+  for (const st of STATIONS) {
+    const x = st.x + 0.5;
+    const z = st.y + 0.5;
+    add(own(new THREE.CircleGeometry(1.4, 20).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
+    const brick = lam(0x8a4434, { flatShading: true });
+    add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);
+    add(geoBox(0.96, 0.06, 0.76), lam(0x6a3428), x, 0.6, z);
+    add(geoBox(0.7, 0.04, 0.5), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 0.9 }), x, 0.63, z, false); // coals
+    for (let i = 0; i < 7; i++) add(geoBox(0.02, 0.02, 0.5), lam(0x3a3d42), x - 0.3 + i * 0.1, 0.68, z, false); // grill bars
+    for (let i = 0; i < 4; i++) {
+      const f = add(own(new THREE.ConeGeometry(0.06 + rng() * 0.03, 0.22, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.6, transparent: true, opacity: 0.9 }), x - 0.22 + i * 0.15, 0.76, z + (rng() - 0.5) * 0.25, false);
+      flames.push(f);
+    }
+    // A chimney stack at the back, and a bag of charcoal.
+    add(geoBox(0.3, 0.6, 0.2), brick, x, 0.9, z - 0.26);
+    add(geoBox(0.3, 0.35, 0.18), lam(0x4a3a2a), x + 0.7, 0.25, z + 0.3);
+    const light = new THREE.PointLight(0xff8a3a, 4, 5, 1.6);
+    light.position.set(x, 1.0, z);
+    scene.add(light);
+    fireLights.push(light);
+  }
+
   // Build all instanced batches that were filled above.
   const poolMesh = pools.build(scene);
   if (poolMesh) poolMesh.receiveShadow = false;
@@ -1101,6 +1134,14 @@ export function buildCity(scene: THREE.Scene) {
 
   return {
     fadeables,
+    /** Call every frame: the barbecue's flames flicker. */
+    animate(t: number) {
+      flames.forEach((f, i) => {
+        const k = 0.8 + Math.sin(t / 90 + i * 1.7) * 0.2 + Math.sin(t / 37 + i) * 0.1;
+        f.scale.set(1, k, 1);
+      });
+      fireLights.forEach((l, i) => (l.intensity = 3.5 + Math.sin(t / 70 + i) * 0.6 + Math.sin(t / 23) * 0.3));
+    },
     /** Room id → its walls/roof, so the Street view can fade a room while you're inside. */
     rooms,
     dispose() {

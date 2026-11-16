@@ -12,12 +12,13 @@ import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
-import { COURT, H, NODES, NPCS, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
+import { COURT, H, NODES, NPCS, ROOMS, SPAWN, STATIONS, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
-import { buildBigCar } from './streetLife';
+import { buildBigCar, buildGroundItem } from './streetLife';
+import { CookDialog } from './CookDialog';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
@@ -145,6 +146,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
   const setTalkingRef = useRef(setTalking);
+  // The cooking screen (opened when you reach the barbecue): where you stand, or null when closed.
+  const [cookAt, setCookAt] = useState<[number, number] | null>(null);
+  const setCookAtRef = useRef(setCookAt);
   const talkingIdRef = useRef<string | null>(null);
   talkingIdRef.current = talking?.id ?? null;
   // The world map (opened from the button under the minimap), and how it makes you walk somewhere.
@@ -381,6 +385,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       goalGrave: false,
       /** Walking up to an enemy to attack it. */
       goalEnemy: null as string | null,
+      /** Walking to pick something up from the ground, or to a cooking station. */
+      goalGround: null as number | null,
+      goalStation: null as string | null,
       /** Throwing a punch (pose) until this time. */
       punchUntil: 0,
       /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
@@ -478,6 +485,31 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     });
     let lastFoe: string | null = null;
 
+    // ---------- things on the ground (loot), and cooking stations (docs/design.md §13) ----------
+    const groundViews = new Map<number, THREE.Group>();
+    const reachGround = () => {
+      const id = me.goalGround;
+      me.goalGround = null;
+      if (id === null) return;
+      apiRef.current.pickUp(id, tileOf(me.pos.x, me.pos.z));
+    };
+    const reachStation = () => {
+      const id = me.goalStation;
+      me.goalStation = null;
+      const st = STATIONS.find((x) => x.id === id);
+      if (!st) return;
+      me.facing = Math.atan2(st.x + 0.5 - me.pos.x, st.y + 0.5 - me.pos.z);
+      setCookAtRef.current(tileOf(me.pos.x, me.pos.z));
+    };
+    // The barbecue is tappable: an invisible box over it.
+    for (const st of STATIONS) {
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.2, 1.1), hitMat);
+      hitBox.position.set(st.x + 0.5, 0.6, st.y + 0.5);
+      hitBox.userData.stationId = st.id;
+      scene.add(hitBox);
+      pickables.push(hitBox);
+    }
+
     // ---------- other players (online) ----------
     /** Other players: their model, where we draw them (smoothed), and which way they face. */
     const others = new Map<
@@ -502,6 +534,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goalNpc = npc;
       me.goalGrave = false;
       me.goalEnemy = null;
+      me.goalGround = null;
+      me.goalStation = null;
+      setCookAtRef.current(null);
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
@@ -552,6 +587,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         say('You stop what you were doing.');
       }
       me.attached = null;
+      if (sRef.current.cook) {
+        apiRef.current.stopCook();
+        say('You stop cooking.');
+      }
       if (sRef.current.fight) {
         apiRef.current.stopFight();
         say('You walk away from the fight.');
@@ -566,6 +605,30 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.groundId !== undefined) {
+        // Something on the ground: walk onto it (or next to it) and pick it up.
+        const g = sRef.current.ground?.find((x) => x.id === hit.object.userData.groundId);
+        if (!g) return;
+        stopWorking();
+        setTalkingRef.current(null);
+        if (walkTo([[g.x, g.y], ...neighbors(g.x, g.y)], null)) {
+          me.goalGround = g.id;
+          if (!me.path.length) reachGround();
+        }
+        return;
+      }
+      if (hit?.object.userData.stationId) {
+        // The barbecue: walk next to it, then the cooking screen opens.
+        const st = STATIONS.find((x) => x.id === hit.object.userData.stationId);
+        if (!st) return;
+        stopWorking();
+        setTalkingRef.current(null);
+        if (walkTo(neighbors(st.x, st.y), null)) {
+          me.goalStation = st.id;
+          if (!me.path.length) reachStation();
+        }
+        return;
+      }
       if (hit?.object.userData.enemyId) {
         setTalkingRef.current(null);
         if (me.attached && sRef.current.player.job) stopWorking();
@@ -960,6 +1023,14 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             savePos();
             reachEnemy();
           }
+          if (!me.path.length && me.goalGround !== null) {
+            savePos();
+            reachGround();
+          }
+          if (!me.path.length && me.goalStation) {
+            savePos();
+            reachStation();
+          }
           if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
@@ -997,8 +1068,14 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       setGear(player, st.equipment);
       player.position.set(me.pos.x, 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
+      // Cooking: face the barbecue and work it.
+      const cooking = !!st.cook && !me.path.length;
+      if (cooking) {
+        const near = STATIONS.find((x) => Math.abs(x.x + 0.5 - me.pos.x) < 2 && Math.abs(x.y + 0.5 - me.pos.z) < 2);
+        if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
+      }
       const swinging = now < me.punchUntil && weaponAnim(st.equipment?.weapon) === 'swing';
-      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || now < me.punchUntil ? 'work' : 'idle';
+      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || cooking || now < me.punchUntil ? 'work' : 'idle';
       animateCharacter(player, pose, now, 0, (now - me.punchAt) / (me.punchUntil - me.punchAt));
       player.rotation.y = me.facing;
 
@@ -1168,6 +1245,36 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Inside a room: fade its walls and lift the roof so you can see in.
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
+
+      // Things on the ground: add new ones, remove picked-up or rotted ones, a gentle bob so they catch the eye.
+      {
+        const here = new Set<number>();
+        for (const it of st.ground ?? []) {
+          here.add(it.id);
+          let v = groundViews.get(it.id);
+          if (!v) {
+            v = buildGroundItem(it.item);
+            // A tap area bigger than the item (they're small).
+            const tapBox = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), hitMat);
+            tapBox.position.y = 0.2;
+            v.add(tapBox);
+            v.traverse((o) => (o.userData.groundId = it.id));
+            v.position.set(it.x + 0.5 + ((it.id * 37) % 7) / 20 - 0.15, 0.07, it.y + 0.5 + ((it.id * 53) % 7) / 20 - 0.15);
+            v.rotation.y = (it.id * 1.7) % 6.28;
+            scene.add(v);
+            pickables.push(v);
+            groundViews.set(it.id, v);
+          }
+          v.position.y = 0.07 + Math.sin(now / 400 + it.id) * 0.015;
+        }
+        for (const [id, v] of groundViews)
+          if (!here.has(id)) {
+            scene.remove(v);
+            const i = pickables.indexOf(v);
+            if (i >= 0) pickables.splice(i, 1);
+            groundViews.delete(id);
+          }
+      }
 
       // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
       for (const e of worldRef.current?.enemies() ?? []) {
@@ -1345,6 +1452,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       sun.position.copy(camTarget).add(SUN_OFFSET);
       sun.target.position.copy(camTarget);
       updateFades(city.fadeables, camera, me.pos, dt);
+      city.animate(now);
 
       // Progress bar for the current action.
       if (progressRef.current) {
@@ -1356,6 +1464,26 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Things on the ground, nearby: their name (cash: the amount).
+      for (const it of st.ground ?? []) {
+        const v = groundViews.get(it.id);
+        if (!v || v.position.distanceTo(me.pos) > LABEL_RANGE) continue;
+        const [x, y, depth] = project(v.position.clone().setY(0.35));
+        if (depth > 1 || placed.some(([px, py, w]) => Math.abs(px - x) < w / 2 + 30 && Math.abs(py - y) < 14)) continue;
+        const key = `ground:${it.id}`;
+        let el = labelEls.get(key);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label ground';
+          labelLayer.appendChild(el);
+          labelEls.set(key, el);
+        }
+        const text = it.item === 'cash' ? fmtMoney(it.amount) : ITEM_BY_ID[it.item]?.name ?? it.item;
+        if (el.textContent !== text) el.textContent = text;
+        seen.add(key);
+        placed.push([x, y, text.length * 6 + 10]);
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
       // Enemies: "Pigeon (level 1)" nearby, and a health bar while hurt or in a fight.
       for (const e of worldRef.current?.enemies() ?? []) {
         const v = enemyViews.get(e.id);
@@ -1622,6 +1750,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         )}
       </div>
       {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
+      {cookAt && <CookDialog s={s} api={api} pos={cookAt} onClose={() => setCookAt(null)} />}
       <ChatBox game={gameLines} chat={chat} myName={s.name} />
     </div>
   );

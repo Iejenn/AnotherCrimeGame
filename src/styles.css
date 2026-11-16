@@ -504,3 +504,5 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* "Install app" in the gear menu. */
 .gear-menu .btn + .btn, .gear-menu .install-help + .btn { margin-top: 8px; }
 .install-help { margin: 8px 0 0; color: var(--paper); }
+/* Loot on the ground: an orange name, like OSRS ground items. */
+.node-label.ground { color: #ffb04a; background: rgba(20, 18, 16, 0.6); font-size: 0.64rem; }

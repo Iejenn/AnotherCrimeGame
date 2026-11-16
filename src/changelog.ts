@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.33.0',
+    date: '2026-11-16',
+    title: 'Fire up the barbecue',
+    items: [
+      'Loot! Things you kill drop their loot on the ground. Only you see it for a minute, then everyone can grab it. Tap it to pick it up.',
+      'Pigeons always drop raw bird meat.',
+      'New skill: Cooking. Cook raw bird meat on the new barbecue in the pocket park on 003-B (the fire icon on the map). Tap the barbecue, then the meat: you cook all of it, one a second.',
+      'You burn half of it at first, less as you level up, and never from Cooking 15. Cooked bird meat heals 1 HP.',
+    ],
+  },
+  {
     version: '0.32.0',
     date: '2026-11-16',
     title: 'Batter up',

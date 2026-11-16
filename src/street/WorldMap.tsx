@@ -62,6 +62,13 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       ))}
     </>
   ),
+  fire: (
+    <>
+      {/* a flame */}
+      <path d="M12 3 C14 7 18 9 18 14 A6 6 0 0 1 6 14 C6 11 8 9.5 9 8 C9.5 10 10.5 11 11.5 11 C11 8 11 5.5 12 3 Z" fill="#f0782a" />
+      <path d="M12 10 C13.5 12 15 13 15 15.5 A3 3 0 0 1 9 15.5 C9 13.8 10.5 12.8 12 10 Z" fill="#ffd84a" />
+    </>
+  ),
   lot: (
     <>
       <rect x="5" y="5" width="14" height="14" rx="2" fill="#2a5a9a" />

@@ -35,6 +35,16 @@ describe('combat maths (design §12)', () => {
     expect(itemPrice('sandwich')).toBe(2);
   });
 
+  it('cooking: raw bird meat burns half the time at level 1, never from 15; cooked meat heals 1', async () => {
+    const { RECIPE_BY_ITEM, burnChance } = await import('./data/recipes');
+    const r = RECIPE_BY_ITEM.raw_bird_meat;
+    expect([r.to, r.level, r.xp]).toEqual(['cooked_bird_meat', 1, 5]);
+    expect(burnChance(r, 1)).toBe(0.5);
+    expect(burnChance(r, 8)).toBe(0.25);
+    expect(burnChance(r, 15)).toBe(0);
+    expect(ITEM_BY_ID.cooked_bird_meat.heal).toBe(1);
+  });
+
   it('combat level: a new character is 3; everything at 30 is 30', () => {
     expect(combatLevel({ melee: 1, gunfire: 1, defense: 1, health: 10 })).toBe(3);
     expect(combatLevel({ melee: 30, gunfire: 1, defense: 30, health: 30 })).toBe(30);

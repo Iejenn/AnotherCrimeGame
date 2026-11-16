@@ -31,6 +31,9 @@ export interface ItemDef {
 export const ITEMS: ItemDef[] = [
   { id: 'candy_bar', name: 'Candy Bar', heal: 1, value: 4 },
   { id: 'sandwich', name: 'Sandwich', heal: 2, value: 8 },
+  // Food you cook (docs/design.md §13): Pigeons always drop raw bird meat; cook it on the barbecue to eat it.
+  { id: 'raw_bird_meat', name: 'Raw Bird Meat', heal: 0, value: 2 },
+  { id: 'cooked_bird_meat', name: 'Cooked Bird Meat', heal: 1, value: 4 },
   // The first weapon: Ray's weapon store sells them for $50. +1 damage over bare fists, same speed, no defence.
   { id: 'brass_knuckles', name: 'Brass Knuckles', heal: 0, value: 50, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 3, needs: { skill: 'melee', level: 1 } } },
   // Ray's second weapon ($250, Melee 3): hits hard (+4 damage over fists) but slowly (a swing every 3 s).

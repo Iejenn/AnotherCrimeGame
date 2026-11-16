@@ -2,7 +2,7 @@
 // lot), from src/street/map.ts, so the map we talk about is always the map in the game.
 // Run: npx vite-node scripts/map-doc.ts
 import { writeFileSync } from 'node:fs';
-import { AREAS, BCOLS, BROWS, BLOCK_SIZE, COURT, H, LOTS, PARK, PARKING, ROOMS, SPAWN, W, blockName, blockRect, inRect, type Lot } from '../src/street/map';
+import { AREAS, BCOLS, BROWS, BLOCK_SIZE, COURT, H, LOTS, PARK, PARKING, ROOMS, SPAWN, STATIONS, W, blockName, blockRect, inRect, type Lot } from '../src/street/map';
 
 const PX = 14; // pixels per tile
 const M = 30; // margin
@@ -20,6 +20,7 @@ function describe(lot: Lot): [string, string] {
   if (inRect(COURT, c, r)) return ['Basketball court', COLORS.court];
   if (inRect(PARK, c, r)) return ['Central Park', COLORS.bigpark];
   if (PARKING.some((p) => inRect(p, c, r))) return ['Parking lot', COLORS.parking];
+  if (STATIONS.some((s) => inRect(lot.rect, s.x, s.y))) return ['Park + barbecue', COLORS.park];
   if (lot.kind === 'park') return ['Pocket park', COLORS.park];
   return ['Buildings', COLORS.buildings];
 }

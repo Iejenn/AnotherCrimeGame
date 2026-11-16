@@ -1,4 +1,4 @@
-export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street';
+export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street' | 'cooking';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -90,6 +90,10 @@ export interface GameState {
   equipment?: Partial<Record<'weapon' | 'head' | 'body' | 'legs' | 'feet', string>>;
   /** The enemy you're fighting right now. */
   fight?: { enemy: string } | null;
+  /** What you're cooking right now (one after another, until it runs out or you walk away), and when the next is done. */
+  cook?: { item: string; next: number } | null;
+  /** Items lying on the ground that you can see: your own drops at once, everyone's after a minute. */
+  ground?: GroundItem[];
   stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };
   log: LogEntry[];
   nextId: number;
@@ -119,4 +123,15 @@ export interface Report {
 
 export function emptyReport(): Report {
   return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0, hit: false, items: {}, died: false };
+}
+
+/** Something lying on the ground (loot), to pick up. 'cash' = dollars (amount). */
+export interface GroundItem {
+  id: number;
+  item: string;
+  amount: number;
+  x: number;
+  y: number;
+  /** Dropped for you (only you see it, for the first minute). */
+  mine: boolean;
 }

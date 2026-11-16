@@ -68,7 +68,20 @@ const BaseballBat = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
+/** A drumstick: pink and pale when raw, brown when cooked. */
+const BirdMeat = ({ cooked }: { cooked: boolean }) => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <g transform="rotate(-35 20 20)">
+      <rect x="22" y="18" width="11" height="4" rx="2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
+      <circle cx="33.5" cy="17.6" r="2.2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
+      <circle cx="33.5" cy="22.4" r="2.2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
+      <ellipse cx="14" cy="20" rx="10" ry="8" fill={cooked ? '#9a5426' : '#e8a0a0'} stroke={cooked ? '#4a240e' : '#a05a5a'} strokeWidth="1.2" />
+      <ellipse cx="11" cy="17" rx="4" ry="2.2" fill={cooked ? '#c07a3a' : '#f6c8c8'} opacity="0.8" />
+    </g>
+  </svg>
+);
+
+const ICONS: Record<string, () => JSX.Element> = { raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {
