@@ -37,42 +37,44 @@ All skills start at level 1. Max level is **30** for now *(tunable)*.
 
 ### XP curve (all skills)
 
-XP to go from level L to L+1 = `1000 × 1.2^(L−1)`, rounded *(tunable)*. Each level needs 20% more than the last.
+XP to go from level L to L+1 *(tunable)*:
+- levels 1–9: `1000 × 1.285^(L−1)` (each level needs 28.5% more), so **150 successful pickpockets take you from 1 to 10**;
+- level 10 and up: steeper, each level needs 32.5% more than the last, so level 30 takes about 16 hours.
 
 | Reach level | Total XP |
 |---|---|
-| 5 | 5,368 |
-| 10 | 20,799 |
-| 15 | 59,196 |
-| 20 | 154,739 |
-| 25 | 392,483 |
-| 30 | 984,067 |
+| 2 | 1,000 |
+| 5 | 6,058 |
+| 10 | 30,010 |
+| 15 | 123,477 |
+| 20 | 505,195 |
+| 25 | 2,064,110 |
+| 30 | 8,430,624 |
 
 ## 4. Street Crimes (levels 1–30)
 
 Something new unlocks **every 5 levels**. Target: **about 16 hours of active play to reach 30**.
-Each band of 5 levels takes about twice as long as the one before. Each new crime pays more XP
-and gold per hour than the previous one, so moving up always feels like progress.
+**Each new crime earns 25% more XP per hour than the one before**, so moving up always pays off.
 
-| Lv | Crime | Spot on the map | Ticks (time) | Base odds | XP | Gold | Band time |
-|---|---|---|---|---|---|---|---|
-| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 85% | 19 | 1–3 | 1→5: ~12 min |
-| 5 | Shoplift | Corner shop | 5 (2.5s) | 82% | 28 | 2–5 | 5→10: ~30 min |
-| 10 | Strip a Parked Car | Parked car | 6 (3s) | 80% | 43 | 4–9 | 10→15: ~1 h |
-| 15 | Run a Shell Game | Card table | 7 (3.5s) | 78% | 63 | 6–14 | 15→20: ~2 h |
-| 20 | Burgle a House | Family house | 8 (4s) | 76% | 90 | 10–22 | 20→25: ~4 h |
-| 25 | Rob a Corner Store | Corner store | 10 (5s) | 74% | 141 | 18–36 | 25→30: ~8 h |
-| 30 | Mug a Banker | Banker | 12 (6s) | 72% | 212 | 30–60 | — (cap) |
+| Lv | Crime | Spot on the map | Ticks (time) | Odds at unlock | XP | Gold |
+|---|---|---|---|---|---|---|
+| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 65% | 201 | 1–3 |
+| 5 | Shoplift | Corner shop | 5 (2.5s) | 65% | 312 | 2–5 |
+| 10 | Strip a Parked Car | Parked car | 6 (3s) | 65% | 451 | 4–9 |
+| 15 | Run a Shell Game | Card table | 7 (3.5s) | 65% | 641 | 6–14 |
+| 20 | Burgle a House | Family house | 8 (4s) | 65% | 897 | 10–22 |
+| 25 | Rob a Corner Store | Corner store | 10 (5s) | 65% | 1,361 | 18–36 |
+| 30 | Mug a Banker | Banker | 12 (6s) | 65% | 2,001 | 30–60 |
 
-XP per success is worked out from the band times: XP per hour needed ÷ attempts per hour ÷ odds,
-where an attempt costs its own time plus, on a failure, the 2-second stun. It assumes you tap again
-right away; real play (walking, resting for health) will be slower.
+Rough time per band, always using the best crime you have and tapping again right away:
+1→5 ~2 min, 5→10 ~6 min, 10→15 ~20 min, 15→20 ~1 h, 20→25 ~3½ h, 25→30 ~11 h.
+(Pickpocketing only, 1→10 is ~10 minutes: 150 successes.) Real play (walking, resting for health) is slower.
 
 **Per attempt:**
 - **Success:** gold and XP. 5% chance of a **Big Score** (double gold and XP).
-- **Failure:** a quarter of the XP, **−1 HP**, a screen shake and a **2-second stun**.
-  Some failures turn into a **bust** (jail) instead.
-- **Odds** rise 2% per level above the crime's requirement (max +12%) and drop as heat rises.
+- **Failure:** **no XP**, **−1 HP**, a screen shake and a **2-second stun**. Some failures turn into a **bust** (jail) instead.
+- **Odds:** every crime starts at **65%** at the level you unlock it, and rises **0.5% per Street Crimes level** above that
+  (a pickpocket at level 30: 79.5%). Heat lowers it.
 - **Loot** drops about 0.4 times per minute of work; longer crimes drop more per attempt.
 
 ## 5. Health, heat and jail

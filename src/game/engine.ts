@@ -15,6 +15,8 @@ const HEAT_DECAY_PER_MIN = 2;
 const LOOT_PER_MIN = 0.4;
 const ENCOUNTERS_PER_MIN = 0.05;
 const BIG_SCORE_CHANCE = 0.05;
+/** Success chance goes up this much for every level you are above a crime's requirement. */
+export const CHANCE_PER_LEVEL = 0.005;
 /** RuneScape-style bag: gold takes the first slot, each different loot item one more. */
 export const INVENTORY_SLOTS = 28;
 /** Health regenerates 1 HP per minute. Healing faster will come from items (see docs/design.md §9). */
@@ -77,7 +79,8 @@ export interface CrimeStats {
 export function crimeStats(s: GameState, crime: CrimeDef, t: number): CrimeStats {
   const lvl = skillLevel(s, crime.skill);
   const heat = heatAt(s, t);
-  let chance = crime.baseChance + Math.min(0.12, Math.max(0, lvl - crime.level) * 0.02) + buffSum(s, 'success');
+  // 65% at the level you unlock a crime, +0.5% for every level above that.
+  let chance = crime.baseChance + Math.max(0, lvl - crime.level) * CHANCE_PER_LEVEL + buffSum(s, 'success');
   chance -= (heat / 100) * 0.25;
   chance = Math.min(0.97, Math.max(0.05, chance));
   return {
@@ -244,8 +247,7 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
     }
     setHeat(s, t, heatNow + st.heat);
   } else {
-    const xp = Math.max(1, Math.round(st.xp * 0.25));
-    addXp(s, crime.skill, xp, t, report);
+    // A failure gives no XP.
     if (rng() < st.bust) {
       busted = true;
       report.busts++;
@@ -261,7 +263,7 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
       s.hp = Math.max(0, hpAt(s, t) - FAIL_DAMAGE);
       s.hpAt = t;
       report.damage += FAIL_DAMAGE;
-      log(s, t, `${fill(pick(rng, FAIL_LINES), rng)} You're stunned. -${FAIL_DAMAGE} HP, +${xp} XP`, 'fail');
+      log(s, t, `${fill(pick(rng, FAIL_LINES), rng)} You're stunned. -${FAIL_DAMAGE} HP.`, 'fail');
     }
   }
   useBuffs(s);

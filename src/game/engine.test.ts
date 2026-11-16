@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyReason, crimeStats, hpAt, lootPrice, maxHp, newGame, sellLoot, startJob, tick, totalLevel } from './engine';
+import { CHANCE_PER_LEVEL, busyReason, crimeStats, hpAt, lootPrice, maxHp, newGame, sellLoot, startJob, tick, totalLevel } from './engine';
 import { STUN_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
@@ -12,14 +12,21 @@ const fresh = (name = 'Tester') => structuredClone(newGame(name, DEFAULT_LOOK, T
 describe('levels (design §3)', () => {
   it('go from 1 to 30 and match the design doc table', () => {
     expect(MAX_LEVEL).toBe(30);
-    expect(totalXpForLevel(5)).toBe(5368);
-    expect(totalXpForLevel(30)).toBe(984067);
+    expect(totalXpForLevel(10)).toBe(30010);
+    expect(totalXpForLevel(30)).toBe(8430624);
     for (let l = 1; l <= MAX_LEVEL; l++) {
       expect(levelFromXp(totalXpForLevel(l))).toBe(l);
       if (l > 1) expect(levelFromXp(totalXpForLevel(l) - 1)).toBe(l - 1);
     }
   });
 });
+
+/** Expected seconds per attempt and XP per hour for a crime at a given level (one tap per attempt). */
+function pace(c: (typeof CRIMES)[number], level: number) {
+  const chance = Math.min(0.97, c.baseChance + Math.max(0, level - c.level) * CHANCE_PER_LEVEL);
+  const secondsPerAttempt = c.duration + (1 - chance) * STUN_SECONDS; // a failure adds a 2s stun
+  return { chance, xpPerHour: (3600 / secondsPerAttempt) * chance * c.xp }; // failures give no XP
+}
 
 describe('street crimes (design §4)', () => {
   it('unlock every 5 levels, 1 to 30', () => {
@@ -34,22 +41,35 @@ describe('street crimes (design §4)', () => {
     expect([c.cashMin, c.cashMax]).toEqual([1, 3]);
   });
 
+  it('exactly 150 successful pickpockets take you from level 1 to 10', () => {
+    const xp = CRIME_BY_ID.pick_wallet.xp;
+    expect(levelFromXp(149 * xp)).toBe(9);
+    expect(levelFromXp(150 * xp)).toBe(10);
+  });
+
+  it('every crime starts at 65% and gains 0.5% per level above its requirement', () => {
+    const s = fresh();
+    for (const c of CRIMES) expect(c.baseChance).toBe(0.65);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.65);
+    s.skills.street.xp = totalXpForLevel(11);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.7);
+    s.skills.street.xp = totalXpForLevel(30);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.795);
+  });
+
   it('each new crime pays more XP per hour than the one before', () => {
-    const perHour = CRIMES.map((c) => (3600 / c.duration) * c.baseChance * c.xp);
+    const perHour = CRIMES.map((c) => pace(c, c.level).xpPerHour);
     for (let i = 1; i < perHour.length; i++) expect(perHour[i]).toBeGreaterThan(perHour[i - 1]);
   });
 
-  it('reaching 30 takes roughly 16 hours of active play', () => {
+  it('reaching 30 takes roughly 16 hours of active play (always using the best crime)', () => {
     let hours = 0;
-    for (let i = 0; i < CRIMES.length - 1; i++) {
-      const c = CRIMES[i];
-      // One tap per attempt; a failure adds a 2-second stun before the next tap.
-      const secondsPerAttempt = c.duration + (1 - c.baseChance) * STUN_SECONDS;
-      const xpPerHour = (3600 / secondsPerAttempt) * (c.baseChance * c.xp + (1 - c.baseChance) * c.xp * 0.25);
-      hours += (totalXpForLevel(CRIMES[i + 1].level) - totalXpForLevel(c.level)) / xpPerHour;
+    for (let l = 1; l < MAX_LEVEL; l++) {
+      const best = Math.max(...CRIMES.filter((c) => c.level <= l).map((c) => pace(c, l).xpPerHour));
+      hours += (totalXpForLevel(l + 1) - totalXpForLevel(l)) / best;
     }
-    expect(hours).toBeGreaterThan(12);
-    expect(hours).toBeLessThan(20);
+    expect(hours).toBeGreaterThan(14);
+    expect(hours).toBeLessThan(18);
   });
 });
 

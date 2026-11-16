@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.11.0',
+    date: '2026-11-16',
+    title: 'Street Crimes rebalanced',
+    items: [
+      'Every crime now starts at 65% success when you unlock it, and gets 0.5% better for every Street Crimes level above that.',
+      'A failed attempt gives no XP any more.',
+      'XP rebalanced: 150 successful pickpockets take you from level 1 to 10. Every next crime earns more XP per hour than the one before; level 30 still takes about 16 hours.',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-11-16',
     title: "Step inside Eddy's",
