@@ -52,16 +52,6 @@ export interface Grave {
   expiresAt: number;
 }
 
-export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
-
-export interface Buff {
-  id: string;
-  label: string;
-  kind: BuffKind;
-  value: number;
-  uses: number;
-}
-
 export type LogKind = 'success' | 'big' | 'fail' | 'bust' | 'level' | 'event' | 'info' | 'loot';
 
 export interface LogEntry {
@@ -85,7 +75,6 @@ export interface GameState {
   player: PlayerState;
   /** Item id → how many (food stacks). Each different item takes one inventory slot. */
   inventory: Record<string, number>;
-  buffs: Buff[];
   /** Your grave, if you died and haven't collected your stuff yet. */
   grave?: Grave | null;
   stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };

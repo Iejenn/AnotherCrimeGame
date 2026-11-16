@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.21.0',
+    date: '2026-11-16',
+    title: 'Fair play',
+    items: [
+      "Other players' names and looks now come straight from the server, so nobody can pretend to be someone else.",
+      'Random encounters and their boosts (old-timer tips, lucky streaks…) are gone.',
+    ],
+  },
+  {
     version: '0.20.0',
     date: '2026-11-16',
     title: 'Online: play together',

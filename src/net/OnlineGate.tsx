@@ -116,7 +116,7 @@ export function OnlineGate() {
 /** Playing online: the normal game screen, run by the server, with the other players around you. */
 function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: string; email: string }) {
   const g = useOnlineGame(first);
-  const world = useWorld(userId, g.state.name, g.state.look);
+  const world = useWorld(userId, g.roster, g.refresh);
   return (
     <GameScreen
       state={g.state}

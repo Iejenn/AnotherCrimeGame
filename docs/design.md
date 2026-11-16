@@ -312,10 +312,13 @@ needs step 2 below.
   the watchers' schedules (the SQL gives exactly the same answers as `watchers.ts`), getting hit, dying and graves,
   eating, selling (only inside Eddy's store), a walking-speed check against teleporting. The app (`useOnlineGame`)
   sends what you do and shows the server's answers. Shelves and meters emptied by anyone are empty for everyone.
-  Not online yet: the random encounters and their boosts (offline only for now).
-- **Seeing each other (built, v0.20):** a private Realtime channel `world`; each player shares their walking
-  route when they tap, other phones animate it. Other players show with a white name and as white dots on the
-  minimap. (Known gap: what you share about yourself isn't checked by the server yet; it's only visual.)
+- **Random encounters and boosts: removed (v0.21, decided).** No more old-timer's tricks, lucky streaks, etc.
+- **Seeing each other (built v0.20, made tamper-proof v0.21):** everything about other players comes from the
+  database. Who's online (heard from in the last 30s) with their **name and look** comes from the server
+  (`game_state` → "world"). Your route goes through `walk()`, which knows who you are and checks the route
+  (could you have got to its start, neighbouring tiles only, on the map); other phones hear it through Realtime
+  changes on the `walks` table, whose rows say whose route it is. So nobody can show up as someone else.
+  Other players show with a white name and as white dots on the minimap.
 - **Highscores (built, v0.20):** a Highscores tab with a table per skill (top 50, rank, name, level, XP; your
   own row highlighted, and your rank if you're further down). Public, so offline players can look too.
 - Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).

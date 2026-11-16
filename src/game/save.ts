@@ -34,7 +34,7 @@ export function migrate(raw: any): GameState | null {
   // Skills that didn't exist in a save start at 0 XP.
   for (const id of ['street', 'melee', 'defense', 'gunfire', 'health']) raw.skills[id] ??= { xp: 0 };
   raw.inventory ??= {};
-  raw.buffs ??= [];
+  delete raw.buffs; // random encounters and their boosts were removed (v0.21)
   raw.log = Array.isArray(raw.log) ? raw.log : [];
   return raw as GameState;
 }

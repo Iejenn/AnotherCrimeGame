@@ -1,58 +1,58 @@
-// Seeing each other (docs/design.md §11): everyone online is on one Supabase Realtime channel, "world".
-// Each player shares, with Presence, who they are and their walking route: where they started, the tiles of
-// the path, and when they set off. Other phones animate the walk along that route, so a tap to walk is one
-// message, not one per step. The channel is private: only signed-in players can join it
-// (supabase/migrations/0004_world_channel.sql).
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { Look } from '../game/types';
-import { gameNow } from '../game/clock';
+// Seeing each other (docs/design.md §11). Everything about other players comes from the database:
+//  - who's online, with their name and look: the server's "world" list (in game_state, every 10 seconds);
+//  - where they walk: the public.walks table. Your route goes in through public.walk(), which knows who you
+//    are and checks the route; Realtime tells every other phone the moment a row changes, and the row says
+//    whose it is. So nobody can show up as someone else.
+// Other phones animate the walk along the route, so one tap to walk is one message, not one per step.
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { supabase } from './supabase';
-import type { OtherPlayer, WorldLink } from '../street/StreetView';
+import type { WorldEntry } from './useOnlineGame';
+import type { WorldLink } from '../street/StreetView';
 
-interface Shared {
-  name: string;
-  look: Look;
-  from: [number, number];
+interface WalkRow {
+  player_id: string;
+  from_x: number;
+  from_y: number;
   path: [number, number][];
-  at: number;
+  started_at: string;
 }
 
-export function useWorld(userId: string, name: string, look: Look): WorldLink {
-  const others = useRef(new Map<string, OtherPlayer>());
-  const channel = useRef<RealtimeChannel | null>(null);
-  const joined = useRef(false);
-  const mine = useRef<Shared>({ name, look, from: [18, 22], path: [], at: gameNow() });
+export function useWorld(userId: string, roster: MutableRefObject<WorldEntry[]>, refresh: () => void): WorldLink {
+  /** Routes heard live (newer than the last roster), by player id. */
+  const routes = useRef(new Map<string, { from: [number, number]; path: [number, number][]; at: number }>());
 
   useEffect(() => {
-    const ch = supabase.channel('world', { config: { private: true, presence: { key: userId } } });
-    ch.on('presence', { event: 'sync' }, () => {
-      const m = new Map<string, OtherPlayer>();
-      for (const [key, metas] of Object.entries(ch.presenceState<Shared>())) {
-        if (key === userId || !metas.length) continue;
-        const p = metas[metas.length - 1];
-        m.set(key, { id: key, name: p.name, look: p.look, from: p.from, path: p.path ?? [], at: p.at });
-      }
-      others.current = m;
-    });
-    ch.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        joined.current = true;
-        void ch.track(mine.current);
-      }
-    });
-    channel.current = ch;
+    const ch = supabase
+      .channel('walks')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'walks' }, (msg) => {
+        const r = msg.new as Partial<WalkRow>;
+        if (!r?.player_id || r.player_id === userId) return;
+        routes.current.set(r.player_id, { from: [r.from_x!, r.from_y!], path: r.path ?? [], at: Date.parse(r.started_at!) });
+        // Someone we don't know yet: ask the server who it is.
+        if (!roster.current.some((p) => p.id === r.player_id)) refresh();
+      })
+      .subscribe();
     return () => {
-      joined.current = false;
-      channel.current = null;
       void supabase.removeChannel(ch);
     };
-  }, [userId]);
+  }, [userId, roster, refresh]);
 
   const move = useCallback((from: [number, number], path: [number, number][]) => {
-    mine.current = { ...mine.current, from, path, at: gameNow() };
-    if (joined.current) void channel.current?.track(mine.current);
+    // (A Supabase call only goes out once something waits for its answer, hence the .then.)
+    supabase.rpc('walk', { p_from_x: from[0], p_from_y: from[1], p_path: path }).then(() => undefined);
   }, []);
 
-  return useMemo(() => ({ others: () => [...others.current.values()], move }), [move]);
+  return useMemo(
+    () => ({
+      // Only players the server says are online, with the server's name and look; the newest route we know.
+      others: () =>
+        roster.current.map((p) => {
+          const live = routes.current.get(p.id);
+          const r = live && live.at >= p.at ? live : p;
+          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at };
+        }),
+      move,
+    }),
+    [roster, move],
+  );
 }

@@ -130,19 +130,6 @@ export function SkillsTab({ s, onImport, onReset, account }: { s: GameState; onI
         )}
       </section>
 
-      {s.buffs.length > 0 && (
-        <section>
-          <h3 className="rule-head">Active boosts</h3>
-          <ul className="plain small">
-            {s.buffs.map((b) => (
-              <li key={b.id}>
-                {b.label}: +{Math.round(b.value * 100)}% {b.kind}, {b.uses} more jobs
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       <section>
         <h3 className="rule-head">Record</h3>
         <div className="stats-grid">

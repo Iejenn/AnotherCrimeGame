@@ -43,6 +43,18 @@ export interface ServerAnswer {
   spots?: Record<string, number>;
   report?: Partial<Report>;
   log?: string[];
+  /** Who else is on the island (game_state only): name and look from the database. */
+  world?: WorldEntry[];
+}
+
+/** Another player, as the server describes them (game.world in the SQL). */
+export interface WorldEntry {
+  id: string;
+  name: string;
+  look: GameState['look'];
+  from: [number, number];
+  path: [number, number][];
+  at: number;
 }
 
 /** Server reasons that the game explains itself already (or that need no message). */
@@ -82,7 +94,6 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
       pos: p.pos,
     },
     inventory: p.inventory ?? {},
-    buffs: [],
     grave: a.grave ?? null,
     stats: p.stats,
     log,
@@ -102,6 +113,8 @@ export function useOnlineGame(first: ServerAnswer) {
   /** A finish/refresh call is on its way: don't send another. */
   const busy = useRef(false);
   const retryAt = useRef(0);
+  /** Who else is online, as the server last told us. */
+  const roster = useRef<WorldEntry[]>(first.world ?? []);
 
   const toast = useCallback((items: Omit<Toast, 'id'>[]) => {
     if (!items.length) return;
@@ -116,6 +129,7 @@ export function useOnlineGame(first: ServerAnswer) {
     (a: ServerAnswer | null, sentAt: number) => {
       if (!a) return;
       if (a.server_now) syncClock(a.server_now, sentAt, Date.now());
+      if (a.world) roster.current = a.world;
       if (!a.ok && a.reason && !QUIET.has(a.reason)) toast([{ text: SAY[a.reason] ?? 'The server said no.', kind: 'event' }]);
       if (!a.player) return;
       const t = gameNow();
@@ -221,5 +235,10 @@ export function useOnlineGame(first: ServerAnswer) {
     };
   }, []);
 
-  return { state: ref.current, api, onReport, welcome, dismissWelcome: () => setWelcome(false), toasts };
+  /** Ask the server who's around now (e.g. when someone new starts walking). */
+  const refresh = useCallback(() => {
+    if (!busy.current) void settle('game_state');
+  }, [settle]);
+
+  return { state: ref.current, api, onReport, welcome, dismissWelcome: () => setWelcome(false), toasts, roster, refresh };
 }

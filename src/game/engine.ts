@@ -1,6 +1,6 @@
 // Core game rules (docs/design.md). Plain functions on a GameState, so the same logic could
 // later run server-side (e.g. a Supabase function) for anti-cheat.
-import type { Buff, GameState, Look, LogKind, Report, SkillId } from './types';
+import type { GameState, Look, LogKind, Report, SkillId } from './types';
 import { SKILL_BY_ID, SKILL_IDS } from './data/skills';
 import { CATCH_SECONDS, CRIME_BY_ID, EAT_SECONDS, type CrimeDef } from './data/crimes';
 import { ITEM_BY_ID } from './data/items';
@@ -11,8 +11,6 @@ import { firstSeen } from './watchers';
 import { emptyReport } from './types';
 
 export const LOG_CAP = 150;
-/** Random encounters are tuned per minute of work, so short and long crimes feel the same. */
-const ENCOUNTERS_PER_MIN = 0.05;
 const BIG_SCORE_CHANCE = 0.05;
 /** Success chance goes up this much for every level you are above a crime's requirement. */
 export const CHANCE_PER_LEVEL = 0.005;
@@ -42,9 +40,6 @@ export function slotsUsed(s: GameState) {
   return 1 + Object.keys(s.inventory).length;
 }
 
-function buffSum(s: GameState, kind: Buff['kind']) {
-  return s.buffs.filter((b) => b.kind === kind).reduce((sum, b) => sum + b.value, 0);
-}
 
 /** Max health: 10, plus 2 per Health level above 1. */
 export const maxHp = (s: GameState) => 10 + 2 * (skillLevel(s, 'health') - 1);
@@ -71,13 +66,13 @@ export function crimeStats(s: GameState, crime: CrimeDef): CrimeStats {
   // The crime's odds at the level you unlock it, +0.5% for every level above that. Crimes at 100%
   // (the bar, the parking meters) always work: the risk there is being seen.
   const cap = crime.baseChance >= 1 ? 1 : 0.97;
-  const chance = Math.min(cap, Math.max(0.05, crime.baseChance + Math.max(0, lvl - crime.level) * CHANCE_PER_LEVEL + buffSum(s, 'success')));
+  const chance = Math.min(cap, Math.max(0.05, crime.baseChance + Math.max(0, lvl - crime.level) * CHANCE_PER_LEVEL));
   return {
-    xp: Math.round(crime.xp * Math.max(0.1, 1 + buffSum(s, 'xp'))),
+    xp: crime.xp,
     chance,
-    crit: Math.min(0.6, BIG_SCORE_CHANCE + buffSum(s, 'crit')),
+    crit: BIG_SCORE_CHANCE,
     duration: crime.duration,
-    cashMult: Math.max(0.1, 1 + buffSum(s, 'cash')),
+    cashMult: 1,
   };
 }
 
@@ -89,7 +84,7 @@ export function newGame(name: string, look: Look, now: number): GameState {
     version: 2, name: name.trim() || 'Nobody', look, createdAt: now,
     cash: 10, hp: 10, hpAt: now,
     skills, player: { job: null, stunnedUntil: 0, eatingUntil: 0 },
-    inventory: {}, buffs: [],
+    inventory: {},
     stats: { jobs: 0, bigScores: 0, earned: 0, fails: 0 },
     log: [], nextId: 1,
   };
@@ -136,35 +131,11 @@ export function addXp(s: GameState, skill: SkillId, amount: number, t: number, r
   }
 }
 
-function useBuffs(s: GameState) {
-  for (const b of s.buffs) b.uses -= 1;
-  s.buffs = s.buffs.filter((b) => b.uses > 0);
-}
-
 function earn(s: GameState, amount: number, report: Report) {
   s.cash += amount;
   s.stats.earned += amount;
   report.cash += amount;
 }
-
-function addBuff(s: GameState, b: Omit<Buff, 'id'>) {
-  s.buffs.push({ ...b, id: `b${s.nextId++}` });
-  if (s.buffs.length > 6) s.buffs.shift();
-}
-
-// ---------------- Random encounters ----------------
-
-interface Encounter {
-  text: string;
-  apply: (s: GameState, t: number, rng: Rng, report: Report) => string;
-}
-
-const ENCOUNTERS: Encounter[] = [
-  { text: 'An old-timer shares a few tricks.', apply: (s) => { addBuff(s, { label: "Old-timer's tricks", kind: 'xp', value: 0.5, uses: 30 }); return '+50% XP for 30 attempts'; } },
-  { text: 'You find a few dollars taped under a park bench.', apply: (s, _t, r, rep) => { const c = 3 + Math.floor(r() * 8); earn(s, c, rep); return `+${fmtMoney(c)}`; } },
-  { text: 'A doorman tips you off about easy marks.', apply: (s) => { addBuff(s, { label: "Doorman's tip", kind: 'success', value: 0.1, uses: 30 }); return '+10% success for 30 attempts'; } },
-  { text: 'You feel a lucky streak coming on.', apply: (s) => { addBuff(s, { label: 'Lucky streak', kind: 'crit', value: 0.2, uses: 20 }); return '+20% Big Score chance for 20 attempts'; } },
-];
 
 // ---------------- Resolving one attempt ----------------
 
@@ -278,14 +249,6 @@ function resolveAttempt(s: GameState, t: number, rng: Rng, report: Report) {
     else {
       getHit(s, crime, t, report, pick(rng, crime.failLines));
     }
-  }
-  useBuffs(s);
-
-  if (rng() < (ENCOUNTERS_PER_MIN * st.duration) / 60) {
-    const enc = pick(rng, ENCOUNTERS);
-    const result = enc.apply(s, t, rng, report);
-    log(s, t, `${enc.text} (${result})`, 'event');
-    report.events.push(`${enc.text} (${result})`);
   }
 }
 
