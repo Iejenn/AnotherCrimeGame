@@ -11,6 +11,7 @@ import { QuestsTab } from './QuestsTab';
 import { SkillsTab } from './SkillsTab';
 import { StartScreen } from './StartScreen';
 import { StreetView, type WorldLink } from '../street/StreetView';
+import type { ChatLink } from '../net/chat';
 import { HighscoresTab } from './HighscoresTab';
 
 type Tab = 'street' | 'inventory' | 'highscores' | 'quests' | 'skills';
@@ -32,6 +33,7 @@ export interface GameScreenProps {
   /** Your account, and the shared world (other players). */
   account: { email: string; onSignOut: () => void };
   world: WorldLink;
+  chat: ChatLink;
 }
 
 export function GameScreen(p: GameScreenProps) {
@@ -50,7 +52,7 @@ export function GameScreen(p: GameScreenProps) {
         ))}
       </nav>
       <main className="content">
-        {tab === 'street' && <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} />}
+        {tab === 'street' && <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} chat={p.chat} />}
         {tab === 'inventory' && <InventoryTab s={state} api={p.api} />}
         {tab === 'highscores' && (
           <HighscoresTab myName={state.name} />

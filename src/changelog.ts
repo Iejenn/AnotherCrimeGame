@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.23.0',
+    date: '2026-11-16',
+    title: 'Chat',
+    items: [
+      'Talk to everyone on the island: the box at the bottom of the Street is now a chat too. Type and press Enter.',
+      'What you say also pops up over your head for a few seconds.',
+      'Filter the box to just the game messages or just the chat, or fold it down with the arrow.',
+    ],
+  },
+  {
     version: '0.22.0',
     date: '2026-11-16',
     title: 'Underworld is online',

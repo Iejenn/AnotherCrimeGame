@@ -9,6 +9,7 @@ import { fmtMoney } from '../game/engine';
 import { GameScreen } from '../components/GameScreen';
 import { useOnlineGame, type ServerAnswer } from './useOnlineGame';
 import { useWorld } from './world';
+import { useChat } from './chat';
 import { AuthScreen } from './AuthScreen';
 import { REASONS, supabase } from './supabase';
 import { loadGame } from '../game/save';
@@ -117,6 +118,7 @@ export function OnlineGate() {
 function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: string; email: string }) {
   const g = useOnlineGame(first);
   const world = useWorld(userId, g.roster, g.refresh);
+  const chat = useChat(userId);
   return (
     <GameScreen
       state={g.state}
@@ -127,6 +129,7 @@ function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: str
       toasts={g.toasts}
       account={{ email, onSignOut: () => void supabase.auth.signOut() }}
       world={world}
+      chat={chat}
     />
   );
 }

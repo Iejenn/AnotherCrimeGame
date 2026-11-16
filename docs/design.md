@@ -290,6 +290,12 @@ server will run the same functions (ported to SQL, or shared TypeScript) to chec
 (not every step), other phones animate it. Presence shows who is online. This keeps message counts (the main
 Realtime cost) low.
 
+**Chat (built, v0.23):** one global chat for everyone (for testing), in the box at the bottom of the Street together
+with the game's messages, OSRS-style: filters All / Game / Chat, "Name: Press Enter to chat…", folds down to one
+line. What someone says also shows over their head (yellow) for 5 seconds. Messages go in only through
+`send_chat()`, which takes your name from the database (no faking), cleans the text, and allows at most 1 message
+per second and 5 per 10 seconds (200 letters max). Kept for 7 days. No word filter or muting yet.
+
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.
 
