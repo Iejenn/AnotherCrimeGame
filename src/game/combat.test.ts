@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { attackRoll, combatLevel, defenceRoll, hitChance, maxHit, UNARMED, weaponStats } from './combat';
 import { ENEMIES, ENEMY_KINDS, PIGEON_FLY_MS, PIGEON_HOP_MS, PIGEON_TILES, pigeonAt } from './enemies';
 import { ITEM_BY_ID, SHOPS } from './data/items';
-import { maxHp, newGame } from './engine';
+import { itemPrice, maxHp, newGame } from './engine';
 import { DEFAULT_LOOK } from '../street/character';
 import { FIXTURES, PARK, inRect } from '../street/map';
 
@@ -25,7 +25,46 @@ describe('combat maths (design §12)', () => {
     expect(maxHit(k.damage!, 1)).toBe(2);
     expect(k.speed).toBe(UNARMED.speed);
     expect(k.defence ?? 0).toBe(0);
-    expect(SHOPS.weapons).toEqual([{ item: 'brass_knuckles', price: 50 }]);
+    expect(SHOPS.weapons).toEqual([{ item: 'brass_knuckles', price: 50 }, { item: 'baseball_bat', price: 250 }]);
+    // The bat: +4 damage (max hit 5 at Melee 3), a swing every 3 s, needs Melee 3. Selling gives a quarter back.
+    const bat = ITEM_BY_ID.baseball_bat.gear!;
+    expect([bat.damage, bat.speed, bat.needs?.level]).toEqual([5, 6, 3]);
+    expect(maxHit(bat.damage!, 3)).toBe(5);
+    expect(itemPrice('baseball_bat')).toBe(62);
+    expect(itemPrice('candy_bar')).toBe(1);
+    expect(itemPrice('sandwich')).toBe(2);
+  });
+
+  it('thugs: level 5, 10 HP, a stab every 1 s; they stroll around the Yard; the knife: Melee 5, +1 damage, fast', async () => {
+    const { thugAt, THUG_TILES } = await import('./enemies');
+    const { YARD } = await import('../street/map');
+    const t = ENEMY_KINDS.thug;
+    expect([t.level, t.hp, t.attack, t.defense, t.maxHit, t.speed, t.respawn, t.aggressive]).toEqual([5, 10, 5, 5, 2, 2, 30, false]);
+    for (let i = 0; i < 3; i++)
+      for (let ms = 0; ms < 60000; ms += 777) {
+        const p = thugAt(i, 1.8e12 + ms); // real clock times (the schedule counts from 1970)
+        expect(inRect(YARD, Math.floor(p.x), Math.floor(p.z))).toBe(true);
+      }
+    expect(THUG_TILES.length).toBe(21);
+    const k = ITEM_BY_ID.knife.gear!;
+    expect([k.damage, k.speed, k.needs?.level, k.anim]).toEqual([2, 2, 5, 'stab']);
+    expect(itemPrice('knife')).toBe(62);
+  });
+
+  it("the game's copy of the loot tables (shown in the Skills tab) matches the server's public.loot", () => {
+    // public.loot on the server (checked there on 2026-11-16): pigeon raw_bird_meat 1; thug cash 0.2 ($5–10), knife 0.05.
+    const rows = Object.values(ENEMY_KINDS).flatMap((k) => k.loot.map((d) => `${k.id}:${d.item}@${d.chance}:${d.min}-${d.max}`));
+    expect(rows.sort()).toEqual(['pigeon:raw_bird_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:knife@0.05:1-1']);
+  });
+
+  it('cooking: raw bird meat burns half the time at level 1, never from 15; cooked meat heals 1', async () => {
+    const { RECIPE_BY_ITEM, burnChance } = await import('./data/recipes');
+    const r = RECIPE_BY_ITEM.raw_bird_meat;
+    expect([r.to, r.level, r.xp]).toEqual(['cooked_bird_meat', 1, 5]);
+    expect(burnChance(r, 1)).toBe(0.5);
+    expect(burnChance(r, 8)).toBe(0.25);
+    expect(burnChance(r, 15)).toBe(0);
+    expect(ITEM_BY_ID.cooked_bird_meat.heal).toBe(1);
   });
 
   it('combat level: a new character is 3; everything at 30 is 30', () => {

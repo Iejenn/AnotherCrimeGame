@@ -4,7 +4,7 @@
 // Enemies are shared by everyone, so where they walk is a FIXED SCHEDULE worked out from the game clock (like the
 // guard, watchers.ts): every phone and the server agree where each Pigeon is. The server has the same function
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
-import { FIXTURES, PARK } from '../street/map';
+import { FIXTURES, PARK, YARD } from '../street/map';
 import { minstd } from './watchers';
 
 export interface EnemyKind {
@@ -22,14 +22,41 @@ export interface EnemyKind {
   /** Seconds until a killed one comes back. */
   respawn: number;
   aggressive: boolean;
+  /** Where it lives (shown in the Skills tab). */
+  where: string;
+  /** What it drops, on the ground where it dies: the same rows as public.loot on the server (which rolls them). */
+  loot: Drop[];
+}
+
+/** One line of a loot table: an item (or 'cash', in dollars), the chance (0–1), and how many. */
+export interface Drop {
+  item: string;
+  chance: number;
+  min: number;
+  max: number;
 }
 
 export const ENEMY_KINDS: Record<string, EnemyKind> = {
-  pigeon: { id: 'pigeon', name: 'Pigeon', level: 1, hp: 3, attack: 1, defense: 0, defenceBonus: 0, speed: 4, maxHit: 1, respawn: 25, aggressive: false },
+  pigeon: {
+    id: 'pigeon', name: 'Pigeon', level: 1, hp: 3, attack: 1, defense: 0, defenceBonus: 0, speed: 4, maxHit: 1, respawn: 25, aggressive: false,
+    where: 'Central Park (008)', loot: [{ item: 'raw_bird_meat', chance: 1, min: 1, max: 1 }],
+  },
+  // The Yard's thugs (007): hooded, with a knife. Not aggressive (for now). Drop $5–10 (1 in 5) and a knife (1 in 20).
+  thug: {
+    id: 'thug', name: 'Thug', level: 5, hp: 10, attack: 5, defense: 5, defenceBonus: 0, speed: 2, maxHit: 2, respawn: 30, aggressive: false,
+    where: 'The Yard (007)',
+    loot: [
+      { item: 'cash', chance: 0.2, min: 5, max: 10 },
+      { item: 'knife', chance: 0.05, min: 1, max: 1 },
+    ],
+  },
 };
 
-/** Every enemy on the island: its id and kind. */
-export const ENEMIES = [0, 1, 2].map((i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i }));
+/** Every enemy on the island: its id, kind, and which one of its kind it is (its schedule). */
+export const ENEMIES = [
+  ...[0, 1, 2].map((i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })),
+  ...[0, 1, 2].map((i) => ({ id: `thug_${i}`, kind: 'thug', index: i })),
+];
 
 /** Open park tiles a Pigeon may land on (the park minus hedges, trees, the fountain, benches, the pond, flowers). */
 export const PIGEON_TILES: [number, number][] = (() => {
@@ -60,4 +87,40 @@ export function pigeonAt(index: number, t: number) {
   const [fx, fy] = pigeonSpot(index, k - 1);
   const f = into / PIGEON_FLY_MS;
   return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: true };
+}
+
+// ---------- the thugs: they stroll around the Yard ----------
+/** Open tiles in the Yard a thug may stand on (not the fence row, the couch or the barrel). */
+export const THUG_TILES: [number, number][] = (() => {
+  const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
+  const out: [number, number][] = [];
+  for (let y = YARD.y0; y < YARD.y1; y++) for (let x = YARD.x0; x <= YARD.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
+  return out;
+})();
+/** A thug's routine: every 12 s he strolls (3 s) to another spot, then hangs around there. */
+export const THUG_MOVE_MS = 12000;
+export const THUG_WALK_MS = 3000;
+
+export function thugSpot(index: number, k: number): [number, number] {
+  const h = minstd(((k * 3 + index) % M) + 1);
+  return THUG_TILES[h % THUG_TILES.length];
+}
+
+/** Where thug `index` is at time t, and whether he's walking (the same as game.thug_at on the server). */
+export function thugAt(index: number, t: number) {
+  const shifted = t + index * 4111;
+  const k = Math.floor(shifted / THUG_MOVE_MS);
+  const into = shifted - k * THUG_MOVE_MS;
+  const [tx, ty] = thugSpot(index, k);
+  if (into >= THUG_WALK_MS) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
+  const [fx, fy] = thugSpot(index, k - 1);
+  const f = into / THUG_WALK_MS;
+  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+}
+
+/** Where an enemy of this kind is at time t (game.enemy_at on the server). */
+export function enemyAt(kind: string, index: number, t: number) {
+  if (kind === 'thug') return thugAt(index, t);
+  const p = pigeonAt(index, t);
+  return { ...p, moving: p.flying };
 }

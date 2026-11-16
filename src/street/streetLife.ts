@@ -448,3 +448,23 @@ export function buildBigCar(color: number) {
   for (const [x, z] of [[0.85, 0.62], [0.85, -0.62], [-0.85, 0.62], [-0.85, -0.62]]) put(g, cyl(0.26, 0.26, 0.18, 14).rotateX(Math.PI / 2), 0x1e1e22, x, 0.26, z);
   return g;
 }
+
+// ---------------- things lying on the ground (loot) ----------------
+
+/** What an item looks like on the ground: meat, a few bills, or (for anything without its own look) a small bundle. */
+export function buildGroundItem(item: string) {
+  const g = new THREE.Group();
+  if (item === 'cash') {
+    for (let i = 0; i < 3; i++) {
+      const b = put(g, boxGeo(0.26, 0.015, 0.13), i % 2 ? 0x4f8455 : 0x6a9e68, (i - 1) * 0.04, 0.015 + i * 0.016, (i - 1) * 0.02, false);
+      b.rotation.y = i * 0.5;
+    }
+  } else if (item === 'raw_bird_meat' || item === 'cooked_bird_meat') {
+    const raw = item === 'raw_bird_meat';
+    put(g, new THREE.SphereGeometry(0.11, 8, 6), raw ? 0xe8a0a0 : 0x8a4a22, 0, 0.07, 0).scale.set(1.3, 0.6, 1);
+    put(g, cyl(0.025, 0.02, 0.14, 6).rotateZ(Math.PI / 2.4), raw ? 0xf2e2d0 : 0xd8c8a8, 0.12, 0.08, 0); // the bone
+  } else {
+    put(g, boxGeo(0.22, 0.1, 0.16), 0x8a7a5a, 0, 0.05, 0);
+  }
+  return g;
+}

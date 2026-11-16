@@ -29,4 +29,9 @@ export interface GameApi {
   unequip(slot: string): void;
   /** Buy one item from the shop you're in. */
   buy(itemId: string): void;
+  /** Pick up something lying on the ground (standing on it or next to it). */
+  pickUp(groundId: number, pos: [number, number]): void;
+  /** Start cooking all of an item at the barbecue (standing next to it); stops when you walk away. */
+  cook(itemId: string, pos: [number, number]): void;
+  stopCook(): void;
 }

@@ -8,6 +8,57 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.35.0',
+    date: '2026-11-16',
+    title: 'Know your enemy',
+    items: [
+      'Pick Melee or Gunfire in the Skills tab to see every enemy you can fight, by level.',
+      'Tap one for its card: its stats, where it lives, and what it drops.',
+    ],
+  },
+  {
+    version: '0.34.0',
+    date: '2026-11-16',
+    title: 'Welcome to the Yard',
+    items: [
+      'Block 007 is now the Yard: a rough courtyard with graffiti, an old couch and a burning barrel. Get in through the two gaps in the fence.',
+      'Three thugs hang around in it (level 5, 10 HP). They carry knives and stab fast, but they leave you alone until you start something.',
+      'Thugs drop $5–10 now and then (1 in 5), and once in a while their knife (1 in 20).',
+      'The knife: needs Melee 5, +1 damage, and it is fast: a stab every second. Ray buys it for $62.',
+    ],
+  },
+  {
+    version: '0.33.0',
+    date: '2026-11-16',
+    title: 'Fire up the barbecue',
+    items: [
+      'Loot! Things you kill drop their loot on the ground. Only you see it for a minute, then everyone can grab it. Tap it to pick it up.',
+      'Pigeons always drop raw bird meat.',
+      'New skill: Cooking. Cook raw bird meat on the new barbecue in the pocket park on 003-B (the fire icon on the map). Tap the barbecue, then the meat: you cook all of it, one a second.',
+      'You burn half of it at first, less as you level up, and never from Cooking 15. Cooked bird meat heals 1 HP.',
+    ],
+  },
+  {
+    version: '0.32.0',
+    date: '2026-11-16',
+    title: 'Batter up',
+    items: [
+      "Ray now sells a baseball bat for $250 (needs Melee 3). It hits hard, up to 5 damage, but slowly: a big swing every 3 seconds.",
+      'Shops buy things back for a quarter of what they are worth. Ray buys weapons; Eddy buys everything else.',
+      'Nothing stacks in your bag any more except cash: every item takes a slot of its own. Dropping drops one at a time.',
+    ],
+  },
+  {
+    version: '0.31.0',
+    date: '2026-11-16',
+    title: 'Underworld as an app',
+    items: [
+      'Install Underworld as an app: open the gear menu (top right) and tap "Install app". It gets its own icon and opens full screen.',
+      'On iPhone and iPad: tap Share in Safari, then "Add to Home Screen".',
+      'Underworld has an icon now: the city under a red moon.',
+    ],
+  },
+  {
     version: '0.30.2',
     date: '2026-11-16',
     title: 'Skills, tidied',

@@ -20,8 +20,8 @@
 <rect x="198" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="128" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="198" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
-<rect x="128" y="674" width="70" height="70" fill="#4f7a44" stroke="#1d1b19" stroke-width="1.5"/>
-<rect x="198" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="128" y="674" width="70" height="70" fill="#6a3a3a" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="198" y="674" width="70" height="70" fill="#6a3a3a" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="366" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="436" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="366" y="198" width="70" height="70" fill="#2f7a46" stroke="#1d1b19" stroke-width="1.5"/>
@@ -68,10 +68,11 @@
 <text x="202" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">B</text>
 <text x="233" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <text x="132" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">C</text>
-<text x="163" y="707" font-size="10" text-anchor="middle" fill="#ffffff">Pocket</text>
-<text x="163" y="719" font-size="10" text-anchor="middle" fill="#ffffff">park</text>
+<text x="163" y="707" font-size="10" text-anchor="middle" fill="#ffffff">The Yard</text>
+<text x="163" y="719" font-size="10" text-anchor="middle" fill="#ffffff">(thugs)</text>
 <text x="202" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">D</text>
-<text x="233" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="233" y="707" font-size="10" text-anchor="middle" fill="#ffffff">The Yard</text>
+<text x="233" y="719" font-size="10" text-anchor="middle" fill="#ffffff">(thugs)</text>
 <text x="370" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">A</text>
 <text x="401" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <text x="440" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">B</text>
@@ -106,8 +107,8 @@
 <text x="608" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">A</text>
 <text x="639" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <text x="678" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">B</text>
-<text x="709" y="161" font-size="10" text-anchor="middle" fill="#ffffff">Pocket</text>
-<text x="709" y="173" font-size="10" text-anchor="middle" fill="#ffffff">park</text>
+<text x="709" y="161" font-size="10" text-anchor="middle" fill="#ffffff">Park +</text>
+<text x="709" y="173" font-size="10" text-anchor="middle" fill="#ffffff">barbecue</text>
 <text x="608" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">C</text>
 <text x="639" y="237" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <text x="678" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">D</text>

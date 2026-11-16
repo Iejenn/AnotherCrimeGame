@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import type { GameState } from '../game/types';
 import type { Npc } from './map';
-import { ITEM_BY_ID, SHOPS } from '../game/data/items';
+import { ITEM_BY_ID, SHOPS, buyerOf } from '../game/data/items';
 import { ItemIcon } from '../components/ItemIcon';
 import { fmtMoney, itemPrice } from '../game/engine';
 import type { GameApi } from '../game/api';
@@ -25,7 +25,7 @@ const GREETINGS: Record<string, string[]> = {
 /** Which shop each shopkeeper runs (SHOPS in data/items.ts), and whether they buy your stuff. */
 const SHOP_OF: Record<string, { shop?: string; buysStuff: boolean }> = {
   eddy: { buysStuff: true },
-  ray: { shop: 'weapons', buysStuff: false },
+  ray: { shop: 'weapons', buysStuff: true },
 };
 
 export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; api: GameApi; onClose: () => void }) {
@@ -45,7 +45,9 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
     if (buySel !== itemId) {
       setBuySel(itemId);
       const g = def.gear;
-      const stats = g ? ` +${(g.damage ?? 1) - 1} damage over your fists, same speed.` : '';
+      const speed = g ? ((g.speed ?? 3) === 3 ? 'same speed' : (g.speed ?? 3) > 3 ? 'but slower' : 'and faster') : '';
+      const needs = g?.needs && g.needs.level > 1 ? ` Needs Melee ${g.needs.level}.` : '';
+      const stats = g ? ` +${(g.damage ?? 1) - 1} damage over your fists, ${speed}.${needs}` : '';
       return setBuyLine(`${def.name}: ${fmtMoney(price)}.${stats} Tap it again to buy.`);
     }
     if (s.cash < price) return setBuyLine(`That's ${fmtMoney(price)}. Come back when you've got the cash.`);
@@ -61,19 +63,24 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
       return setLine("That's your cash, pal. I don't buy cash.");
     }
     const def = ITEM_BY_ID[slot.id];
-    if (!def.value) {
+    // Ray only buys weapons; Eddy buys everything else. Both pay a quarter of what it's worth (the server decides).
+    if (buyerOf(slot.id) !== npc.id) {
       setSel(null);
-      return setLine(`A ${def.name}? Not my kind of thing. Try Ray's Arms.`);
+      return setLine(npc.id === 'ray' ? `A ${def.name}? I only buy weapons. Try Eddy's.` : `A ${def.name}? Not my kind of thing. Try Ray's Arms.`);
+    }
+    if (!itemPrice(slot.id)) {
+      setSel(null);
+      return setLine(`A ${def.name}? That's worth nothing to me.`);
     }
     if (sel === key) {
-      // Second tap on the same item: sell one.
+      // Second tap on the same item: sell it.
       api.sell(slot.id);
-      setLine(`Sold ${def.name} for ${fmtMoney(itemPrice(slot.id))}.${slot.count > 1 ? ' Tap again to sell another.' : ''}`);
-      if (slot.count <= 1) setSel(null);
+      setLine(`Sold the ${def.name} for ${fmtMoney(itemPrice(slot.id))}.`);
+      setSel(null);
       return;
     }
     setSel(key);
-    setLine(`I'll give you ${fmtMoney(def.value)} for the ${def.name}. Tap it again to sell.`);
+    setLine(`I'll give you ${fmtMoney(itemPrice(slot.id))} for the ${def.name}. Tap it again to sell.`);
   };
 
   return (

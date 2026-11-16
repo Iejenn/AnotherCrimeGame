@@ -78,3 +78,19 @@ it("the guard's patrol route is walkable, straight, and stays in his patrol area
     }
   });
 });
+
+it('the Yard: you get in through the two gates, and you can reach every spot a thug stands on', async () => {
+  const { THUG_TILES } = await import('../game/enemies');
+  const { YARD, YARD_GATES } = await import('./map');
+  const b = buildBlocked();
+  expect(THUG_TILES.length).toBeGreaterThan(15);
+  for (const [x, y] of THUG_TILES) {
+    expect(inRect(YARD, x, y)).toBe(true);
+    expect(findPath(b, W, H, SPAWN, neighbors(x, y).concat([[x, y]]), canStep), `${x},${y}`).not.toBeNull();
+  }
+  for (const [x, y] of YARD_GATES) expect(b[y * W + x], `gate ${x},${y} open`).toBe(0);
+  // The rest of the fence row is closed.
+  const closed = [];
+  for (let x = YARD.x0; x <= YARD.x1; x++) if (b[YARD.y1 * W + x]) closed.push(x);
+  expect(closed.length).toBe(YARD.x1 - YARD.x0 + 1 - YARD_GATES.length);
+});

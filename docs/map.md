@@ -34,7 +34,7 @@ This page and the picture are generated from the game's map: after changing `src
 | 002-C | Eddy's General Store | 24–28 | 12–16 |
 | 002-D | Ray's Arms | 29–33 | 12–16 |
 | 003-A | Buildings | 41–45 | 7–11 |
-| 003-B | Pocket park | 46–50 | 7–11 |
+| 003-B | Park + barbecue | 46–50 | 7–11 |
 | 003-C | Buildings | 41–45 | 12–16 |
 | 003-D | Buildings | 46–50 | 12–16 |
 | 004-A | Buildings | 7–11 | 24–28 |
@@ -51,8 +51,8 @@ This page and the picture are generated from the game's map: after changing `src
 | 006-D | Parking lot | 46–50 | 29–33 |
 | 007-A | Buildings | 7–11 | 41–45 |
 | 007-B | Buildings | 12–16 | 41–45 |
-| 007-C | Pocket park | 7–11 | 46–50 |
-| 007-D | Buildings | 12–16 | 46–50 |
+| 007-C | The Yard (thugs) | 7–11 | 46–50 |
+| 007-D | The Yard (thugs) | 12–16 | 46–50 |
 | 008-A | Central Park | 24–28 | 41–45 |
 | 008-B | Central Park | 29–33 | 41–45 |
 | 008-C | Central Park | 24–28 | 46–50 |

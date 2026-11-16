@@ -56,7 +56,46 @@ const BrassKnuckles = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles };
+const BaseballBat = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    {/* a wooden bat lying diagonally: black grip tape at the handle, the barrel thickening to the end */}
+    <g transform="rotate(-40 20 20)">
+      <path d="M4 19 L10 18.4 L34 16.5 Q37.5 16.6 37.5 20 Q37.5 23.4 34 23.5 L10 21.6 L4 21 Z" fill="#c08a4a" stroke="#5a3a1a" strokeWidth="1.1" strokeLinejoin="round" />
+      <rect x="4" y="18.6" width="8" height="2.8" rx="0.8" fill="#2b2b2e" />
+      <rect x="2.4" y="17.8" width="2" height="4.4" rx="0.8" fill="#8a5a2a" stroke="#5a3a1a" strokeWidth="0.8" />
+      <path d="M16 18.6 L33 17.4" stroke="#e0b070" strokeWidth="0.9" opacity="0.8" />
+    </g>
+  </svg>
+);
+
+/** A drumstick: pink and pale when raw, brown when cooked. */
+const BirdMeat = ({ cooked }: { cooked: boolean }) => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <g transform="rotate(-35 20 20)">
+      <rect x="22" y="18" width="11" height="4" rx="2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
+      <circle cx="33.5" cy="17.6" r="2.2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
+      <circle cx="33.5" cy="22.4" r="2.2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
+      <ellipse cx="14" cy="20" rx="10" ry="8" fill={cooked ? '#9a5426' : '#e8a0a0'} stroke={cooked ? '#4a240e' : '#a05a5a'} strokeWidth="1.2" />
+      <ellipse cx="11" cy="17" rx="4" ry="2.2" fill={cooked ? '#c07a3a' : '#f6c8c8'} opacity="0.8" />
+    </g>
+  </svg>
+);
+
+const Knife = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    {/* a knife lying diagonally: steel blade with a bright edge, a guard, a dark wooden handle */}
+    <g transform="rotate(-40 20 20)">
+      <path d="M17 17.5 L35 18 Q37 20 35 21.5 L17 22 Z" fill="#dfe4ea" stroke="#5a5f66" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M18 21 L34.5 20.6" stroke="#ffffff" strokeWidth="0.8" opacity="0.8" />
+      <rect x="15.5" y="15.8" width="2.2" height="8.4" rx="0.8" fill="#8a8f96" stroke="#3a3d42" strokeWidth="0.8" />
+      <rect x="5" y="17.6" width="10.8" height="4.8" rx="2" fill="#5a3a22" stroke="#2a1a0e" strokeWidth="0.9" />
+      <circle cx="8" cy="20" r="0.8" fill="#c8b07a" />
+      <circle cx="12" cy="20" r="0.8" fill="#c8b07a" />
+    </g>
+  </svg>
+);
+
+const ICONS: Record<string, () => JSX.Element> = { knife: Knife, raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {

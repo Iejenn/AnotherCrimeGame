@@ -13,7 +13,7 @@ import { emptyReport } from '../game/types';
 import type { GameApi } from '../game/api';
 import { gameNow, syncClock } from '../game/clock';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
-import { SKILL_BY_ID } from '../game/data/skills';
+import { SKILL_BY_ID, SKILL_IDS } from '../game/data/skills';
 import { firstSeen } from '../game/watchers';
 import { supabase } from './supabase';
 
@@ -40,7 +40,10 @@ export interface ServerAnswer {
     stats: GameState['stats'];
     equipment?: GameState['equipment'];
     fight?: GameState['fight'];
+    cook?: GameState['cook'];
   };
+  /** Items on the ground you can see (game.ground_json). */
+  ground?: GameState['ground'];
   grave?: GameState['grave'];
   spots?: Record<string, number>;
   report?: Partial<Report>;
@@ -93,7 +96,7 @@ export interface WorldEntry {
 }
 
 /** Server reasons that the game explains itself already (or that need no message). */
-const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far']);
+const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far', 'no_cooking']);
 /** What the server's "no" means, in words. */
 const SAY: Record<string, string> = {
   enemy_busy: 'Someone else is already fighting that.',
@@ -112,7 +115,14 @@ const SAY: Record<string, string> = {
   level_too_low: "Your level is too low for that.",
   caught: "You've been caught!",
   full_health: "You're already at full health.",
-  not_at_store: 'You need to be in the store to sell.',
+  too_far_away: "You're too far away. Walk up to it first.",
+  gone: "It's gone: someone else got there first, or it rotted away.",
+  not_near_station: 'You need to stand next to the barbecue to cook.',
+  cant_cook: "You can't cook that.",
+  nothing_to_cook: "You don't have any of that to cook.",
+  busy: "You're busy. Finish what you're doing first.",
+  not_at_store: "Sell weapons to Ray at Ray's Arms, everything else to Eddy at the General Store.",
+  nothing_to_sell: "They won't buy that.",
   no_grave: 'Your grave is gone.',
 };
 
@@ -127,7 +137,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     cash: Number(p.cash),
     hp: Number(p.hp),
     hpAt: p.hpAt,
-    skills: Object.fromEntries(Object.entries(p.skills).map(([k, v]) => [k, { xp: Number(v.xp) }])) as GameState['skills'],
+    // Every skill the game knows, at 0 XP if the server doesn't send it (yet).
+    skills: Object.fromEntries(SKILL_IDS.map((k) => [k, { xp: Number(p.skills[k]?.xp ?? 0) }])) as GameState['skills'],
     player: {
       job: p.job ? { ...p.job, pos: p.job.pos } : null,
       stunnedUntil: p.stunnedUntil,
@@ -139,6 +150,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     inventory: p.inventory ?? {},
     equipment: p.equipment ?? {},
     fight: p.fight ?? null,
+    cook: p.cook ?? null,
+    ground: a.ground ?? [],
     grave: a.grave ?? null,
     stats: p.stats,
     log,
@@ -233,7 +246,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
 
   /** Ask the server to finish the attempt / bring things up to date, once at a time. */
   const settle = useCallback(
-    async (fn: 'finish_attempt' | 'game_state' | 'fight_step') => {
+    async (fn: 'finish_attempt' | 'game_state' | 'fight_step' | 'cook_step') => {
       busy.current = true;
       const a = await call(fn);
       busy.current = false;
@@ -256,6 +269,9 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
           // In a fight: ask the server to roll the swings that are due (about every 0.6 s).
           lastFightStep.current = Date.now();
           settle('fight_step');
+        } else if (s.cook && now >= s.cook.next) {
+          // Cooking: the next one is done, ask the server how it came out (it times and rolls every one).
+          settle('cook_step');
         } else if (j) {
           const w = CRIME_BY_ID[j.crimeId]?.catcher;
           const seen = w === 'bartender' || w === 'guard' ? firstSeen(w, j.pos, j.startedAt, Math.min(now, j.endsAt)) : null;
@@ -301,6 +317,9 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       equip: (id) => void call('equip_item', { p_item: id }),
       unequip: (slot) => void call('unequip_item', { p_slot: slot }),
       buy: (id) => void call('buy_item', { p_item: id }),
+      pickUp: (groundId, pos) => void call('pick_up', { p_id: groundId, p_x: pos[0], p_y: pos[1] }),
+      cook: (item, pos) => void call('start_cook', { p_item: item, p_x: pos[0], p_y: pos[1] }),
+      stopCook: () => void call('stop_cook'),
     }),
     [call],
   );

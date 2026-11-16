@@ -110,10 +110,12 @@ export interface Building {
   color: number;
   /** Which side its front door is on: the side facing a street. */
   front: 'n' | 's';
+  /** Run down: the windows are boarded up and the ground floor is bare brick (the Yard's buildings, for graffiti). */
+  boarded?: boolean;
 }
 
 /** Pocket parks (one lot each). */
-const PARKS: [string, LotLetter][] = [['003', 'B'], ['007', 'C']];
+const PARKS: [string, LotLetter][] = [['003', 'B']];
 
 
 /** Street tiles (everything that isn't in a block). */
@@ -192,6 +194,27 @@ const SPECIAL: [string, LotLetter][] = [
   ['005', 'C'], // the candy store
   ['006', 'A'], ['006', 'B'], ['006', 'C'], ['006', 'D'], // the gas station and its parking lot
   ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
+  ['007', 'C'], ['007', 'D'], // the Yard (thugs)
+];
+
+// ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
+// The bottom half of block 007: a building down each side, the 007-A/B buildings behind, and a courtyard between them,
+// open to the south street through two gaps in a chain-link fence. Three thugs with knives hang around in it.
+//   W W . . . . . . E E      W/E = the side buildings, c = an old couch, B = a burning barrel,
+//   W W c c . . . . E E      f = the fence, gaps (entrances) at 1 and 2
+//   W W . . . B . . E E
+//   W W . . . . . . E E
+//   W W f 1 f f 2 f E E
+const YARD_LOTS = { c: lot('007', 'C'), d: lot('007', 'D') };
+export const YARD: Rect = { x0: YARD_LOTS.c.x0 + 2, y0: YARD_LOTS.c.y0, x1: YARD_LOTS.d.x1 - 2, y1: YARD_LOTS.c.y1 };
+const YARD_SIDES = [
+  { x: YARD_LOTS.c.x0, y: YARD_LOTS.c.y0, w: 2, h: LOT_SIZE },
+  { x: YARD.x1 + 1, y: YARD_LOTS.c.y0, w: 2, h: LOT_SIZE },
+];
+/** The two gaps in the fence (the entrances), on its south row. */
+export const YARD_GATES: [number, number][] = [
+  [YARD.x0 + 1, YARD.y1],
+  [YARD.x1 - 1, YARD.y1],
 ];
 
 /**
@@ -264,11 +287,25 @@ export const BUILDINGS: Building[] = (() => {
       });
     }
   }
+  // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
+  for (const b of YARD_SIDES) out.push({ ...b, height: 1.5, color: WALL_COLORS[2], front: 's', boarded: true });
   return out;
 })();
 
+// ---------- cooking stations (docs/design.md §13) ----------
+// Where you cook: stand next to one. The server has the same list (public.stations): keep them in step.
+export interface Station {
+  id: string;
+  kind: 'bbq';
+  x: number;
+  y: number;
+}
+/** The pocket park with the barbecue (003-B). */
+export const BBQ_PARK: Rect = lot('003', 'B');
+export const STATIONS: Station[] = [{ id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 }];
+
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence';
 export interface Fixture {
   x: number;
   y: number;
@@ -353,6 +390,14 @@ export const FIXTURES: Fixture[] = (() => {
 
   // The guard booth in the parking lot's south-west corner.
   out.push({ x: PARKING_S.x0, y: PARKING_S.y1, kind: 'booth' });
+
+  // The Yard: an old couch against the back, a burning barrel, and the fence along the street (except the gates).
+  out.push({ x: YARD.x0 + 1, y: YARD.y0 + 1, kind: 'couch' }, { x: YARD.x0 + 2, y: YARD.y0 + 1, kind: 'couch' });
+  out.push({ x: YARD.x0 + 3, y: YARD.y0 + 2, kind: 'barrel' });
+  for (let x = YARD.x0; x <= YARD.x1; x++) if (!YARD_GATES.some(([gx]) => gx === x)) out.push({ x, y: YARD.y1, kind: 'fence' });
+
+  // Cooking stations (the barbecue), so you walk around them.
+  for (const st of STATIONS) out.push({ x: st.x, y: st.y, kind: st.kind });
 
   // The court's bench (the gym bags on it are spots, see NODES).
   out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
@@ -500,7 +545,7 @@ export function buildBlocked(): Uint8Array {
 }
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs';
 export interface Area {
   id: string;
   name: string;
@@ -514,6 +559,14 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'yard', name: 'The Yard', rect: YARD, icon: 'thugs', crimes: [], npcs: [],
+    blurb: 'A rough courtyard where three thugs hang around with knives (level 5). Fight them for cash, and now and then a knife.',
+  },
+  {
+    id: 'bbq', name: 'The barbecue', rect: BBQ_PARK, icon: 'fire', crimes: [], npcs: [],
+    blurb: 'A public barbecue in the pocket park. Cook raw food here to make it edible (Cooking).',
+  },
   {
     id: 'park', name: 'Central Park', rect: PARK, icon: 'park', crimes: ['pick_tourist'], npcs: [],
     blurb: 'Lawns, hedges, a fountain and a pond. Tourists stroll around with their wallets in their back pockets.',

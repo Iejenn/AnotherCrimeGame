@@ -180,7 +180,7 @@ export function animatePigeon(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 
   else p.head.rotation.x = 0;
 }
 
-/** Show what someone wields: brass knuckles on the right hand (more gear later). */
+/** Show what someone wields: brass knuckles on the right hand, or a baseball bat or a knife held in it. */
 export function setGear(character: THREE.Group, equipment: Partial<Record<string, string>> | undefined) {
   const rig = character.userData.rig as { armR: THREE.Object3D } | undefined;
   if (!rig) return;
@@ -199,5 +199,40 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
     add(k, boxGeo(0.12, 0.025, 0.025), 0xd8b04a, 0, -0.025, 0.045, false);
     k.position.set(0, -0.31, 0);
     rig.armR.add(k);
+  } else if (want === 'knife') {
+    // A knife held point-forward: a dark handle with a guard, and a steel blade.
+    const knife = new THREE.Group();
+    knife.name = 'weapon';
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.04), lambert(0x3a2a1e));
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.015, 0.045), lambert(0x8a8f96));
+    guard.position.y = 0.065;
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.045), new THREE.MeshLambertMaterial({ color: 0xdfe4ea, emissive: 0x30343a }));
+    blade.position.y = 0.17;
+    for (const m of [handle, guard, blade]) {
+      m.castShadow = true;
+      knife.add(m);
+    }
+    knife.position.set(0, -0.33, 0.03);
+    knife.rotation.x = 1.4;
+    rig.armR.add(knife);
+  } else if (want === 'baseball_bat') {
+    // A wooden bat gripped in the right hand, pointing forward and up: grip tape, then the barrel thickening.
+    const bat = new THREE.Group();
+    bat.name = 'weapon';
+    const wood = lambert(0xc08a4a);
+    const tape = lambert(0x2b2b2e);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 8), tape);
+    grip.position.y = 0.06;
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.026, 0.5, 10), wood);
+    barrel.position.y = 0.39;
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.03, 8), wood);
+    knob.position.y = -0.03;
+    for (const m of [grip, barrel, knob]) {
+      m.castShadow = true;
+      bat.add(m);
+    }
+    bat.position.set(0, -0.33, 0.04);
+    bat.rotation.x = 1.2; // forward, a little up from the hanging arm
+    rig.armR.add(bat);
   }
 }

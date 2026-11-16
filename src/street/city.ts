@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
-  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -271,6 +271,8 @@ export function buildCity(scene: THREE.Scene) {
   for (const p of NPCS) busy.add(`${p.x},${p.y}`);
   for (const e of ENCLOSURES) for (const o of e.openings) for (let d = -1; d <= 1; d++) busy.add(`${o.outside[0] + d},${o.outside[1]}`), busy.add(`${o.outside[0] + d},${o.outside[1] + 1}`);
   for (let d = -1; d <= 1; d++) busy.add(`${SPAWN[0] + d},${SPAWN[1]}`);
+  // Nothing in front of the Yard's gates.
+  for (const [gx, gy] of YARD_GATES) for (let d = -1; d <= 1; d++) for (let e = 1; e <= 2; e++) busy.add(`${gx + d},${gy + e}`);
   for (const lot of LOTS) {
     const r = lot.rect;
     const cx = r.x0 + 2.5;
@@ -279,7 +281,14 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(5, 0.075, 5), pavement, cx, 0.037, cz, false);
     if (lot.kind === 'park') {
       add(geoBox(4.8, 0.09, 4.8), grassMat, cx, 0.045, cz, false);
-      for (let i = 0; i < 5; i++) tree(cx - 1.8 + rng() * 3.6, cz - 1.8 + rng() * 3.6, 1.1 + rng() * 0.5);
+      for (let i = 0; i < 5; i++) {
+        const tx = cx - 1.8 + rng() * 3.6;
+        const tz = cz - 1.8 + rng() * 3.6;
+        const s = 1.1 + rng() * 0.5;
+        // Keep the trees off the barbecue and the tiles around it (where you stand to cook).
+        if (STATIONS.some((st) => Math.abs(tx - st.x - 0.5) < 1.8 && Math.abs(tz - st.y - 0.5) < 1.8)) continue;
+        tree(tx, tz, s);
+      }
     }
   }
   // Street trees in pits along the sidewalks, a few per block side (never in front of a door or a spot).
@@ -414,6 +423,21 @@ export function buildCity(scene: THREE.Scene) {
   const atlases = [1, 2, 3, 4].map((seed) => windowAtlas(seed * 977));
   for (const a of atlases) own(a.map), own(a.glow);
   const fadeables: Fadeable[] = [];
+  /** Bare brick (one floor high, one tile wide per repeat) for boarded-up buildings. */
+  const brickTex = own(
+    canvasTex(64, 96, (g) => {
+      g.fillStyle = '#d8d0c4';
+      g.fillRect(0, 0, 64, 96);
+      for (let row = 0; row < 12; row++) {
+        const off = row % 2 ? 0 : 16;
+        for (let col = -1; col < 3; col++) {
+          const shade = 200 + ((row * 7 + col * 13) % 5) * 9;
+          g.fillStyle = `rgb(${shade},${shade - 12},${shade - 22})`;
+          g.fillRect(col * 32 + off + 1, row * 8 + 1, 30, 6);
+        }
+      }
+    }),
+  );
   // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
   // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
   const FLOOR = 1.45;
@@ -433,8 +457,15 @@ export function buildCity(scene: THREE.Scene) {
       return t;
     };
     // Each building gets its own materials so it can fade on its own.
-    const mX = lam(wall, { map: tex(atlas.map, b.w), emissiveMap: tex(atlas.glow, b.w), emissive: C.litWindow, emissiveIntensity: 1 });
-    const mZ = lam(wall, { map: tex(atlas.map, b.h), emissiveMap: tex(atlas.glow, b.h), emissive: C.litWindow, emissiveIntensity: 1 });
+    // Boarded-up buildings (the Yard's) are bare brick: their windows get planks below, and the walls take graffiti.
+    const brick = (across: number) => {
+      const t = own(brickTex.clone());
+      t.repeat.set(across, floors);
+      t.needsUpdate = true;
+      return t;
+    };
+    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : lam(wall, { map: tex(atlas.map, b.w), emissiveMap: tex(atlas.glow, b.w), emissive: C.litWindow, emissiveIntensity: 1 });
+    const mZ = b.boarded ? lam(wall, { map: brick(b.h) }) : lam(wall, { map: tex(atlas.map, b.h), emissiveMap: tex(atlas.glow, b.h), emissive: C.litWindow, emissiveIntensity: 1 });
     const mRoof = lam(C.roof);
     const mTrim = lam(trim);
     const bw = b.w - 0.1;
@@ -460,6 +491,29 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Every building has a front door at person size (on its street side), with a step and a lamp: so you can
     // tell how big it is, and that people live there.
+    if (b.boarded) {
+      // Windows on the upper floors, nailed shut: a dark hole with three rough planks across it, on every side.
+      const faces = [
+        { n: b.w, at: (i: number) => [b.x + 0.5 + i, b.y + 0.02] as const, rot: 0 },
+        { n: b.w, at: (i: number) => [b.x + 0.5 + i, b.y + b.h - 0.02] as const, rot: 0 },
+        { n: b.h, at: (i: number) => [b.x + 0.02, b.y + 0.5 + i] as const, rot: Math.PI / 2 },
+        { n: b.h, at: (i: number) => [b.x + b.w - 0.02, b.y + 0.5 + i] as const, rot: Math.PI / 2 },
+      ];
+      for (const f of faces)
+        for (let i = 0; i < f.n; i++)
+          for (let fl = 1; fl < floors; fl++) {
+            const [x, z] = f.at(i);
+            const y = fl * FLOOR + 0.8;
+            const hole = add(geoBox(0.5, 0.7, 0.03), lam(0x141210), x, y, z, false);
+            hole.rotation.y = f.rot;
+            props.push(hole);
+            for (const dy of [-0.22, 0.02, 0.24]) {
+              const plank = add(geoBox(0.62, 0.11, 0.04), lam(0x7a5a3a, { flatShading: true }), x, y + dy + (rng() - 0.5) * 0.04, z, false);
+              plank.rotation.set(0, f.rot, (rng() - 0.5) * 0.25);
+              props.push(plank);
+            }
+          }
+    }
     // The front faces the street: south for most, north for buildings along a block's north edge (s = which way
     // "out" is along z).
     const sgn = b.front === 'n' ? -1 : 1;
@@ -1092,6 +1146,192 @@ export function buildCity(scene: THREE.Scene) {
 
   shopFronts();
 
+  // Fires that flicker (the Yard's barrel, the barbecue): animate() moves them every frame.
+  const flames: THREE.Mesh[] = [];
+  const fireLights: THREE.PointLight[] = [];
+
+  // ---------- the Yard (007): where the thugs hang out ----------
+  // Cracked concrete, graffiti on the walls around it, an old couch, a burning barrel, a chain-link fence along the
+  // street with two gaps (the gates), and a single bulb over the back.
+  {
+    const Y = YARD;
+    const X0 = Y.x0;
+    const Z0 = Y.y0;
+    const X1 = Y.x1 + 1;
+    const Z1 = Y.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    add(geoBox(X1 - X0, 0.075, Z1 - Z0), lam(0x55524d), cx, 0.037, cz, false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 0.9), lam(0x2e2c29), false);
+    for (let i = 0; i < 14; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
+    cracks.build(scene);
+    // Graffiti: tags on the side walls (facing in) and the back wall.
+    /** Spray-paint graffiti, matte and worn: soft sprayed edges, a dark outline, speckles of overspray, drips, and
+     *  small chipped spots where the wall shows through. Lit like the wall it's on (never glowing). */
+    const sprayTex = (text: string, c1: string, c2: string) =>
+      own(
+        canvasTex(
+          512,
+          192,
+          (g) => {
+            g.clearRect(0, 0, 512, 192);
+            g.save();
+            g.translate(256, 92);
+            g.rotate(-0.06);
+            g.font = '900 104px "Arial Black", Impact, Arial, sans-serif';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            const sc = Math.min(1, 470 / g.measureText(text).width);
+            g.scale(sc, 1.05);
+            g.lineJoin = 'round';
+            // A soft dark outline (sprayed, so blurry at the edge), then the fill in a colour fade.
+            g.shadowColor = 'rgba(15, 12, 10, 0.8)';
+            g.shadowBlur = 10;
+            g.lineWidth = 16;
+            g.strokeStyle = 'rgba(20, 16, 14, 0.85)';
+            g.strokeText(text, 0, 0);
+            g.shadowBlur = 4;
+            g.shadowColor = c2;
+            const fill = g.createLinearGradient(0, -52, 0, 52);
+            fill.addColorStop(0, c1);
+            fill.addColorStop(1, c2);
+            g.fillStyle = fill;
+            g.fillText(text, 0, 0);
+            g.restore();
+            // Overspray: fine speckles of paint around the letters.
+            for (let i = 0; i < 900; i++) {
+              const x = 30 + rng() * 452;
+              const y = 30 + rng() * 120;
+              g.fillStyle = rng() < 0.5 ? c1 : c2;
+              g.globalAlpha = 0.25 + rng() * 0.35;
+              g.fillRect(x, y, 1 + rng() * 1.5, 1 + rng() * 1.5);
+            }
+            g.globalAlpha = 1;
+            // Drips running down from the letters.
+            g.fillStyle = c2;
+            for (let i = 0; i < 12; i++) {
+              const x = 60 + rng() * 390;
+              const y0 = 120 + rng() * 18;
+              const len = 8 + rng() * 38;
+              g.globalAlpha = 0.85;
+              g.fillRect(x, y0, 2.5, len);
+              g.beginPath();
+              g.arc(x + 1.25, y0 + len, 2.6, 0, Math.PI * 2);
+              g.fill();
+            }
+            g.globalAlpha = 1;
+            // Wear: chip small holes out of the paint so the wall shows through.
+            g.globalCompositeOperation = 'destination-out';
+            for (let i = 0; i < 260; i++) {
+              g.globalAlpha = 0.4 + rng() * 0.6;
+              g.beginPath();
+              g.arc(rng() * 512, rng() * 192, 0.8 + rng() * 2.6, 0, Math.PI * 2);
+              g.fill();
+            }
+            g.globalCompositeOperation = 'source-over';
+            g.globalAlpha = 1;
+          },
+          false,
+        ),
+      );
+    /** Paint on a wall: lit by the scene like the wall (Lambert, not glowing), a little see-through, never flickering. */
+    const paintMat = (text: string, c1: string, c2: string) =>
+      lam(0xffffff, { map: sprayTex(text, c1, c2), transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    const graffiti = (text: string, c1: string, c2: string, w: number, x: number, y: number, z: number, rotY: number) => {
+      const mat = paintMat(text, c1, c2);
+      const m = add(own(new THREE.PlaneGeometry(w, w * 0.375)), mat, x, y, z, false);
+      m.rotation.y = rotY;
+      m.receiveShadow = false;
+    };
+    // On the bare ground floors of the two side buildings, facing into the Yard.
+    graffiti('YARD', '#c8382c', '#7a1a14', 2.6, X0 + 0.03, 0.62, cz - 0.3, Math.PI / 2);
+    graffiti('KEEP OUT', '#d8a83a', '#9a5a1a', 3.0, X1 - 0.03, 0.62, cz - 0.2, -Math.PI / 2);
+    // The back wall has windows: that tag goes on a sheet of plywood leaning against it, next to the couch.
+    {
+      const px = X1 - 1.4;
+      const pz = Z0 + 0.22;
+      const ply = add(geoBox(2.2, 1.2, 0.05), lam(0xb8935a, { flatShading: true }), px, 0.62, pz);
+      ply.rotation.x = -0.12;
+      const m = add(own(new THREE.PlaneGeometry(2.1, 0.79)), paintMat('NO SNITCH', '#4a9a52', '#1e5a2a'), px, 0.64, pz + 0.035, false);
+      m.rotation.x = -0.12;
+      m.receiveShadow = false;
+    }
+    // The old couch (two tiles, against the back).
+    const couch = FIXTURES.filter((f) => f.kind === 'couch');
+    if (couch.length) {
+      const ux = (Math.min(...couch.map((f) => f.x)) + Math.max(...couch.map((f) => f.x)) + 1) / 2;
+      const uz = couch[0].y + 0.5;
+      const fabric = lam(0x6a4a3a, { flatShading: true });
+      add(geoBox(1.8, 0.3, 0.7), fabric, ux, 0.25, uz);
+      add(geoBox(1.8, 0.45, 0.2), fabric, ux, 0.5, uz - 0.3);
+      for (const dx of [-0.85, 0.85]) add(geoBox(0.16, 0.38, 0.7), fabric, ux + dx, 0.32, uz);
+      add(geoBox(0.6, 0.05, 0.5), lam(0x4a2a1e), ux - 0.4, 0.42, uz + 0.05).rotation.y = 0.2; // a sagging cushion
+    }
+    // The burning barrel: a rusty drum with flames and a flickering orange light.
+    for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) {
+      const x = b.x + 0.5;
+      const z = b.y + 0.5;
+      add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.75, 12)), lam(0x6a4a32, { flatShading: true }), x, 0.4, z);
+      for (const y of [0.2, 0.6]) add(own(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 12)), lam(0x3a2a1e), x, y, z, false);
+      add(own(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 12)), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 1 }), x, 0.78, z, false);
+      for (let i = 0; i < 5; i++) {
+        const f = add(own(new THREE.ConeGeometry(0.07 + rng() * 0.04, 0.32, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 }), x + (rng() - 0.5) * 0.3, 0.95, z + (rng() - 0.5) * 0.3, false);
+        flames.push(f);
+      }
+      const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
+      light.position.set(x, 1.2, z);
+      scene.add(light);
+      fireLights.push(light);
+    }
+    // Chain-link fence along the street: posts and a see-through mesh panel on every fence tile.
+    const post = new Batch(own(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6)), lam(0x8a8f96));
+    const linkTex = own(canvasTex(32, 32, (g) => {
+      g.clearRect(0, 0, 32, 32);
+      g.strokeStyle = '#b8bcc2';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+      g.stroke();
+    }));
+    linkTex.repeat.set(4, 4);
+    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    for (const f of FIXTURES.filter((x) => x.kind === 'fence')) {
+      add(own(new THREE.PlaneGeometry(1, 1.1)), linkMat, f.x + 0.5, 0.6, f.y + 0.5, false).receiveShadow = false;
+      post.add(f.x, 0.6, f.y + 0.5);
+      post.add(f.x + 1, 0.6, f.y + 0.5);
+    }
+    post.build(scene);
+    // A bare bulb on the back wall.
+    add(geoBox(0.12, 0.12, 0.12), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), cx + 1.5, 1.6, Z0 + 0.1, false);
+    const bulb = new THREE.PointLight(0xffd9a0, 3, 5, 1.6);
+    bulb.position.set(cx + 1.5, 1.5, Z0 + 0.6);
+    scene.add(bulb);
+  }
+
+  // ---------- cooking stations: the barbecue (docs/design.md §13) ----------
+  // A brick barbecue with a grill, glowing coals and a few flames, a warm light, and a gravel patch around it.
+  for (const st of STATIONS) {
+    const x = st.x + 0.5;
+    const z = st.y + 0.5;
+    add(own(new THREE.CircleGeometry(1.4, 20).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
+    const brick = lam(0x8a4434, { flatShading: true });
+    add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);
+    add(geoBox(0.96, 0.06, 0.76), lam(0x6a3428), x, 0.6, z);
+    add(geoBox(0.7, 0.04, 0.5), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 0.9 }), x, 0.63, z, false); // coals
+    for (let i = 0; i < 7; i++) add(geoBox(0.02, 0.02, 0.5), lam(0x3a3d42), x - 0.3 + i * 0.1, 0.68, z, false); // grill bars
+    for (let i = 0; i < 4; i++) {
+      const f = add(own(new THREE.ConeGeometry(0.06 + rng() * 0.03, 0.22, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.6, transparent: true, opacity: 0.9 }), x - 0.22 + i * 0.15, 0.76, z + (rng() - 0.5) * 0.25, false);
+      flames.push(f);
+    }
+    // A chimney stack at the back, and a bag of charcoal.
+    add(geoBox(0.3, 0.6, 0.2), brick, x, 0.9, z - 0.26);
+    add(geoBox(0.3, 0.35, 0.18), lam(0x4a3a2a), x + 0.7, 0.25, z + 0.3);
+    const light = new THREE.PointLight(0xff8a3a, 4, 5, 1.6);
+    light.position.set(x, 1.0, z);
+    scene.add(light);
+    fireLights.push(light);
+  }
+
   // Build all instanced batches that were filled above.
   const poolMesh = pools.build(scene);
   if (poolMesh) poolMesh.receiveShadow = false;
@@ -1101,6 +1341,14 @@ export function buildCity(scene: THREE.Scene) {
 
   return {
     fadeables,
+    /** Call every frame: the barbecue's flames flicker. */
+    animate(t: number) {
+      flames.forEach((f, i) => {
+        const k = 0.8 + Math.sin(t / 90 + i * 1.7) * 0.2 + Math.sin(t / 37 + i) * 0.1;
+        f.scale.set(1, k, 1);
+      });
+      fireLights.forEach((l, i) => (l.intensity = 3.5 + Math.sin(t / 70 + i) * 0.6 + Math.sin(t / 23) * 0.3));
+    },
     /** Room id → its walls/roof, so the Street view can fade a room while you're inside. */
     rooms,
     dispose() {

@@ -12,12 +12,13 @@ import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
-import { COURT, H, NODES, NPCS, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
+import { COURT, H, NODES, NPCS, ROOMS, SPAWN, STATIONS, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
-import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
-import { buildBigCar } from './streetLife';
+import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
+import { buildBigCar, buildGroundItem } from './streetLife';
+import { CookDialog } from './CookDialog';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
@@ -33,6 +34,27 @@ interface Msg {
   text: string;
 }
 
+/** How each kind of enemy looks: a Pigeon, or (thugs) a person in a dark hoodie with the hood up and a knife. */
+const THUG_LOOKS: Look[] = [
+  { skin: 2, hair: 0, hairColor: 0, top: 3, bottom: 0 },
+  { skin: 3, hair: 0, hairColor: 0, top: 3, bottom: 3 },
+  { skin: 1, hair: 0, hairColor: 0, top: 3, bottom: 1 },
+];
+let thugCount = 0;
+function buildEnemy(kind: string): THREE.Group {
+  if (kind === 'pigeon') return buildPigeon();
+  const g = buildCharacter(THUG_LOOKS[thugCount++ % THUG_LOOKS.length], { hood: 0x4a4d52 });
+  setGear(g, { weapon: 'knife' });
+  return g;
+}
+/** Animate an enemy: idle ('peck'), walking, flying (pigeons), attacking, or going down ('dead'). */
+function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly' | 'attack' | 'dead', now: number, phase: number) {
+  if (kind === 'pigeon') return animatePigeon(g, mode, now, phase);
+  animateCharacter(g, mode === 'dead' ? 'stunned' : mode === 'attack' ? 'work' : mode === 'walk' ? 'walk' : 'idle', now, phase);
+}
+
+/** How a weapon's swing looks (see ItemDef.gear.anim). */
+const weaponAnim = (id: string | undefined) => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
 const WALK_SPEED = 4; // tiles per second
 const LABEL_RANGE = 5; // tiles
 const NPC_LABEL_RANGE = 9; // NPC names show from further away
@@ -143,6 +165,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
   const setTalkingRef = useRef(setTalking);
+  // The cooking screen (opened when you reach the barbecue): where you stand, or null when closed.
+  const [cookAt, setCookAt] = useState<[number, number] | null>(null);
+  const setCookAtRef = useRef(setCookAt);
   const talkingIdRef = useRef<string | null>(null);
   talkingIdRef.current = talking?.id ?? null;
   // The world map (opened from the button under the minimap), and how it makes you walk somewhere.
@@ -379,8 +404,13 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       goalGrave: false,
       /** Walking up to an enemy to attack it. */
       goalEnemy: null as string | null,
+      /** Walking to pick something up from the ground, or to a cooking station. */
+      goalGround: null as number | null,
+      goalStation: null as string | null,
       /** Throwing a punch (pose) until this time. */
       punchUntil: 0,
+      /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
+      punchAt: 0,
     };
     /** Remember the tile you're on in the save (so switching tabs or reloading keeps you here). */
     const savePos = () => {
@@ -416,7 +446,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number; lastHp: number | null; wasDead: boolean }>();
     const enemyAt = (e: EnemyState) => {
       if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
-      return pigeonAt(e.index, gameNow());
+      return scheduleAt(e.kind, e.index, gameNow());
     };
     /** Walk up to an enemy (and attack it when you get there). */
     const goFight = (id: string) => {
@@ -460,7 +490,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           const view = target ? enemyViews.get(target) : undefined;
           if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
-            me.punchUntil = performance.now() + 350;
+            // A punch is quick; a bat swing takes a moment (it lands as the hitsplat shows).
+            const swing = weaponAnim(sRef.current.equipment?.weapon) === 'swing';
+            me.punchAt = performance.now() - (swing ? 380 : 0);
+            me.punchUntil = me.punchAt + (swing ? 900 : 350);
             if (view) hitsplat(view.g.position, ev.dmg ?? 0);
           } else {
             if (view) view.peckUntil = performance.now() + 350;
@@ -470,6 +503,31 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       }
     });
     let lastFoe: string | null = null;
+
+    // ---------- things on the ground (loot), and cooking stations (docs/design.md §13) ----------
+    const groundViews = new Map<number, THREE.Group>();
+    const reachGround = () => {
+      const id = me.goalGround;
+      me.goalGround = null;
+      if (id === null) return;
+      apiRef.current.pickUp(id, tileOf(me.pos.x, me.pos.z));
+    };
+    const reachStation = () => {
+      const id = me.goalStation;
+      me.goalStation = null;
+      const st = STATIONS.find((x) => x.id === id);
+      if (!st) return;
+      me.facing = Math.atan2(st.x + 0.5 - me.pos.x, st.y + 0.5 - me.pos.z);
+      setCookAtRef.current(tileOf(me.pos.x, me.pos.z));
+    };
+    // The barbecue is tappable: an invisible box over it.
+    for (const st of STATIONS) {
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.2, 1.1), hitMat);
+      hitBox.position.set(st.x + 0.5, 0.6, st.y + 0.5);
+      hitBox.userData.stationId = st.id;
+      scene.add(hitBox);
+      pickables.push(hitBox);
+    }
 
     // ---------- other players (online) ----------
     /** Other players: their model, where we draw them (smoothed), and which way they face. */
@@ -495,6 +553,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goalNpc = npc;
       me.goalGrave = false;
       me.goalEnemy = null;
+      me.goalGround = null;
+      me.goalStation = null;
+      setCookAtRef.current(null);
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
@@ -545,6 +606,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         say('You stop what you were doing.');
       }
       me.attached = null;
+      if (sRef.current.cook) {
+        apiRef.current.stopCook();
+        say('You stop cooking.');
+      }
       if (sRef.current.fight) {
         apiRef.current.stopFight();
         say('You walk away from the fight.');
@@ -559,6 +624,30 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.groundId !== undefined) {
+        // Something on the ground: walk onto it (or next to it) and pick it up.
+        const g = sRef.current.ground?.find((x) => x.id === hit.object.userData.groundId);
+        if (!g) return;
+        stopWorking();
+        setTalkingRef.current(null);
+        if (walkTo([[g.x, g.y], ...neighbors(g.x, g.y)], null)) {
+          me.goalGround = g.id;
+          if (!me.path.length) reachGround();
+        }
+        return;
+      }
+      if (hit?.object.userData.stationId) {
+        // The barbecue: walk next to it, then the cooking screen opens.
+        const st = STATIONS.find((x) => x.id === hit.object.userData.stationId);
+        if (!st) return;
+        stopWorking();
+        setTalkingRef.current(null);
+        if (walkTo(neighbors(st.x, st.y), null)) {
+          me.goalStation = st.id;
+          if (!me.path.length) reachStation();
+        }
+        return;
+      }
       if (hit?.object.userData.enemyId) {
         setTalkingRef.current(null);
         if (me.attached && sRef.current.player.job) stopWorking();
@@ -953,6 +1042,14 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             savePos();
             reachEnemy();
           }
+          if (!me.path.length && me.goalGround !== null) {
+            savePos();
+            reachGround();
+          }
+          if (!me.path.length && me.goalStation) {
+            savePos();
+            reachStation();
+          }
           if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
@@ -990,8 +1087,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       setGear(player, st.equipment);
       player.position.set(me.pos.x, 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
-      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working || now < me.punchUntil ? 'work' : 'idle';
-      animateCharacter(player, pose, now);
+      // Cooking: face the barbecue and work it.
+      const cooking = !!st.cook && !me.path.length;
+      if (cooking) {
+        const near = STATIONS.find((x) => Math.abs(x.x + 0.5 - me.pos.x) < 2 && Math.abs(x.y + 0.5 - me.pos.z) < 2);
+        if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
+      }
+      const swinging = now < me.punchUntil && weaponAnim(st.equipment?.weapon) === 'swing';
+      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || cooking || now < me.punchUntil ? 'work' : 'idle';
+      animateCharacter(player, pose, now, 0, (now - me.punchAt) / (me.punchUntil - me.punchAt));
       player.rotation.y = me.facing;
 
       // Tourists stroll (unless you're targeting or working one).
@@ -1161,6 +1265,36 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
 
+      // Things on the ground: add new ones, remove picked-up or rotted ones, a gentle bob so they catch the eye.
+      {
+        const here = new Set<number>();
+        for (const it of st.ground ?? []) {
+          here.add(it.id);
+          let v = groundViews.get(it.id);
+          if (!v) {
+            v = buildGroundItem(it.item);
+            // A tap area bigger than the item (they're small).
+            const tapBox = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), hitMat);
+            tapBox.position.y = 0.2;
+            v.add(tapBox);
+            v.traverse((o) => (o.userData.groundId = it.id));
+            v.position.set(it.x + 0.5 + ((it.id * 37) % 7) / 20 - 0.15, 0.07, it.y + 0.5 + ((it.id * 53) % 7) / 20 - 0.15);
+            v.rotation.y = (it.id * 1.7) % 6.28;
+            scene.add(v);
+            pickables.push(v);
+            groundViews.set(it.id, v);
+          }
+          v.position.y = 0.07 + Math.sin(now / 400 + it.id) * 0.015;
+        }
+        for (const [id, v] of groundViews)
+          if (!here.has(id)) {
+            scene.remove(v);
+            const i = pickables.indexOf(v);
+            if (i >= 0) pickables.splice(i, 1);
+            groundViews.delete(id);
+          }
+      }
+
       // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
       for (const e of worldRef.current?.enemies() ?? []) {
         let v = enemyViews.get(e.id);
@@ -1168,11 +1302,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (v && e.fighter && e.fighter !== worldRef.current?.myId && v.lastHp !== null && e.hp < v.lastHp && v.g.visible) hitsplat(v.g.position, v.lastHp - e.hp);
         if (v) v.lastHp = e.hp;
         if (!v) {
-          const g = buildPigeon();
+          const g = buildEnemy(e.kind);
           g.traverse((o) => (o.userData.enemyId = e.id));
-          // A bigger invisible tap area: pigeons are small.
-          const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8), hitMat);
-          hitArea.position.y = 0.3;
+          // A bigger invisible tap area (pigeons are small).
+          const tall = e.kind !== 'pigeon';
+          const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, tall ? 1.4 : 0.8, 8), hitMat);
+          hitArea.position.y = tall ? 0.7 : 0.3;
           hitArea.userData.enemyId = e.id;
           g.add(hitArea);
           scene.add(g);
@@ -1194,7 +1329,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         // Dying: it falls where it was hit, it doesn't fly back to its spot first.
         if (dying && v.pos) {
           v.g.position.set(v.pos.x, 0.03, v.pos.z);
-          animatePigeon(v.g, 'dead', now, e.index * 1.3);
+          animateEnemy(e.kind, v.g, 'dead', now, e.index * 1.3);
           continue;
         }
         const at = enemyAt(e);
@@ -1223,7 +1358,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (d.length() > 0.002) v.g.rotation.y = Math.atan2(d.x, d.z);
         if (e.fighter && foe === e.id) v.g.rotation.y = Math.atan2(me.pos.x - v.pos.x, me.pos.z - v.pos.z);
         v.g.position.set(v.pos.x, 0.03 + (flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
-        animatePigeon(v.g, flying ? 'fly' : now < v.peckUntil ? 'attack' : walking && ret ? 'walk' : 'peck', now, e.index * 1.3);
+        animateEnemy(e.kind, v.g, flying ? 'fly' : now < v.peckUntil ? 'attack' : walking && (ret || e.kind !== 'pigeon') ? 'walk' : 'peck', now, e.index * 1.3);
       }
 
       // Other players: walk them along the route they shared.
@@ -1261,7 +1396,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             const v = enemyViews.get(os.fightEnemy);
             if (v?.g.visible) {
               e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
-              pose = 'work';
+              pose = weaponAnim(o.equipment?.weapon) === 'swing' ? 'swing' : 'work';
             }
           } else if (os.spot && os.jobEndsAt > t) {
             const n = NODES.find((x) => x.id === os.spot);
@@ -1302,7 +1437,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         e.g.position.set(e.pos.x, 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
         setGear(e.g, o.equipment);
-        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37);
+        // Someone else swinging a bat: their swings loop at the weapon's speed (we don't see their exact timing).
+        const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 6) * 500;
+        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'swing' ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, 900) : 0);
       }
       for (const [id, e] of others)
         if (!here.has(id)) {
@@ -1335,6 +1472,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       sun.position.copy(camTarget).add(SUN_OFFSET);
       sun.target.position.copy(camTarget);
       updateFades(city.fadeables, camera, me.pos, dt);
+      city.animate(now);
 
       // Progress bar for the current action.
       if (progressRef.current) {
@@ -1346,12 +1484,32 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Things on the ground, nearby: their name (cash: the amount).
+      for (const it of st.ground ?? []) {
+        const v = groundViews.get(it.id);
+        if (!v || v.position.distanceTo(me.pos) > LABEL_RANGE) continue;
+        const [x, y, depth] = project(v.position.clone().setY(0.35));
+        if (depth > 1 || placed.some(([px, py, w]) => Math.abs(px - x) < w / 2 + 30 && Math.abs(py - y) < 14)) continue;
+        const key = `ground:${it.id}`;
+        let el = labelEls.get(key);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label ground';
+          labelLayer.appendChild(el);
+          labelEls.set(key, el);
+        }
+        const text = it.item === 'cash' ? fmtMoney(it.amount) : ITEM_BY_ID[it.item]?.name ?? it.item;
+        if (el.textContent !== text) el.textContent = text;
+        seen.add(key);
+        placed.push([x, y, text.length * 6 + 10]);
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
       // Enemies: "Pigeon (level 1)" nearby, and a health bar while hurt or in a fight.
       for (const e of worldRef.current?.enemies() ?? []) {
         const v = enemyViews.get(e.id);
         const k = ENEMY_KINDS[e.kind];
         if (!v || !v.g.visible || !k || v.g.position.distanceTo(me.pos) > LABEL_RANGE + 2) continue;
-        const [x, y, depth] = project(v.g.position.clone().setY(0.75));
+        const [x, y, depth] = project(v.g.position.clone().setY(e.kind === 'pigeon' ? 0.75 : 1.6));
         if (depth > 1) continue;
         let el = labelEls.get(`enemy:${e.id}`);
         if (!el) {
@@ -1612,6 +1770,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         )}
       </div>
       {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
+      {cookAt && <CookDialog s={s} api={api} pos={cookAt} onClose={() => setCookAt(null)} />}
       <ChatBox game={gameLines} chat={chat} myName={s.name} />
     </div>
   );
