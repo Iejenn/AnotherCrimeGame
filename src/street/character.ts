@@ -131,7 +131,7 @@ export function buildCharacter(look: Look, extra?: { apron?: number }): THREE.Gr
   return root;
 }
 
-export type Pose = 'idle' | 'walk' | 'work' | 'stunned';
+export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit';
 
 /** Animate a character built by buildCharacter. `t` is time in ms; `phase` offsets different characters. */
 export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 0) {
@@ -154,6 +154,13 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     armR = -1.1 + Math.sin(s * 9) * 0.35;
     armL = 0.15;
     bob = Math.abs(Math.sin(s * 9)) * 0.02;
+  } else if (pose === 'sit') {
+    // On a bar stool, legs forward, swaying a little (one too many), raising a glass now and then.
+    legSwing = -1.45;
+    wobble = Math.sin(s * 1.3) * 0.07;
+    armR = Math.sin(s * 0.7) > 0.6 ? -1.6 : -0.5;
+    armL = -0.4;
+    bob = 0.02;
   } else if (pose === 'stunned') {
     wobble = Math.sin(s * 14) * 0.16;
     armL = -0.3;
@@ -166,7 +173,7 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     armR = -armL;
   }
   rig.legL.rotation.x = legSwing;
-  rig.legR.rotation.x = -legSwing;
+  rig.legR.rotation.x = pose === 'sit' ? legSwing : -legSwing; // sitting: both legs forward
   rig.armL.rotation.x = armL;
   rig.armR.rotation.x = armR;
   rig.armL.rotation.z = -armRSide;

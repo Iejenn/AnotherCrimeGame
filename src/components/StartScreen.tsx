@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import type { GameState } from '../game/types';
 import { SKILLS } from '../game/data/skills';
-import { fmtDuration, fmtMoney, heatAt, hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
+import { fmtDuration, fmtMoney, hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
 import { levelProgress } from '../game/xp';
 import { hashString } from '../game/rng';
 import { CHANGELOG, getSeenVersion, markVersionSeen } from '../changelog';
@@ -42,9 +42,9 @@ export function StartScreen({ s, onClose }: { s: GameState; onClose: () => void 
 
         <dl className="figures">
           <div><dt>Total level</dt><dd>{total}</dd></div>
-          <div><dt>Gold</dt><dd className="money">{fmtMoney(s.cash).replace(' gold', '')}</dd></div>
+          <div><dt>Cash</dt><dd className="money">{fmtMoney(s.cash)}</dd></div>
           <div><dt>Health</dt><dd>{Math.floor(hpAt(s, now))}/{maxHp(s)}</dd></div>
-          <div><dt>Heat</dt><dd>{Math.round(heatAt(s, now))}</dd></div>
+          <div><dt>Jobs pulled</dt><dd>{s.stats.jobs.toLocaleString('en-US')}</dd></div>
         </dl>
 
         <section>

@@ -1,4 +1,4 @@
-// Skills: the five skills (levels 1–10 for now). Tap one for its guide: how to train it and,
+// Skills: the five skills (levels 1–30 for now). Tap one for its guide: how to train it and,
 // for Street Crimes, every crime with its level and where to find it.
 import { useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
@@ -8,6 +8,27 @@ import { crimeStats, fmtDuration, fmtMoney, maxHp, rankFor, skillLevel, totalLev
 import { exportSave } from '../game/save';
 import { MAX_LEVEL, levelProgress } from '../game/xp';
 import { Bar, pct } from './ui';
+import { ITEM_BY_ID } from '../game/data/items';
+import type { CrimeDef } from '../game/data/crimes';
+import { NODES } from '../street/map';
+
+/** Crimes that already have a place on the Street (v2 is built step by step). */
+const PLACED = new Set(NODES.map((n) => n.crimeId));
+
+/** "$1–3", or the food you get: "Candy Bar", "Sandwich or Candy Bar". */
+function take(c: CrimeDef) {
+  if (c.items?.length) return c.items.map((id) => ITEM_BY_ID[id]?.name ?? id).join(' or ');
+  return `$${c.cashMin}–${c.cashMax}`;
+}
+
+/** What happens when it goes wrong. */
+function risk(c: CrimeDef) {
+  const hurt = `−${c.failDamage} HP, stunned ${c.failStun}s`;
+  if (c.catcher === 'bartender') return `If the bartender sees you: ${hurt}`;
+  if (c.catcher === 'guard') return c.baseChance >= 1 ? `If the guard sees you: ${hurt}` : `On a fail, or if the guard sees you: ${hurt}`;
+  if (c.catcher === 'clerk') return `On a fail the clerk hits you: ${hurt}`;
+  return `On a fail: ${hurt}`;
+}
 
 export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: () => void; onReset: () => void }) {
   const [open, setOpen] = useState<SkillId>('street');
@@ -15,7 +36,6 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
   const [copied, setCopied] = useState(false);
   const total = totalLevel(s);
   const rank = rankFor(total);
-  const now = Date.now();
   const def = SKILL_BY_ID[open];
   const lvl = skillLevel(s, open);
   const lp = levelProgress(s.skills[open].xp);
@@ -81,7 +101,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
           <ol className="ledger">
             {crimes.map((crime) => {
               const can = lvl >= crime.level;
-              const st = crimeStats(s, crime, now);
+              const st = crimeStats(s, crime);
               return (
                 <li key={crime.id} className={`entry ${can ? '' : 'locked'}`}>
                   <div className="entry-main">
@@ -90,16 +110,17 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
                       <span className="entry-name">{crime.name}</span>
                     </div>
                     <dl className="entry-stats">
-                      <div><dt>Where</dt><dd>{crime.spot.label}</dd></div>
+                      <div><dt>Where</dt><dd>{crime.spot.where}{PLACED.has(crime.id) ? '' : ' (coming soon)'}</dd></div>
                       <div><dt>Time</dt><dd>{fmtDuration(st.duration)}</dd></div>
                       {can && (
                         <>
-                          <div><dt>Odds</dt><dd>{pct(st.chance)}</dd></div>
+                          <div><dt>Odds</dt><dd>{crime.baseChance >= 1 ? '100% if unseen' : pct(st.chance)}</dd></div>
                           <div><dt>XP</dt><dd>{st.xp}</dd></div>
-                          <div><dt>Take</dt><dd className="money">{crime.cashMin}–{crime.cashMax} gold</dd></div>
+                          <div><dt>Take</dt><dd className="money">{take(crime)}</dd></div>
                         </>
                       )}
                     </dl>
+                    {can && <p className="muted small entry-risk">{risk(crime)}</p>}
                   </div>
                 </li>
               );
@@ -126,7 +147,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
         <div className="stats-grid">
           <div><span className="muted">Jobs pulled</span><strong>{s.stats.jobs.toLocaleString('en-US')}</strong></div>
           <div><span className="muted">Big scores</span><strong>{s.stats.bigScores.toLocaleString('en-US')}</strong></div>
-          <div><span className="muted">Times busted</span><strong>{s.stats.busts.toLocaleString('en-US')}</strong></div>
+          <div><span className="muted">Failed attempts</span><strong>{s.stats.fails.toLocaleString('en-US')}</strong></div>
           <div><span className="muted">Lifetime earnings</span><strong>{fmtMoney(s.stats.earned)}</strong></div>
         </div>
       </section>

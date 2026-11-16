@@ -37,45 +37,119 @@ All skills start at level 1. Max level is **30** for now *(tunable)*.
 
 ### XP curve (all skills)
 
-XP to go from level L to L+1 = `1000 × 1.2^(L−1)`, rounded *(tunable)*. Each level needs 20% more than the last.
+**One curve for every skill**, built for levels 1–100 (the cap is 30 for now).
+XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **each level needs 13% more XP** than the last.
 
 | Reach level | Total XP |
 |---|---|
-| 5 | 5,368 |
-| 10 | 20,799 |
-| 15 | 59,196 |
-| 20 | 154,739 |
-| 25 | 392,483 |
-| 30 | 984,067 |
+| 2 | 29 |
+| 5 | 141 |
+| 10 | 449 |
+| 15 | 1,017 |
+| 20 | 2,062 |
+| 25 | 3,987 |
+| 30 | 7,533 |
+
+### How the pace works (the "thin line")
+
+- Each training method has its own **XP per hour**. Pickpocketing a tourist: **5,400 XP/h if every attempt succeeds**.
+- Every new method (every 5 levels) earns **about 30% more XP per hour** than the one before.
+- The curve rises 13% per level, which is faster than your XP per hour rises on average. So **every level takes a
+  little longer**, right after an unlock the next level is a bit quicker, then it climbs again (a sawtooth).
+- Targets with option 1 (chosen): **150 successful pickpockets to level 10**, ~1 hour to 30, ~140 hours to 100
+  (once more methods exist). Lvl 1→2 ~1 min, 29→30 ~5 min, 99→100 ~10 h.
 
 ## 4. Street Crimes (levels 1–30)
 
-Something new unlocks **every 5 levels**. Target: **about 16 hours of active play to reach 30**.
-Each band of 5 levels takes about twice as long as the one before. Each new crime pays more XP
-and gold per hour than the previous one, so moving up always feels like progress.
+> **Status: v2 built (v0.13–v0.17).** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
+> All seven crimes have their place on the map and their NPCs. **XP is still the designer's first proposal and
+> needs a tuning pass** now that the NPCs exist (see "XP tuning" below).
 
-| Lv | Crime | Spot on the map | Ticks (time) | Base odds | XP | Gold | Band time |
+Something new unlocks **every 5 levels**. Each crime has its **own place on the map** and, from level 10 on,
+**NPCs that react to you**. Skills don't drop random loot any more (see §6): you get **dollars** directly, and the two
+shoplifting crimes give **food**, which heals.
+
+| Lv | Crime | Where | Odds at unlock | Reward | On fail | Time | XP (proposal) |
 |---|---|---|---|---|---|---|---|
-| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 85% | 19 | 1–3 | 1→5: ~12 min |
-| 5 | Shoplift | Corner shop | 5 (2.5s) | 82% | 28 | 2–5 | 5→10: ~30 min |
-| 10 | Strip a Parked Car | Parked car | 6 (3s) | 80% | 43 | 4–9 | 10→15: ~1 h |
-| 15 | Run a Shell Game | Card table | 7 (3.5s) | 78% | 63 | 6–14 | 15→20: ~2 h |
-| 20 | Burgle a House | Family house | 8 (4s) | 76% | 90 | 10–22 | 20→25: ~4 h |
-| 25 | Rob a Corner Store | Corner store | 10 (5s) | 74% | 141 | 18–36 | 25→30: ~8 h |
-| 30 | Mug a Banker | Banker | 12 (6s) | 72% | 212 | 30–60 | — (cap) |
+| 1 | **Pickpocket Tourists** | 2 tourists wander a park | 65% | $1–3 | −1 HP | 2s | 3 |
+| 5 | **Raid Gym Bags** | 2 guys play basketball; bags on the bench | 55% | $2–6 | −1 HP | 2s | 5 |
+| 10 | **Shoplift Candy Store** | candy store; clerk + shelves | 40% | 1 candy bar | −1 HP, the clerk catches you | 2s | 10 |
+| 15 | **Pickpocket Drunks** | bar; bartender + guests | **100%** (risk = being seen) | $10–20 | −2 HP, stunned 3s | 3s | 8 |
+| 20 | **Pry Open Parking Meters** | parking lot at the edge of town; 4–5 meters; a guard | **100%** (risk = being seen) | $15–30 | −3 HP, stunned 4s | 3s | 7 |
+| 25 | **Shoplift Gas Station** | gas station next to the parking lot; clerk + shelves | 40% | 1 sandwich or 1 candy bar | −2 HP, the clerk catches you | 2s | 21 |
+| 30 | **Steal From Cars** | 3–4 cars on the same parking lot; the same guard | 35% | $30–60 | −3 HP, stunned 4s | 3s | 56 |
 
-XP per success is worked out from the band times: XP per hour needed ÷ attempts per hour ÷ odds,
-where an attempt costs its own time plus, on a failure, the 2-second stun. It assumes you tap again
-right away; real play (walking, resting for health) will be slower.
+**XP proposal:** pickpocketing earns ~5,400 XP/h if every attempt succeeds (~2,600 XP/h with real odds and stuns).
+Each next crime earns ~30% more **real** XP per hour, taking its odds, time, stun and (for Drunks and Meters)
+the time you spend waiting for the bartender or guard into account. To be tuned once those NPCs exist.
 
-**Per attempt:**
-- **Success:** gold and XP. 5% chance of a **Big Score** (double gold and XP).
-- **Failure:** a quarter of the XP, **−1 HP**, a screen shake and a **2-second stun**.
-  Some failures turn into a **bust** (jail) instead.
-- **Odds** rise 2% per level above the crime's requirement (max +12%) and drop as heat rises.
-- **Loot** drops about 0.4 times per minute of work; longer crimes drop more per attempt.
+### XP tuning (to do)
 
-## 5. Health, heat and jail
+Rough real XP per hour with today's numbers, counting odds, catches and waiting (estimates, not measured):
+
+| Crime | XP | Rough XP/h | Note |
+|---|---|---|---|
+| Pickpocket Tourists | 3 | ~2,600 | 65%, a fail costs a 2s stun |
+| Raid Gym Bags | 5 | ~3,400 | 55% |
+| Shoplift Candy Store | 10 | ~3,500 | 40%; a fail costs the clerk's walk (1.6s) + 2s stun |
+| Pickpocket Drunks | 8 | ~3,400 | one attempt per "back turned" window (~8.5s cycle) |
+| Pry Open Parking Meters | 7 | ~4,000–6,000 | depends on dodging the guard; meters refill in 15s |
+| Shoplift Gas Station | 21 | ~7,300 | 40%, like the candy store |
+| Steal From Cars | 56 | ~11,000 | 35% plus the guard |
+
+The target was "each next crime ~30% more real XP/h". Drunks don't beat the candy store yet, and the gas station
+and cars jump a lot. Suggestion: measure real play first, then tune the XP column (and maybe the bartender's
+timing) in `src/game/data/crimes.ts`.
+
+### How each crime works
+
+1. **Pickpocket Tourists (1).** Two tourists stroll around the park. Tap one to try. Success: $1–3.
+2. **Raid Gym Bags (5).** Two NPCs play basketball on a court; their gym bags sit on a bench at the side.
+   Tap a bag. Success: $2–6.
+3. **Shoplift Candy Store (10).** An enterable shop (like Eddy's) with a **clerk** wandering around the register
+   and some **shelves**. Tap a shelf. Success: **1 candy bar** (food, +1 HP when eaten). A shelf you stole from is
+   **empty for 10 seconds**. Failure: the clerk yells **"Hey!"**, comes over and hits you (−1 HP).
+4. **Pickpocket Drunks (15).** A bar inside a building, with a **bartender** and bar guests. Every few seconds the
+   bartender **turns his back** for a few seconds. A pickpocket here **always works**; the risk is being seen.
+   If he sees you mid-attempt, he yells **"Leave my guests alone!"**, walks over and hits you (−2 HP, stunned 3s),
+   and the attempt is lost.
+5. **Pry Open Parking Meters (20).** A parking lot at the edge of town with 4–5 meters. Prying one open **always works**
+   if nobody sees you. An emptied meter needs **15 seconds** to fill up again. A **guard** patrols the lot; if he spots
+   you at a meter he yells **"I saw that!"**, walks over and hits you (−3 HP, stunned 4s), then goes back to patrolling.
+6. **Shoplift Gas Station (25).** An enterable gas station next to the parking lot, same system as the candy store
+   (shelves empty for 10 seconds). Success: **1 sandwich** (+2 HP) or **1 candy bar** (+1 HP).
+   Failure: the clerk yells **"Hey!"**, comes over and hits you (−2 HP).
+7. **Steal From Cars (30).** 3–4 cars on the same parking lot, with the same guard as the meters (35% odds on top).
+   Success: $30–60.
+
+### Getting caught (NPCs that react)
+
+- **How it works in the game:** when someone catches you, he yells right away and walks over; his hit lands
+  **1.6 seconds** later (`CATCH_SECONDS`). Until then you can't act. Then: HP loss and the crime's stun.
+- Pickpocket Tourists and Raid Gym Bags have nobody to catch you: a failure hurts right away (the tourist shoves you,
+  a ball hits you).
+
+- **Shop clerks** (candy store, gas station): on a failed shoplift the clerk yells **"Hey!"**, walks over and hits you.
+- **The bartender and the guard** watch with a view cone. If they see you working a crime, they catch you: they yell
+  their line, walk to you, hit you (HP loss + stun), then go back to what they were doing.
+- **No heat, no jail, no bail.** Getting caught (HP loss and a stun) is the only punishment.
+
+### Food
+
+- Food **stacks** in one inventory slot.
+- **Eating takes 1 tick (0.5 seconds)**: tap the food to eat one. Candy bar +1 HP, sandwich +2 HP.
+
+### Decided (answers to the open questions)
+
+- Drunks and Parking Meters: 100% success; the risk is being seen. Steal From Cars keeps 35% plus the guard.
+- Gas station: reward 1 sandwich or candy bar, on fail −2 HP, 2 seconds; the clerk catches you.
+- Shelves refill in 10 seconds, parking meters in 15.
+- Heat, jail and bail are removed.
+- Clerks catch you on a failed shoplift.
+- Food stacks; eating is 1 tick.
+- **Money is always dollars ($)**: no coins or gold.
+
+## 5. Health
 
 - **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
   Below 3 HP you can't start a job; at 0 the job stops. Real healing comes from items (see §9, Healing).
@@ -83,21 +157,57 @@ right away; real play (walking, resting for health) will be slower.
   about 4 times a minute, so 10 HP lasts roughly 2½ minutes of work. That is intended: health is a real limit
   from day one, and **food is a core system**, the main way to keep going. It matters even more once
   combat arrives. Food is the next thing to scope.
-- **Heat:** 0–100. Working adds heat per minute (more for bigger crimes); it cools by 2 per minute.
-  High heat lowers odds and raises bust risk. A bust drops heat by 25.
-- **Jail:** a bust locks you up for 10–60 seconds. Bail costs 1 gold per 5 seconds left.
+- **Heat and jail:** removed. Getting caught by an NPC (HP loss + stun) is the punishment (§4).
 
-## 6. Economy
+## 6. Economy and items
 
-Currency is **gold**. Earned from crimes and from selling loot to Eddy. Nothing to buy yet.
-Planned: Eddy's stock (bandages first), then other shops.
+- Money is **dollars ($)**. Always: never coins or gold.
+- **Items must mean something.** Skills like Street Crimes **don't drop random loot** any more: crimes pay
+  coins directly. The only items from Street Crimes are **food** from the two shoplifting crimes, and food heals.
+- **Combat (future):** enemies have **loot tables**; killing an enemy grants a drop. That's where most items will come from.
+- Eddy's General Store: sells nothing yet. With loot gone, his "Sell" only matters for items that exist (food).
 
 ## 7. The map
 
-- An island city with a river all the way round.
+- An **island in the ocean**: a sandy beach with rocks around the city, then open sea.
 - 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
   a block can hold one large building or several smaller ones, with some parks.
-- Street Crimes spots sit around the start, with higher levels further out.
+- **The big park** (built): the old small park below where you start, doubled in size over the road next to it.
+  Lawns, hedges with gaps where the paths come in, gravel paths in a cross, a **fountain** in the middle with
+  benches, trees, flowerbeds and two old lamps. Two tourists stroll around in it.
+- **The basketball court** (built), left of the park: painted court with lines, a chain-link fence on three sides
+  (you get in at the two front corners), two hoops, a floodlight. Two players dribble, pass, shoot and chase
+  rebounds. Their gym bags lie on the bench on the street side.
+- **The candy store** (built), north of the park: walk in through the door like Eddy's. Dusty pink walls, a pink
+  neon CANDY sign, four candy shelves on the back wall (tap one to steal; an emptied shelf shows bare and is
+  restocked after 10s), a counter with candy jars and the register, a gumball machine, lollipops by the door.
+  The **clerk** (yellow name) hangs around the register; on a failed attempt he yells "Hey!", walks over and
+  shoves you. Shop icon on the minimap.
+- **Rooms you can walk into** all work the same way: walls along the block edge, one door in the middle of the
+  front wall, and the roof lifts while you're inside.
+- **The bar** (built), above the basketball court: walk in like a shop. Dark wood, a red neon BAR sign, a back bar of
+  glowing bottles with a mirror, a jukebox, the counter with beer taps and pendant lamps, a small table with a candle.
+  **Three drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
+  The **bartender** works behind the counter: he **watches the room for 3–5.5s**, then **turns his back for 3.5–5s**
+  to polish the bottles. His label says "watching" (red) or "back turned" (green). If he is facing the room at any
+  moment of your attempt, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP,
+  stunned 3s). The timings are constants at the top of `StreetView.tsx` (`BAR_WATCH`, `BAR_BACK`).
+- **The parking lot** (built), at the east edge of town by the beach: dark asphalt with white bays, wheel stops and
+  oil stains, a guard booth with a lit window and a barrier arm, two tall sodium lamps, a blue P sign.
+  **Five parking meters** (tap one: 3s, always works if unseen, $15–30). An emptied meter's light turns red and
+  it fills up again after 15s.
+  The **guard** patrols the lot and the pavement around it: he walks to a spot, stops, and sweeps his
+  **flashlight** left and right. The beam is drawn on the ground (about 4.5 tiles long, ~86° wide) and turns red
+  when he sees you working. Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back
+  to patrolling. Tuning constants at the top of `StreetView.tsx` (`GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`,
+  `GUARD_LOOK`).
+- **Cars** (built): four parked cars nose-in at the lot's bays (Steal From Cars: 3s, 35%, $30–60). A failed
+  attempt sets off the car alarm and brings the guard; he can also simply see you in his beam.
+- **The gas station** (built), below the parking lot: a pale concrete shop with a blue trim and a yellow
+  GAS & GO sign, the top four rows of the block. Inside: four shelves either side of a glowing drinks fridge
+  (Shoplift Gas Station: sandwich or candy bar; shelves restock after 10s), and the counter with the **clerk**
+  behind it. Out front: two pumps under a lit canopy (it fades when it hides you), a car filling up, a price sign.
+  Shop icon on the minimap.
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.
@@ -131,11 +241,7 @@ The start screen shows your character file and what's new.
 - **Melee / Defense / Gunfire:** combat with NPCs? Training dummies or gyms? Fights as a crime outcome?
   Weapons and armour from shops?
 - **Health:** trained by taking damage, eating, or a gym?
-- **Healing / food (top priority, to scope):** a **Shoplifting** skill with a ladder of shops to steal from, each giving
-  food that heals when eaten. For example: a candy store at level 1 (candy, +1 HP) and a gas station at the
-  edge of town (gas station snacks, +3 HP), with better shops and food further up. Needs: a level ladder
-  (every 5 levels like Street Crimes?), eating from the inventory, whether food stacks, and how it relates
-  to the existing "Shoplift" Street Crime (likely rename or move that one).
+- **Healing / food:** now part of Street Crimes v2 (candy store and gas station shoplifting, §4). Eating rules: §4 question 6.
 - Quests: who gives them, and what do they unlock?
 - Multiplayer: server-side rules (Supabase) before any leaderboard.
 

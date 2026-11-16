@@ -1,14 +1,25 @@
-// Street Crimes, levels 1–30: a new crime every 5 levels (docs/design.md §4).
+// Street Crimes v2, levels 1–30: a new crime every 5 levels (docs/design.md §4, from docs/street-crimes-v1.xlsx).
 // One tap = one attempt. Each attempt takes a number of game ticks of 0.5s.
 // Numbers are hand-set so they're easy to tune: change a row, everything else follows.
+// XP is the designer's proposal (to tune). Failures give no XP.
 import type { SkillId } from '../types';
 
 /** One game tick = half a second. Every crime takes a fixed number of ticks per attempt. */
 export const TICK_SECONDS = 0.5;
-/** After a failed attempt you're stunned for this long and can't start another. */
-export const STUN_SECONDS = 2;
+/** Eating one food item takes 1 tick. */
+export const EAT_SECONDS = TICK_SECONDS;
+/** When an NPC catches you, this long passes between his yell and his punch (he walks over meanwhile). */
+export const CATCH_SECONDS = 1.6;
 
-export type SpotKind = 'person' | 'car' | 'door' | 'crate' | 'table';
+export type SpotKind = 'person' | 'bag' | 'shelf' | 'meter' | 'car';
+
+/**
+ * Who reacts to you:
+ * - 'clerk': a shop clerk. A failed attempt = the clerk catches you.
+ * - 'bartender' / 'guard': they watch. The attempt always works unless they see you mid-attempt;
+ *   then they catch you. (Steal From Cars also has its own odds: a failed attempt brings the guard.)
+ */
+export type Catcher = 'clerk' | 'bartender' | 'guard';
 
 export interface CrimeDef {
   id: string;
@@ -19,36 +30,79 @@ export interface CrimeDef {
   ticks: number;
   /** Seconds per attempt (ticks × 0.5). */
   duration: number;
-  /** Success chance at exactly the required level. */
+  /** Success chance at exactly the required level. It then rises 0.5% per level above that. 1 = always works. */
   baseChance: number;
-  /** Chance a failure turns into a bust (jail). */
-  risk: number;
-  /** Heat added per minute of working this crime. */
-  heatPerMin: number;
-  /** Seconds in jail on a bust. */
-  jail: number;
   xp: number;
+  /** Dollars on success (0–0 for shoplifting, which gives food instead). */
   cashMin: number;
   cashMax: number;
-  /** What it looks like on the Street, and what the spot is called. */
-  spot: { kind: SpotKind; label: string };
+  /** Food on success: one of these item ids, picked at random. */
+  items?: string[];
+  /** Health lost and seconds stunned on a failed attempt, or when you get caught. */
+  failDamage: number;
+  failStun: number;
+  catcher?: Catcher;
+  /** What the catcher yells. */
+  yell?: string;
+  /** A spot you succeeded at is empty for this many seconds (shelves, meters). */
+  refill?: number;
+  /** What it looks like on the Street, what one spot is called, and where to find them. */
+  spot: { kind: SpotKind; label: string; where: string };
   flavor: string[];
+  failLines: string[];
 }
 
-type Row = [id: string, name: string, level: number, ticks: number, baseChance: number, risk: number, heatPerMin: number, jail: number, xp: number, cashMin: number, cashMax: number, kind: SpotKind, label: string, flavor: string[]];
+export const CRIMES: CrimeDef[] = [
+  {
+    id: 'pick_tourist', skill: 'street', name: 'Pickpocket Tourists', level: 1, ticks: 4, duration: 0, baseChance: 0.65, xp: 3,
+    cashMin: 1, cashMax: 3, failDamage: 1, failStun: 2,
+    spot: { kind: 'person', label: 'Tourist', where: 'The park' },
+    flavor: ['Two fingers, one wallet. The tourist never felt a thing.', 'You lifted a few dollars off a tourist admiring the fountain.', 'Bumped into a tourist. Walked off richer.'],
+    failLines: ['The tourist grabbed your wrist and shoved you away.', 'The tourist spun around and swung a camera at your head.'],
+  },
+  {
+    id: 'gym_bags', skill: 'street', name: 'Raid Gym Bags', level: 5, ticks: 4, duration: 0, baseChance: 0.55, xp: 5,
+    cashMin: 2, cashMax: 6, failDamage: 1, failStun: 2,
+    spot: { kind: 'bag', label: 'Gym bag', where: 'The basketball court' },
+    flavor: ['You fished some cash out of a gym bag while they were busy dunking.', 'Sweaty socks, a towel, and a few dollars. You took the dollars.'],
+    failLines: ['A loose ball smacked you in the head. "Hands off the bags!"', 'One of the players saw you and shoved you into the fence.'],
+  },
+  {
+    id: 'candy_store', skill: 'street', name: 'Shoplift Candy Store', level: 10, ticks: 4, duration: 0, baseChance: 0.4, xp: 10,
+    cashMin: 0, cashMax: 0, items: ['candy_bar'], failDamage: 1, failStun: 2, catcher: 'clerk', yell: 'Hey!', refill: 10,
+    spot: { kind: 'shelf', label: 'Candy shelf', where: 'The candy store' },
+    flavor: ['A candy bar slides up your sleeve.', 'You pocketed a candy bar while the clerk counted change.'],
+    failLines: ['The clerk saw you reach for the shelf.'],
+  },
+  {
+    id: 'pick_drunk', skill: 'street', name: 'Pickpocket Drunks', level: 15, ticks: 6, duration: 0, baseChance: 1, xp: 8,
+    cashMin: 10, cashMax: 20, failDamage: 2, failStun: 3, catcher: 'bartender', yell: 'Leave my guests alone!',
+    spot: { kind: 'person', label: 'Drunk', where: 'The bar' },
+    flavor: ['The drunk was busy singing. His wallet was not.', 'You lifted a fat tip jar worth of cash off a snoring regular.'],
+    failLines: ['The bartender saw you.'],
+  },
+  {
+    id: 'parking_meter', skill: 'street', name: 'Pry Open Parking Meters', level: 20, ticks: 6, duration: 0, baseChance: 1, xp: 7,
+    cashMin: 15, cashMax: 30, failDamage: 3, failStun: 4, catcher: 'guard', yell: 'I saw that!', refill: 15,
+    spot: { kind: 'meter', label: 'Parking meter', where: 'The parking lot' },
+    flavor: ['A screwdriver, a twist, and a pile of quarters.', 'The meter coughed up its coins.'],
+    failLines: ['The guard spotted you at the meter.'],
+  },
+  {
+    id: 'gas_station', skill: 'street', name: 'Shoplift Gas Station', level: 25, ticks: 4, duration: 0, baseChance: 0.4, xp: 21,
+    cashMin: 0, cashMax: 0, items: ['sandwich', 'candy_bar'], failDamage: 2, failStun: 2, catcher: 'clerk', yell: 'Hey!', refill: 10,
+    spot: { kind: 'shelf', label: 'Shelf', where: 'The gas station' },
+    flavor: ['Into the jacket it goes.', 'You strolled out past the pumps with lunch.'],
+    failLines: ['The clerk saw you in the security mirror.'],
+  },
+  {
+    id: 'steal_car', skill: 'street', name: 'Steal From Cars', level: 30, ticks: 6, duration: 0, baseChance: 0.35, xp: 56,
+    cashMin: 30, cashMax: 60, failDamage: 3, failStun: 4, catcher: 'guard', yell: 'I saw that!',
+    spot: { kind: 'car', label: 'Parked car', where: 'The parking lot' },
+    flavor: ['Glovebox cash and a forgotten wallet.', 'Unlocked. They always leave one unlocked.'],
+    failLines: ['The car alarm went off.'],
+  },
+].map((c) => ({ ...c, skill: c.skill as SkillId, duration: c.ticks * TICK_SECONDS }) as CrimeDef);
 
-const ROWS: Row[] = [
-  ['pick_wallet', 'Lift a Wallet', 1, 4, 0.85, 0.03, 1.5, 10, 19, 1, 3, 'person', 'Tourist', ['You lifted a wallet off {mark} near {place}.', 'Two fingers, one wallet. {mark} never felt a thing.', 'Bumped into {mark}. Walked off richer.']],
-  ['shoplift', 'Shoplift', 5, 5, 0.82, 0.04, 1.8, 15, 28, 2, 5, 'door', 'Corner shop', ['Crisps in the jacket, soda in the sleeve. Out the door.', 'You walked out of the corner shop with a full hoodie.']],
-  ['strip_car', 'Strip a Parked Car', 10, 6, 0.8, 0.05, 2.1, 20, 43, 4, 9, 'car', 'Parked car', ['Hubcaps, mirrors and a stereo from a car near {place}.', 'You stripped a parked car in under a minute.']],
-  ['shell_game', 'Run a Shell Game', 15, 7, 0.78, 0.05, 2.4, 30, 63, 6, 14, 'table', 'Card table', ['The pea was never under any cup. {mark} lost big.', 'You hustled a crowd at {place}. Three rounds, three suckers.']],
-  ['burgle_house', 'Burgle a House', 20, 8, 0.76, 0.06, 2.7, 40, 90, 10, 22, 'door', 'Family house', ['The family was on holiday. Their mail told you so.', 'Spare key under the gnome. Every time.']],
-  ['rob_store', 'Rob a Corner Store', 25, 10, 0.74, 0.07, 3.0, 50, 141, 18, 36, 'door', 'Corner store', ['Back door, crowbar, register drawer.', 'Cigarettes, lottery tickets and the float from the till.']],
-  ['mug_banker', 'Mug a Banker', 30, 12, 0.72, 0.08, 3.3, 60, 212, 30, 60, 'person', 'Banker', ['A firm word in a dark alley. The banker handed it all over.', "You relieved {mark}'s banker friend of a fat wallet."]],
-];
-
-export const CRIMES: CrimeDef[] = ROWS.map(([id, name, level, ticks, baseChance, risk, heatPerMin, jail, xp, cashMin, cashMax, kind, label, flavor]) => ({
-  id, skill: 'street', name, level, ticks, duration: ticks * TICK_SECONDS, baseChance, risk, heatPerMin, jail, xp, cashMin, cashMax, spot: { kind, label }, flavor,
-}));
 export const CRIME_BY_ID: Record<string, CrimeDef> = Object.fromEntries(CRIMES.map((c) => [c.id, c]));
 export const crimesForSkill = (skill: SkillId) => CRIMES.filter((c) => c.skill === skill);

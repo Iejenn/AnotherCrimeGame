@@ -1,4 +1,4 @@
-// Small models: cars, the card table, crates and shop doors. Chunky low-poly, muted dusk colours.
+// Small models: cars, gym bags, shop shelves and parking meters. Chunky low-poly, muted dusk colours.
 import * as THREE from 'three';
 
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
@@ -60,36 +60,59 @@ export function buildCar(color: number): THREE.Group {
   return g;
 }
 
-/** The shell game: a little folding table with three cups. */
-export function buildCardTable(): THREE.Group {
-  const g = new THREE.Group();
-  add(g, boxGeo(0.7, 0.05, 0.45), 0x2f7a46, 0, 0.5, 0);
-  for (const x of [-0.3, 0.3]) for (const z of [-0.18, 0.18]) add(g, boxGeo(0.04, 0.5, 0.04), 0x6b4a2e, x, 0.25, z);
-  for (const x of [-0.18, 0, 0.18]) add(g, cylGeo(0.05, 0.09, 8), 0xd9473a, x, 0.57, 0, false);
-  return g;
-}
+export const BAG_COLORS = [0x2f4562, 0x8a2f28, 0x35553a, 0x2b2b2e];
 
-export function buildCrate(): THREE.Group {
+/** A gym bag lying on the court bench (the bench seat is at y≈0.3). */
+export function buildGymBag(color: number): THREE.Group {
   const g = new THREE.Group();
-  add(g, boxGeo(0.6, 0.5, 0.6), 0xb8864a, 0, 0.25, 0);
-  add(g, boxGeo(0.62, 0.06, 0.62), 0x8a6235, 0, 0.47, 0);
+  const bag = add(g, cylGeo(0.12, 0.42, 10), color, 0, 0.42, 0);
+  bag.rotation.z = Math.PI / 2;
+  add(g, boxGeo(0.44, 0.02, 0.05), 0xd8d0c0, 0, 0.42, 0.115, false); // stripe
+  const handle = add(g, new THREE.TorusGeometry(0.08, 0.015, 5, 10, Math.PI), 0x1e1b18, 0, 0.53, 0, false);
+  handle.rotation.y = Math.PI / 2;
   return g;
 }
 
 /**
- * A shop/house door on the building face. `dx, dz` point from the spot's tile towards the building.
- * Coloured frame + glass, and a little mat on the pavement.
+ * A shop shelf full of goods, against a wall behind it. `userData.goods` holds the goods, which are
+ * hidden while the shelf is empty (you stole from it; it refills after a while).
  */
-export function buildDoor(dx: number, dz: number, frame = 0xd9473a): THREE.Group {
+export function buildShelf(colors: number[], seed: number): THREE.Group {
   const g = new THREE.Group();
-  const along = dx ? 'z' : 'x';
-  const thick = 0.06;
-  const doorW = 0.5;
-  const fx = dx * 0.47;
-  const fz = dz * 0.47;
-  const frameMesh = add(g, along === 'x' ? boxGeo(doorW + 0.12, 0.86, thick) : boxGeo(thick, 0.86, doorW + 0.12), frame, fx, 0.43, fz);
-  frameMesh.castShadow = false;
-  add(g, along === 'x' ? boxGeo(doorW, 0.74, thick + 0.01) : boxGeo(thick + 0.01, 0.74, doorW), 0x9fd0e8, fx, 0.4, fz, false);
-  add(g, boxGeo(0.6, 0.02, 0.6), 0x7a5a3a, 0, 0.065, 0, false);
+  add(g, boxGeo(0.9, 1.0, 0.42), 0x6b4a2e, 0, 0.5, -0.24);
+  const goods = new THREE.Group();
+  for (let level = 0; level < 3; level++) {
+    add(g, boxGeo(0.92, 0.03, 0.44), 0x8a6235, 0, 0.18 + level * 0.32, -0.22, false);
+    for (let i = 0; i < 4; i++) {
+      const c = colors[(seed + level * 3 + i * 7) % colors.length];
+      add(goods, boxGeo(0.15, 0.17, 0.14), c, -0.3 + i * 0.2, 0.29 + level * 0.32, -0.12, false);
+    }
+  }
+  g.add(goods);
+  g.userData.goods = goods;
   return g;
+}
+
+/** A parking meter on a post. The little window is green when it has coins, red when emptied. */
+export function buildMeter(): THREE.Group {
+  const g = new THREE.Group();
+  add(g, cylGeo(0.035, 0.7, 6), 0x5a5f66, 0, 0.35, 0);
+  add(g, boxGeo(0.2, 0.26, 0.14), 0x6f7680, 0, 0.82, 0);
+  add(g, boxGeo(0.22, 0.05, 0.16), 0x4a4f56, 0, 0.97, 0);
+  const full = add(g, boxGeo(0.1, 0.06, 0.02), 0x5bd06a, 0, 0.86, 0.075, false);
+  (full.material as THREE.MeshLambertMaterial) = new THREE.MeshLambertMaterial({ color: 0x5bd06a, emissive: 0x5bd06a, emissiveIntensity: 0.9 });
+  const empty = add(g, boxGeo(0.1, 0.06, 0.02), 0xe0473a, 0, 0.86, 0.075, false);
+  (empty.material as THREE.MeshLambertMaterial) = new THREE.MeshLambertMaterial({ color: 0xe0473a, emissive: 0xe0473a, emissiveIntensity: 0.9 });
+  empty.visible = false;
+  g.userData.goods = full;
+  g.userData.emptyMark = empty;
+  return g;
+}
+
+/** Show a spot as full or emptied (shelves lose their goods, meters turn red). */
+export function setSpotEmpty(g: THREE.Object3D, empty: boolean) {
+  const goods = g.userData.goods as THREE.Object3D | undefined;
+  if (goods) goods.visible = !empty;
+  const mark = g.userData.emptyMark as THREE.Object3D | undefined;
+  if (mark) mark.visible = empty;
 }

@@ -1,35 +1,64 @@
 import { expect, it } from 'vitest';
-import { NODES, NPCS, SPAWN, STORE, W, H, buildBlocked, canStep, inStore } from './map';
+import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, SPAWN, W, H, buildBlocked, canStep, inRect } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
+
+/** Every Street Crime has a place on the map (design §4). */
+const PLACED = CRIMES.map((c) => c.id);
 
 it('every street spot and NPC is reachable from spawn', () => {
   const b = buildBlocked();
   expect(b[SPAWN[1] * W + SPAWN[0]]).toBe(0);
-  const bad = NODES.filter((n) => findPath(b, W, H, SPAWN, neighbors(n.x, n.y)) === null).map((n) => n.id);
+  const bad = NODES.filter((n) => findPath(b, W, H, SPAWN, neighbors(n.x, n.y), canStep) === null).map((n) => n.id);
   expect(bad).toEqual([]);
-  for (const npc of NPCS) expect(findPath(b, W, H, SPAWN, neighbors(npc.x, npc.y), canStep)).not.toBeNull();
+  for (const npc of NPCS) expect(findPath(b, W, H, SPAWN, [[npc.x, npc.y]], canStep), npc.id).not.toBeNull();
 });
 
-it('every crime has exactly one fixed spot, with a building behind it', () => {
-  const b = buildBlocked();
-  const fixed = NODES.filter((n) => !n.wanders);
-  expect(fixed.map((n) => n.crimeId).sort()).toEqual(CRIMES.map((c) => c.id).sort());
-  for (const n of fixed) expect(b[(n.y - 1) * W + n.x]).toBe(1);
-  // Nobody stands on Eddy's spot.
-  expect(NODES.some((n) => NPCS.some((p) => p.x === n.x && p.y === n.y))).toBe(false);
+it('every placed crime has spots, and nothing stands on a fixture', () => {
+  expect([...new Set(NODES.map((n) => n.crimeId))].sort()).toEqual([...PLACED].sort());
+  const fixtures = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
+  for (const n of NODES) expect(fixtures.has(`${n.x},${n.y}`), n.id).toBe(false);
+  for (const p of NPCS) expect(fixtures.has(`${p.x},${p.y}`), p.id).toBe(false);
 });
 
-it('the store can only be entered through its door', () => {
+it('the two tourists stroll inside the park', () => {
+  const tourists = NODES.filter((n) => n.crimeId === 'pick_tourist');
+  expect(tourists).toHaveLength(2);
+  for (const t of tourists) {
+    expect(t.wanders).toEqual(PARK);
+    expect(inRect(PARK, t.x, t.y)).toBe(true);
+  }
+});
+
+it('walled and fenced places can only be entered through their openings', () => {
   const b = buildBlocked();
-  const [dx, dy] = STORE.door;
-  // Walking from the street to the middle of the store goes through the door tile.
-  const path = findPath(b, W, H, SPAWN, [[STORE.x0 + 2, STORE.y0 + 1]], canStep)!;
-  expect(path).not.toBeNull();
-  const entry = path.findIndex(([x, y]) => inStore(x, y));
-  expect(path[entry]).toEqual([dx, dy]);
-  expect(path[entry - 1]).toEqual([dx, dy + 1]);
-  // No stepping through a wall next to the door.
+  for (const e of ENCLOSURES) {
+    const inside = e.openings[0].inside;
+    const path = findPath(b, W, H, SPAWN, [inside], canStep)!;
+    expect(path, e.id).not.toBeNull();
+    const entry = path.findIndex(([x, y]) => inRect(e.rect, x, y));
+    const at = path[entry];
+    const before = path[entry - 1];
+    expect(e.openings.some((o) => o.inside.join() === at.join() && o.outside.join() === before.join()), e.id).toBe(true);
+  }
+  // No stepping through the store's wall next to its door, or diagonally through the door.
+  const store = ENCLOSURES.find((e) => e.id === 'store')!;
+  const [dx, dy] = store.openings[0].inside;
   expect(canStep(dx - 1, dy, dx - 1, dy + 1)).toBe(false);
   expect(canStep(dx, dy, dx + 1, dy + 1)).toBe(false);
+  expect(canStep(dx, dy, dx, dy + 1)).toBe(true);
+});
+
+it('every catcher can walk over to wherever you stand at the crimes he watches', () => {
+  const b = buildBlocked();
+  for (const npc of NPCS.filter((n) => n.catches?.length)) {
+    for (const n of NODES.filter((x) => npc.catches!.includes(x.crimeId))) {
+      // Every free tile next to the spot where you could stand.
+      const stands = neighbors(n.x, n.y).filter(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !b[y * W + x]);
+      for (const [sx, sy] of stands) {
+        if (!findPath(b, W, H, SPAWN, [[sx, sy]], canStep)) continue; // you can't stand there either
+        expect(findPath(b, W, H, [npc.x, npc.y], neighbors(sx, sy), canStep), `${npc.id} → ${n.id} at ${sx},${sy}`).not.toBeNull();
+      }
+    }
+  }
 });

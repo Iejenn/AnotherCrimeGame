@@ -1,8 +1,8 @@
-// RuneScape-style bag: 28 slots. Gold always sits in the first one, then loot stacks.
+// RuneScape-style bag: 28 slots. Cash always sits in the first one, then items (food stacks).
 import { useState } from 'react';
 import type { GameState } from '../game/types';
-import { LOOT_BY_ID } from '../game/data/world';
-import { INVENTORY_SLOTS, dropLoot, fmtMoney, slotsUsed } from '../game/engine';
+import { ITEM_BY_ID } from '../game/data/items';
+import { INVENTORY_SLOTS, cantEat, dropItem, eat, fmtMoney, slotsUsed } from '../game/engine';
 import { Bag, bagSlots, slotKey } from './Bag';
 
 type Act = (fn: (d: GameState, now: number) => void) => void;
@@ -11,6 +11,7 @@ export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
   const [sel, setSel] = useState<string>('cash');
   const slots = bagSlots(s);
   const selected = slots.find((sl) => slotKey(sl) === sel) ?? slots[0];
+  const now = Date.now();
 
   return (
     <div className="inventory">
@@ -25,34 +26,43 @@ export function InventoryTab({ s, act }: { s: GameState; act: Act }) {
       <div className="slot-detail">
         {selected.kind === 'cash' ? (
           <>
-            <div className="kicker">Gold</div>
+            <div className="kicker">Cash</div>
             <div className="money detail-cash">{fmtMoney(s.cash)}</div>
             <p className="muted small">Lifetime earnings: {fmtMoney(s.stats.earned)}</p>
           </>
         ) : (
           (() => {
-            const def = LOOT_BY_ID[selected.id];
+            const def = ITEM_BY_ID[selected.id];
+            const why = cantEat(s, selected.id, now);
             return (
               <>
-                <div className="kicker">{def.rarity}</div>
-                <strong className={`detail-name rarity-${def.rarity}`}>
+                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : 'Item'}</div>
+                <strong className="detail-name">
                   {def.name} {selected.count > 1 && <span className="muted mono">×{selected.count}</span>}
                 </strong>
                 <p className="muted small">Eddy at the General Store pays {fmtMoney(def.value)} each.</p>
-                <button
-                  className="btn small"
-                  onClick={() => {
-                    if (confirm(`Drop all ${selected.count} ${def.name}? They're gone for good.`)) act((d) => dropLoot(d, selected.id));
-                  }}
-                >
-                  Drop
-                </button>
+                <div className="save-row">
+                  {def.heal > 0 && (
+                    <button className="btn small primary" disabled={!!why} title={why ?? ''} onClick={() => act((d, t) => eat(d, selected.id, t))}>
+                      Eat (+{def.heal} HP)
+                    </button>
+                  )}
+                  <button
+                    className="btn small"
+                    onClick={() => {
+                      if (confirm(`Drop all ${selected.count} ${def.name}? They're gone for good.`)) act((d) => dropItem(d, selected.id));
+                    }}
+                  >
+                    Drop
+                  </button>
+                </div>
+                {why && def.heal > 0 && <p className="muted small">{why}</p>}
               </>
             );
           })()
         )}
       </div>
-      {slotsUsed(s) >= INVENTORY_SLOTS && <p className="warn small">Your inventory is full. New kinds of loot will be left behind.</p>}
+      {slotsUsed(s) >= INVENTORY_SLOTS && <p className="warn small">Your inventory is full.</p>}
     </div>
   );
 }

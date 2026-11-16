@@ -8,6 +8,78 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.17.0',
+    date: '2026-11-16',
+    title: 'The gas station and the cars',
+    items: [
+      'Shoplift Gas Station (level 25): a gas station below the parking lot, with pumps under a canopy. Steal a sandwich (+2 HP) or a candy bar from the shelves. 40% odds; mess up and the clerk comes for you (−2 HP).',
+      'Steal From Cars (level 30): four cars are parked on the lot. 35% odds, $30–60. A failed attempt sets off the alarm, and the guard comes running (−3 HP, stunned 4s). He can also just see you in his flashlight beam.',
+      'That completes the new Street Crimes: seven crimes, each with its own place in town.',
+    ],
+  },
+  {
+    version: '0.16.0',
+    date: '2026-11-16',
+    title: 'The parking lot',
+    items: [
+      'Pry Open Parking Meters (level 20): a parking lot at the east edge of town with five meters. Prying one open always works ($15–30); an emptied meter turns red and fills up again after 15 seconds.',
+      'A guard patrols the lot with a flashlight. Stay out of the beam: if he catches you at a meter, he yells "I saw that!" and whacks you (−3 HP, stunned 4s).',
+    ],
+  },
+  {
+    version: '0.15.0',
+    date: '2026-11-16',
+    title: 'The bar',
+    items: [
+      'Pickpocket Drunks (level 15): a new bar above the basketball court, with three drunks on stools. Picking their pockets always works ($10–20)…',
+      '…but the bartender watches the room. Every few seconds he turns his back to polish the bottles: his name turns green. Time it right.',
+      'If he sees you, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP, stunned 3s).',
+    ],
+  },
+  {
+    version: '0.14.0',
+    date: '2026-11-16',
+    title: 'The candy store',
+    items: [
+      'Shoplift Candy Store (level 10): a new candy store north of the park. Walk in, tap a shelf, and walk out with a candy bar (eat it for +1 HP). 40% odds.',
+      'A shelf you stole from is bare until it is restocked, 10 seconds later.',
+      'Watch the clerk: if you mess up he yells "Hey!", comes over and shoves you (−1 HP, stunned).',
+      'The candy store has a shopping-bag icon on the minimap.',
+    ],
+  },
+  {
+    version: '0.13.0',
+    date: '2026-11-16',
+    title: 'The big park and the basketball court',
+    items: [
+      'Street Crimes v2 has started. Crimes now have their own places: level 1 and 5 are open, the rest follow one by one.',
+      'Pickpocket Tourists (level 1): the park below where you start is twice as big, with a fountain, benches, hedges, flowerbeds and paths. Two tourists stroll around in it. 65%, $1–3.',
+      'Raid Gym Bags (level 5): a new basketball court left of the park. Two players shoot hoops while their bags sit on the bench. 55%, $2–6.',
+      'The Skills tab shows where each crime is, what it pays (dollars or food), and what happens when it goes wrong.',
+    ],
+  },
+  {
+    version: '0.12.0',
+    date: '2026-11-16',
+    title: 'Dollars, food, and an island in the ocean',
+    items: [
+      'Money is dollars now. Crimes pay cash straight away; no more random item drops (old loot was turned into cash for you).',
+      'Food: candy bars and sandwiches stack in your bag. Tap one in your Inventory and eat it to heal (takes half a second). The shops that stock them are coming next.',
+      'Heat, jail and bail are gone. Soon, getting caught will mean an angry clerk, bartender or guard instead.',
+      'The city is now an island: a sandy beach with rocks, and the open ocean all around.',
+    ],
+  },
+  {
+    version: '0.11.0',
+    date: '2026-11-16',
+    title: 'Street Crimes rebalanced',
+    items: [
+      'Every crime now starts at 65% success when you unlock it, and gets 0.5% better for every Street Crimes level above that.',
+      'A failed attempt gives no XP any more.',
+      'XP rebalanced: every skill uses one XP curve where each level needs a bit more than the last. 150 successful pickpockets take you to level 10, and each new crime earns about 30% more XP per hour.',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-11-16',
     title: "Step inside Eddy's",

@@ -22,15 +22,4 @@ export const SKILLS: SkillDef[] = [
 export const SKILL_BY_ID = Object.fromEntries(SKILLS.map((s) => [s.id, s])) as Record<SkillId, SkillDef>;
 export const SKILL_IDS = SKILLS.map((s) => s.id);
 
-/** Lines for failed attempts and busts, shared by all street crimes. */
-export const FAIL_LINES = [
-  '{mark} grabbed their pocket just in time. You melted into the crowd empty-handed.',
-  'A security guard at {place} started watching you. You walked away.',
-  'Butterfingers. The goods hit the floor and you had to bail.',
-  'Someone shouted. You ran before anyone got a good look.',
-];
-export const BUST_LINES = [
-  'A plain-clothes cop at {place} had you cuffed before you blinked.',
-  '{mark} turned out to be an off-duty detective. Bad luck.',
-  'A patrol car rolled up at exactly the wrong moment.',
-];
+/** Lines for failed attempts, shared by all street crimes. */
