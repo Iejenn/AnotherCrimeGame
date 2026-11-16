@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
-import { crimeStats, fmtDuration, fmtMoney, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
+import { crimeStats, fmtDuration, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
 import { MAX_LEVEL, levelProgress } from '../game/xp';
 import { Bar, pct } from './ui';
 import { ITEM_BY_ID } from '../game/data/items';
@@ -111,16 +111,6 @@ export function SkillsTab({ s, account }: { s: GameState; account: { email: stri
             })}
           </ol>
         )}
-      </section>
-
-      <section>
-        <h3 className="rule-head">Record</h3>
-        <div className="stats-grid">
-          <div><span className="muted">Jobs pulled</span><strong>{s.stats.jobs.toLocaleString('en-US')}</strong></div>
-          <div><span className="muted">Big scores</span><strong>{s.stats.bigScores.toLocaleString('en-US')}</strong></div>
-          <div><span className="muted">Failed attempts</span><strong>{s.stats.fails.toLocaleString('en-US')}</strong></div>
-          <div><span className="muted">Lifetime earnings</span><strong>{fmtMoney(s.stats.earned)}</strong></div>
-        </div>
       </section>
 
       <section>
