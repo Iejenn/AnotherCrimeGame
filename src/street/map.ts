@@ -115,8 +115,6 @@ export interface Building {
 /** Pocket parks (one lot each). */
 const PARKS: [string, LotLetter][] = [['003', 'B'], ['007', 'C']];
 
-/** Where you start (and wake up after dying): on the sidewalk between the candy store's block and the park. */
-export const SPAWN: [number, number] = [29, 35];
 
 /** Street tiles (everything that isn't in a block). */
 export function isRoad(x: number, y: number) {
@@ -129,6 +127,10 @@ export function isRoad(x: number, y: number) {
 export const PARK: Rect = block('008');
 /** The gravel paths: these rows and columns (offsets inside the park). */
 export const PARK_PATHS = { rows: [2, 7], cols: [2, 7] };
+
+/** Where you start (and wake up after dying): in Central Park, on the path just north of the fountain, the benches
+ *  right below you. */
+export const SPAWN: [number, number] = [PARK.x0 + 4, PARK.y0 + 2];
 
 // ---------- the basketball court (Raid Gym Bags, level 5) ----------
 // A fenced court left of the park. The open (north) side faces the street, with a bench where the

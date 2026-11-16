@@ -17,9 +17,9 @@ begin
   if position('x between 0 and 43 and y between 0 and 36' in def) = 0 then raise exception 'game.can_reach(public.players, integer, integer): anchor not found: %', 'x between 0 and 43 and y between 0 and 36'; end if;
   def := replace(def, 'x between 0 and 43 and y between 0 and 36', 'x between 0 and 57 and y between 0 and 57');
   if position('coalesce(p.pos_x, 18)' in def) = 0 then raise exception 'game.can_reach(public.players, integer, integer): anchor not found: %', 'coalesce(p.pos_x, 18)'; end if;
-  def := replace(def, 'coalesce(p.pos_x, 18)', 'coalesce(p.pos_x, 29)');
+  def := replace(def, 'coalesce(p.pos_x, 18)', 'coalesce(p.pos_x, 28)');
   if position('coalesce(p.pos_y, 22)' in def) = 0 then raise exception 'game.can_reach(public.players, integer, integer): anchor not found: %', 'coalesce(p.pos_y, 22)'; end if;
-  def := replace(def, 'coalesce(p.pos_y, 22)', 'coalesce(p.pos_y, 35)');
+  def := replace(def, 'coalesce(p.pos_y, 22)', 'coalesce(p.pos_y, 43)');
   execute def;
 end $do$;
 do $do$
@@ -35,7 +35,7 @@ declare def text;
 begin
   def := pg_get_functiondef('game.world(uuid)'::regprocedure);
   if position('coalesce(w.from_x, p.pos_x, 18), coalesce(w.from_y, p.pos_y, 22)' in def) = 0 then raise exception 'game.world(uuid): anchor not found: %', 'coalesce(w.from_x, p.pos_x, 18), coalesce(w.from_y, p.pos_y, 22)'; end if;
-  def := replace(def, 'coalesce(w.from_x, p.pos_x, 18), coalesce(w.from_y, p.pos_y, 22)', 'coalesce(w.from_x, p.pos_x, 29), coalesce(w.from_y, p.pos_y, 35)');
+  def := replace(def, 'coalesce(w.from_x, p.pos_x, 18), coalesce(w.from_y, p.pos_y, 22)', 'coalesce(w.from_x, p.pos_x, 28), coalesce(w.from_y, p.pos_y, 43)');
   execute def;
 end $do$;
 
@@ -123,6 +123,6 @@ end $$;
 update public.players set pos_x = null, pos_y = null, pos_at = now(),
   job_crime = null, job_spot = null, job_started_at = null, job_ends_at = null, job_pos_x = null, job_pos_y = null,
   caught_crime = null, caught_at = null, fight_enemy = null, fight_next = null;
-update public.graves set x = 30, y = 35;
+update public.graves set x = 29, y = 43;
 delete from public.walks;
 update public.enemies set fighter = null, fight_x = null, fight_y = null, fight_seen = null, left_at = null, left_by = null, left_x = null, left_y = null;

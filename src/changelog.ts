@@ -17,7 +17,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Street life: lamps over the road, trees, hydrants, mailboxes, benches, bikes, dumpsters in the alleys, and a bus stop across from the candy store.',
       "The shops got character: fruit crates outside Eddy's, a giant lollipop on the candy store, a half-closed shutter at Ray's.",
       'The gas station has a big parking lot around it now. The park is a whole block of its own.',
-      'Everyone starts at the new start spot by the candy store. Graves were moved there too, with everything in them.',
+      'You now start in Central Park, on the path just above the fountain. Everyone was moved there, and graves too, with everything in them.',
       'Tip: drag up or down to tilt the camera lower and look down the street.',
     ],
   },
