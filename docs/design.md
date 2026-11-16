@@ -62,7 +62,8 @@ XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **e
 ## 4. Street Crimes (levels 1–30)
 
 > **Status: v2 being built, one place per step.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
-> Built: **1 Pickpocket Tourists** (big park), **5 Raid Gym Bags** (basketball court). The rest show
+> Built: **1 Pickpocket Tourists** (big park), **5 Raid Gym Bags** (basketball court),
+> **10 Shoplift Candy Store** (candy store with a clerk). The rest show
 > "coming soon" in the Skills tab until their place exists. The rules for all seven (odds, rewards, getting caught,
 > shelves and meters that empty) are already in the game engine and tested.
 
@@ -161,8 +162,15 @@ the time you spend waiting for the bartender or guard into account. To be tuned 
 - **The basketball court** (built), left of the park: painted court with lines, a chain-link fence on three sides
   (you get in at the two front corners), two hoops, a floodlight. Two players dribble, pass, shoot and chase
   rebounds. Their gym bags lie on the bench on the street side.
-- Still to come (see §4): a **candy store** (enterable, shop icon), a **bar** (enterable), a **parking lot at the
-  edge of town** with meters, cars and a guard, and a **gas station** next to it (enterable, shop icon).
+- **The candy store** (built), north of the park: walk in through the door like Eddy's. Dusty pink walls, a pink
+  neon CANDY sign, four candy shelves on the back wall (tap one to steal; an emptied shelf shows bare and is
+  restocked after 10s), a counter with candy jars and the register, a gumball machine, lollipops by the door.
+  The **clerk** (yellow name) hangs around the register; on a failed attempt he yells "Hey!", walks over and
+  shoves you. Shop icon on the minimap.
+- **Rooms you can walk into** all work the same way: walls along the block edge, one door in the middle of the
+  front wall, and the roof lifts while you're inside.
+- Still to come (see §4): a **bar** (enterable), a **parking lot at the edge of town** with meters, cars and a
+  guard, and a **gas station** next to it (enterable, shop icon).
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.

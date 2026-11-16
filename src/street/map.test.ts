@@ -3,7 +3,7 @@ import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, SPAWN, W, H, buildBlocked, can
 import { findPath, neighbors } from './pathfind';
 
 /** Crimes that have a place on the map so far (Street Crimes v2 is built step by step, design §4). */
-const PLACED = ['pick_tourist', 'gym_bags'];
+const PLACED = ['pick_tourist', 'gym_bags', 'candy_store'];
 
 it('every street spot and NPC is reachable from spawn', () => {
   const b = buildBlocked();
@@ -46,4 +46,18 @@ it('walled and fenced places can only be entered through their openings', () => 
   expect(canStep(dx - 1, dy, dx - 1, dy + 1)).toBe(false);
   expect(canStep(dx, dy, dx + 1, dy + 1)).toBe(false);
   expect(canStep(dx, dy, dx, dy + 1)).toBe(true);
+});
+
+it('every catcher can walk over to wherever you stand at the crimes he watches', () => {
+  const b = buildBlocked();
+  for (const npc of NPCS.filter((n) => n.catches?.length)) {
+    for (const n of NODES.filter((x) => npc.catches!.includes(x.crimeId))) {
+      // Every free tile next to the spot where you could stand.
+      const stands = neighbors(n.x, n.y).filter(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !b[y * W + x]);
+      for (const [sx, sy] of stands) {
+        if (!findPath(b, W, H, SPAWN, [[sx, sy]], canStep)) continue; // you can't stand there either
+        expect(findPath(b, W, H, [npc.x, npc.y], neighbors(sx, sy), canStep), `${npc.id} → ${n.id} at ${sx},${sy}`).not.toBeNull();
+      }
+    }
+  }
 });

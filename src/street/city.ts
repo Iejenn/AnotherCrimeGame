@@ -6,7 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BEACH, BLOCK, BLOCKS, BUILDINGS, COLS, COURT, FIXTURES, H, NODES, NPCS, PARK, ROWS, STORE, W, inRect } from './map';
+import { BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, H, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -541,63 +541,114 @@ export function buildCity(scene: THREE.Scene) {
     scene.add(flood);
   }
 
-  // ---------- Eddy's General Store: you can walk in ----------
-  // Four walls along the block edge with a doorway in the south wall. While you're inside, the walls
-  // fade and the roof, sign and awning disappear so you look into the shop.
-  let store: Fadeable;
-  {
-    const X0 = STORE.x0;
-    const Z0 = STORE.y0;
-    const X1 = STORE.x1 + 1;
-    const Z1 = STORE.y1 + 1;
-    add(geoBox(5.6, 0.06, 5.6), pavement, (X0 + X1) / 2, 0.03, (Z0 + Z1) / 2, false);
+  // ---------- rooms you can walk into: the shell ----------
+  // Four walls along the edge with a doorway in the middle of the front (south) wall, a roof with a
+  // coloured parapet, lit shop windows, a striped awning and a sign. While you're inside, the walls
+  // fade and the roof, sign and awning disappear so you look into the room.
+  interface ShopStyle {
+    wall: number;
+    trim: number;
+    /** Awning stripes: colour and light colour. */
+    stripe: [string, string];
+    sign: string;
+    signBg: string;
+    signFg?: string;
+    /** Floor tiles: two colours in a checker. */
+    floor: [string, string];
+    /** Warm light inside. */
+    light: number;
+    height?: number;
+  }
+  const rooms = new Map<string, Fadeable>();
+  const shopShell = (r: Room, st: ShopStyle) => {
+    const X0 = r.x0;
+    const Z0 = r.y0;
+    const X1 = r.x1 + 1;
+    const Z1 = r.y1 + 1;
     const cx = (X0 + X1) / 2;
-    const sh = 1.25;
+    const cz = (Z0 + Z1) / 2;
+    const sh = st.height ?? 1.25;
     const t = 0.12; // wall thickness
-    const [doorX] = STORE.door;
-    const mWall = lam(0xa89c86);
-    const mTrim = lam(0x2f6b40);
+    const [doorX] = r.door;
+    add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
+    const mWall = lam(st.wall);
+    const mTrim = lam(st.trim);
     const mRoof = lam(C.roof);
     const walls = [
       add(geoBox(X1 - X0, sh, t), mWall, cx, sh / 2, Z0 + t / 2), // back
-      add(geoBox(t, sh, Z1 - Z0), mWall, X0 + t / 2, sh / 2, (Z0 + Z1) / 2), // west
-      add(geoBox(t, sh, Z1 - Z0), mWall, X1 - t / 2, sh / 2, (Z0 + Z1) / 2), // east
+      add(geoBox(t, sh, Z1 - Z0), mWall, X0 + t / 2, sh / 2, cz), // west
+      add(geoBox(t, sh, Z1 - Z0), mWall, X1 - t / 2, sh / 2, cz), // east
       add(geoBox(doorX - X0, sh, t), mWall, (X0 + doorX) / 2, sh / 2, Z1 - t / 2), // front, left of the door
       add(geoBox(X1 - doorX - 1, sh, t), mWall, (doorX + 1 + X1) / 2, sh / 2, Z1 - t / 2), // front, right of the door
       add(geoBox(1, sh - 0.85, t), mWall, doorX + 0.5, 0.85 + (sh - 0.85) / 2, Z1 - t / 2), // above the door
     ];
-    const roof = add(geoBox(X1 - X0, 0.08, Z1 - Z0), mRoof, cx, sh + 0.04, (Z0 + Z1) / 2);
-    const trimBand = parapet(cx, (Z0 + Z1) / 2, X1 - X0 + 0.06, Z1 - Z0 + 0.06, sh + 0.06, mTrim);
+    const roof = add(geoBox(X1 - X0, 0.08, Z1 - Z0), mRoof, cx, sh + 0.04, cz);
+    const trimBand = parapet(cx, cz, X1 - X0 + 0.06, Z1 - Z0 + 0.06, sh + 0.06, mTrim);
     // Shop windows either side of the door, lit from inside.
     const glassMat = lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 });
     const winL = add(geoBox(1.3, 0.5, 0.04), glassMat, X0 + 1, 0.55, Z1 + 0.005, false);
     const winR = add(geoBox(1.3, 0.5, 0.04), glassMat, X1 - 1, 0.55, Z1 + 0.005, false);
     const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, 0.86, Z1 - t / 2, false);
-    const stripe = own(stripeTex('#2f6b40', '#d8d0c0'));
+    const stripe = own(stripeTex(st.stripe[0], st.stripe[1]));
     stripe.repeat.set(5, 1);
-    const awning = add(geoBox(4.2, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.98, Z1 + 0.22);
+    const awning = add(geoBox(X1 - X0 - 0.8, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.98, Z1 + 0.22);
     awning.rotation.x = 0.4;
-    const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture('GENERAL STORE')) }));
+    const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture(st.sign, st.signBg, st.signFg)) }));
     const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, Z1 + 0.03, false);
     const signBack = add(geoBox(3.3, 0.68, 0.06), mTrim, cx, sh + 0.42, Z1 - 0.02);
     const roofAc = [0, 1].map((i) => add(geoBox(0.3, 0.18, 0.24), lam(0xe8e8e8), cx - 1.5 + i * 2.4, sh + 0.17, Z0 + 1.3));
-
-    // ---- interior ----
+    // Floor tiles.
     const checker = own(
       canvasTex(64, 64, (g) => {
-        g.fillStyle = '#b9b2a4';
+        g.fillStyle = st.floor[0];
         g.fillRect(0, 0, 64, 64);
-        g.fillStyle = '#8f877a';
+        g.fillStyle = st.floor[1];
         g.fillRect(0, 0, 32, 32);
         g.fillRect(32, 32, 32, 32);
       }),
     );
-    checker.repeat.set(5, 5);
+    checker.repeat.set(X1 - X0, Z1 - Z0);
     const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.1, Z1 - Z0 - 0.1)), lam(0xffffff, { map: checker }));
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(cx, 0.065, (Z0 + Z1) / 2);
+    floor.position.set(cx, 0.065, cz);
     floor.receiveShadow = true;
     scene.add(floor);
+    // Doormat inside the door.
+    add(geoBox(0.8, 0.02, 0.5), lam(st.trim), doorX + 0.5, 0.075, Z1 - 0.4, false);
+    // Warm light inside, so the shop glows when you look in.
+    const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
+    lamp.position.set(cx, 1.1, cz);
+    scene.add(lamp);
+    const fade: Fadeable = {
+      walls: [...walls, ...trimBand],
+      mats: [mWall, mTrim],
+      props: [roof, winL, winR, doorFrame, awning, sign, signBack, ...roofAc],
+      opacity: 1,
+    };
+    fadeables.push(fade);
+    rooms.set(r.id, fade);
+    return { X0, Z0, X1, Z1, cx, cz, t, doorX, sh };
+  };
+  /** A shop counter (fixture tiles in a row) with a cash register at one end. */
+  const counter = (r: Room, top = 0x9a7a52, body = 0x5a3d26) => {
+    const tiles = FIXTURES.filter((x) => x.kind === 'counter' && inRect(r, x.x, x.y));
+    const x0 = Math.min(...tiles.map((c) => c.x));
+    const x1 = Math.max(...tiles.map((c) => c.x)) + 1;
+    const ccx = (x0 + x1) / 2;
+    const ccz = tiles[0].y + 0.5;
+    add(geoBox(x1 - x0 - 0.2, 0.5, 0.55), lam(body), ccx, 0.3, ccz);
+    add(geoBox(x1 - x0 - 0.14, 0.05, 0.6), lam(top), ccx, 0.57, ccz);
+    add(geoBox(0.3, 0.2, 0.24), lam(0x2b2b2e), ccx + 0.5, 0.7, ccz);
+    add(geoBox(0.22, 0.08, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.9 }), ccx + 0.5, 0.78, ccz + 0.13, false);
+    return { ccx, ccz };
+  };
+
+  // ---------- Eddy's General Store ----------
+  {
+    const { X1, Z0, t, doorX } = shopShell(STORE, {
+      wall: 0xa89c86, trim: 0x2f6b40, stripe: ['#2f6b40', '#d8d0c0'], sign: 'GENERAL STORE', signBg: '#2f7a46',
+      floor: ['#b9b2a4', '#8f877a'], light: 0xffc98a,
+    });
     // Shelves full of colourful goods, against the walls.
     const productColors = [0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8];
     const shelfWood = lam(0x6b4a2e);
@@ -622,28 +673,41 @@ export function buildCity(scene: THREE.Scene) {
     // A glowing drinks fridge in the gap between the back shelves.
     add(geoBox(0.7, 0.95, 0.3), lam(0xd8dde2), doorX + 0.5, 0.55, Z0 + t + 0.15);
     add(geoBox(0.56, 0.75, 0.02), lam(0x9fd0e8, { emissive: 0x9fd0e8, emissiveIntensity: 0.8 }), doorX + 0.5, 0.58, Z0 + t + 0.31, false);
-    // The counter (two tiles wide) with a cash register.
-    const counters = FIXTURES.filter((x) => x.kind === 'counter' && inRect(STORE, x.x, x.y));
-    const ccx = (Math.min(...counters.map((c) => c.x)) + Math.max(...counters.map((c) => c.x)) + 1) / 2;
-    const ccz = counters[0].y + 0.5;
-    add(geoBox(1.8, 0.5, 0.55), lam(0x5a3d26), ccx, 0.3, ccz);
-    add(geoBox(1.86, 0.05, 0.6), lam(0x9a7a52), ccx, 0.57, ccz);
-    add(geoBox(0.3, 0.2, 0.24), lam(0x2b2b2e), ccx + 0.5, 0.7, ccz);
-    add(geoBox(0.22, 0.08, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.9 }), ccx + 0.5, 0.78, ccz + 0.13, false);
-    // Doormat inside the door.
-    add(geoBox(0.8, 0.02, 0.5), lam(0x7a2f28), doorX + 0.5, 0.075, Z1 - 0.4, false);
-    // Warm light inside, so the shop glows when you look in.
-    const lamp = new THREE.PointLight(0xffc98a, 6, 6, 1.6);
-    lamp.position.set(cx, 1.1, (Z0 + Z1) / 2);
-    scene.add(lamp);
+    counter(STORE);
+  }
 
-    store = {
-      walls: [...walls, ...trimBand],
-      mats: [mWall, mTrim],
-      props: [roof, winL, winR, doorFrame, awning, sign, signBack, ...roofAc],
-      opacity: 1,
-    };
-    fadeables.push(store);
+  // ---------- the candy store (Shoplift Candy Store) ----------
+  // Dusty pink walls and a pink neon sign; pink-and-cream floor. The four candy shelves on the back
+  // wall are spots (added by the Street view). Candy jars on the counter, a gumball machine, and a
+  // wall of lollipops by the door.
+  {
+    const { X1, Z0, Z1, t, doorX } = shopShell(CANDY, {
+      wall: 0x9a6b74, trim: 0x6a2f4a, stripe: ['#b8336a', '#e8d8d0'], sign: 'CANDY', signBg: '#3a1424', signFg: '#ff7ab8',
+      floor: ['#d8c4c8', '#a8848c'], light: 0xffb8d0,
+    });
+    const { ccx, ccz } = counter(CANDY, 0xe8d8d0, 0x6a2f4a);
+    // Glass candy jars on the counter.
+    const jarColors = [0xff7ab8, 0xf0b13c, 0x7ad0e8, 0x9ae07a];
+    jarColors.forEach((c, i) => {
+      add(own(new THREE.CylinderGeometry(0.07, 0.07, 0.16, 8)), lam(c, { transparent: true, opacity: 0.85 }), ccx - 0.6 + i * 0.2, 0.68, ccz - 0.08, false);
+      add(own(new THREE.CylinderGeometry(0.075, 0.075, 0.03, 8)), lam(0xe8e2d0), ccx - 0.6 + i * 0.2, 0.77, ccz - 0.08, false);
+    });
+    // A gumball machine against the east wall.
+    const gx = X1 - t - 0.3;
+    const gz = Z0 + 2.5;
+    add(own(new THREE.CylinderGeometry(0.08, 0.12, 0.5, 8)), lam(0xb8282a), gx, 0.3, gz);
+    add(geoBox(0.2, 0.14, 0.2), lam(0xb8282a), gx, 0.62, gz);
+    add(own(new THREE.SphereGeometry(0.17, 10, 8)), lam(0xdff2ff, { transparent: true, opacity: 0.6 }), gx, 0.85, gz);
+    for (let i = 0; i < 8; i++) add(own(new THREE.SphereGeometry(0.045, 6, 5)), lam(jarColors[i % 4]), gx - 0.08 + (i % 3) * 0.08, 0.76 + Math.floor(i / 3) * 0.06, gz - 0.05 + ((i * 7) % 3) * 0.05, false);
+    // Lollipops on a board by the door (on the front wall, inside).
+    add(geoBox(1.0, 0.6, 0.04), lam(0x6b4a2e), doorX + 1.6, 0.65, Z1 - t - 0.03);
+    for (let i = 0; i < 6; i++) {
+      const lx = doorX + 1.25 + (i % 3) * 0.35;
+      const ly = 0.55 + Math.floor(i / 3) * 0.25;
+      add(own(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 10)).rotateX(Math.PI / 2), lam(jarColors[i % 4], { emissive: jarColors[i % 4], emissiveIntensity: 0.25 }), lx, ly, Z1 - t - 0.07, false);
+    }
+    // A pink glow spilling out of the door onto the pavement.
+    pools.add(doorX + 0.5, 0.075, Z1 + 0.6);
   }
 
   // Build all instanced batches that were filled above.
@@ -655,7 +719,8 @@ export function buildCity(scene: THREE.Scene) {
 
   return {
     fadeables,
-    store,
+    /** Room id → its walls/roof, so the Street view can fade a room while you're inside. */
+    rooms,
     dispose() {
       disposables.forEach((d) => d.dispose());
     },

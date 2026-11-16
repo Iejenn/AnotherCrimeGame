@@ -70,11 +70,30 @@ export const PARK: Rect = { x0: 2 * BLOCK + 2, y0: 3 * BLOCK + 2, x1: 3 * BLOCK 
 // players left their gym bags. Two players shoot hoops inside.
 export const COURT: Rect = blockRect(1, 3);
 
-// ---------- Eddy's General Store (you can walk in) ----------
-export const STORE: Rect & { door: [number, number] } = { ...blockRect(2, 1), door: [2 * BLOCK + 4, BLOCK + 6] };
+// ---------- rooms you can walk into ----------
+// Each fills (part of) a block, with walls along the edge and one door in the middle of the front
+// (south) wall. While you're inside, the walls fade and the roof lifts so you can see in.
+export interface Room extends Rect {
+  id: string;
+  name: string;
+  door: [number, number];
+  /** Shops get a shopping-bag icon on the minimap. */
+  shop: boolean;
+}
+const room = (id: string, name: string, bx: number, by: number, shop: boolean, rows = 5): Room => {
+  const r = blockRect(bx, by);
+  const y1 = r.y0 + rows - 1;
+  return { ...r, y1, id, name, door: [r.x0 + 2, y1], shop };
+};
+/** Eddy's General Store, just north of where you start. */
+export const STORE = room('store', "Eddy's General Store", 2, 1, true);
+/** The candy store (Shoplift Candy Store, level 10), north of the park. */
+export const CANDY = room('candy', 'Candy store', 3, 2, true);
+export const ROOMS: Room[] = [STORE, CANDY];
+export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
-/** Blocks that aren't normal buildings: the park, the court, the store… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1]];
+/** Blocks that aren't normal buildings: the park, the court, the rooms… */
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2]];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -86,7 +105,7 @@ export interface Enclosure {
   openings: { inside: [number, number]; outside: [number, number] }[];
 }
 export const ENCLOSURES: Enclosure[] = [
-  { id: 'store', rect: STORE, openings: [{ inside: STORE.door, outside: [STORE.door[0], STORE.door[1] + 1] }] },
+  ...ROOMS.map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
   {
     id: 'court',
     rect: COURT,
@@ -97,8 +116,6 @@ export const ENCLOSURES: Enclosure[] = [
   },
 ];
 export const enclosureAt = (x: number, y: number) => ENCLOSURES.find((e) => inRect(e.rect, x, y));
-/** Rooms with a roof (the camera looks in when you're inside). */
-export const inStore = (x: number, y: number) => inRect(STORE, x, y);
 
 export const BLOCKS: Map<string, BlockKind> = (() => {
   const m = new Map<string, BlockKind>();
@@ -183,6 +200,14 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: P.x0 + 2, y: P.y0 + 1, kind: 'tree' }, { x: P.x1 - 2, y: P.y1 - 1, kind: 'tree' });
   out.push({ x: P.x1 - 2, y: P.y0 + 1, kind: 'flowers' }, { x: P.x0 + 2, y: P.y1 - 1, kind: 'flowers' });
 
+  // The candy store. Layout (S = shelf you can steal from, see NODES; C = counter with the register):
+  //   S S . S S
+  //   . . . . .
+  //   C C . . .
+  //   . . . . .
+  //   . . D . .
+  out.push({ x: CANDY.x0, y: CANDY.y0 + 2, kind: 'counter' }, { x: CANDY.x0 + 1, y: CANDY.y0 + 2, kind: 'counter' });
+
   // The court's bench (the gym bags on it are spots, see NODES).
   out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
   return out;
@@ -200,6 +225,8 @@ export const NODES: StreetNode[] = (() => {
   // Two gym bags on the bench at the court.
   node('bag_0', 'gym_bags', COURT.x0 + 1, COURT.y0, { facing: 0 });
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
+  // Four candy shelves along the back wall of the candy store.
+  [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
   return out;
 })();
 
@@ -223,7 +250,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk';
 export interface Npc {
   id: string;
   name: string;
@@ -238,10 +265,17 @@ export interface Npc {
   avoid?: [number, number][];
   /** Name shown in yellow (people you can talk to, or who can catch you). */
   named: boolean;
+  /** Crimes this NPC catches you at (he comes over and hits you). */
+  catches?: string[];
 }
 
 export const NPCS: Npc[] = [
   { id: 'eddy', name: 'Eddy', role: 'General store', kind: 'shopkeeper', x: STORE.x0 + 2, y: STORE.y0 + 1, area: STORE, avoid: [STORE.door], named: true },
+  // The candy store clerk hangs around the register (behind and next to the counter).
+  {
+    id: 'candy_clerk', name: 'Clerk', role: 'Candy store', kind: 'clerk', x: CANDY.x0 + 1, y: CANDY.y0 + 3,
+    area: { x0: CANDY.x0, y0: CANDY.y0 + 1, x1: CANDY.x0 + 2, y1: CANDY.y0 + 3 }, named: true, catches: ['candy_store'],
+  },
   { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
   { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
 ];

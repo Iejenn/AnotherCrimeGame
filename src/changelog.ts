@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.14.0',
+    date: '2026-11-16',
+    title: 'The candy store',
+    items: [
+      'Shoplift Candy Store (level 10): a new candy store north of the park. Walk in, tap a shelf, and walk out with a candy bar (eat it for +1 HP). 40% odds.',
+      'A shelf you stole from is bare until it is restocked, 10 seconds later.',
+      'Watch the clerk: if you mess up he yells "Hey!", comes over and shoves you (−1 HP, stunned).',
+      'The candy store has a shopping-bag icon on the minimap.',
+    ],
+  },
+  {
     version: '0.13.0',
     date: '2026-11-16',
     title: 'The big park and the basketball court',

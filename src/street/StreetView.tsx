@@ -5,11 +5,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { GameState, Report } from '../game/types';
-import { CRIME_BY_ID } from '../game/data/crimes';
+import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
 import { ITEM_BY_ID } from '../game/data/items';
-import { BLOCK, BLOCKS, BUILDINGS, COURT, H, NODES, NPCS, PARK, SPAWN, STORE, W, buildBlocked, canStep, inRect, inStore, type Npc, type StreetNode } from './map';
+import { BLOCK, BLOCKS, BUILDINGS, COURT, H, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, buildCar, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
@@ -157,7 +157,19 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     // NPCs: Eddy stands in front of his store. Green apron, flat cap, faces the street.
     const npcGroups = new Map<string, THREE.Group>();
     /** Where each NPC is right now (Eddy strolls around his shop). */
-    const npcWalk = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; wait: number; moving: boolean }>();
+    interface NpcState {
+      pos: THREE.Vector3;
+      target: THREE.Vector3;
+      wait: number;
+      moving: boolean;
+      /** normal = their usual routine; rush = coming to hit you; hit = swinging; back = walking back. */
+      mode: 'normal' | 'rush' | 'hit' | 'back';
+      path: [number, number][];
+      speed: number;
+      /** When the hit lands (Date.now() time), or when the swing ends (performance.now() time). */
+      until: number;
+    }
+    const npcWalk = new Map<string, NpcState>();
     const npcTile = (npc: Npc): [number, number] => {
       const w = npcWalk.get(npc.id)!;
       return tileOf(w.pos.x, w.pos.z);
@@ -166,13 +178,14 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       eddy: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xf2efe8 }], // flat cap, green top, white apron
       baller_0: [{ skin: 3, hair: 0, hairColor: 0, top: 4, bottom: 1 }, undefined],
       baller_1: [{ skin: 0, hair: 1, hairColor: 2, top: 1, bottom: 3 }, undefined],
+      candy_clerk: [{ skin: 2, hair: 2, hairColor: 3, top: 5, bottom: 0 }, { apron: 0xff7ab8 }], // pink apron
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
       const g = buildCharacter(look, extra);
       addHitArea(g);
       g.position.copy(center(npc.x, npc.y));
-      npcWalk.set(npc.id, { pos: center(npc.x, npc.y), target: center(npc.x, npc.y), wait: 1 + Math.random() * 2, moving: false });
+      npcWalk.set(npc.id, { pos: center(npc.x, npc.y), target: center(npc.x, npc.y), wait: 1 + Math.random() * 2, moving: false, mode: 'normal', path: [], speed: 1, until: 0 });
       g.traverse((o) => (o.userData.npcId = npc.id));
       scene.add(g);
       pickables.push(g);
@@ -192,6 +205,51 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     // The basketball game on the court.
     const hoops = new Hoops(scene, COURT);
     disposables.push(hoops);
+
+    // ---------- getting caught (docs/design.md §4) ----------
+    // The catcher yells, rushes over (fast enough to arrive just before the engine lands his hit),
+    // swings, and walks back to where he was. You can't do anything until the hit lands.
+    const yells = new Map<string, { text: string; until: number }>();
+    const yell = (npcId: string, text: string) => yells.set(npcId, { text, until: performance.now() + 2200 });
+    let lastCaught = 0;
+    const startChase = (crimeId: string, at: number) => {
+      const crime = CRIME_BY_ID[crimeId];
+      const catchers = NPCS.filter((n) => n.catches?.includes(crimeId));
+      if (!crime || !catchers.length) return;
+      const npc = catchers.sort((a, b) => npcWalk.get(a.id)!.pos.distanceTo(me.pos) - npcWalk.get(b.id)!.pos.distanceTo(me.pos))[0];
+      const w = npcWalk.get(npc.id)!;
+      me.path = [];
+      me.goal = null;
+      me.goalNpc = null;
+      me.attached = null;
+      setTalkingRef.current(null);
+      yell(npc.id, crime.yell ?? 'Hey!');
+      const [px, py] = tileOf(me.pos.x, me.pos.z);
+      const path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), neighbors(px, py), canStep) ?? [];
+      const timeLeft = Math.max(0.4, CATCH_SECONDS - (Date.now() - at) / 1000 - 0.3);
+      w.mode = 'rush';
+      w.path = path;
+      w.speed = Math.max(2.5, (path.length + 0.5) / timeLeft);
+      w.until = at + CATCH_SECONDS * 1000;
+    };
+    /** The name over an NPC's head. */
+    const npcLabel = (npc: Npc) => npc.name;
+    /** Move an NPC along its path; true when it has arrived. */
+    const followPath = (w: NpcState, g: THREE.Group, dt: number) => {
+      if (!w.path.length) return true;
+      const next = center(...w.path[0]);
+      const d = next.clone().sub(w.pos);
+      const step = w.speed * dt;
+      if (d.length() <= step) {
+        w.pos.copy(next);
+        w.path.shift();
+      } else {
+        w.pos.add(d.normalize().multiplyScalar(step));
+        g.rotation.y = Math.atan2(d.x, d.z);
+      }
+      w.moving = true;
+      return !w.path.length;
+    };
     const nodeTile = (n: StreetNode): [number, number] => {
       const w = walkers.get(n.id);
       return w ? tileOf(w.pos.x, w.pos.z) : [n.x, n.y];
@@ -290,6 +348,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       if (hit?.object.userData.npcId) {
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
         if (npc.kind === 'baller') return say("They're busy playing. Their bags on the bench aren't watched much…");
+        if (npc.kind === 'clerk') return say(`The ${npc.name.toLowerCase()} keeps an eye on the shelves. Don't get caught.`);
         stopWorking();
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
@@ -374,7 +433,8 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       area(PARK, '#45663a');
       tile(PARK.x0, PARK.y0 + 2, PARK.x1 - PARK.x0 + 1, 1, '#8a8070'); // the path across
       area(COURT, '#7a3b2c');
-      area(STORE, '#2f7a46');
+      const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#7a6a3a' };
+      for (const r of ROOMS) area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
       for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#8a7f70');
     }
     const drawMini = () => {
@@ -398,10 +458,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         if (n.wanders) continue;
         dot(n.x + 0.5, n.y + 0.5, 2.2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
-      // Shopping bag icon on the store.
-      {
-        const bx = (STORE.x0 + 2.5 + MINI_EDGE) * MINI_PX;
-        const by = (STORE.y0 + 2.7 + MINI_EDGE) * MINI_PX;
+      // Shopping bag icons on the shops.
+      for (const r of ROOMS.filter((x) => x.shop)) {
+        const bx = ((r.x0 + r.x1 + 1) / 2 + MINI_EDGE) * MINI_PX;
+        const by = ((r.y0 + r.y1 + 1) / 2 + 0.2 + MINI_EDGE) * MINI_PX;
         g.fillStyle = '#f2d27a';
         g.strokeStyle = '#141210';
         g.lineWidth = 1;
@@ -415,7 +475,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         g.lineWidth = 1.5;
         g.stroke();
       }
-      for (const npc of NPCS) {
+      for (const npc of NPCS.filter((n) => n.named)) {
         const ep = npcWalk.get(npc.id)!.pos;
         dot(ep.x, ep.z, 2.2, '#f2d27a', '#141210');
       }
@@ -597,6 +657,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         const [nx, ny] = nodeTile(me.attached);
         me.facing = Math.atan2(nx + 0.5 - me.pos.x, ny + 0.5 - me.pos.z);
       }
+      if (st.player.caught) {
+        const catcher = [...npcWalk.values()].find((w) => w.mode === 'rush' || w.mode === 'hit');
+        if (catcher) me.facing = Math.atan2(catcher.pos.x - me.pos.x, catcher.pos.z - me.pos.z);
+      }
       player.position.set(me.pos.x, 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > Date.now();
       const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working ? 'work' : 'idle';
@@ -631,12 +695,41 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         animateCharacter(g, w?.moving ? 'walk' : 'idle', now, k++ * 0.7);
         if (w) w.moving = false;
       }
+      const caught = st.player.caught;
+      if (caught && caught.at !== lastCaught) {
+        lastCaught = caught.at;
+        startChase(caught.crimeId, caught.at);
+      }
       const talkingNow = talkingIdRef.current;
       for (const npc of NPCS) {
         const w = npcWalk.get(npc.id)!;
         const g = npcGroups.get(npc.id)!;
         const busy = me.goalNpc?.id === npc.id || talkingNow === npc.id;
         w.moving = false;
+        if (w.mode !== 'normal') {
+          if (w.mode === 'rush') {
+            if (followPath(w, g, dt)) {
+              g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
+              if (Date.now() >= w.until) {
+                w.mode = 'hit';
+                w.until = now + 450;
+              }
+            }
+          } else if (w.mode === 'hit') {
+            g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
+            if (now >= w.until) {
+              w.mode = 'back';
+              w.speed = 1.6;
+              w.path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), [[npc.x, npc.y]], canStep) ?? [];
+            }
+          } else if (followPath(w, g, dt)) {
+            w.mode = 'normal';
+            w.target.copy(w.pos);
+          }
+          g.position.set(w.pos.x, 0.03, w.pos.z);
+          animateCharacter(g, w.mode === 'hit' ? 'work' : w.moving ? 'walk' : 'idle', now, 3.1);
+          continue;
+        }
         if (busy) {
           w.target.copy(center(...tileOf(w.pos.x, w.pos.z)));
           if (talkingNow === npc.id) g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
@@ -672,8 +765,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       hoops.update(now / 1000);
       // Spots that were emptied (shelves, meters) look empty until they refill.
       for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, Date.now()) > 0);
-      // Inside the store: fade its walls and lift the roof so you can see in.
-      city.store.force = inStore(...tileOf(me.pos.x, me.pos.z));
+      // Inside a room: fade its walls and lift the roof so you can see in.
+      const myTile = tileOf(me.pos.x, me.pos.z);
+      for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
 
       // Tap ring fades out.
       const rm = ring.material as THREE.MeshBasicMaterial;
@@ -704,6 +798,26 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Yells ("Hey!") in a speech bubble over whoever is shouting.
+      for (const [id, y] of yells) {
+        const g = npcGroups.get(id)!;
+        if (now > y.until) {
+          yells.delete(id);
+          continue;
+        }
+        const [x, yy, depth] = project(g.position.clone().setY(2.05));
+        if (depth > 1) continue;
+        let el = labelEls.get(`yell:${id}`);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label yell';
+          labelLayer.appendChild(el);
+          labelEls.set(`yell:${id}`, el);
+        }
+        if (el.textContent !== y.text) el.textContent = y.text;
+        seen.add(`yell:${id}`);
+        el.style.transform = `translate(${x}px, ${yy}px) translate(-50%, -100%)`;
+      }
       for (const npc of NPCS) {
         if (!npc.named) continue;
         const g = npcGroups.get(npc.id)!;
@@ -713,12 +827,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         if (!el) {
           el = document.createElement('div');
           el.className = 'node-label npc';
-          el.textContent = npc.name;
           labelLayer.appendChild(el);
           labelEls.set(`npc:${npc.id}`, el);
         }
+        const text = npcLabel(npc);
+        if (el.textContent !== text) el.textContent = text;
         seen.add(`npc:${npc.id}`);
-        placed.push([x, y, npc.name.length * 6 + 10]);
+        placed.push([x, y, text.length * 6 + 10]);
         el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
       const nearby = NODES.map((n) => ({ n, d: nodeGroups.get(n.id)!.position.distanceTo(me.pos) }))
