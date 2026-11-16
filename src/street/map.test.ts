@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { NODES, NPCS, SPAWN, W, H, buildBlocked } from './map';
+import { NODES, NPCS, SPAWN, STORE, W, H, buildBlocked, canStep, inStore } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
 
@@ -8,7 +8,7 @@ it('every street spot and NPC is reachable from spawn', () => {
   expect(b[SPAWN[1] * W + SPAWN[0]]).toBe(0);
   const bad = NODES.filter((n) => findPath(b, W, H, SPAWN, neighbors(n.x, n.y)) === null).map((n) => n.id);
   expect(bad).toEqual([]);
-  for (const npc of NPCS) expect(findPath(b, W, H, SPAWN, neighbors(npc.x, npc.y))).not.toBeNull();
+  for (const npc of NPCS) expect(findPath(b, W, H, SPAWN, neighbors(npc.x, npc.y), canStep)).not.toBeNull();
 });
 
 it('every crime has exactly one fixed spot, with a building behind it', () => {
@@ -18,4 +18,18 @@ it('every crime has exactly one fixed spot, with a building behind it', () => {
   for (const n of fixed) expect(b[(n.y - 1) * W + n.x]).toBe(1);
   // Nobody stands on Eddy's spot.
   expect(NODES.some((n) => NPCS.some((p) => p.x === n.x && p.y === n.y))).toBe(false);
+});
+
+it('the store can only be entered through its door', () => {
+  const b = buildBlocked();
+  const [dx, dy] = STORE.door;
+  // Walking from the street to the middle of the store goes through the door tile.
+  const path = findPath(b, W, H, SPAWN, [[STORE.x0 + 2, STORE.y0 + 1]], canStep)!;
+  expect(path).not.toBeNull();
+  const entry = path.findIndex(([x, y]) => inStore(x, y));
+  expect(path[entry]).toEqual([dx, dy]);
+  expect(path[entry - 1]).toEqual([dx, dy + 1]);
+  // No stepping through a wall next to the door.
+  expect(canStep(dx - 1, dy, dx - 1, dy + 1)).toBe(false);
+  expect(canStep(dx, dy, dx + 1, dy + 1)).toBe(false);
 });

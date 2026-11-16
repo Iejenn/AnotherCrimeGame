@@ -5,7 +5,7 @@
 // traffic lights, and a bright river with a stone quay around the island.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, STORE_BLOCK, W } from './map';
+import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, STORE, STORE_FIXTURES, W } from './map';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -31,8 +31,11 @@ const C = {
 export interface Fadeable {
   walls: THREE.Mesh[];
   mats: THREE.Material[];
+  /** Hidden while faded (roof props, signs, the store's roof). */
   props: THREE.Object3D[];
   opacity: number;
+  /** Fade regardless of the camera (the store, while you're inside it). */
+  force?: boolean;
 }
 
 // ---------- canvas textures ----------
@@ -235,8 +238,8 @@ export function buildCity(scene: THREE.Scene) {
         add(geoBox(5, 0.08, 5), grassMat, cx, 0.04, cz, false);
         for (let i = 0; i < 6; i++) tree(cx - 2 + rng() * 4, cz - 2 + rng() * 4, 0.9 + rng() * 0.5);
       }
-      // A few street trees along the pavement edge (never in front of a spot or Eddy).
-      for (let i = 0; i < 5; i++) {
+      // A few street trees along the pavement edge (never in front of a spot, and not in Eddy's shop).
+      for (let i = 0; i < 5 && kind.type !== 'store'; i++) {
         if (rng() < 0.55) continue;
         const along = 2 + i;
         const tx = bx * BLOCK + along;
@@ -374,28 +377,108 @@ export function buildCity(scene: THREE.Scene) {
     fadeables.push({ walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1 });
   }
 
-  // ---------- Eddy's General Store ----------
+  // ---------- Eddy's General Store: you can walk in ----------
+  // Four walls along the block edge with a doorway in the south wall. While you're inside, the walls
+  // fade and the roof, sign and awning disappear so you look into the shop.
+  let store: Fadeable;
   {
-    const [sx, sy] = STORE_BLOCK;
-    const cx = sx * BLOCK + 2 + 2.5;
-    const cz = sy * BLOCK + 2 + 2.5;
+    const X0 = STORE.x0;
+    const Z0 = STORE.y0;
+    const X1 = STORE.x1 + 1;
+    const Z1 = STORE.y1 + 1;
+    const cx = (X0 + X1) / 2;
     const sh = 1.25;
+    const t = 0.12; // wall thickness
+    const [doorX] = STORE.door;
     const mWall = lam(0xa89c86);
     const mTrim = lam(0x2f6b40);
     const mRoof = lam(C.roof);
-    const shop = add(geoBox(4.9, sh, 4.9), [mWall, mWall, mRoof, mRoof, mWall, mWall], cx, sh / 2, cz);
-    const trimBand = parapet(cx, cz, 4.96, 4.96, sh + 0.04, mTrim);
-    const glass = add(geoBox(3.6, 0.55, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 }), cx, 0.36, cz + 2.45, false);
+    const walls = [
+      add(geoBox(X1 - X0, sh, t), mWall, cx, sh / 2, Z0 + t / 2), // back
+      add(geoBox(t, sh, Z1 - Z0), mWall, X0 + t / 2, sh / 2, (Z0 + Z1) / 2), // west
+      add(geoBox(t, sh, Z1 - Z0), mWall, X1 - t / 2, sh / 2, (Z0 + Z1) / 2), // east
+      add(geoBox(doorX - X0, sh, t), mWall, (X0 + doorX) / 2, sh / 2, Z1 - t / 2), // front, left of the door
+      add(geoBox(X1 - doorX - 1, sh, t), mWall, (doorX + 1 + X1) / 2, sh / 2, Z1 - t / 2), // front, right of the door
+      add(geoBox(1, sh - 0.85, t), mWall, doorX + 0.5, 0.85 + (sh - 0.85) / 2, Z1 - t / 2), // above the door
+    ];
+    const roof = add(geoBox(X1 - X0, 0.08, Z1 - Z0), mRoof, cx, sh + 0.04, (Z0 + Z1) / 2);
+    const trimBand = parapet(cx, (Z0 + Z1) / 2, X1 - X0 + 0.06, Z1 - Z0 + 0.06, sh + 0.06, mTrim);
+    // Shop windows either side of the door, lit from inside.
+    const glassMat = lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 });
+    const winL = add(geoBox(1.3, 0.5, 0.04), glassMat, X0 + 1, 0.55, Z1 + 0.005, false);
+    const winR = add(geoBox(1.3, 0.5, 0.04), glassMat, X1 - 1, 0.55, Z1 + 0.005, false);
+    const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, 0.86, Z1 - t / 2, false);
     const stripe = own(stripeTex('#2f6b40', '#d8d0c0'));
     stripe.repeat.set(5, 1);
-    const awning = add(geoBox(4.2, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.82, cz + 2.65);
+    const awning = add(geoBox(4.2, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.98, Z1 + 0.22);
     awning.rotation.x = 0.4;
     const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture('GENERAL STORE')) }));
-    const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, cz + 2.47, false);
-    const signBack = add(geoBox(3.3, 0.68, 0.06), mTrim, cx, sh + 0.42, cz + 2.42);
-    const door = add(geoBox(0.6, 0.75, 0.06), lam(0x2f6b40), cx, 0.38, cz + 2.47, false);
-    for (let i = 0; i < 2; i++) add(geoBox(0.3, 0.18, 0.24), lam(0xe8e8e8), cx - 1.5 + i * 2.4, sh + 0.09, cz - 1.2);
-    fadeables.push({ walls: [shop, ...trimBand], mats: [mWall, mRoof, mTrim], props: [glass, awning, sign, signBack, door], opacity: 1 });
+    const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, Z1 + 0.03, false);
+    const signBack = add(geoBox(3.3, 0.68, 0.06), mTrim, cx, sh + 0.42, Z1 - 0.02);
+    const roofAc = [0, 1].map((i) => add(geoBox(0.3, 0.18, 0.24), lam(0xe8e8e8), cx - 1.5 + i * 2.4, sh + 0.17, Z0 + 1.3));
+
+    // ---- interior ----
+    const checker = own(
+      canvasTex(64, 64, (g) => {
+        g.fillStyle = '#b9b2a4';
+        g.fillRect(0, 0, 64, 64);
+        g.fillStyle = '#8f877a';
+        g.fillRect(0, 0, 32, 32);
+        g.fillRect(32, 32, 32, 32);
+      }),
+    );
+    checker.repeat.set(5, 5);
+    const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.1, Z1 - Z0 - 0.1)), lam(0xffffff, { map: checker }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0.065, (Z0 + Z1) / 2);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    // Shelves full of colourful goods, against the walls.
+    const productColors = [0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8];
+    const shelfWood = lam(0x6b4a2e);
+    for (const f of STORE_FIXTURES.filter((x) => x.kind === 'shelf')) {
+      const againstBack = f.y === STORE.y0;
+      const w = againstBack ? 0.92 : 0.45;
+      const d = againstBack ? 0.45 : 0.92;
+      const fx = againstBack ? f.x + 0.5 : X1 - t - 0.225; // side shelves stand against the east wall
+      const fz = againstBack ? f.y + t + d / 2 : f.y + 0.5;
+      const sx = againstBack ? w : 0.45;
+      const sz = againstBack ? 0.45 : w;
+      add(geoBox(sx, 0.95, sz), shelfWood, fx, 0.55, fz);
+      for (let level = 0; level < 3; level++) {
+        add(geoBox(sx + 0.02, 0.03, sz + 0.02), lam(0x8a6235), fx, 0.2 + level * 0.32, fz, false);
+        for (let i = 0; i < 3; i++) {
+          const c = productColors[Math.floor(rng() * productColors.length)];
+          const along = -0.3 + i * 0.3;
+          add(geoBox(0.16, 0.18 + rng() * 0.06, 0.16), lam(c), fx + (againstBack ? along : 0), 0.32 + level * 0.32, fz + (againstBack ? 0 : along), false);
+        }
+      }
+    }
+    // A glowing drinks fridge in the gap between the back shelves.
+    add(geoBox(0.7, 0.95, 0.3), lam(0xd8dde2), doorX + 0.5, 0.55, Z0 + t + 0.15);
+    add(geoBox(0.56, 0.75, 0.02), lam(0x9fd0e8, { emissive: 0x9fd0e8, emissiveIntensity: 0.8 }), doorX + 0.5, 0.58, Z0 + t + 0.31, false);
+    // The counter (two tiles wide) with a cash register.
+    const counters = STORE_FIXTURES.filter((x) => x.kind === 'counter');
+    const ccx = (Math.min(...counters.map((c) => c.x)) + Math.max(...counters.map((c) => c.x)) + 1) / 2;
+    const ccz = counters[0].y + 0.5;
+    add(geoBox(1.8, 0.5, 0.55), lam(0x5a3d26), ccx, 0.3, ccz);
+    add(geoBox(1.86, 0.05, 0.6), lam(0x9a7a52), ccx, 0.57, ccz);
+    add(geoBox(0.3, 0.2, 0.24), lam(0x2b2b2e), ccx + 0.5, 0.7, ccz);
+    add(geoBox(0.22, 0.08, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.9 }), ccx + 0.5, 0.78, ccz + 0.13, false);
+    // Doormat inside the door.
+    add(geoBox(0.8, 0.02, 0.5), lam(0x7a2f28), doorX + 0.5, 0.075, Z1 - 0.4, false);
+    // Warm light inside, so the shop glows when you look in.
+    const lamp = new THREE.PointLight(0xffc98a, 6, 6, 1.6);
+    lamp.position.set(cx, 1.1, (Z0 + Z1) / 2);
+    scene.add(lamp);
+
+    store = {
+      walls: [...walls, ...trimBand],
+      mats: [mWall, mTrim],
+      props: [roof, winL, winR, doorFrame, awning, sign, signBack, ...roofAc],
+      opacity: 1,
+    };
+    fadeables.push(store);
   }
 
   // Build all instanced batches that were filled above.
@@ -404,6 +487,7 @@ export function buildCity(scene: THREE.Scene) {
 
   return {
     fadeables,
+    store,
     dispose() {
       disposables.forEach((d) => d.dispose());
     },
@@ -429,7 +513,7 @@ export function updateFades(fadeables: Fadeable[], camera: THREE.Camera, target:
     }
   }
   for (const f of fadeables) {
-    const goal = hit.has(f) ? 0.12 : 1;
+    const goal = f.force || hit.has(f) ? 0.12 : 1;
     if (Math.abs(f.opacity - goal) < 0.001) continue;
     f.opacity += (goal - f.opacity) * Math.min(1, dt * 10);
     if (Math.abs(f.opacity - goal) < 0.01) f.opacity = goal;

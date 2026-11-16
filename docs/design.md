@@ -98,7 +98,10 @@ Planned: Eddy's stock (bandages first), then other shops.
 - 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
   a block can hold one large building or several smaller ones, with some parks.
 - Street Crimes spots sit around the start, with higher levels further out.
-- **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot.
+- **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
+  through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
+  shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.
+  The store has a **shopping-bag icon** on the minimap.
 - **Minimap** in the top-right corner of the Street: roads, buildings, river, you, Eddy, and crime spots
   (greyed out until you have the level).
 

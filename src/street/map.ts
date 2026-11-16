@@ -126,25 +126,67 @@ export const NODES: StreetNode[] = (() => {
   return out;
 })();
 
+// ---------- Eddy's General Store (you can walk inside) ----------
+// The store fills its 5×5 block. Its walls run along the block edge, so you can only get in or out
+// through the door in the middle of the south wall. Inside: shelves along the walls and a counter.
+export const STORE = (() => {
+  const x0 = STORE_BLOCK[0] * BLOCK + 2;
+  const y0 = STORE_BLOCK[1] * BLOCK + 2;
+  return { x0, y0, x1: x0 + 4, y1: y0 + 4, door: [x0 + 2, y0 + 4] as [number, number] };
+})();
+
+export function inStore(x: number, y: number) {
+  return x >= STORE.x0 && x <= STORE.x1 && y >= STORE.y0 && y <= STORE.y1;
+}
+
+/** Solid things inside the store. Layout (S = shelf, C = counter, D = door):
+ *   S S . S S
+ *   . . . . .
+ *   C C . . S
+ *   . . . . S
+ *   . . D . .   */
+export const STORE_FIXTURES: { x: number; y: number; kind: 'shelf' | 'counter' }[] = [
+  ...[0, 1, 3, 4].map((dx) => ({ x: STORE.x0 + dx, y: STORE.y0, kind: 'shelf' as const })),
+  { x: STORE.x0, y: STORE.y0 + 2, kind: 'counter' },
+  { x: STORE.x0 + 1, y: STORE.y0 + 2, kind: 'counter' },
+  { x: STORE.x1, y: STORE.y0 + 2, kind: 'shelf' },
+  { x: STORE.x1, y: STORE.y0 + 3, kind: 'shelf' },
+];
+
+/**
+ * Can you step from tile a to tile b? Inside↔outside the store only through the door
+ * (straight, not diagonally). Everything else is decided by the blocked grid.
+ */
+export function canStep(ax: number, ay: number, bx: number, by: number) {
+  const ia = inStore(ax, ay);
+  const ib = inStore(bx, by);
+  if (ia === ib) return true;
+  if (ax !== bx && ay !== by) return false;
+  const [dx, dy] = STORE.door;
+  const inside = ia ? [ax, ay] : [bx, by];
+  const outside = ia ? [bx, by] : [ax, ay];
+  return inside[0] === dx && inside[1] === dy && outside[0] === dx && outside[1] === dy + 1;
+}
+
 // ---------- NPCs ----------
 export interface Npc {
   id: string;
   name: string;
   role: string;
-  /** The tile they stand on (you talk to them from a tile next to it). */
+  /** The tile they start on (you talk to them from a tile next to where they are). */
   x: number;
   y: number;
+  /** Eddy wanders around inside his store. */
+  wanders?: 'store';
 }
 
-/** Eddy stands on the pavement in front of his store's door (south side of the store block). */
-export const NPCS: Npc[] = [{ id: 'eddy', name: 'Eddy', role: 'General store', x: STORE_BLOCK[0] * BLOCK + 4, y: STORE_BLOCK[1] * BLOCK + 7 }];
+export const NPCS: Npc[] = [{ id: 'eddy', name: 'Eddy', role: 'General store', x: STORE.x0 + 2, y: STORE.y0 + 1, wanders: 'store' }];
 
-/** Tiles you can't walk through: buildings, the store, and fixed spots. Roads, alleys and parks are open. */
+/** Tiles you can't walk through: buildings, store shelves/counter, and fixed spots. Roads, alleys, parks and the store floor are open. */
 export function buildBlocked(): Uint8Array {
   const g = new Uint8Array(W * H);
   for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
-  const [sx, sy] = STORE_BLOCK;
-  for (let y = sy * BLOCK + 2; y < sy * BLOCK + 7; y++) for (let x = sx * BLOCK + 2; x < sx * BLOCK + 7; x++) g[y * W + x] = 1;
+  for (const f of STORE_FIXTURES) g[f.y * W + f.x] = 1;
   for (const n of NODES) if (!n.wanders) g[n.y * W + n.x] = 1;
   return g;
 }

@@ -1,10 +1,12 @@
 // A* on the tile grid, 8 directions, no cutting corners past walls.
+// `canStep` can forbid moves between two open tiles (e.g. through a store wall).
 export function findPath(
   blocked: Uint8Array,
   w: number,
   h: number,
   from: [number, number],
   goals: [number, number][],
+  canStep: (ax: number, ay: number, bx: number, by: number) => boolean = () => true,
 ): [number, number][] | null {
   const goalSet = new Set(goals.filter(([x, y]) => x >= 0 && y >= 0 && x < w && y < h && !blocked[y * w + x]).map(([x, y]) => y * w + x));
   if (!goalSet.size) return null;
@@ -45,6 +47,7 @@ export function findPath(
         const ni = ny * w + nx;
         if (blocked[ni] || closed[ni]) continue;
         if (dx && dy && (blocked[cy * w + nx] || blocked[ny * w + cx])) continue; // no corner cutting
+        if (!canStep(cx, cy, nx, ny)) continue;
         const g = gScore[cur] + (dx && dy ? 1.414 : 1);
         if (g < gScore[ni]) {
           came[ni] = cur;
