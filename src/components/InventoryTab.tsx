@@ -11,9 +11,11 @@ import { maxHit, myCombatLevel, weaponStats } from '../game/combat';
 import { skillLevel } from '../game/engine';
 
 export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
-  const [sel, setSel] = useState<string>('cash');
+  // Nothing selected at first. The cash slot shows your cash itself, so tapping it opens nothing (no extra panel).
+  const [sel, setSel] = useState<string | null>(null);
   const slots = bagSlots(s);
-  const selected = slots.find((sl) => slotKey(sl) === sel) ?? slots[0];
+  const found = slots.find((sl) => slotKey(sl) === sel);
+  const selected = found?.kind === 'loot' ? found : null;
   const now = gameNow();
 
   return (
@@ -24,17 +26,11 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
           {slotsUsed(s)}/{INVENTORY_SLOTS} slots
         </span>
       </div>
-      <Bag s={s} selected={sel} onSelect={setSel} />
+      <Bag s={s} selected={selected ? sel : null} onSelect={(k) => setSel(k === sel ? null : k)} />
 
-      <div className="slot-detail">
-        {selected.kind === 'cash' ? (
-          <>
-            <div className="kicker">Cash</div>
-            <div className="money detail-cash">{fmtMoney(s.cash)}</div>
-            <p className="muted small">Lifetime earnings: {fmtMoney(s.stats.earned)}</p>
-          </>
-        ) : (
-          (() => {
+      {selected && (
+        <div className="slot-detail">
+          {(() => {
             const def = ITEM_BY_ID[selected.id];
             const why = cantEat(s, selected.id, now);
             return (
@@ -75,9 +71,9 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
                 {why && def.heal > 0 && <p className="muted small">{why}</p>}
               </>
             );
-          })()
-        )}
-      </div>
+          })()}
+        </div>
+      )}
       {slotsUsed(s) >= INVENTORY_SLOTS && <p className="warn small">Your inventory is full.</p>}
       <Equipment s={s} api={api} />
     </div>
