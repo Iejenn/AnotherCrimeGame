@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'You can do crimes on any health now. But careful: on low health the next hit can kill you, and your stuff ends up in your grave.',
       'A health bar shows over your head when you get hit, and stays there while your health is low.',
+      'The game now updates itself: when a new version is out, it tells you and reloads, so everyone plays the same version.',
     ],
   },
   {

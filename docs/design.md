@@ -303,6 +303,11 @@ line. What someone says also shows over their head (yellow) for 5 seconds. Messa
 `send_chat()`, which takes your name from the database (no faking), cleans the text, and allows at most 1 message
 per second and 5 per 10 seconds (200 letters max). Kept for 7 days. No word filter or muting yet.
 
+**Everyone on the same build (built, v0.24):** each build gets an id, baked into the game and published as
+`version.json` next to it (`vite.config.ts`). The game checks it every minute and when you come back to the tab;
+if a newer build is out it says "A new version of Underworld is out. Updating…" and reloads itself to `?v=<build>`
+(which skips cached copies of the page; it won't loop if that still isn't the new one). `src/useUpdateCheck.ts`.
+
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.
 

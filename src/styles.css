@@ -471,3 +471,5 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hp-bar.low { animation: hp-pulse 1s ease-in-out infinite; }
 @keyframes hp-pulse { 50% { box-shadow: 0 0 6px 2px #e2604c; } }
 @media (prefers-reduced-motion: reduce) { .hp-bar.low { animation: none; } }
+/* "A new version is out": shown for a few seconds before the game reloads itself. */
+.update-banner { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 100; background: #f2d27a; color: #141210; font: 700 0.9rem var(--sans); padding: 10px 16px; border-radius: 3px; box-shadow: 0 6px 20px #000c; }
