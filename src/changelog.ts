@@ -8,6 +8,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.39.0',
+    date: '2026-11-16',
+    title: 'A fire in the dark',
+    items: [
+      'A burning barrel in the sewer: cook your rat meat right there, no need to climb back up to the barbecue.',
+      'The map shows the sewer while you are down there, with the ladder, the fire and the rats.',
+      'A bigger bag: 30 slots (cash + 29), shown 5 wide and 6 high with smaller boxes, so it is less cramped.',
+    ],
+  },
+  {
+    version: '0.38.0',
+    date: '2026-11-16',
+    title: 'Down the drain',
+    items: [
+      'There is a pothole in the crossing east of the candy shop (a dungeon icon on the map). Tap it to climb down into the sewer.',
+      'The sewer is home to ten rats (level 3): tougher than Pigeons, much easier than thugs. A good place to train.',
+      'Rats always drop raw rat meat. Cook it at the barbecue: +1 HP.',
+      'Climb the ladder to get back up to the street.',
+    ],
+  },
+  {
     version: '0.37.0',
     date: '2026-11-16',
     title: 'Snack attack',

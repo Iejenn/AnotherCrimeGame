@@ -1,4 +1,4 @@
-// The 28-slot inventory grid: cash first (the only thing that stacks), then every item in a slot of its own.
+// The 30-slot inventory grid (5 × 6): cash first (the only thing that stacks), then every item in a slot of its own.
 // Used by the Inventory tab and by the shops' "Sell" screens.
 import type { GameState } from '../game/types';
 import { ITEM_BY_ID } from '../game/data/items';

@@ -13,10 +13,10 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { COURT, FLOOR_H, H, NODES, NPCS, ROOMS, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, isUpstairs, type Npc, type StreetNode } from './map';
+import { COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
@@ -45,6 +45,7 @@ const THUG_LOOKS: Look[] = [
 let thugCount = 0;
 function buildEnemy(kind: string): THREE.Group {
   if (kind === 'pigeon') return buildPigeon();
+  if (kind === 'rat') return buildRat();
   const g = buildCharacter(THUG_LOOKS[thugCount++ % THUG_LOOKS.length], { hood: 0x4a4d52 });
   setGear(g, { weapon: 'knife' });
   return g;
@@ -52,6 +53,7 @@ function buildEnemy(kind: string): THREE.Group {
 /** Animate an enemy: idle ('peck'), walking, flying (pigeons), attacking, or going down ('dead'). */
 function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly' | 'attack' | 'dead', now: number, phase: number) {
   if (kind === 'pigeon') return animatePigeon(g, mode, now, phase);
+  if (kind === 'rat') return animateRat(g, mode, now, phase);
   animateCharacter(g, mode === 'dead' ? 'stunned' : mode === 'attack' ? 'work' : mode === 'walk' ? 'walk' : 'idle', now, phase);
 }
 
@@ -202,8 +204,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     scene.fog = new THREE.Fog(SKY, 22, 60);
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 220);
     // Cool blue sky light from above, warm low sun from the side.
-    scene.add(new THREE.HemisphereLight(0x8fa3c7, 0x2a2420, 1.25));
-    const sun = new THREE.DirectionalLight(0xffa864, 1.8);
+    const SKY_INTENSITY = 1.25;
+    const SUN_INTENSITY = 1.8;
+    const sky = new THREE.HemisphereLight(0x8fa3c7, 0x2a2420, SKY_INTENSITY);
+    scene.add(sky);
+    let wasUnder = false;
+    const sun = new THREE.DirectionalLight(0xffa864, SUN_INTENSITY);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera;
@@ -227,6 +233,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const pickables: THREE.Object3D[] = [];
     // The hospital's stairs: tap them to go up (or down).
     pickables.push(...city.stairs);
+    // The pothole and the sewer's ladder: tap to climb down or up.
+    pickables.push(...city.links);
     const nodeGroups = new Map<string, THREE.Group>();
     // People on the street use the same model as your character, with a random (but fixed) look.
     const lookRng = mulberry32(99);
@@ -349,7 +357,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       setTalkingRef.current(null);
       yell(npc.id, crime.yell ?? 'Hey!');
       const [px, py] = tileOf(me.pos.x, me.pos.z);
-      const path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), neighbors(px, py), canStep) ?? [];
+      const path = findPath(blocked, W, GH, tileOf(w.pos.x, w.pos.z), neighbors(px, py), canStep) ?? [];
       const timeLeft = Math.max(0.4, CATCH_SECONDS - (gameNow() - at) / 1000 - 0.3);
       w.mode = 'rush';
       w.path = path;
@@ -417,6 +425,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       /** Walking to pick something up from the ground, or to a cooking station. */
       goalGround: null as number | null,
       goalStation: null as string | null,
+      /** Walking to the pothole or the ladder, to climb. */
+      goalLink: null as string | null,
       /** Throwing a punch (pose) until this time. */
       punchUntil: 0,
       /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
@@ -432,11 +442,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const findNodeFor = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders);
     const standSpot = (n: StreetNode) => {
       const [nx, ny] = nodeTile(n);
-      return neighbors(nx, ny).find(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && !blocked[y * W + x]) ?? SPAWN;
+      return neighbors(nx, ny).find(([x, y]) => x >= 0 && y >= 0 && x < W && y < GH && !blocked[y * W + x]) ?? SPAWN;
     };
     // Back on the Street (after another tab, or a reload): stand where you were.
     const saved = sRef.current.player.pos;
-    if (saved && saved[0] >= 0 && saved[1] >= 0 && saved[0] < W && saved[1] < H && !blocked[saved[1] * W + saved[0]]) me.pos = center(...saved);
+    if (saved && saved[0] >= 0 && saved[1] >= 0 && saved[0] < W && saved[1] < GH && !blocked[saved[1] * W + saved[0]]) me.pos = center(...saved);
     // Coming back to the Street mid-job: stand where that job happens.
     const myJob = sRef.current.player.job;
     if (myJob) {
@@ -522,6 +532,34 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       if (id === null) return;
       apiRef.current.pickUp(id, tileOf(me.pos.x, me.pos.z));
     };
+    // ---------- climbing between the street and the sewer ----------
+    // The screen dips to black with "You climb down into the sewer", you're moved while it's dark, then it comes back.
+    // The server checks you stand at the link and moves you (climb); if it says no, you stay where you are.
+    const reachLink = () => {
+      const link = LINKS.find((l) => l.id === me.goalLink);
+      me.goalLink = null;
+      if (!link) return;
+      const from = tileOf(me.pos.x, me.pos.z);
+      passOut.querySelector('span')!.textContent = link.text;
+      passOut.classList.add('on', 'quick');
+      passOutUntil = performance.now() + 1800;
+      const shown = new Promise((r) => setTimeout(r, 700));
+      void Promise.all([apiRef.current.climb(link.id, from), shown]).then(([ok]) => {
+        if (ok) {
+          say(`${link.text}.`);
+          me.pos.copy(center(...link.to));
+          me.path = [];
+          worldRef.current?.move(link.to, []);
+          camTarget.copy(me.pos);
+          camLift = floorY(me.pos.x, me.pos.z);
+        }
+        setTimeout(() => {
+          passOut.classList.remove('on');
+          passOutUntil = 0;
+          setTimeout(() => passOut.classList.remove('quick'), 900);
+        }, 300);
+      });
+    };
     const reachStation = () => {
       const id = me.goalStation;
       me.goalStation = null;
@@ -533,7 +571,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     // The barbecue is tappable: an invisible box over it.
     for (const st of STATIONS) {
       const hitBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.2, 1.1), hitMat);
-      hitBox.position.set(st.x + 0.5, 0.6, st.y + 0.5);
+      hitBox.position.set(st.x + 0.5, floorY(st.x + 0.5, st.y + 0.5) + 0.6, st.y + 0.5);
       hitBox.userData.stationId = st.id;
       scene.add(hitBox);
       pickables.push(hitBox);
@@ -552,7 +590,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     let lastSaid = Math.max(0, ...(chatRef.current?.messages ?? []).map((m) => m.id));
 
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
-      const path = findPath(blocked, W, H, tileOf(me.pos.x, me.pos.z), goals, canStep);
+      const path = findPath(blocked, W, GH, tileOf(me.pos.x, me.pos.z), goals, canStep);
       if (!path) {
         say("You can't reach that.");
         return false;
@@ -565,6 +603,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goalEnemy = null;
       me.goalGround = null;
       me.goalStation = null;
+      me.goalLink = null;
       setCookAtRef.current(null);
       if (!path.length) {
         // Already standing next to it.
@@ -635,6 +674,21 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.linkId) {
+        // The pothole (climb down) or the sewer's ladder (climb up): walk next to it, then climb.
+        const link = LINKS.find((l) => l.id === hit.object.userData.linkId)!;
+        stopWorking();
+        setTalkingRef.current(null);
+        const [ax, ay] = link.at;
+        if (walkTo(neighbors(ax, ay), null)) {
+          me.goalLink = link.id;
+          if (!me.path.length) {
+            savePos();
+            reachLink();
+          }
+        }
+        return;
+      }
       if (hit?.object.userData.stairsId) {
         // The stairs: from downstairs, walk up to the ward; from the ward, walk down to the lobby.
         const s = STAIRS.find((x) => x.id === hit.object.userData.stairsId)!;
@@ -733,24 +787,27 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Upstairs in the hospital, a tap on the ward's floor walks you there (its floor is a storey up).
       if (isUpstairs(...tileOf(me.pos.x, me.pos.z)) && ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR_H), p) && isUpstairs(...tileOf(p.x, p.z)))
         return walkToTile(...tileOf(p.x, p.z));
-      if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p)) return;
+      // In the sewer, taps land on its floor (deep under the street).
+      const groundY = inSewer(...tileOf(me.pos.x, me.pos.z)) ? -SEWER_DEPTH : 0;
+      if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -groundY), p)) return;
       walkToTile(...tileOf(p.x, p.z));
     };
 
     const walkToTile = (tx: number, ty: number) => {
-      if (tx < 0 || ty < 0 || tx >= W || ty >= H) return say("That's the ocean. The island ends here, for now.");
+      if (!onMap(tx, ty) && !inSewer(...tileOf(me.pos.x, me.pos.z))) return say("That's the ocean. The island ends here, for now.");
       stopWorking();
       setTalkingRef.current(null); // walking away ends the conversation
       // Tapped a building: head for the nearest street tiles around it instead.
       let goals: [number, number][] = [[tx, ty]];
       // From downstairs, the ward's tiles count as building (you'd only get there by the stairs, on purpose).
       const upHere = isUpstairs(...tileOf(me.pos.x, me.pos.z));
-      const solid = (x: number, y: number) => !!blocked[y * W + x] || (!upHere && isUpstairs(x, y));
-      for (let r = 1; solid(tx, ty) && r <= 6; r++) {
+      const below = inSewer(...tileOf(me.pos.x, me.pos.z));
+      const solid = (x: number, y: number) => !onMap(x, y) || !!blocked[y * W + x] || (!upHere && isUpstairs(x, y)) || inSewer(x, y) !== below;
+      for (let r = 1; (!onMap(tx, ty) || solid(tx, ty)) && r <= 6; r++) {
         goals = [];
         for (let y = ty - r; y <= ty + r; y++)
           for (let x = tx - r; x <= tx + r; x++)
-            if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) === r && x >= 0 && y >= 0 && x < W && y < H && !solid(x, y)) goals.push([x, y]);
+            if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) === r && x >= 0 && y >= 0 && x < W && y < GH && !solid(x, y)) goals.push([x, y]);
         if (goals.length) break;
       }
       if (walkTo(goals, null)) {
@@ -773,7 +830,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     mini.height = MINI_SIZE * dpr;
     mini.style.width = `${MINI_SIZE}px`;
     mini.style.height = `${MINI_SIZE}px`;
-    const base = drawWorld(BASE_PX);
+    const base = drawWorld(BASE_PX, true);
     const drawMini = () => {
       const g = mini.getContext('2d')!;
       const R = MINI_SIZE / 2;
@@ -1023,6 +1080,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         me.goalEnemy = null;
         me.attached = null;
         setTalkingRef.current(null);
+        passOut.querySelector('span')!.textContent = 'You passed out';
         passOut.classList.add('on');
         passOutUntil = performance.now() + 2600;
         setTimeout(() => {
@@ -1105,6 +1163,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           if (!me.path.length && me.goalStation) {
             savePos();
             reachStation();
+          }
+          if (!me.path.length && me.goalLink) {
+            savePos();
+            reachLink();
           }
           if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
@@ -1210,7 +1272,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
               // Walk back to where his routine has him now (the bartender's spot, the guard's place on his route).
           const home: [number, number] =
             npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? [npc.area.x0 + bartenderAt(gameNow()).spot, npc.area.y0] : [npc.x, npc.y];
-          w.path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
+          w.path = findPath(blocked, W, GH, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
             }
           } else if (followPath(w, g, dt)) {
             w.mode = 'normal';
@@ -1342,7 +1404,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             pickables.push(v);
             groundViews.set(it.id, v);
           }
-          v.position.y = 0.07 + Math.sin(now / 400 + it.id) * 0.015;
+          v.position.y = floorY(v.position.x, v.position.z) + 0.07 + Math.sin(now / 400 + it.id) * 0.015;
         }
         for (const [id, v] of groundViews)
           if (!here.has(id)) {
@@ -1386,7 +1448,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         }
         // Dying: it falls where it was hit, it doesn't fly back to its spot first.
         if (dying && v.pos) {
-          v.g.position.set(v.pos.x, 0.03, v.pos.z);
+          v.g.position.set(v.pos.x, floorY(v.pos.x, v.pos.z) + 0.03, v.pos.z);
           animateEnemy(e.kind, v.g, 'dead', now, e.index * 1.3);
           continue;
         }
@@ -1415,7 +1477,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const walking = d.length() / Math.max(dt, 0.001) > 0.3;
         if (d.length() > 0.002) v.g.rotation.y = Math.atan2(d.x, d.z);
         if (e.fighter && foe === e.id) v.g.rotation.y = Math.atan2(me.pos.x - v.pos.x, me.pos.z - v.pos.z);
-        v.g.position.set(v.pos.x, 0.03 + (flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
+        v.g.position.set(v.pos.x, floorY(v.pos.x, v.pos.z) + 0.03 + (flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
         animateEnemy(e.kind, v.g, flying ? 'fly' : now < v.peckUntil ? 'attack' : walking && (ret || e.kind !== 'pigeon') ? 'walk' : 'peck', now, e.index * 1.3);
       }
 
@@ -1509,7 +1571,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Your grave, if you have one.
       const gr = st.grave;
       grave.visible = !!gr;
-      if (gr) grave.position.set(gr.x + 0.5, 0.03, gr.y + 0.5);
+      if (gr) grave.position.set(gr.x + 0.5, floorY(gr.x + 0.5, gr.y + 0.5) + 0.03, gr.y + 0.5);
       herePos.current = tileOf(me.pos.x, me.pos.z);
 
       // Tap ring fades out.
@@ -1529,8 +1591,21 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         camTarget.z + Math.cos(yaw) * r * Math.cos(pitch),
       );
       camera.lookAt(camTarget.x, camLift, camTarget.z);
-      sun.position.copy(camTarget).add(SUN_OFFSET);
-      sun.target.position.copy(camTarget);
+      // The sun and its shadows follow you down to the floor you're on.
+      sun.position.copy(camTarget).setY(camLift).add(SUN_OFFSET);
+      sun.target.position.copy(camTarget).setY(camLift);
+      // Underground (the sewer): hardly any sky light, near-black around; the lanterns light it.
+      {
+        const under = camLift < -1;
+        const k = Math.min(1, dt * 4);
+        sun.intensity += ((under ? 0.12 : SUN_INTENSITY) - sun.intensity) * k;
+        sky.intensity += ((under ? 0.8 : SKY_INTENSITY) - sky.intensity) * k;
+        if (under !== wasUnder) {
+          wasUnder = under;
+          (scene.background as THREE.Color).set(under ? 0x050706 : SKY);
+          scene.fog!.color.set(under ? 0x050706 : SKY);
+        }
+      }
       updateFades(city.fadeables, camera, lift(me.pos, 0), dt);
       city.animate(now);
 

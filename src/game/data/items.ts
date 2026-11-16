@@ -34,6 +34,9 @@ export const ITEMS: ItemDef[] = [
   // Food you cook (docs/design.md §13): Pigeons always drop raw bird meat; cook it on the barbecue to eat it.
   { id: 'raw_bird_meat', name: 'Raw Bird Meat', heal: 0, value: 2 },
   { id: 'cooked_bird_meat', name: 'Cooked Bird Meat', heal: 1, value: 4 },
+  // Rats in the sewer drop raw rat meat: cook it at the barbecue.
+  { id: 'raw_rat_meat', name: 'Raw Rat Meat', heal: 0, value: 2 },
+  { id: 'cooked_rat_meat', name: 'Cooked Rat Meat', heal: 1, value: 4 },
   // The first weapon: Ray's weapon store sells them for $50. +1 damage over bare fists, same speed, no defence.
   { id: 'brass_knuckles', name: 'Brass Knuckles', heal: 0, value: 50, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 3, needs: { skill: 'melee', level: 1 } } },
   // The thugs' knife (a 1-in-20 drop in the Yard, not sold): Melee 5, +1 damage over fists, but fast: a stab every 1 s.

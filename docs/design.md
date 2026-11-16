@@ -279,7 +279,7 @@ Tabs: Street · Inventory · Skills · Quests · Highscores. Top right: a **gear
 **Idle log-out:** after 5 minutes without any tap, swipe, scroll or key press, your attempt stops and you are logged out
 (`IDLE_MS` in `src/net/OnlineGate.tsx`); the sign-in screen says why.
 
-Street (default) · Inventory (28 slots) · Quests (coming soon) · Skills (levels + guide + save codes).
+Street (default) · Inventory (30 slots, 5 × 6) · Quests (coming soon) · Skills (levels + guide + save codes).
 The start screen shows your character file and what's new.
 
 ## 9. Open questions
@@ -532,6 +532,19 @@ comes back after 25 s. Tapping anywhere else walks you away and ends the fight. 
 it can't be attacked meanwhile. A killed Pigeon falls where it was hit. Others see who's fighting what: a
 Pigeon in a fight stands still where it was attacked.
 
+**The sewer and its rats (v0.38):** a pothole (an open manhole with cones) in the crossing east of the candy shop
+(tile 37, 37; a dungeon icon on the world map). Tap it: you walk next to it and climb down (the screen dips to black).
+The sewer is 24×12 tiles: a walkway each side of a channel of sewage, two grate bridges, crates and rubbish bags,
+lanterns, the ladder back up on the north wall. **Ten rats**, five per walkway, each scurrying around its own patch
+(`ratAt`, the same schedule as `game.rat_at`): level 3, 6 HP, attack 3, defence 2, max hit 1, a bite every 1.5 s,
+back after 20 s, not aggressive, and they always drop **raw rat meat** (cook it at the barbecue: +1 HP, like bird
+meat). Between the Pigeons and the thugs: a level-1 player with knuckles kills one in about 13 s and takes about
+5 damage. **How it's built:** like the hospital's ward, the sewer is ordinary tiles: rows below the island's grid
+(`SEWER`, y ≥ 64), drawn `SEWER_DEPTH` under the ground, with the camera following you down (dim light, dark around).
+Climbing is a server function (`climb`, migration 0019): it checks you stand next to the pothole or the ladder and
+moves you; `walk`/`can_reach` accept the island or the sewer (`game.on_map`). While you're down there the map button shows the sewer's map
+(ladder, fire barrel, rats: `SEWER_AREAS`) instead of the island's.
+
 **Eating (v0.37):** a round **quick-eat button** sits bottom-right on the Street, above the chat, always there when
 you carry food (dimmed at full health, pulsing red at 30% or less). **Tap** eats the best fit (`pickFood`): the
 biggest heal that doesn't go over your max; if every food would go over, the smallest (1/10 with a +2 and a +1 → the
@@ -576,6 +589,9 @@ Outside fights eating still takes half a second.
   (1 s)**, until it runs out or you walk away (28 s for a full bag). The server times and rolls every one
   (`start_cook`, `cook_step`, `stop_cook`). While you cook, a small bar over your head fills up (dark brown to clay) for the piece
   on the grill.
+- **Fire barrel (v0.39):** a burning oil drum on the sewer's north wall (`barrel_0`, migration 0020) is a cooking
+  station of the same kind as the barbecue, so rat meat can be cooked down there. Stations are data (`STATIONS` and
+  `public.stations`); `look: 'barrel'` only changes how it's drawn.
 - **Recipes** (`public.recipes`, `src/game/data/recipes.ts`): raw bird meat → cooked bird meat, Cooking level 1,
   **5 XP**, burn chance **50% at level 1, falling to 0% at level 15**. Burnt food is lost and gives no XP. Cooked
   bird meat heals **1 HP**.

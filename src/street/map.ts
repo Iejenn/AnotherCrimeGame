@@ -202,6 +202,7 @@ export const isUpstairs = (x: number, y: number) => inRect(WARD, x, y);
  * Everyone who walks (you, other players, the doctors) stands on this.
  */
 export function floorY(x: number, z: number) {
+  if (z >= H + 2) return -SEWER_DEPTH;
   const tx = Math.floor(x);
   if (tx < HOSPITAL.x0 || tx > HOSPITAL.x1 || z < HOSPITAL.y0 || z >= LOBBY.y0 + 2) return 0;
   if (z < LOBBY.y0) return FLOOR_H;
@@ -259,6 +260,57 @@ export const YARD_GATES: [number, number][] = [
   [YARD.x0 + 1, YARD.y1],
   [YARD.x1 - 1, YARD.y1],
 ];
+
+// ---------- the sewer (rats, level 3; docs/design.md §12) ----------
+// Under the city, reached through a pothole (an open manhole) in the crossing east of the candy shop. Like the hospital's
+// ward, it's ordinary tiles: a strip of rows below the island's grid (y ≥ H), drawn SEWER_DEPTH under the ground
+// (floorY). You get in and out by climbing (the `climb` server function checks you stand at one end of the link).
+// 24×12 tiles: two walkways along a channel of sewage, two grate bridges across it, the ladder up on the north wall,
+// the tunnel's arch at the east end. Ten rats, one patch each (5 per walkway).
+//   . . L . . c . . . . . c T . . . . . . . c T . .    0   L = the ladder up, c = crates, T = rubbish bags
+//   . . . . . . . . . . . . . . . . . . . . . . . .
+//   . . . . . . . . . . . . . . . . . . . . . . . .
+//   . . . . . . . . . . . . . . . . . . . . . . . .    3
+//   ~ ~ ~ ~ ~ ~ = = ~ ~ ~ ~ ~ ~ ~ ~ = = ~ ~ ~ ~ ~ ~    4–7  ~ = sewage, = = a grate bridge
+//   . . . . . . . . . . . . . . . . . . . . . . . .    8
+//   . . . . . . . . . . . . . . . . . . . . . . . .
+//   . . . . . . . . . . . . . . . . . . . . . . . .
+//   . . . c . . . . . c T . . . . c . . . . . c . .    11
+/** Under the ground: how deep the sewer's floor is (world units). Deep enough that the camera stays underground too. */
+export const SEWER_DEPTH = 40;
+export const SEWER: Rect = { x0: 18, y0: H + 6, x1: 41, y1: H + 17 };
+/** The channel's rows (offsets) and the bridges' columns (offsets). */
+export const SEWER_CHANNEL = { y0: 4, y1: 7 };
+export const SEWER_BRIDGES = [6, 16];
+/** The grid the game walks on: the island, then the sewer below it. */
+export const GW = W;
+export const GH = SEWER.y1 + 3;
+/** The pothole: an open manhole in the middle of the crossing east of the candy shop. */
+export const MANHOLE: [number, number] = [2 * PITCH + 3, 2 * PITCH + 3];
+/** The ladder on the sewer's north wall. */
+export const SEWER_LADDER: [number, number] = [SEWER.x0 + 2, SEWER.y0];
+/** Climbing between the street and the sewer: stand at `at` (on it or next to it), climb, and you're at `to`. The
+ *  server has the same links (public.links). */
+export interface Link {
+  id: string;
+  at: [number, number];
+  to: [number, number];
+  /** What it says when you go. */
+  text: string;
+}
+export const LINKS: Link[] = [
+  { id: 'sewer_down', at: MANHOLE, to: [SEWER_LADDER[0], SEWER_LADDER[1] + 1], text: 'You climb down into the sewer' },
+  { id: 'sewer_up', at: SEWER_LADDER, to: [MANHOLE[0], MANHOLE[1] - 1], text: 'You climb back up to the street' },
+];
+export const inSewer = (x: number, y: number) => inRect(SEWER, x, y);
+/** A sewage tile (not a bridge). */
+export const isSewage = (x: number, y: number) => {
+  const dx = x - SEWER.x0;
+  const dy = y - SEWER.y0;
+  return inSewer(x, y) && dy >= SEWER_CHANNEL.y0 && dy <= SEWER_CHANNEL.y1 && !SEWER_BRIDGES.some((b) => dx === b || dx === b + 1);
+};
+/** A tile you could be on: the island, or the sewer. */
+export const onMap = (x: number, y: number) => (x >= 0 && y >= 0 && x < W && y < H) || inSewer(x, y);
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -349,16 +401,23 @@ export const BUILDINGS: Building[] = (() => {
 // Where you cook: stand next to one. The server has the same list (public.stations): keep them in step.
 export interface Station {
   id: string;
+  /** What you can cook on it (the recipes' station). */
   kind: 'bbq';
   x: number;
   y: number;
+  /** How it looks: the park's brick barbecue (default), or a burning oil drum (the sewer). */
+  look?: 'barrel';
 }
 /** The pocket park with the barbecue (003-B). */
 export const BBQ_PARK: Rect = lot('003', 'B');
-export const STATIONS: Station[] = [{ id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 }];
+export const STATIONS: Station[] = [
+  { id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 },
+  // In the sewer: a burning oil drum against the north wall, where a crate stood (so the rats' patches stay the same).
+  { id: 'barrel_0', kind: 'bbq', x: SEWER.x0 + 11, y: SEWER.y0, look: 'barrel' },
+];
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole';
 export interface Fixture {
   x: number;
   y: number;
@@ -453,6 +512,15 @@ export const FIXTURES: Fixture[] = (() => {
   // behind it, in the middle).
   for (const x of [WARD.x0, WARD.x1]) for (let dy = 0; dy < 3; dy++) out.push({ x, y: WARD.y0 + dy, kind: 'bed' });
   for (const dx of [1, 2]) out.push({ x: LOBBY.x0 + dx, y: LOBBY.y0 + 2, kind: 'desk' });
+
+  // The sewer: the ladder, crates and rubbish bags against the walls; the pothole in the street.
+  const sw = (dx: number, dy: number, kind: FixtureKind) => out.push({ x: SEWER.x0 + dx, y: SEWER.y0 + dy, kind });
+  sw(2, 0, 'ladder');
+  for (const dx of [5, 20]) sw(dx, 0, 'crate'); // (dx 11 is the fire barrel, a cooking station)
+  for (const dx of [12, 21]) sw(dx, 0, 'trash');
+  for (const dx of [3, 9, 15, 21]) sw(dx, 11, 'crate');
+  sw(10, 11, 'trash');
+  out.push({ x: MANHOLE[0], y: MANHOLE[1], kind: 'manhole' });
 
   // Cooking stations (the barbecue), so you walk around them.
   for (const st of STATIONS) out.push({ x: st.x, y: st.y, kind: st.kind });
@@ -604,7 +672,9 @@ export const parkedTiles = (c: ParkedCar): [number, number][] =>
 
 /** Tiles you can't walk through: buildings, fixtures, fixed spots and parked cars. Streets, alleys, parks and shop floors are open. */
 export function buildBlocked(): Uint8Array {
-  const g = new Uint8Array(W * H);
+  const g = new Uint8Array(GW * GH);
+  // Below the island only the sewer's walkways and bridges are open.
+  for (let y = H; y < GH; y++) for (let x = 0; x < GW; x++) if (!inSewer(x, y) || isSewage(x, y)) g[y * W + x] = 1;
   for (const c of PARKED_CARS) for (const [x, y] of parkedTiles(c)) g[y * W + x] = 1;
   for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
   for (const f of FIXTURES) g[f.y * W + f.x] = 1;
@@ -612,8 +682,28 @@ export function buildBlocked(): Uint8Array {
   return g;
 }
 
+// ---------- the sewer's map (shown instead of the island's while you're down there) ----------
+export const SEWER_AREAS: Area[] = [
+  {
+    id: 'sewer_ladder', name: 'Ladder up', rect: { x0: SEWER_LADDER[0], y0: SEWER_LADDER[1], x1: SEWER_LADDER[0], y1: SEWER_LADDER[1] }, icon: 'ladder', crimes: [], npcs: [],
+    blurb: 'Back up to the street, by the pothole east of the candy shop.',
+  },
+  {
+    id: 'sewer_fire', name: 'Fire barrel', rect: { x0: SEWER.x0 + 11, y0: SEWER.y0, x1: SEWER.x0 + 11, y1: SEWER.y0 }, icon: 'fire', crimes: [], npcs: [],
+    blurb: 'A burning oil drum. Cook your rat meat here without going back up (Cooking).',
+  },
+  {
+    id: 'sewer_rats_n', name: 'Rats', rect: { x0: SEWER.x0 + 14, y0: SEWER.y0 + 1, x1: SEWER.x0 + 14, y1: SEWER.y0 + 1 }, icon: 'rat', crimes: [], npcs: [],
+    blurb: 'Five rats along the north walkway (level 3, not aggressive). They always drop raw rat meat.',
+  },
+  {
+    id: 'sewer_rats_s', name: 'Rats', rect: { x0: SEWER.x0 + 12, y0: SEWER.y1 - 1, x1: SEWER.x0 + 12, y1: SEWER.y1 - 1 }, icon: 'rat', crimes: [], npcs: [],
+    blurb: 'Five rats along the south walkway, across the bridges (level 3, not aggressive).',
+  },
+];
+
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat';
 export interface Area {
   id: string;
   name: string;
@@ -627,6 +717,10 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'sewer', name: 'The sewer', rect: { x0: MANHOLE[0], y0: MANHOLE[1], x1: MANHOLE[0], y1: MANHOLE[1] }, icon: 'dungeon', crimes: [], npcs: [],
+    blurb: 'A pothole in the crossing leads down into the sewer, where ten rats live (level 3). A good place to train, and they drop meat you can cook.',
+  },
   {
     id: 'hospital', name: 'Hospital', rect: HOSPITAL, icon: 'hospital', crimes: [], npcs: ['receptionist'],
     blurb: 'Where you wake up after passing out, in the ward upstairs. Take the stairs down to get back out.',

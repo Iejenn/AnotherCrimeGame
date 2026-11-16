@@ -81,6 +81,20 @@ const BirdMeat = ({ cooked }: { cooked: boolean }) => (
   </svg>
 );
 
+/** Rat meat: a skinny haunch on a thin bone, with the tail still curling off it (darker than bird meat). */
+const RatMeat = ({ cooked }: { cooked: boolean }) => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <g transform="rotate(-30 20 20)">
+      <rect x="23" y="18.6" width="10" height="2.8" rx="1.4" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="0.9" />
+      <circle cx="33.4" cy="18.6" r="1.7" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="0.9" />
+      <circle cx="33.4" cy="21.4" r="1.7" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="0.9" />
+      <path d="M6 22 Q2 26 5 30 Q8 33 11 30" fill="none" stroke={cooked ? '#5a2e14' : '#d89a9a'} strokeWidth="1.6" strokeLinecap="round" />
+      <ellipse cx="15" cy="20" rx="9.5" ry="6" fill={cooked ? '#7a3e1a' : '#c46a6a'} stroke={cooked ? '#3a1a08' : '#7a3a3a'} strokeWidth="1.2" />
+      <ellipse cx="12" cy="18" rx="3.6" ry="1.6" fill={cooked ? '#a8642e' : '#e8a8a8'} opacity="0.8" />
+    </g>
+  </svg>
+);
+
 const Knife = () => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
     {/* a knife lying diagonally: steel blade with a bright edge, a guard, a dark wooden handle */}
@@ -95,7 +109,7 @@ const Knife = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { knife: Knife, raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
+const ICONS: Record<string, () => JSX.Element> = { knife: Knife, raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, raw_rat_meat: () => <RatMeat cooked={false} />, cooked_rat_meat: () => <RatMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {

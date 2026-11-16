@@ -15,7 +15,8 @@ const BIG_SCORE_CHANCE = 0.05;
 /** Success chance goes up this much for every level you are above a crime's requirement. */
 export const CHANCE_PER_LEVEL = 0.005;
 /** RuneScape-style bag: cash takes the first slot, each different item one more (food stacks). */
-export const INVENTORY_SLOTS = 28;
+/** The bag: cash plus 29 items, 5 wide and 6 high (v0.39; was 28). The server has the same number (game.bag_slots). */
+export const INVENTORY_SLOTS = 30;
 /** Health regenerates 1 HP per minute. Healing faster comes from food. */
 const HP_REGEN_PER_MIN = 1;
 /** Below this much health you're "badly hurt": you get a warning (you can still work: the risk is dying). */

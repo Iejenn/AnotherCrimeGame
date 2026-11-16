@@ -313,8 +313,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* ---------- inventory ---------- */
 .inventory { max-width: 520px; }
-.bag { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px; background: var(--ink-2); border: 1px solid var(--rule-strong); }
-.slot { aspect-ratio: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; padding: 5px 6px; background: var(--ink); border: 1px solid var(--rule); border-radius: 2px; cursor: pointer; overflow: hidden; min-width: 0; }
+/* 5 wide, 6 high (30 slots): smaller boxes, so the bag isn't cramped on a phone. */
+.bag { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; padding: 8px; background: var(--ink-2); border: 1px solid var(--rule-strong); }
+.slot { aspect-ratio: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; padding: 3px 4px; background: var(--ink); border: 1px solid var(--rule); border-radius: 2px; cursor: pointer; overflow: hidden; min-width: 0; }
 .slot.empty { cursor: default; background: #181614; }
 .slot.selected { border-color: var(--paper); box-shadow: inset 0 0 0 1px var(--paper); }
 .slot-name { font-size: 0.72rem; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -416,7 +417,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .item-icon { position: absolute; inset: 14% 10% 18%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .item-icon svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 2px #0009); }
 .slot .slot-name, .slot .slot-sub { position: relative; z-index: 1; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
-.slot:has(.item-icon) .slot-name { font-size: 0.62rem; color: var(--muted); }
+.slot:has(.item-icon) .slot-name { font-size: 0.56rem; color: var(--muted); -webkit-line-clamp: 2; }
 .bag.compact .item-icon { inset: 12% 18% 16%; }
 /* Your grave's label: pale, like the stone. */
 .node-label.grave { color: #e8eef8; border-bottom: 1px solid #bfd8ff; }
@@ -479,7 +480,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .app { max-width: none; padding: 10px 20px 14px; }
   .content > :not(.street) { max-width: 1080px; margin-left: auto; margin-right: auto; }
   /* The bag stays bag-sized (OSRS-like, ~70px slots), not stretched across the screen. */
-  .content > .inventory { max-width: 320px; }
+  .content > .inventory { max-width: 360px; }
   .street { height: calc(100dvh - 132px); }
 }
 /* The chat takes less room: a bit lower on phones; on desktop an OSRS-style panel in the bottom-left corner. */
@@ -545,3 +546,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .quick-eat-food .qe-count { right: -5px; bottom: -5px; }
 @media (min-width: 721px) { .quick-eat { bottom: 14px; } }
 @media (prefers-reduced-motion: reduce) { .quick-eat-btn.low { animation: none; } }
+/* Climbing in or out of the sewer: the same black screen, quicker. */
+.passout.quick, .passout.quick.on { transition-duration: 0.45s; }
+.passout.quick.on span { transition: opacity 0.3s; }
