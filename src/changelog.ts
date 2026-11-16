@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'You now see what other players are doing: working a spot, standing there stunned, or fighting a Pigeon.',
       'When another player gets hurt, everyone sees the hitsplat and their health bar, just like your own.',
+      'Every login starts with a fresh chat (no old messages), and the log greets you with "Welcome to Underworld."',
       'The start-up screen is shorter: it says when you were last online, and "What\'s new" is right in view. Your skills are in the Skills tab.',
     ],
   },

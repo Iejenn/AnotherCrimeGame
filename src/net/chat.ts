@@ -1,5 +1,6 @@
 // The global chat (docs/design.md §11, supabase/migrations/0006_chat.sql). One channel for everyone for now.
-// Messages come from the chat_messages table: the last 50 when you join, then new ones live (Realtime).
+// Messages come from the chat_messages table, live (Realtime). You start with a fresh chat every time you log in:
+// only what's said after you join shows up, no old messages.
 // Sending goes through public.send_chat(), which stamps your name from the database and limits the pace.
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
@@ -47,17 +48,12 @@ export function useChat(myId: string): ChatLink {
         for (const x of list) byId.set(x.id, x);
         return [...byId.values()].sort((a, b) => a.id - b.id).slice(-100);
       });
-    supabase
-      .from('chat_messages')
-      .select('id, player_id, name, body, created_at')
-      .order('id', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        if (live && data) add((data as Row[]).map(toMsg));
-      });
+    // (No loading of older messages: a fresh chat on every login.)
     const ch = supabase
       .channel('chat')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (msg) => add([toMsg(msg.new as Row)]))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (msg) => {
+        if (live) add([toMsg(msg.new as Row)]);
+      })
       .subscribe();
     return () => {
       live = false;
