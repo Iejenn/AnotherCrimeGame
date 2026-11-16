@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.35.0',
+    date: '2026-11-16',
+    title: 'Know your enemy',
+    items: [
+      'Pick Melee or Gunfire in the Skills tab to see every enemy you can fight, by level.',
+      'Tap one for its card: its stats, where it lives, your odds against it with what you are holding, and everything it drops with the chances.',
+    ],
+  },
+  {
     version: '0.34.0',
     date: '2026-11-16',
     title: 'Welcome to the Yard',

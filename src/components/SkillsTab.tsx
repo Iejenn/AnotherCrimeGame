@@ -10,6 +10,7 @@ import { Bar, pct } from './ui';
 import { ITEM_BY_ID } from '../game/data/items';
 import type { CrimeDef } from '../game/data/crimes';
 import { NODES } from '../street/map';
+import { EnemyGuide } from './EnemyGuide';
 
 /** Crimes that already have a place on the Street (v2 is built step by step). */
 const PLACED = new Set(NODES.map((n) => n.crimeId));
@@ -80,6 +81,7 @@ export function SkillsTab({ s, account }: { s: GameState; account: { email: stri
         <p className="small">
           <span className="label">How to train</span> {def.howToTrain}
         </p>
+        {(open === 'melee' || open === 'gunfire') && <EnemyGuide s={s} skill={open} />}
         {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 HP per minute.</p>}
         {crimes.length > 0 && (
           <ol className="ledger">

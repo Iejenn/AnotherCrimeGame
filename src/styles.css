@@ -506,3 +506,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .install-help { margin: 8px 0 0; color: var(--paper); }
 /* Loot on the ground: an orange name, like OSRS ground items. */
 .node-label.ground { color: #ffb04a; background: rgba(20, 18, 16, 0.6); font-size: 0.64rem; }
+/* Enemies under Melee / Gunfire in the Skills tab: a row per enemy, tap for its card (stats, odds, drops). */
+.enemy-guide { margin-top: 10px; }
+.enemy-row { display: flex; align-items: baseline; gap: 8px; width: 100%; background: none; border: 0; padding: 6px 0; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.enemy-row .entry-name { font-weight: 600; }
+.enemy-row .muted { margin-left: auto; }
+.enemy-row.active .entry-name { color: var(--red); }
+.enemy-card { padding: 6px 0 10px 28px; border-left: 2px solid var(--rule-strong); margin: 0 0 6px 6px; display: flex; flex-direction: column; gap: 6px; }
+.enemy-card .kicker { margin: 4px 0 0; }
+.drops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.drops li { display: flex; align-items: center; gap: 8px; }
+.drops .mono { margin-left: auto; }
+.drop-icon { position: relative; width: 28px; height: 28px; flex: none; background: var(--ink); border: 1px solid var(--rule); border-radius: 2px; }
+.drop-icon .item-icon { inset: 2px; }
