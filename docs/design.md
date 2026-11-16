@@ -104,18 +104,19 @@ Planned: Eddy's stock (bandages first), then other shops.
 
 ## 7b. Visual direction
 
-Reference: a bright, toy-like **low-poly city in daylight** (stylised, chunky, friendly; think a tabletop model town).
-- **Light:** sunny day, light-blue sky, warm sun with **soft shadows**. No dark/noir 3D scene.
-- **Buildings:** cream/white walls with a **coloured trim** at the roof line (red, teal, yellow, blue), window grids,
-  rooftop props (air-con units, water tanks, antennas), some ground-floor shops with **striped awnings** and glass fronts.
-- **Streets:** grey asphalt with white **dashed lane lines** and **zebra crossings**, light-grey pavements with kerbs,
-  street lamps and traffic lights.
-- **Nature:** round, faceted low-poly trees in bright greens; parks with grass.
-- **Cars:** chunky cartoon cars (body + cabin + wheels) in bright colours.
-- **People:** rounded low-poly characters (capsule body and limbs, round head) with **walk and action animations**.
-  Everyone uses the same model as your own character, with different looks.
-- **Readability:** your character is never hidden. A building between the camera and you fades out.
-- The UI around the 3D view keeps its own style for now; it may get brighter to match later.
+**Style:** chunky **low-poly** shapes like a tabletop model town (the reference image): buildings with window grids,
+parapets and rooftop props, shop awnings, lane lines and zebra crossings, round faceted trees, cartoon cars,
+rounded characters with walk and action animations.
+
+**Mood: dark and gritty.** It's a crime game, so the model-town shapes sit in a dusk/evening city:
+- **Light:** dark blue-grey evening sky with fog in the distance; a low orange sun with long shadows.
+- **Palette:** brick, grimy concrete and soot instead of fresh cream; muted trims (oxblood, teal, mustard, navy);
+  dark asphalt with worn paint; dark green parks; a dark river.
+- **Lights in the dark:** some windows glow warm yellow (different per building); street lamps are sodium-orange
+  and throw a pool of light on the pavement; the store sign stands out.
+- **Grime:** dumpsters and trash bags on the pavements.
+- **Readability:** your character is never hidden: a building between the camera and you fades out.
+  Floating text and labels have dark outlines so they read on any background.
 
 ## 8. Screens
 

@@ -1,4 +1,4 @@
-// Small models: cars, the card table, crates and shop doors. Chunky low-poly, bright colours.
+// Small models: cars, the card table, crates and shop doors. Chunky low-poly, muted dusk colours.
 import * as THREE from 'three';
 
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
@@ -39,7 +39,7 @@ function add(parent: THREE.Object3D, g: THREE.BufferGeometry, color: number, x: 
   return m;
 }
 
-export const CAR_COLORS = [0xd9473a, 0x3a6ea5, 0xf0b13c, 0x4fa04a, 0xf2efe8, 0xe07b39, 0x5bb6dc];
+export const CAR_COLORS = [0x8a2f28, 0x2f4562, 0x9a7a2e, 0x35553a, 0xb0aa9c, 0x6a4526, 0x2e5f5b];
 
 /** A chunky cartoon car, pointing along +x. About 1 tile long. */
 export function buildCar(color: number): THREE.Group {

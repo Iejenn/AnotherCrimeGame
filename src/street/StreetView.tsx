@@ -75,19 +75,20 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     const tileOf = (x: number, z: number): [number, number] => [Math.floor(x), Math.floor(z)];
     const center = (tx: number, ty: number) => new THREE.Vector3(tx + 0.5, 0, ty + 0.5);
 
-    // ---------- renderer / scene: bright daylight, sky, soft shadows (docs/design.md §7b) ----------
+    // ---------- renderer / scene: dusk, long soft shadows, fog (docs/design.md §7b) ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.prepend(renderer.domElement);
     const scene = new THREE.Scene();
-    const SKY = 0xbfe6f5;
+    const SKY = 0x1c2230;
     scene.background = new THREE.Color(SKY);
-    scene.fog = new THREE.Fog(SKY, 32, 75);
+    scene.fog = new THREE.Fog(SKY, 22, 60);
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 220);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x9fb38a, 1.6));
-    const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
+    // Cool blue sky light from above, warm low sun from the side.
+    scene.add(new THREE.HemisphereLight(0x8fa3c7, 0x2a2420, 1.25));
+    const sun = new THREE.DirectionalLight(0xffa864, 1.8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera;
@@ -96,11 +97,11 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     sc.top = 16;
     sc.bottom = -16;
     sc.near = 1;
-    sc.far = 70;
+    sc.far = 80;
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.03;
     scene.add(sun, sun.target);
-    const SUN_OFFSET = new THREE.Vector3(-14, 26, 10);
+    const SUN_OFFSET = new THREE.Vector3(-24, 13, 8); // low sun = long shadows
 
     const geoms: THREE.BufferGeometry[] = [];
     const disposables: { dispose: () => void }[] = [];
@@ -321,15 +322,15 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         g.fillStyle = c;
         g.fillRect((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, w * MINI_PX, h * MINI_PX);
       };
-      g.fillStyle = '#56b4dd';
+      g.fillStyle = '#1f4558';
       g.fillRect(0, 0, miniW, miniH);
-      tile(0, 0, W, H, '#7d8189');
+      tile(0, 0, W, H, '#55585e');
       for (const [key, kind] of BLOCKS) {
         const [bx, by] = key.split(',').map(Number);
-        if (kind.type === 'park') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#7cc457');
+        if (kind.type === 'park') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#45663a');
         if (kind.type === 'store') tile(bx * BLOCK + 2, by * BLOCK + 2, 5, 5, '#2f7a46');
       }
-      for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#efe7d8');
+      for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#8a7f70');
     }
     const drawMini = () => {
       const g = mini.getContext('2d')!;

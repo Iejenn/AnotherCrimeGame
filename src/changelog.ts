@@ -12,11 +12,11 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-15',
     title: 'A brand new look',
     items: [
-      'The city is now a bright, sunny toy town: cream buildings with coloured trims and windows, rooftop air-cons, striped shop awnings, lane lines and zebra crossings, street lamps, traffic lights and round trees.',
-      'Soft shadows and a blue sky. The river is bright blue with a stone quay.',
+      'The city got a full makeover in a chunky low-poly style, at dusk: brick and concrete buildings with lit windows, rooftop air-cons, shop awnings, lane lines and zebra crossings, round trees, dumpsters and trash bags.',
+      'Orange street lamps throw pools of light on the pavement. Long evening shadows, fog in the distance, a dark river around the island.',
       'New rounded characters for everyone, with walk, pickpocket and stunned animations. Eddy wears an apron now.',
       'Buildings between the camera and you fade out, so you are never hidden.',
-      'Chunky cartoon cars, a proper card table, and shop doors with glass.',
+      'Chunky cars, a proper card table, and shop doors with glass.',
     ],
   },
   {

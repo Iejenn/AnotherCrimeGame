@@ -1,4 +1,5 @@
-// Builds the static city for the Street view in the "toy town" style from docs/design.md §7b:
+// Builds the static city for the Street view: low-poly "model town" shapes in a dark, gritty
+// dusk palette (docs/design.md §7b):
 // asphalt with lane lines and zebra crossings, light pavements, cream buildings with window
 // grids, coloured trims, rooftop props and striped awnings, round low-poly trees, lamps,
 // traffic lights, and a bright river with a stone quay around the island.
@@ -7,20 +8,23 @@ import * as THREE from 'three';
 import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, STORE_BLOCK, W } from './map';
 import { mulberry32 } from '../game/rng';
 
+// Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
 const C = {
-  asphalt: 0x6e727a,
-  paint: 0xf4f1e8,
-  pavement: 0xd8d4cb,
-  grass: 0x7cc457,
-  farGrass: 0x8fd062,
-  water: 0x56b4dd,
-  quay: 0xd8d2c4,
-  rail: 0xf2efe8,
-  roof: 0xbab6ad,
-  walls: [0xf4efe4, 0xefe7d8, 0xf7f3ec, 0xe9e1d2, 0xf1e3d3],
-  trims: [0xd9473a, 0x2f9e9a, 0xf0b13c, 0x3a6ea5, 0xe07b39],
-  trunk: 0x8a5a36,
-  leaves: [0x5fb84a, 0x4ea83f, 0x7cc94f],
+  asphalt: 0x34373d,
+  paint: 0x9c978a,
+  pavement: 0x6d6962,
+  grass: 0x45663a,
+  farGrass: 0x2f4426,
+  water: 0x1f4558,
+  quay: 0x5e5951,
+  rail: 0x2e2e30,
+  roof: 0x45423e,
+  walls: [0x7a4a3a, 0x6b4a3c, 0x5f5d5a, 0x8a7f70, 0x4f4a45, 0x6e5f50, 0x83503e],
+  trims: [0x7a2f28, 0x2e5f5b, 0x8a6a2a, 0x2f4562, 0x6a4526],
+  trunk: 0x4a3423,
+  leaves: [0x355a2c, 0x3f6834, 0x2e4f27],
+  lamp: 0xffb24d,
+  litWindow: 0xffc46b,
 };
 
 /** One building that can fade out when it stands between the camera and you. */
@@ -44,23 +48,53 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   return t;
 }
 
-/** One window per tile: white wall around a blue glass pane. Tinted by the wall colour. */
-const windowTex = () =>
-  canvasTex(64, 64, (g) => {
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 64, 64);
-    g.fillStyle = '#7fa9c4';
-    g.fillRect(14, 14, 36, 34);
-    g.fillStyle = '#b9dcef';
-    g.fillRect(14, 14, 36, 12);
-    g.fillStyle = '#d9d4ca';
-    g.fillRect(12, 48, 40, 4);
-  });
+/**
+ * A 4×4 block of windows (one per tile): the wall is white (tinted by the wall colour), most panes
+ * are dark glass, some are lit. The matching glow map makes only the lit panes shine at dusk.
+ */
+function windowAtlas(seed: number) {
+  const r = mulberry32(seed);
+  const lit: boolean[] = Array.from({ length: 16 }, () => r() < 0.3);
+  const pane = (g: CanvasRenderingContext2D, i: number, x: number, y: number, glowOnly: boolean) => {
+    if (glowOnly) {
+      g.fillStyle = lit[i] ? '#ffffff' : '#000000';
+      g.fillRect(x + 14, y + 14, 36, 34);
+      return;
+    }
+    g.fillStyle = lit[i] ? '#ffd9a0' : '#1d2630';
+    g.fillRect(x + 14, y + 14, 36, 34);
+    g.fillStyle = lit[i] ? '#ffe7c2' : '#2c3a46';
+    g.fillRect(x + 14, y + 14, 36, 8);
+    g.fillStyle = '#9a958c';
+    g.fillRect(x + 12, y + 48, 40, 4);
+  };
+  const draw = (glowOnly: boolean) => (g: CanvasRenderingContext2D) => {
+    g.fillStyle = glowOnly ? '#000000' : '#ffffff';
+    g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 16; i++) pane(g, i, (i % 4) * 64, Math.floor(i / 4) * 64, glowOnly);
+  };
+  return { map: canvasTex(256, 256, draw(false)), glow: canvasTex(256, 256, draw(true)) };
+}
 
-const stripeTex = (color: string) =>
+/** A soft orange circle for the light pool under each street lamp. */
+const lightPoolTex = () =>
+  canvasTex(
+    128,
+    128,
+    (g) => {
+      const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+      grad.addColorStop(0, 'rgba(255, 178, 77, 0.55)');
+      grad.addColorStop(1, 'rgba(255, 178, 77, 0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 128, 128);
+    },
+    false,
+  );
+
+const stripeTex = (color: string, light = '#ffffff') =>
   canvasTex(64, 16, (g) => {
     for (let i = 0; i < 8; i++) {
-      g.fillStyle = i % 2 ? '#ffffff' : color;
+      g.fillStyle = i % 2 ? light : color;
       g.fillRect(i * 8, 0, 8, 16);
     }
   });
@@ -225,7 +259,9 @@ export function buildCity(scene: THREE.Scene) {
   const poleGeo = own(new THREE.CylinderGeometry(0.03, 0.035, 1.35, 6));
   const poles = new Batch(poleGeo, lam(0x5a5f66));
   const lampHeads = new Batch(geoBox(0.22, 0.05, 0.1), lam(0x5a5f66));
-  const lampGlow = new Batch(geoBox(0.16, 0.02, 0.07), lam(0xfff2a8, { emissive: 0xfff2a8, emissiveIntensity: 0.6 }), false);
+  const lampGlow = new Batch(geoBox(0.16, 0.03, 0.08), lam(C.lamp, { emissive: C.lamp, emissiveIntensity: 1.6 }), false);
+  const poolMat = own(new THREE.MeshBasicMaterial({ map: own(lightPoolTex()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const pools = new Batch(own(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2)), poolMat, false);
   const lightBox = new Batch(geoBox(0.1, 0.28, 0.1), lam(0x2b2b2e));
   const redDot = new Batch(geoBox(0.05, 0.05, 0.02), lam(0xe0473a, { emissive: 0xe0473a, emissiveIntensity: 0.8 }), false);
   const greenDot = new Batch(geoBox(0.05, 0.05, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.8 }), false);
@@ -236,6 +272,7 @@ export function buildCity(scene: THREE.Scene) {
         poles.add(lx, 0.68, lz);
         lampHeads.add(lx + 0.08, 1.36, lz);
         lampGlow.add(lx + 0.12, 1.33, lz);
+        pools.add(lx + 0.12, 0.075, lz);
       }
     }
   for (let i = 1; i < COLS; i++)
@@ -246,7 +283,25 @@ export function buildCity(scene: THREE.Scene) {
       lightBox.add(x, 1.45, z);
       ((i + j) % 2 ? redDot : greenDot).add(x, 1.5, z - 0.06);
     }
+  const poolMesh = pools.build(scene);
+  if (poolMesh) poolMesh.receiveShadow = false;
   for (const b of [poles, lampHeads, lampGlow, lightBox, redDot, greenDot]) b.build(scene);
+
+  // ---------- grime: dumpsters and trash bags on the pavements ----------
+  const dumpsters = new Batch(geoBox(0.55, 0.38, 0.32), lam(0x2f4a36));
+  const dumpLids = new Batch(geoBox(0.57, 0.04, 0.34), lam(0x1f2a22));
+  const bags = new Batch(own(new THREE.IcosahedronGeometry(0.13, 0)), lam(0x1c1c1f, { flatShading: true }));
+  for (let bx = 0; bx < COLS; bx++)
+    for (let by = 0; by < ROWS; by++) {
+      if (BLOCKS.get(`${bx},${by}`)?.type !== 'buildings' || rng() < 0.5) continue;
+      // Along the block's east side (no spots there), facing the road.
+      const x = bx * BLOCK + 7 - 0.12;
+      const z = by * BLOCK + 3 + rng() * 3;
+      dumpsters.add(x, 0.25, z, 1, 1, 1, Math.PI / 2);
+      dumpLids.add(x, 0.45, z, 1, 1, 1, Math.PI / 2);
+      for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) bags.add(x - 0.05 + rng() * 0.15, 0.12, z + 0.35 + rng() * 0.4, 1, 0.8 + rng() * 0.3, 1, rng() * 3);
+    }
+  for (const b of [dumpsters, dumpLids, bags]) b.build(scene);
 
   /** A coloured band around the roof edge (a parapet), leaving the grey roof visible in the middle. */
   const parapet = (cx: number, cz: number, w: number, d: number, top: number, m: THREE.Material) => {
@@ -261,7 +316,8 @@ export function buildCity(scene: THREE.Scene) {
   };
 
   // ---------- buildings ----------
-  const baseWindows = own(windowTex());
+  const atlases = [1, 2, 3, 4].map((seed) => windowAtlas(seed * 977));
+  for (const a of atlases) own(a.map), own(a.glow);
   const fadeables: Fadeable[] = [];
   const FLOOR = 0.55;
   for (const b of BUILDINGS) {
@@ -269,15 +325,19 @@ export function buildCity(scene: THREE.Scene) {
     const height = floors * FLOOR + 0.12;
     const wall = C.walls[Math.floor(rng() * C.walls.length)];
     const trim = C.trims[Math.floor(rng() * C.trims.length)];
-    const texX = own(baseWindows.clone());
-    texX.repeat.set(b.w, floors);
-    texX.needsUpdate = true;
-    const texZ = own(baseWindows.clone());
-    texZ.repeat.set(b.h, floors);
-    texZ.needsUpdate = true;
+    // Window textures: 4×4 windows per texture, so repeat = size / 4. Each building picks one of a
+    // few lit-window patterns, so the city doesn't look copy-pasted.
+    const atlas = atlases[Math.floor(rng() * atlases.length)];
+    const tex = (src: THREE.Texture, across: number) => {
+      const t = own(src.clone());
+      t.repeat.set(across / 4, floors / 4);
+      t.offset.set(Math.floor(rng() * 4) / 4, 0);
+      t.needsUpdate = true;
+      return t;
+    };
     // Each building gets its own materials so it can fade on its own.
-    const mX = lam(wall, { map: texX });
-    const mZ = lam(wall, { map: texZ });
+    const mX = lam(wall, { map: tex(atlas.map, b.w), emissiveMap: tex(atlas.glow, b.w), emissive: C.litWindow, emissiveIntensity: 1 });
+    const mZ = lam(wall, { map: tex(atlas.map, b.h), emissiveMap: tex(atlas.glow, b.h), emissive: C.litWindow, emissiveIntensity: 1 });
     const mRoof = lam(C.roof);
     const mTrim = lam(trim);
     const bw = b.w - 0.1;
@@ -304,8 +364,8 @@ export function buildCity(scene: THREE.Scene) {
     // Some ground floors are shops facing the street (south side): glass front + striped awning.
     const facesStreet = (b.y + b.h) % BLOCK === 0;
     if (facesStreet && rng() < 0.55) {
-      const glass = add(geoBox(Math.max(0.6, bw - 0.5), 0.42, 0.05), lam(0x9fd0e8), cx, 0.27, b.y + b.h - 0.04, false);
-      const stripe = own(stripeTex(`#${C.trims[Math.floor(rng() * C.trims.length)].toString(16).padStart(6, '0')}`));
+      const glass = add(geoBox(Math.max(0.6, bw - 0.5), 0.42, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 0.7 }), cx, 0.27, b.y + b.h - 0.04, false);
+      const stripe = own(stripeTex(`#${C.trims[Math.floor(rng() * C.trims.length)].toString(16).padStart(6, '0')}`, '#b8b0a0'));
       stripe.repeat.set(Math.max(1, Math.round(bw)), 1);
       const awning = add(geoBox(Math.max(0.7, bw - 0.3), 0.04, 0.38), lam(0xffffff, { map: stripe }), cx, 0.6, b.y + b.h + 0.12);
       awning.rotation.x = 0.35;
@@ -320,20 +380,20 @@ export function buildCity(scene: THREE.Scene) {
     const cx = sx * BLOCK + 2 + 2.5;
     const cz = sy * BLOCK + 2 + 2.5;
     const sh = 1.25;
-    const mWall = lam(0xf7f3ec);
-    const mTrim = lam(0x2f7a46);
+    const mWall = lam(0xa89c86);
+    const mTrim = lam(0x2f6b40);
     const mRoof = lam(C.roof);
     const shop = add(geoBox(4.9, sh, 4.9), [mWall, mWall, mRoof, mRoof, mWall, mWall], cx, sh / 2, cz);
     const trimBand = parapet(cx, cz, 4.96, 4.96, sh + 0.04, mTrim);
-    const glass = add(geoBox(3.6, 0.55, 0.05), lam(0x9fd0e8), cx, 0.36, cz + 2.45, false);
-    const stripe = own(stripeTex('#2f7a46'));
+    const glass = add(geoBox(3.6, 0.55, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 }), cx, 0.36, cz + 2.45, false);
+    const stripe = own(stripeTex('#2f6b40', '#d8d0c0'));
     stripe.repeat.set(5, 1);
     const awning = add(geoBox(4.2, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.82, cz + 2.65);
     awning.rotation.x = 0.4;
     const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture('GENERAL STORE')) }));
     const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, cz + 2.47, false);
     const signBack = add(geoBox(3.3, 0.68, 0.06), mTrim, cx, sh + 0.42, cz + 2.42);
-    const door = add(geoBox(0.6, 0.75, 0.06), lam(0x2f7a46), cx, 0.38, cz + 2.47, false);
+    const door = add(geoBox(0.6, 0.75, 0.06), lam(0x2f6b40), cx, 0.38, cz + 2.47, false);
     for (let i = 0; i < 2; i++) add(geoBox(0.3, 0.18, 0.24), lam(0xe8e8e8), cx - 1.5 + i * 2.4, sh + 0.09, cz - 1.2);
     fadeables.push({ walls: [shop, ...trimBand], mats: [mWall, mRoof, mTrim], props: [glass, awning, sign, signBack, door], opacity: 1 });
   }
