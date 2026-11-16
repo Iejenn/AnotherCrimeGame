@@ -61,28 +61,65 @@ XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **e
 
 ## 4. Street Crimes (levels 1–30)
 
-Something new unlocks **every 5 levels**.
+> **Status: v2 scoped, not built yet.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
+> The v1 crimes in the game today (Lift a Wallet … Mug a Banker) will be replaced by the list below.
+> Items marked ❓ are open questions (see the end of this section).
 
-| Lv | Crime | Spot on the map | Ticks (time) | Odds at unlock | XP | XP/h if all succeed | Gold |
+Something new unlocks **every 5 levels**. Each crime has its **own place on the map** and, from level 10 on,
+**NPCs that react to you**. Skills don't drop random loot any more (see §6): you get **coins** directly, and the two
+shoplifting crimes give **food**, which heals.
+
+| Lv | Crime | Where | Odds at unlock | Reward | On fail | Time | XP (proposal) |
 |---|---|---|---|---|---|---|---|
-| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 65% | 3 | 5,400 | 1–3 |
-| 5 | Shoplift | Corner shop | 5 (2.5s) | 65% | 5 | 7,200 | 2–5 |
-| 10 | Strip a Parked Car | Parked car | 6 (3s) | 65% | 8 | 9,600 | 4–9 |
-| 15 | Run a Shell Game | Card table | 7 (3.5s) | 65% | 12 | 12,343 | 6–14 |
-| 20 | Burgle a House | Family house | 8 (4s) | 65% | 17 | 15,300 | 10–22 |
-| 25 | Rob a Corner Store | Corner store | 10 (5s) | 65% | 28 | 20,160 | 18–36 |
-| 30 | Mug a Banker | Banker | 12 (6s) | 65% | 43 | 25,800 | 30–60 |
+| 1 | **Pickpocket Tourists** | 2 tourists wander a park | 65% | 1–3 coins | −1 HP | 2s | 3 |
+| 5 | **Raid Gym Bags** | 2 guys play basketball; bags on the bench | 55% | 2–6 coins | −1 HP | 2s | 5 |
+| 10 | **Shoplift Candy Store** | candy store; clerk + shelves | 40% | 1 candy bar | −1 HP | 2s | 10 |
+| 15 | **Pickpocket Drunks** | bar; bartender + guests | ❓ (50%?) | 10–20 coins | −2 HP, stunned 3s | 3s | 14 |
+| 20 | **Pry Open Parking Meters** | parking lot at the edge of town; 4–5 meters; a guard | ❓ (45%?) | 15–30 coins | −3 HP, stunned 4s | 3s | 24 |
+| 25 | **Shoplift Gas Station** | gas station next to the parking lot; clerk + shelves | 40% | 1 sandwich or 1 candy bar | −1 HP ❓ | 2s | 21 |
+| 30 | **Steal From Cars** | 3–4 cars on the same parking lot; the same guard | 35% | 30–60 coins | −3 HP, stunned 4s | 3s | 56 |
 
-Minutes per level with the best crime you have (tapping again right away, real odds):
-1→2 0.7 · 4→5 0.9 · **5→6 0.8** · 9→10 1.2 · **10→11 1.0** · 14→15 1.6 · **15→16 1.4** · 19→20 2.3 ·
-**20→21 2.1** · 24→25 3.3 · **25→26 2.9** · 29→30 4.5. Real play (walking, resting for health) is slower.
+**XP proposal:** pickpocketing earns ~5,400 XP/h if every attempt succeeds (~2,600 XP/h with real odds and stuns).
+Each next crime earns ~30% more **real** XP per hour, taking its lower odds, longer time and stun into account.
+To be tuned once guards, the bartender and refill times exist (they slow some crimes down).
 
-**Per attempt:**
-- **Success:** gold and XP. 5% chance of a **Big Score** (double gold and XP).
-- **Failure:** **no XP**, **−1 HP**, a screen shake and a **2-second stun**. Some failures turn into a **bust** (jail) instead.
-- **Odds:** every crime starts at **65%** at the level you unlock it, and rises **0.5% per Street Crimes level** above that
-  (a pickpocket at level 30: 79.5%). Heat lowers it.
-- **Loot** drops about 0.4 times per minute of work; longer crimes drop more per attempt.
+### How each crime works
+
+1. **Pickpocket Tourists (1).** Two tourists stroll around the park. Tap one to try. Success: 1–3 coins.
+2. **Raid Gym Bags (5).** Two NPCs play basketball on a court; their gym bags sit on a bench at the side.
+   Tap a bag. Success: 2–6 coins.
+3. **Shoplift Candy Store (10).** An enterable shop (like Eddy's) with a **clerk** wandering around the register
+   and some **shelves**. Tap a shelf. Success: **1 candy bar** (food, +1 HP when eaten). A shelf you stole from is
+   **empty** for a while ❓ (refill time).
+4. **Pickpocket Drunks (15).** A bar inside a building, with a **bartender** and bar guests. Every few seconds the
+   bartender **turns his back** for a few seconds. Pickpocket guests while he isn't looking. If he sees you, he yells
+   **"Leave my guests alone!"**, walks over and hits you (−2 HP, stunned 3s).
+5. **Pry Open Parking Meters (20).** A parking lot at the edge of town with 4–5 meters. An emptied meter needs
+   **30 seconds** to fill up again. A **guard** patrols the lot; if he spots you at a meter he yells **"I saw that!"**,
+   walks over and hits you (−3 HP, stunned 4s), then goes back to patrolling.
+6. **Shoplift Gas Station (25).** An enterable gas station next to the parking lot, same system as the candy store.
+   Success: **1 sandwich** (+2 HP) or **1 candy bar** (+1 HP).
+7. **Steal From Cars (30).** 3–4 cars on the same parking lot, with the same guard as the meters.
+   Success: 30–60 coins.
+
+### Getting caught (NPCs that watch)
+
+- The **bartender** and the **guard** have a view cone. If you're working a crime inside it, they catch you:
+  they yell their line, walk to you, hit you (HP loss + stun), then go back to what they were doing.
+- Clerks in the shops ❓: do they catch you too, or only the shelf odds?
+- Being caught replaces "bust/jail" ❓ (see questions).
+
+### Open questions for Street Crimes v2
+
+1. ❓ **Starting odds** for Pickpocket Drunks (15) and Parking Meters (20) are empty in the sheet. Proposal: 50% and 45%.
+2. ❓ **Gas station row**: the columns looked shifted. Read as: reward = 1 sandwich (+2 HP) or 1 candy bar (+1 HP),
+   on fail = −1 HP, 2 seconds. Correct?
+3. ❓ **Shelf refill time** in the shops. Proposal: 30 seconds, like the parking meters.
+4. ❓ **Heat and jail**: the sheet doesn't use them; NPCs catching you replaces that. Proposal: remove heat, jail and bail.
+5. ❓ **Shop clerks**: just decoration, or do they catch you like the guard?
+6. ❓ **Eating**: tap food in your inventory to eat it (+HP). Does food stack in one slot? Is there a short delay
+   between bites? Proposal: stacks, no delay for now.
+7. ❓ **Gold vs coins**: the sheet says "coins". Rename gold → coins everywhere?
 
 ## 5. Health, heat and jail
 
@@ -96,17 +133,22 @@ Minutes per level with the best crime you have (tapping again right away, real o
   High heat lowers odds and raises bust risk. A bust drops heat by 25.
 - **Jail:** a bust locks you up for 10–60 seconds. Bail costs 1 gold per 5 seconds left.
 
-## 6. Economy
+## 6. Economy and items
 
-Currency is **gold**. Earned from crimes and from selling loot to Eddy. Nothing to buy yet.
-Planned: Eddy's stock (bandages first), then other shops.
+- Currency: **gold** today (the Street Crimes sheet calls it **coins**, see §4 question 7).
+- **Items must mean something.** Skills like Street Crimes **don't drop random loot** any more: crimes pay
+  coins directly. The only items from Street Crimes are **food** from the two shoplifting crimes, and food heals.
+- **Combat (future):** enemies have **loot tables**; killing an enemy grants a drop. That's where most items will come from.
+- Eddy's General Store: sells nothing yet. With loot gone, his "Sell" only matters for items that exist (food).
 
 ## 7. The map
 
-- An island city with a river all the way round.
+- An **island in the ocean** (planned: replace the river ring with open sea, beaches/rocks at the edge).
 - 6×5 grid of blocks with 2-tile roads between them. **Buildings vary in size and height**:
   a block can hold one large building or several smaller ones, with some parks.
-- Street Crimes spots sit around the start, with higher levels further out.
+- Street Crimes v2 places (planned, see §4): a **bigger park** with paths (tourists), a **basketball court**,
+  a **candy store** (enterable, shop icon), a **bar** (enterable), a **parking lot at the edge of town** with
+  meters, cars and a guard, and a **gas station** next to it (enterable, shop icon).
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.
@@ -140,11 +182,7 @@ The start screen shows your character file and what's new.
 - **Melee / Defense / Gunfire:** combat with NPCs? Training dummies or gyms? Fights as a crime outcome?
   Weapons and armour from shops?
 - **Health:** trained by taking damage, eating, or a gym?
-- **Healing / food (top priority, to scope):** a **Shoplifting** skill with a ladder of shops to steal from, each giving
-  food that heals when eaten. For example: a candy store at level 1 (candy, +1 HP) and a gas station at the
-  edge of town (gas station snacks, +3 HP), with better shops and food further up. Needs: a level ladder
-  (every 5 levels like Street Crimes?), eating from the inventory, whether food stacks, and how it relates
-  to the existing "Shoplift" Street Crime (likely rename or move that one).
+- **Healing / food:** now part of Street Crimes v2 (candy store and gas station shoplifting, §4). Eating rules: §4 question 6.
 - Quests: who gives them, and what do they unlock?
 - Multiplayer: server-side rules (Supabase) before any leaderboard.
 
