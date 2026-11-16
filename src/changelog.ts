@@ -13,7 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Know your enemy',
     items: [
       'Pick Melee or Gunfire in the Skills tab to see every enemy you can fight, by level.',
-      'Tap one for its card: its stats, where it lives, your odds against it with what you are holding, and everything it drops with the chances.',
+      'Tap one for its card: its stats, where it lives, and what it drops.',
     ],
   },
   {

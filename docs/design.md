@@ -491,7 +491,7 @@ Each enemy type: level, HP, attack level, defence level and bonus, attack speed,
 | **Thug** (v0.34) | 5 | The Yard, 007 (3) | 10 | 5 | 2 ticks (1 s) | 2 | 30 s | not aggressive (for now); hooded, with a knife; loot: 1/5 $5–10, 1/20 a **knife** |
 
 **Enemy guide (v0.35):** under Melee and Gunfire in the Skills tab, every enemy by level; tap one for its card (stats,
-where it lives, your odds with your current weapon, its drops and their chances). It reads ENEMY_KINDS (with each
+where it lives, its drops and their chances). It reads ENEMY_KINDS (with each
 kind's `where` and `loot`, a copy of `public.loot`), so new enemies appear on their own.
 
 **The Yard (007-C/D, v0.34):** a courtyard between two side buildings, open to the street through two gates in a
