@@ -1,4 +1,4 @@
-// Little pictures for the bag: cash (a stack of dollar bills), the candy bar and the sandwich.
+// Little pictures for the bag: cash (a stack of dollar bills), the candy bar, the sandwich and brass knuckles.
 // Hand-drawn SVG so they're sharp on any phone and match the game's muted dusk colours.
 
 const Cash = () => (
@@ -40,7 +40,23 @@ const Sandwich = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { cash: Cash, candy_bar: CandyBar, sandwich: Sandwich };
+const BrassKnuckles = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    {/* four finger rings over a curved grip, in brass */}
+    <g transform="rotate(-10 20 20)">
+      <path d="M7 22 Q20 34 33 22 L33 25 Q20 37 7 25 Z" fill="#b8902e" stroke="#5a4210" strokeWidth="1.1" />
+      {[10, 16.5, 23, 29.5].map((x) => (
+        <circle key={x} cx={x} cy="17" r="3.6" fill="none" stroke="#d8b04a" strokeWidth="2.6" />
+      ))}
+      {[10, 16.5, 23, 29.5].map((x) => (
+        <circle key={`o${x}`} cx={x} cy="17" r="4.9" fill="none" stroke="#5a4210" strokeWidth="0.8" />
+      ))}
+      <path d="M8 21 H32" stroke="#f2d27a" strokeWidth="1" opacity="0.7" />
+    </g>
+  </svg>
+);
+
+const ICONS: Record<string, () => JSX.Element> = { cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {

@@ -169,7 +169,7 @@ function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: str
     };
   }, []);
 
-  const world = useWorld(userId, g.roster, g.refresh);
+  const world = useWorld(userId, g.roster, g.refresh, g.enemies, g.onFight);
   const chat = useChat(userId);
   return (
     <GameScreen

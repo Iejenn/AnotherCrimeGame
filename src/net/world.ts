@@ -6,7 +6,7 @@
 // Other phones animate the walk along the route, so one tap to walk is one message, not one per step.
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { supabase } from './supabase';
-import type { WorldEntry } from './useOnlineGame';
+import type { EnemyState, FightEvent, WorldEntry } from './useOnlineGame';
 import type { WorldLink } from '../street/StreetView';
 
 interface WalkRow {
@@ -17,7 +17,13 @@ interface WalkRow {
   started_at: string;
 }
 
-export function useWorld(userId: string, roster: MutableRefObject<WorldEntry[]>, refresh: () => void): WorldLink {
+export function useWorld(
+  userId: string,
+  roster: MutableRefObject<WorldEntry[]>,
+  refresh: () => void,
+  enemies: MutableRefObject<EnemyState[]>,
+  onFight: (fn: (events: FightEvent[]) => void) => () => void,
+): WorldLink {
   /** Routes heard live (newer than the last roster), by player id. */
   const routes = useRef(new Map<string, { from: [number, number]; path: [number, number][]; at: number }>());
 
@@ -49,10 +55,14 @@ export function useWorld(userId: string, roster: MutableRefObject<WorldEntry[]>,
         roster.current.map((p) => {
           const live = routes.current.get(p.id);
           const r = live && live.at >= p.at ? live : p;
-          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at };
+          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at, equipment: p.equipment, combat: p.combat };
         }),
       move,
+      myId: userId,
+      // The shared enemies (kept fresh by Realtime in useOnlineGame) and your fight's swings.
+      enemies: () => enemies.current,
+      onFight,
     }),
-    [roster, move],
+    [roster, move, userId, enemies, onFight],
   );
 }

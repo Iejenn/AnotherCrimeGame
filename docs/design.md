@@ -359,10 +359,11 @@ needs step 2 below.
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
 shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
 
-## 12. Combat (draft, to decide)
+## 12. Combat
 
-> **Status: proposal.** Based on the designer's sheet (unarmed stats, the four combat skills, the Pigeon). Numbers
-> marked *(tunable)* live in data tables, like the crimes. Questions to decide are at the end.
+> **Status: v1 built (v0.27).** The Pigeon, fists and brass knuckles, Ray's weapon store. No drops yet. Based on the
+> designer's sheet. Decisions are listed at the end; numbers live in `src/game/combat.ts`, `src/game/enemies.ts`,
+> `src/game/data/items.ts` and the same tables on the server (`supabase/migrations/0010_combat.sql`).
 
 ### The loop
 
@@ -404,25 +405,23 @@ damage on a hit = random whole number from 1 to max hit
 |---|---|---|
 | Melee | you hit with no weapon or a melee weapon | **1 per damage** |
 | Gunfire | you hit with a gun | **1 per damage** |
-| Defense | every hit you land (always) | **0.5 per damage** |
-| Health | you lose health (to anything) | **1 per HP lost** |
+| Defense | damage you deal **and** damage you take | **0.5 per damage each way** |
+| Health | you lose health **in combat** | **1 per HP lost** |
 
-**Pace check (to decide):** a Pigeon has 3 HP, so it gives 3 Melee XP. At level 1 a kill takes ~8 s of swinging plus
-walking, about **1,100 Melee XP/h**: **~22 minutes to Melee 10** (Street Crimes: ~7 minutes). Multiplying every
-combat XP by **4** (OSRS does the same) gives ~4,300 XP/h and **~6 minutes to 10**, close to Street Crimes. *(One
-number: `COMBAT_XP_PER_DAMAGE`.)*
+**Pace (decided):** 1 XP per damage, so combat levels slower than skilling on purpose (~22 minutes to Melee 10 on
+Pigeons; Street Crimes ~7). One number: `COMBAT_XP` in combat.ts.
 
 ### Health
 
-- **+1 max HP per Health level** (sheet), instead of +2 now: 10 HP at level 1, 39 HP at 30. Regen stays 1 HP/min.
-- Health XP comes from **losing HP to anything**, so the crimes' catchers train it too.
+- **Max HP = Health level.** Health **starts at level 10** (10 HP), so level 100 = 100 HP. Regen stays 1 HP/min.
+- Health XP comes from combat only. (Existing characters were moved up to Health 10.)
 
 ### Combat level (shown over players and enemies, like OSRS)
 
 ```
 combat level = floor( (Defense + Health) / 4  +  max(Melee, Gunfire) / 2 )
 ```
-All 1 → **1**. All 30 → **30**. Lets players see who's tough at a glance.
+A new character (Health 10, the rest 1) is **3**. All 30 → **30**. Shown next to player names: "Iejen (level 3)".
 
 ### Gear
 
@@ -446,8 +445,12 @@ Starter ladders *(examples, to tune)*:
 | 25 | Sledgehammer 9 / 6 (slow) | Shotgun 8 / 5 / 3 | Riot helmet 8 |
 | 30 | Katana 8 / 3 | Rifle 7 / 4 / 9 | Kevlar vest 15 |
 
-Where gear comes from: **enemy loot tables** (§6: items must mean something) and later **shops** (a pawn shop, a gun
-store): a place to spend dollars.
+Where gear comes from: **shops** (a place to spend dollars) and later **enemy loot tables** (§6).
+
+**v1:** only the weapon slot. **Ray's Arms** (top row, 5th block) — Ray sells **brass knuckles for $50**: damage 2
+(+1 over fists), no accuracy or defence bonus, same speed as fists (3 ticks). **Weapons never wear out.** Equip from
+the Inventory tab (Wield); the Equipment panel there shows your weapon, max hit, speed and combat level. Knuckles
+show on your character's hand, for everyone.
 
 ### Enemies
 
@@ -474,23 +477,30 @@ that's ~4 Pigeons before you need to eat: food matters (§5).
   sends them back to animate. Nothing about a fight is decided by the phone.
 - Load: about 1 call per second per fighting player (crimes are ~0.4).
 
-### Build order (once decided)
+### On the Street
 
-1. Combat core: the Pigeon, fists, hit/miss/damage, XP, death, the health bar over enemies, combat level.
-2. Loot tables + the equipment panel + equipping (stats only).
-3. Gear visible on characters (yours and other players').
-4. The next enemies and the gear ladders, one level band at a time (like Street Crimes v2).
+Tap a Pigeon → you walk up (following it if it flutters off) and fight. Hitsplats like OSRS: **red with the damage**,
+**blue 0 for a miss**. The enemy shows "Pigeon (level 1)" and a health bar once hurt. A killed Pigeon drops dead and
+comes back after 25 s. Tapping anywhere else walks you away and ends the fight. Others see who's fighting what: a
+Pigeon in a fight stands still where it was attacked.
 
-### Questions to decide
+### Build order
 
-1. **XP pace:** keep 1 XP per damage (~22 min to Melee 10) or ×4 (~6 min, like Street Crimes)?
-2. **Defense XP:** 0.5 per damage *you deal* (as in the sheet), or earned when enemies *swing at you*?
-3. **Health XP:** from all HP you lose (crimes too), or only in combat?
-4. **Loot:** straight into your bag (simplest on a phone), or dropped on the ground to pick up (OSRS)?
-5. **The Pigeon:** attack speed 4 ticks and max hit 1 OK? What does it drop (feathers to sell, bread, a few dollars)?
-6. **Shared enemies:** one player per enemy at a time OK?
-7. **Guns:** use ammo (bought in a shop, a money sink), or not?
-8. **Players fighting players (PvP):** someday, or never?
+1. ✅ Combat core: the Pigeon, fists, hit/miss/damage, XP, death, enemy health bars, combat level.
+2. ✅ Equipment panel + equipping (weapon slot) + Ray's weapon store with brass knuckles; gear visible on characters.
+3. Loot dropped on the ground to pick up.
+4. The next enemies and the gear ladders, one level band at a time (like Street Crimes v2). Guns with ammo.
+
+### Decisions
+
+1. **XP pace:** 1 XP per damage (skilling is faster than combat).
+2. **Defense XP:** 0.5 per damage dealt and 0.5 per damage taken.
+3. **Health XP:** combat only.
+4. **Loot:** dropped on the ground (later).
+5. **The Pigeon:** 4 ticks, max hit 1, no drops yet.
+6. **Shared enemies:** yes, one player per enemy at a time.
+7. **Guns:** ammo, later.
+8. **PvP:** undecided.
 
 ## 10. How we work
 

@@ -135,3 +135,67 @@ export function buildGrave(): THREE.Group {
   g.add(glow);
   return g;
 }
+
+/** A low-poly city pigeon: grey body, a green-purple sheen on the neck, orange beak, pink feet, two wings.
+ *  `userData.parts` has the bits animatePigeon moves. */
+export function buildPigeon(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const b = add(body, new THREE.SphereGeometry(0.16, 8, 6), 0x7d828c, 0, 0.2, 0);
+  b.scale.set(0.85, 0.75, 1.25);
+  const tail = add(body, boxGeo(0.12, 0.03, 0.16), 0x5a5f68, 0, 0.22, -0.2);
+  tail.rotation.x = -0.4;
+  const head = new THREE.Group();
+  head.position.set(0, 0.32, 0.14);
+  body.add(head);
+  add(head, new THREE.SphereGeometry(0.085, 8, 6), 0x6a707a, 0, 0, 0);
+  add(head, new THREE.SphereGeometry(0.07, 6, 5), 0x4f8a7a, 0, -0.07, -0.02); // the neck's sheen
+  add(head, boxGeo(0.04, 0.03, 0.08), 0xe0a040, 0, -0.01, 0.1, false); // beak
+  add(head, boxGeo(0.02, 0.02, 0.02), 0xe0473a, 0.045, 0.02, 0.05, false); // eyes
+  add(head, boxGeo(0.02, 0.02, 0.02), 0xe0473a, -0.045, 0.02, 0.05, false);
+  const wings = [-1, 1].map((side) => {
+    const w = new THREE.Group();
+    w.position.set(side * 0.12, 0.24, 0);
+    body.add(w);
+    const m = add(w, boxGeo(0.04, 0.1, 0.28), 0x6a707a, side * 0.02, 0, -0.02);
+    m.castShadow = true;
+    return w;
+  });
+  for (const x of [-0.05, 0.05]) add(body, boxGeo(0.02, 0.1, 0.02), 0xd88a8a, x, 0.05, 0.02, false);
+  g.userData.parts = { body, head, wings };
+  return g;
+}
+
+/** Animate a pigeon: 'peck' (pecking at the ground), 'fly' (flapping), 'attack' (pecking at you), 'dead' (tipped over). */
+export function animatePigeon(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'dead', t: number, phase = 0) {
+  const p = g.userData.parts as { body: THREE.Group; head: THREE.Group; wings: THREE.Group[] };
+  const s = t / 1000 + phase;
+  p.body.rotation.z = mode === 'dead' ? Math.PI / 2 : 0;
+  p.wings.forEach((w, i) => (w.rotation.z = mode === 'fly' ? (i ? -1 : 1) * (0.3 + Math.sin(s * 30) * 0.9) : 0));
+  if (mode === 'attack') p.head.rotation.x = 0.6 + Math.sin(s * 25) * 0.5;
+  else if (mode === 'peck') p.head.rotation.x = Math.max(0, Math.sin(s * 3.1)) > 0.85 ? 0.9 : Math.sin(s * 1.7) * 0.1;
+  else p.head.rotation.x = 0;
+}
+
+/** Show what someone wields: brass knuckles on the right hand (more gear later). */
+export function setGear(character: THREE.Group, equipment: Partial<Record<string, string>> | undefined) {
+  const rig = character.userData.rig as { armR: THREE.Object3D } | undefined;
+  if (!rig) return;
+  const want = equipment?.weapon ?? '';
+  if (character.userData.gearKey === want) return;
+  character.userData.gearKey = want;
+  const old = rig.armR.getObjectByName('weapon');
+  if (old) rig.armR.remove(old);
+  if (want === 'brass_knuckles') {
+    const k = new THREE.Group();
+    k.name = 'weapon';
+    for (let i = 0; i < 4; i++) {
+      const ring = add(k, new THREE.TorusGeometry(0.022, 0.009, 4, 8), 0xd8b04a, -0.045 + i * 0.03, 0, 0.045, false);
+      ring.rotation.y = Math.PI / 2;
+    }
+    add(k, boxGeo(0.12, 0.025, 0.025), 0xd8b04a, 0, -0.025, 0.045, false);
+    k.position.set(0, -0.31, 0);
+    rig.armR.add(k);
+  }
+}

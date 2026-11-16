@@ -15,7 +15,9 @@ import { ITEM_BY_ID } from '../game/data/items';
 import { COURT, H, NODES, NPCS, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, buildCar, buildGrave, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, animatePigeon, buildCar, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
+import type { EnemyState, FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
@@ -68,11 +70,19 @@ export interface OtherPlayer {
   from: [number, number];
   path: [number, number][];
   at: number;
+  equipment?: Partial<Record<string, string>>;
+  /** Their combat level (shown next to their name). */
+  combat?: number;
 }
 /** The shared world, online: who else is here, and how to tell them where you walk. */
 export interface WorldLink {
   others: () => OtherPlayer[];
   move: (from: [number, number], path: [number, number][]) => void;
+  /** Your own player id. */
+  myId: string;
+  /** The enemies (shared by everyone), and the swings of your fight as the server rolls them. */
+  enemies: () => EnemyState[];
+  onFight: (fn: (events: FightEvent[]) => void) => () => void;
 }
 
 /** Where someone is `dist` tiles along a walk (from `from` through `path`), and which way they face. */
@@ -344,6 +354,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       facing: 0,
       /** Walking to your grave to pick up your stuff. */
       goalGrave: false,
+      /** Walking up to an enemy to attack it. */
+      goalEnemy: null as string | null,
+      /** Throwing a punch (pose) until this time. */
+      punchUntil: 0,
     };
     /** Remember the tile you're on in the save (so switching tabs or reloading keeps you here). */
     const savePos = () => {
@@ -373,6 +387,69 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     player.position.copy(me.pos);
     worldRef.current?.move(tileOf(me.pos.x, me.pos.z), []);
 
+    // ---------- enemies (combat, docs/design.md §12) ----------
+    // Shared by everyone: where they are comes from their schedule (pigeonAt), or where they stand still while
+    // someone fights them. Tap one to walk up and fight it; the server rolls every swing.
+    const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number }>();
+    const enemyAt = (e: EnemyState) => {
+      if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
+      return pigeonAt(e.index, gameNow());
+    };
+    /** Walk up to an enemy (and attack it when you get there). */
+    const goFight = (id: string) => {
+      const e = worldRef.current?.enemies().find((x) => x.id === id);
+      if (!e || e.deadUntil) return;
+      const w = worldRef.current!;
+      if (e.fighter && e.fighter !== w.myId) return say(`Someone else is fighting that ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'thing'}.`);
+      const at = enemyAt(e);
+      const [ex, ey] = tileOf(at.x, at.z);
+      if (walkTo(neighbors(ex, ey), null)) {
+        me.goalEnemy = id;
+        if (!me.path.length) reachEnemy();
+      }
+    };
+    /** Arrived next to it: attack, or follow it if it flew off meanwhile. */
+    let chases = 0;
+    const reachEnemy = () => {
+      const id = me.goalEnemy;
+      me.goalEnemy = null;
+      if (!id) return;
+      const e = worldRef.current?.enemies().find((x) => x.id === id);
+      if (!e || e.deadUntil) return;
+      const at = enemyAt(e);
+      if (Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
+        // It moved while you walked: follow it a few times, then give up (instead of a swing the server refuses).
+        if (chases++ < 6) return goFight(id);
+        chases = 0;
+        return say(`The ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'enemy'} keeps getting away. Try again.`);
+      }
+      chases = 0;
+      apiRef.current.attack(id, tileOf(me.pos.x, me.pos.z));
+    };
+    // Your fight's swings, as the server rolled them: play them out (punches, pecks and hitsplats).
+    const offFight = worldRef.current?.onFight((events) => {
+      const first = events[0]?.at ?? 0;
+      const target = sRef.current.fight?.enemy ?? lastFoe;
+      for (const ev of events) {
+        const delay = Math.min(1200, Math.max(0, ev.at - first));
+        setTimeout(() => {
+          const view = target ? enemyViews.get(target) : undefined;
+          if (ev.killed) {
+            if (view) view.dyingUntil = performance.now() + 700;
+            return;
+          }
+          if (ev.by === 'you') {
+            me.punchUntil = performance.now() + 350;
+            if (view) hitsplat(view.g.position, ev.dmg ?? 0);
+          } else {
+            if (view) view.peckUntil = performance.now() + 350;
+            hitsplat(me.pos, ev.dmg ?? 0);
+          }
+        }, delay);
+      }
+    });
+    let lastFoe: string | null = null;
+
     // ---------- other players (online) ----------
     /** Other players: their model, where we draw them (smoothed), and which way they face. */
     const others = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; facing: number }>();
@@ -391,6 +468,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goal = goal;
       me.goalNpc = npc;
       me.goalGrave = false;
+      me.goalEnemy = null;
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
@@ -441,6 +519,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         say('You stop what you were doing.');
       }
       me.attached = null;
+      if (sRef.current.fight) {
+        apiRef.current.stopFight();
+        say('You walk away from the fight.');
+      }
     };
 
     const tap = (clientX: number, clientY: number) => {
@@ -451,6 +533,13 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.enemyId) {
+        setTalkingRef.current(null);
+        if (me.attached && sRef.current.player.job) stopWorking();
+        chases = 0;
+        goFight(hit.object.userData.enemyId);
+        return;
+      }
       if (hit?.object.userData.grave) {
         const g = st.grave;
         if (!g) return;
@@ -583,6 +672,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         dot(w.pos.x, w.pos.z, 2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
       for (const r of ROOMS.filter((x) => x.shop)) upright((r.x0 + r.x1 + 1) / 2, (r.y0 + r.y1 + 1) / 2, () => drawBag(g, 0, 0, 10));
+      for (const v of enemyViews.values()) if (v.g.visible) dot(v.g.position.x, v.g.position.z, 1.8, '#e8d84a');
       for (const e of others.values()) dot(e.g.position.x, e.g.position.z, 2.6, '#ffffff', '#141210');
       for (const npc of NPCS.filter((n) => n.named)) {
         const ep = npcWalk.get(npc.id)!.pos;
@@ -708,6 +798,18 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       toss = { from, to: me.pos.clone().setY(1.0), t0: performance.now(), baller: baller.id };
     };
 
+    /** A hitsplat over someone: a red splat with the damage, or a blue one for a miss (0), like OSRS. */
+    const hitsplat = (where: THREE.Vector3, dmg: number) => {
+      const [x, y] = project(where.clone().setY(0.9));
+      const el = document.createElement('div');
+      el.className = `hitsplat ${dmg > 0 ? 'hit' : 'miss'}`;
+      el.textContent = String(dmg);
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      host.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    };
+
     const off = onReport((r) => {
       // A failed grab at the gym bags: the throw first, the hit when the ball lands.
       if (r.hit && me.lastSpot.startsWith('bag_')) {
@@ -814,6 +916,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             me.goalGrave = false;
             openGrave();
           }
+          if (!me.path.length && me.goalEnemy) {
+            savePos();
+            reachEnemy();
+          }
           if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
@@ -843,9 +949,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const catcher = [...npcWalk.values()].find((w) => w.mode === 'rush' || w.mode === 'hit');
         if (catcher) me.facing = Math.atan2(catcher.pos.x - me.pos.x, catcher.pos.z - me.pos.z);
       }
+      // In a fight: face your foe.
+      const foe = st.fight?.enemy;
+      if (foe) lastFoe = foe;
+      const foeView = foe ? enemyViews.get(foe) : undefined;
+      if (foeView && !me.path.length) me.facing = Math.atan2(foeView.g.position.x - me.pos.x, foeView.g.position.z - me.pos.z);
+      setGear(player, st.equipment);
       player.position.set(me.pos.x, 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
-      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working ? 'work' : 'idle';
+      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working || now < me.punchUntil ? 'work' : 'idle';
       animateCharacter(player, pose, now);
       player.rotation.y = me.facing;
 
@@ -1013,6 +1125,40 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
 
+      // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
+      for (const e of worldRef.current?.enemies() ?? []) {
+        let v = enemyViews.get(e.id);
+        if (!v) {
+          const g = buildPigeon();
+          g.traverse((o) => (o.userData.enemyId = e.id));
+          // A bigger invisible tap area: pigeons are small.
+          const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8), hitMat);
+          hitArea.position.y = 0.3;
+          hitArea.userData.enemyId = e.id;
+          g.add(hitArea);
+          scene.add(g);
+          pickables.push(g);
+          v = { g, pos: null, peckUntil: 0, dyingUntil: 0 };
+          enemyViews.set(e.id, v);
+        }
+        const dying = now < v.dyingUntil;
+        const dead = !!e.deadUntil && e.deadUntil > gameNow() && !dying;
+        v.g.visible = !dead;
+        if (dead) {
+          v.pos = null;
+          continue;
+        }
+        const at = enemyAt(e);
+        const goal = new THREE.Vector3(at.x, 0, at.z);
+        if (!v.pos) v.pos = goal.clone();
+        v.pos.lerp(goal, Math.min(1, dt * 12));
+        const d = goal.clone().sub(v.g.position).setY(0);
+        if (d.length() > 0.02) v.g.rotation.y = Math.atan2(d.x, d.z);
+        if (e.fighter && foe === e.id) v.g.rotation.y = Math.atan2(me.pos.x - v.pos.x, me.pos.z - v.pos.z);
+        v.g.position.set(v.pos.x, 0.03 + (at.flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
+        animatePigeon(v.g, dying ? 'dead' : at.flying ? 'fly' : now < v.peckUntil ? 'attack' : 'peck', now, e.index * 1.3);
+      }
+
       // Other players: walk them along the route they shared.
       const list = worldRef.current?.others() ?? [];
       const here = new Set<string>();
@@ -1039,6 +1185,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         } else if (at.facing !== null && at.moving) e.facing = at.facing;
         e.g.position.set(e.pos.x, 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
+        setGear(e.g, o.equipment);
         animateCharacter(e.g, at.moving || gliding ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
       }
       for (const [id, e] of others)
@@ -1082,6 +1229,32 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Enemies: "Pigeon (level 1)" nearby, and a health bar while hurt or in a fight.
+      for (const e of worldRef.current?.enemies() ?? []) {
+        const v = enemyViews.get(e.id);
+        const k = ENEMY_KINDS[e.kind];
+        if (!v || !v.g.visible || !k || v.g.position.distanceTo(me.pos) > LABEL_RANGE + 2) continue;
+        const [x, y, depth] = project(v.g.position.clone().setY(0.75));
+        if (depth > 1) continue;
+        let el = labelEls.get(`enemy:${e.id}`);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label enemy';
+          el.innerHTML = '<span class="enemy-name"></span><span class="enemy-hp"><span></span></span>';
+          labelLayer.appendChild(el);
+          labelEls.set(`enemy:${e.id}`, el);
+        }
+        const name = el.firstChild as HTMLElement;
+        const text = `${k.name} (level ${k.level})`;
+        if (name.textContent !== text) name.textContent = text;
+        const bar = el.lastChild as HTMLElement;
+        const showBar = e.hp < k.hp || !!e.fighter;
+        bar.style.display = showBar ? 'block' : 'none';
+        (bar.firstChild as HTMLElement).style.width = `${(Math.max(0, e.hp) / k.hp) * 100}%`;
+        seen.add(`enemy:${e.id}`);
+        placed.push([x, y, text.length * 6 + 10]);
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
       // Other players' names (white), from far away.
       for (const [id, e] of others) {
         const o = list.find((x) => x.id === id);
@@ -1095,9 +1268,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           labelLayer.appendChild(el);
           labelEls.set(`player:${id}`, el);
         }
-        if (el.textContent !== o.name) el.textContent = o.name;
+        const tag = o.combat ? `${o.name} (level ${o.combat})` : o.name;
+        if (el.textContent !== tag) el.textContent = tag;
         seen.add(`player:${id}`);
-        placed.push([x, y, o.name.length * 6 + 10]);
+        placed.push([x, y, tag.length * 6 + 10]);
         el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
       // "Your grave · 4:31" over your grave (from further away than other labels).
@@ -1255,6 +1429,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       savePos();
       cancelAnimationFrame(raf);
       off();
+      offFight?.();
       ro.disconnect();
       mini.removeEventListener('pointerup', onMiniTap);
       renderer.domElement.removeEventListener('pointerdown', onDown);

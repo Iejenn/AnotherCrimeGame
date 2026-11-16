@@ -97,7 +97,10 @@ export const BAR = room('bar', 'The bar', 1, 2, false);
 /** The gas station shop (Shoplift Gas Station, level 25), at the north end of the gas station + parking
  *  lot area. The shop is the top four rows of its block; the pumps stand under a canopy along the front. */
 export const GAS = room('gas', 'Gas station', 5, 2, true, 4);
-export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS];
+/** Ray's weapon store (combat, docs/design.md §12), top row of the city. The server checks you're inside it
+ *  (tiles 30–34, 2–6) when you buy: keep in step with buy_item in supabase/migrations/0010_combat.sql. */
+export const WEAPONS = room('weapons', "Ray's Arms", 4, 0, true);
+export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS, WEAPONS];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 // ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
@@ -118,7 +121,7 @@ export const PATROL: Rect = { x0: LOT.x0 - 1, y0: GAS.y1 + 2, x1: LOT.x1 + 1, y1
 export const NO_ROAD: Rect[] = [PARK, STATION];
 
 /** Blocks that aren't normal buildings: the park, the court, the rooms, the lot… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [2, 4], [3, 4], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3]];
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [2, 4], [3, 4], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3], [4, 0]];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -187,7 +190,7 @@ export const BUILDINGS: Building[] = (() => {
 })();
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack';
 export interface Fixture {
   x: number;
   y: number;
@@ -228,6 +231,15 @@ export const FIXTURES: Fixture[] = (() => {
   for (const dx of [9, 10]) for (const dy of [6, 7]) at(dx, dy, 'pond');
   for (const [dx, dy] of [[1, 1], [4, 1], [1, 5], [1, 8], [4, 10], [10, 10], [9, 4]]) at(dx, dy, 'tree');
   for (const [dx, dy] of [[7, 1], [10, 1], [1, 10], [7, 10]]) at(dx, dy, 'flowers');
+
+  // Ray's weapon store. Layout (R = weapon rack on the wall, C = counter with the register, D = door):
+  //   R R . R R
+  //   . . . . .
+  //   C C . . .
+  //   . . . . .
+  //   . . D . .
+  for (const dx of [0, 1, 3, 4]) out.push({ x: WEAPONS.x0 + dx, y: WEAPONS.y0, kind: 'rack' });
+  out.push({ x: WEAPONS.x0, y: WEAPONS.y0 + 2, kind: 'counter' }, { x: WEAPONS.x0 + 1, y: WEAPONS.y0 + 2, kind: 'counter' });
 
   // The candy store. Layout (S = shelf you can steal from, see NODES; C = counter with the register):
   //   S S . S S
@@ -337,6 +349,8 @@ export interface Npc {
 
 export const NPCS: Npc[] = [
   { id: 'eddy', name: 'Eddy', role: 'General store', kind: 'shopkeeper', x: STORE.x0 + 2, y: STORE.y0 + 1, area: STORE, avoid: [STORE.door], named: true },
+  // Ray runs the weapon store: he sells brass knuckles (and more, later).
+  { id: 'ray', name: 'Ray', role: 'Weapon store', kind: 'shopkeeper', x: WEAPONS.x0 + 3, y: WEAPONS.y0 + 1, area: WEAPONS, avoid: [WEAPONS.door], named: true },
   // The candy store clerk hangs around the register (behind and next to the counter).
   {
     id: 'candy_clerk', name: 'Clerk', role: 'Candy store', kind: 'clerk', x: CANDY.x0 + 1, y: CANDY.y0 + 3,
@@ -371,7 +385,7 @@ export function buildBlocked(): Uint8Array {
 }
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons';
 export interface Area {
   id: string;
   name: string;
@@ -392,6 +406,10 @@ export const AREAS: Area[] = [
   {
     id: 'court', name: 'Basketball court', rect: COURT, icon: 'court', crimes: ['gym_bags'], npcs: [],
     blurb: 'Two guys shoot hoops all evening. Their gym bags sit on the bench by the street.',
+  },
+  {
+    id: 'weapons', name: "Ray's Arms", rect: WEAPONS, icon: 'weapons', crimes: [], npcs: ['ray'],
+    blurb: 'The weapon store. Ray sells brass knuckles for $50: your first step up from bare fists.',
   },
   {
     id: 'store', name: "Eddy's General Store", rect: STORE, icon: 'shop', crimes: [], npcs: ['eddy'],

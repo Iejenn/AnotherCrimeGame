@@ -8,6 +8,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.27.0',
+    date: '2026-11-16',
+    title: 'Combat!',
+    items: [
+      'Fight the Pigeons in the park: tap one to walk up and start swinging. Red hitsplats show your damage, blue ones a miss.',
+      'Fighting trains Melee (1 XP per damage), Defense (0.5 XP per damage you deal and per damage you take) and Health.',
+      'Health now starts at level 10, and your max HP equals your Health level: 10 HP now, 100 HP at level 100.',
+      "New shop: Ray's Arms, on the top row of the city. Ray sells brass knuckles for $50: +1 damage, and they never wear out.",
+      'Wield weapons from the Inventory tab. The new Equipment panel shows your max hit, attack speed and combat level.',
+      'Players now show their combat level next to their name, and you can see what they are wielding.',
+    ],
+  },
+  {
     version: '0.26.0',
     date: '2026-11-16',
     title: 'One device at a time',
