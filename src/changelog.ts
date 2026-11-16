@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.30.1',
+    date: '2026-11-16',
+    title: 'Fewer zebras',
+    items: ['One zebra crossing per street instead of two: the city is no longer half zebra.'],
+  },
+  {
     version: '0.30.0',
     date: '2026-11-16',
     title: 'A brand new city',
