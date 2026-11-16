@@ -532,6 +532,14 @@ comes back after 25 s. Tapping anywhere else walks you away and ends the fight. 
 it can't be attacked meanwhile. A killed Pigeon falls where it was hit. Others see who's fighting what: a
 Pigeon in a fight stands still where it was attacked.
 
+**Eating (v0.37):** a round **quick-eat button** sits bottom-right on the Street, above the chat, always there when
+you carry food (dimmed at full health, pulsing red at 30% or less). **Tap** eats the best fit (`pickFood`): the
+biggest heal that doesn't go over your max; if every food would go over, the smallest (1/10 with a +2 and a +1 → the
++2; 9/10 → the +1). **Hold** pops up a row of your foods to pick one. **In a fight eating takes 3 ticks (1.5 s):** no
+swing until it's done, but a swing that was due later anyway isn't delayed, so eating right after a slow swing is
+free; the enemy keeps swinging. A ring sweeps round the button while you eat. Server: `eat_item` (migration 0018).
+Outside fights eating still takes half a second.
+
 ### Build order
 
 1. ✅ Combat core: the Pigeon, fists, hit/miss/damage, XP, death, enemy health bars, combat level.

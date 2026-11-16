@@ -363,6 +363,25 @@ export function cantEat(s: GameState, id: string, now: number): string | null {
   return null;
 }
 
+/** Food in your bag: [item id, how many], biggest heal first. */
+export function foodsIn(s: GameState): [string, number][] {
+  return Object.entries(s.inventory)
+    .filter(([id, n]) => n > 0 && (ITEM_BY_ID[id]?.heal ?? 0) > 0)
+    .sort((a, b) => ITEM_BY_ID[b[0]].heal - ITEM_BY_ID[a[0]].heal || a[0].localeCompare(b[0]));
+}
+
+/**
+ * Which food the quick-eat button eats: the biggest heal that doesn't go over your max health; if every food would
+ * go over, the smallest. (1/10 HP with a +2 and a +1: the +2. 9/10: the +1.) Null without food.
+ */
+export function pickFood(s: GameState, now: number): string | null {
+  const foods = foodsIn(s);
+  if (!foods.length) return null;
+  const missing = maxHp(s) - hpAt(s, now);
+  const fits = foods.find(([id]) => ITEM_BY_ID[id].heal <= missing + 1e-9);
+  return fits ? fits[0] : foods[foods.length - 1][0];
+}
+
 /** Eat one food item: heals right away and takes 1 tick (you can't start a crime meanwhile). */
 export function eat(s: GameState, id: string, now: number) {
   if (cantEat(s, id, now)) return;
