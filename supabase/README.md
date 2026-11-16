@@ -15,6 +15,7 @@ The database for the multiplayer version (docs/design.md §11). Project ref: `bc
 | 0001_players | crimes (rules data), players, graves, spot_state (shared); `create_character`, `get_my_player` |
 | 0002_import_local_character | `import_local_character`: bring an offline (browser) character into a new account, with every number capped; open until 2027-03-01 |
 | 0004_world_channel | the private Realtime channel `world` (who's online, where they walk): signed-in players only |
+| 0010_combat | combat v1: Health starts at 10 (max HP = level), `items`, `shop_items`, `enemy_kinds`, `enemies` (Realtime), `game.pigeon_at` (same as src/game/enemies.ts; checked), `attack`, `fight_step`, `stop_fight`, `equip_item`, `unequip_item`, `buy_item` (Ray's store) |
 | 0009_one_device_at_a_time | one device per account: `session_id` on players, header `x-game-session`, `claim_session(force)`, `game.me()` and `send_chat()` refuse other sessions (`session_replaced`) |
 | 0008_baller_throws_ball | gym bags fail message: "Stop that!" and the ball thrown at you (only that sentence in `finish_attempt` changed, from its live definition) |
 | 0007_no_minimum_health | `start_attempt` no longer refuses below 3 HP; `game.get_hit` warns instead ("badly hurt") |
@@ -25,3 +26,5 @@ The database for the multiplayer version (docs/design.md §11). Project ref: `bc
 Keeping the server and the game in sync: `npx vite-node scripts/spots-sql.ts` prints the spots and XP table from the map and
 the XP curve; `npx vite-node scripts/watch-check.ts` lists when the watchers see you at 400 test moments, to compare with the
 same query on the server (they matched exactly when 0003 was applied).
+`npx vite-node scripts/pigeon-check.ts` prints where the Pigeons are at 400 moments; the md5 must match the same query on the
+server (`game.pigeon_at`). It did when 0010 was applied.

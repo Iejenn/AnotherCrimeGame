@@ -59,10 +59,10 @@ describe('street crimes v2 (design §4)', () => {
 });
 
 describe('a new character', () => {
-  it('has 5 skills at level 1 and 10 health', () => {
+  it('has 4 skills at level 1, Health at level 10, and 10 HP', () => {
     const s = fresh();
     expect(SKILL_IDS).toEqual(['street', 'melee', 'defense', 'gunfire', 'health']);
-    expect(totalLevel(s)).toBe(5);
+    expect(totalLevel(s)).toBe(14); // 1 + 1 + 1 + 1 + 10
     expect(maxHp(s)).toBe(10);
   });
 });
@@ -134,7 +134,7 @@ describe('getting caught (design §4)', () => {
     const s = fresh();
     s.skills.street.xp = totalXpForLevel(level);
     s.hp = 20;
-    s.skills.health.xp = totalXpForLevel(6); // 20 max HP
+    s.skills.health.xp = totalXpForLevel(20); // 20 max HP
     return s;
   };
 
