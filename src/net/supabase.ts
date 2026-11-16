@@ -11,8 +11,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
-/** Where emails (confirm your account, reset your password) send you back to: this page, in online mode. */
-export const returnUrl = () => `${window.location.origin}${window.location.pathname}?online`;
+/** Where emails (confirm your account, reset your password) send you back to: this page. */
+export const returnUrl = () => `${window.location.origin}${window.location.pathname}`;
 
 /** What the server's error reasons mean, in words for the player. */
 export const REASONS: Record<string, string> = {

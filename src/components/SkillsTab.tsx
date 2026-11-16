@@ -5,7 +5,6 @@ import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
 import { crimeStats, fmtDuration, fmtMoney, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
-import { exportSave } from '../game/save';
 import { MAX_LEVEL, levelProgress } from '../game/xp';
 import { Bar, pct } from './ui';
 import { ITEM_BY_ID } from '../game/data/items';
@@ -30,30 +29,14 @@ function risk(c: CrimeDef) {
   return `On a fail: ${hurt}`;
 }
 
-/** Offline: save codes (onImport/onReset). Online: who you're signed in as (account). */
-export function SkillsTab({ s, onImport, onReset, account }: { s: GameState; onImport?: () => void; onReset?: () => void; account?: { email: string; onSignOut: () => void } }) {
+export function SkillsTab({ s, account }: { s: GameState; account: { email: string; onSignOut: () => void } }) {
   const [open, setOpen] = useState<SkillId>('street');
-  const [code, setCode] = useState('');
-  const [copied, setCopied] = useState(false);
   const total = totalLevel(s);
   const rank = rankFor(total);
   const def = SKILL_BY_ID[open];
   const lvl = skillLevel(s, open);
   const lp = levelProgress(s.skills[open].xp);
   const crimes = crimesForSkill(open);
-
-  const makeCode = async () => {
-    setCopied(false);
-    setCode(await exportSave(s));
-  };
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-    } catch {
-      /* clipboard blocked: the text box is selectable as a fallback */
-    }
-  };
 
   return (
     <div className="skills">
@@ -140,36 +123,13 @@ export function SkillsTab({ s, onImport, onReset, account }: { s: GameState; onI
         </div>
       </section>
 
-      {account && (
-        <section>
-          <h3 className="rule-head">Account</h3>
-          <p className="muted small">You play online: your character is saved on the server, on every device you sign in on. Signed in as {account.email}.</p>
-          <div className="save-row">
-            <button className="btn small" onClick={account.onSignOut}>Sign out</button>
-            <a className="btn small" href="?offline">Play offline instead</a>
-          </div>
-        </section>
-      )}
-      {onImport && onReset && (
       <section>
-        <h3 className="rule-head">Save</h3>
-        <p className="muted small">Saves automatically in this browser. Use a save code to move to another device.</p>
+        <h3 className="rule-head">Account</h3>
+        <p className="muted small">Your character is saved on the server, on every device you sign in on. Signed in as {account.email}.</p>
         <div className="save-row">
-          <button className="btn small" onClick={makeCode}>Export save code</button>
-          <button className="btn small" onClick={onImport}>Import save</button>
-          <button className="btn small danger" onClick={onReset}>Start over</button>
+          <button className="btn small" onClick={account.onSignOut}>Sign out</button>
         </div>
-        {code && (
-          <div className="save-out">
-            <textarea className="save-code" readOnly value={code} onFocus={(e) => e.target.select()} />
-            <div className="save-row">
-              <button className="btn small primary" onClick={copy}>{copied ? 'Copied' : 'Copy code'}</button>
-              <span className="muted small">{code.length.toLocaleString('en-US')} characters</span>
-            </div>
-          </div>
-        )}
       </section>
-      )}
     </div>
   );
 }

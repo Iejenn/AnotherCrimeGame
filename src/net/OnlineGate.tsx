@@ -1,4 +1,4 @@
-// Online mode (test version, behind ?online): sign in, make (or bring along) your character on the server,
+// The way into the game (it's online only): sign in, make (or bring along) your character on the server,
 // then play: the normal game screen, with every rule run by the server and the other players on the Street
 // (docs/design.md §11).
 import { useCallback, useEffect, useState } from 'react';

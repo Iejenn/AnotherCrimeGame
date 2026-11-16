@@ -29,12 +29,11 @@ The site will be at `https://iejenn.github.io/AnotherCrimeGame/`.
 ### Layout
 - `src/game/` — pure TypeScript game rules, no React (engine, XP curves, Intel/contracts, data tables).
   Balancing lives in `xp.ts` and `data/*.ts`.
-- `src/useGame.ts` — state, 1-second tick, offline catch-up, autosave.
+- `src/net/` — online play: sign-in, the Supabase connection, `useOnlineGame` (mirrors your character from the server), `world.ts` (other players).
+- `supabase/` — the database: every migration, in order (see `supabase/README.md`).
 - `src/components/` — UI.
 - `src/street/` — the 3D Street view (three.js): city map, pathfinding, the scene, NPC dialog and the character model.
 
 ### Saves & cheating
-v0.1 is **single-player and client-side**: saves go to `localStorage` (export/import from Profile).
-That makes it trivially editable. Before adding leaderboards or any multiplayer, the engine (`catchUp`,
-`startJob`, …) should move server-side (e.g. Supabase SECURITY DEFINER RPCs), with the client only rendering.
-The engine is written as pure functions on a state object to make that port straightforward.
+The game is **online only**: every rule runs on the server (Supabase SECURITY DEFINER functions; tables have RLS
+and no direct writes), and the app only shows the server's answers. See `docs/design.md` §11.
