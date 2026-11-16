@@ -6,7 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, H, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
+import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, H, LOT, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -778,6 +778,76 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(0.02, 0.22, 0.6), lam(0x5ac8ff, { emissive: 0x5ac8ff, emissiveIntensity: 1.3 }), X1 - t - 0.02, 0.95, Z0 + 2.6, false);
     add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 14)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
     add(own(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 10)).rotateZ(Math.PI / 2), lam(0xb8282a), BAR.x0 + t + 0.035, 0.85, Z0 + 3.5, false);
+  }
+
+  // ---------- the parking lot (Parking Meters, Steal From Cars) ----------
+  // Dark worn asphalt with white bays and wheel stops, a guard booth with a lit window, two tall
+  // sodium lamps, and a blue P sign. The meters (and later the cars) are spots, added by the Street view.
+  {
+    const X0 = LOT.x0;
+    const Z0 = LOT.y0;
+    const X1 = LOT.x1 + 1;
+    const Z1 = LOT.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
+    add(geoBox(X1 - X0 - 0.1, 0.03, Z1 - Z0 - 0.1), lam(0x2c2e33), cx, 0.065, cz, false);
+    // Oil stains.
+    const stains = new Batch(own(new THREE.CircleGeometry(0.22, 7).rotateX(-Math.PI / 2)), lam(0x1f2023), false);
+    for (let i = 0; i < 10; i++) stains.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.082, Z0 + 1.2 + rng() * (Z1 - Z0 - 2.4), 0.6 + rng(), 1, 0.4 + rng() * 0.6, rng() * 6);
+    stains.build(scene);
+    // Bays: white lines across the north and south rows, wheel stops in each bay.
+    const paint = lam(0xd8d0c0);
+    for (let x = X0; x <= X1; x++) {
+      add(geoBox(0.05, 0.01, 1.3), paint, x, 0.085, Z0 + 1.65, false);
+      add(geoBox(0.05, 0.01, 1.3), paint, x, 0.085, Z1 - 1.65, false);
+    }
+    for (let x = X0; x < X1; x++) {
+      add(geoBox(0.6, 0.06, 0.1), lam(0x8a8478), x + 0.5, 0.11, Z0 + 1.15, true);
+      add(geoBox(0.6, 0.06, 0.1), lam(0x8a8478), x + 0.5, 0.11, Z1 - 1.15, true);
+    }
+    // Dashed driving lane down the middle.
+    for (let x = X0 + 0.3; x < X1 - 0.2; x += 0.7) add(geoBox(0.35, 0.01, 0.05), lam(0xc8a83a), x + 0.17, 0.086, cz, false);
+    // The guard booth: a small hut with a lit window and a flat roof.
+    const booth = FIXTURES.find((f) => f.kind === 'booth' && inRect(LOT, f.x, f.y))!;
+    add(geoBox(0.85, 0.95, 0.85), lam(0x8a8478), booth.x + 0.5, 0.5, booth.y + 0.5);
+    add(geoBox(0.95, 0.06, 0.95), lam(0x2f4562), booth.x + 0.5, 1.0, booth.y + 0.5);
+    add(geoBox(0.5, 0.3, 0.02), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.5, 0.65, booth.y + 0.06, false);
+    add(geoBox(0.02, 0.3, 0.4), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.94, 0.65, booth.y + 0.5, false);
+    // A barrier arm by the booth.
+    add(geoBox(0.08, 0.4, 0.08), lam(0x2b2b2e), booth.x + 1.1, 0.2, booth.y + 0.92);
+    const arm = add(geoBox(1.2, 0.05, 0.05), lam(0xd9473a), booth.x + 1.7, 0.38, booth.y + 0.92);
+    arm.rotation.z = 0.15;
+    // Two tall sodium lamps.
+    for (const [lx, lz] of [[X0 + 0.15, cz], [X1 - 0.15, cz]]) {
+      add(own(new THREE.CylinderGeometry(0.035, 0.045, 2.1, 6)), lam(0x5a5f66), lx, 1.05, lz);
+      add(geoBox(0.3, 0.06, 0.14), lam(0x5a5f66), lx + (lx < cx ? 0.12 : -0.12), 2.1, lz);
+      add(geoBox(0.22, 0.03, 0.1), lam(C.lamp, { emissive: C.lamp, emissiveIntensity: 1.6 }), lx + (lx < cx ? 0.16 : -0.16), 2.07, lz, false);
+      pools.add(lx + (lx < cx ? 0.6 : -0.6), 0.09, lz, 1.4, 1, 1.4);
+    }
+    // The blue P sign on the corner.
+    const pSign = own(
+      canvasTex(
+        64,
+        64,
+        (g) => {
+          g.fillStyle = '#2a5a9a';
+          g.fillRect(0, 0, 64, 64);
+          g.strokeStyle = '#ffffff';
+          g.lineWidth = 4;
+          g.strokeRect(4, 4, 56, 56);
+          g.fillStyle = '#ffffff';
+          g.font = 'bold 44px Arial, sans-serif';
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          g.fillText('P', 32, 35);
+        },
+        false,
+      ),
+    );
+    add(own(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 6)), lam(0x5a5f66), X0 - 0.15, 0.65, Z0 - 0.15);
+    const ps = add(own(new THREE.PlaneGeometry(0.4, 0.4)), own(new THREE.MeshBasicMaterial({ map: pSign, side: THREE.DoubleSide })), X0 - 0.15, 1.2, Z0 - 0.15, false);
+    ps.rotation.y = Math.PI / 4;
   }
 
   // Build all instanced batches that were filled above.

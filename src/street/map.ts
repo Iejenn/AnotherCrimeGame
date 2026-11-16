@@ -96,8 +96,20 @@ export const BAR = room('bar', 'The bar', 1, 2, false);
 export const ROOMS: Room[] = [STORE, CANDY, BAR];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
-/** Blocks that aren't normal buildings: the park, the court, the rooms… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2]];
+// ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
+// An open lot at the east edge of town, next to the beach. Meters along the bays, a guard booth,
+// and a guard who patrols with a flashlight. Layout (M = meter, B = booth):
+//   M . M . M
+//   . . . . .
+//   . . . . .
+//   . . . . .
+//   B M . M .
+export const LOT: Rect = blockRect(5, 2);
+/** Where the guard patrols: the lot and the pavement and road around it. */
+export const PATROL: Rect = { x0: LOT.x0 - 1, y0: LOT.y0 - 1, x1: LOT.x1 + 1, y1: LOT.y1 + 1 };
+
+/** Blocks that aren't normal buildings: the park, the court, the rooms, the lot… */
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2]];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -166,7 +178,7 @@ export const BUILDINGS: Building[] = (() => {
 })();
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'backbar' | 'bar' | 'table' | 'jukebox';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth';
 export interface Fixture {
   x: number;
   y: number;
@@ -224,6 +236,9 @@ export const FIXTURES: Fixture[] = (() => {
   for (let dx = 0; dx < 3; dx++) out.push({ x: BAR.x0 + dx, y: BAR.y0 + 2, kind: 'bar' });
   out.push({ x: BAR.x1, y: BAR.y0 + 3, kind: 'table' });
 
+  // The guard booth in the parking lot's corner.
+  out.push({ x: LOT.x0, y: LOT.y1, kind: 'booth' });
+
   // The court's bench (the gym bags on it are spots, see NODES).
   out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
   return out;
@@ -245,6 +260,9 @@ export const NODES: StreetNode[] = (() => {
   [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
   // Three drunks on stools at the bar, facing the counter.
   for (let i = 0; i < 3; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + i, BAR.y0 + 3, { facing: Math.PI, seated: true });
+  // Five parking meters: three along the north edge of the lot (facing in), two along the south edge.
+  [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', LOT.x0 + dx, LOT.y0, { facing: 0 }));
+  [1, 3].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', LOT.x0 + dx, LOT.y1, { facing: Math.PI }));
   return out;
 })();
 
@@ -268,7 +286,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard';
 export interface Npc {
   id: string;
   name: string;
@@ -298,6 +316,11 @@ export const NPCS: Npc[] = [
   {
     id: 'bartender', name: 'Bartender', role: 'The bar', kind: 'bartender', x: BAR.x0 + 1, y: BAR.y0 + 1,
     area: { x0: BAR.x0, y0: BAR.y0 + 1, x1: BAR.x0 + 2, y1: BAR.y0 + 1 }, named: true, catches: ['pick_drunk'],
+  },
+  // The parking lot guard patrols the lot with a flashlight.
+  {
+    id: 'guard', name: 'Guard', role: 'Parking lot', kind: 'guard', x: LOT.x0 + 2, y: LOT.y0 + 2,
+    area: PATROL, named: true, catches: ['parking_meter', 'steal_car'],
   },
   { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
   { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },

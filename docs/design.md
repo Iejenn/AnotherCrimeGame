@@ -63,7 +63,8 @@ XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **e
 
 > **Status: v2 being built, one place per step.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
 > Built: **1 Pickpocket Tourists** (big park), **5 Raid Gym Bags** (basketball court),
-> **10 Shoplift Candy Store** (candy store with a clerk), **15 Pickpocket Drunks** (the bar). The rest show
+> **10 Shoplift Candy Store** (candy store with a clerk), **15 Pickpocket Drunks** (the bar),
+> **20 Pry Open Parking Meters** (the parking lot with the guard). The rest show
 > "coming soon" in the Skills tab until their place exists. The rules for all seven (odds, rewards, getting caught,
 > shelves and meters that empty) are already in the game engine and tested.
 
@@ -176,8 +177,17 @@ the time you spend waiting for the bartender or guard into account. To be tuned 
   to polish the bottles. His label says "watching" (red) or "back turned" (green). If he is facing the room at any
   moment of your attempt, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP,
   stunned 3s). The timings are constants at the top of `StreetView.tsx` (`BAR_WATCH`, `BAR_BACK`).
-- Still to come (see §4): a **parking lot at the edge of town** with meters, cars and a guard, and a
-  **gas station** next to it (enterable, shop icon).
+- **The parking lot** (built), at the east edge of town by the beach: dark asphalt with white bays, wheel stops and
+  oil stains, a guard booth with a lit window and a barrier arm, two tall sodium lamps, a blue P sign.
+  **Five parking meters** (tap one: 3s, always works if unseen, $15–30). An emptied meter's light turns red and
+  it fills up again after 15s.
+  The **guard** patrols the lot and the pavement around it: he walks to a spot, stops, and sweeps his
+  **flashlight** left and right. The beam is drawn on the ground (about 4.5 tiles long, ~86° wide) and turns red
+  when he sees you working. Seen = "I saw that!", he walks over and whacks you (−3 HP, stunned 4s), then goes back
+  to patrolling. Tuning constants at the top of `StreetView.tsx` (`GUARD_RANGE`, `GUARD_HALF`, `GUARD_SPEED`,
+  `GUARD_LOOK`).
+- Still to come (see §4): **cars** on the lot (Steal From Cars) and the **gas station** next to it
+  (enterable, shop icon).
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.

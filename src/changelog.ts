@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.16.0',
+    date: '2026-11-16',
+    title: 'The parking lot',
+    items: [
+      'Pry Open Parking Meters (level 20): a parking lot at the east edge of town with five meters. Prying one open always works ($15–30); an emptied meter turns red and fills up again after 15 seconds.',
+      'A guard patrols the lot with a flashlight. Stay out of the beam: if he catches you at a meter, he yells "I saw that!" and whacks you (−3 HP, stunned 4s).',
+    ],
+  },
+  {
     version: '0.15.0',
     date: '2026-11-16',
     title: 'The bar',

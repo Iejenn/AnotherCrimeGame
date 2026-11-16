@@ -9,7 +9,7 @@ import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel, spotted, startJob, stopJob } from '../game/engine';
 import { ITEM_BY_ID } from '../game/data/items';
-import { BLOCK, BLOCKS, BUILDINGS, COURT, H, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
+import { BLOCK, BLOCKS, BUILDINGS, COURT, H, LOT, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, buildCar, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
@@ -32,6 +32,12 @@ const MAX_LABELS = 6;
 /** The bartender watches the room for 3–5.5s, then turns his back for 3.5–5s (seconds, min–max). */
 const BAR_WATCH: [number, number] = [3, 5.5];
 const BAR_BACK: [number, number] = [3.5, 5];
+/** The guard's flashlight: how far it reaches (tiles) and half its width (radians, so 0.75 ≈ 86° wide). */
+const GUARD_RANGE = 4.5;
+const GUARD_HALF = 0.75;
+/** He walks the lot at this speed (tiles/s) and stops to look around for 1.5–4s. */
+const GUARD_SPEED = 1.2;
+const GUARD_LOOK: [number, number] = [1.5, 4];
 const between = ([a, b]: [number, number]) => (a + Math.random() * (b - a)) * 1000;
 /** Smallest signed difference between two angles. */
 const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -190,6 +196,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       baller_1: [{ skin: 0, hair: 1, hairColor: 2, top: 1, bottom: 3 }, undefined],
       candy_clerk: [{ skin: 2, hair: 2, hairColor: 3, top: 5, bottom: 0 }, { apron: 0xff7ab8 }], // pink apron
       bartender: [{ skin: 1, hair: 0, hairColor: 0, top: 4, bottom: 0 }, { apron: 0x1e1b18 }], // white shirt, black apron
+      guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, undefined], // navy uniform and cap
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
@@ -242,6 +249,22 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       w.path = path;
       w.speed = Math.max(2.5, (path.length + 0.5) / timeLeft);
       w.until = at + CATCH_SECONDS * 1000;
+    };
+    /** The guard: where he looks when he stops (he sweeps his flashlight left and right around it). */
+    const guardState = { baseYaw: 0, lookT0: 0, sees: false };
+    // His flashlight beam on the ground: a soft cone that turns red when he sees you.
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+    const beam = new THREE.Mesh(new THREE.CircleGeometry(GUARD_RANGE, 20, -Math.PI / 2 - GUARD_HALF, GUARD_HALF * 2).rotateX(-Math.PI / 2), beamMat);
+    beam.position.y = 0.1;
+    beam.renderOrder = 2;
+    scene.add(beam);
+    geoms.push(beam.geometry);
+    disposables.push(beamMat);
+    /** Is the point inside the guard's flashlight beam? */
+    const inBeam = (gx: number, gz: number, yaw: number, p: THREE.Vector3) => {
+      const dx = p.x - gx;
+      const dz = p.z - gz;
+      return Math.hypot(dx, dz) <= GUARD_RANGE && Math.abs(angDiff(Math.atan2(dx, dz), yaw)) <= GUARD_HALF;
     };
     /** The bartender's routine: watching the room, or his back turned (polishing bottles). */
     const barState = { watching: true, until: performance.now() + between(BAR_WATCH), sees: false };
@@ -366,6 +389,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         if (npc.kind === 'baller') return say("They're busy playing. Their bags on the bench aren't watched much…");
         if (npc.kind === 'clerk') return say(`The ${npc.name.toLowerCase()} keeps an eye on the shelves. Don't get caught.`);
         if (npc.kind === 'bartender') return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
+        if (npc.kind === 'guard') return say('The guard patrols the lot with his flashlight. Stay out of the light.');
         stopWorking();
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
@@ -450,6 +474,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       area(PARK, '#45663a');
       tile(PARK.x0, PARK.y0 + 2, PARK.x1 - PARK.x0 + 1, 1, '#8a8070'); // the path across
       area(COURT, '#7a3b2c');
+      area(LOT, '#3a3c42');
       const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#7a6a3a' };
       for (const r of ROOMS) area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
       for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#8a7f70');
@@ -778,6 +803,30 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           g.position.set(w.pos.x, 0.03, w.pos.z);
           animateCharacter(g, w.moving ? 'walk' : barState.watching ? 'idle' : 'work', now, 2.3);
           continue;
+        } else if (npc.kind === 'guard') {
+          // Patrol: walk to a random spot around the lot, stop, sweep the flashlight left and right, repeat.
+          if (w.path.length) {
+            w.speed = GUARD_SPEED;
+            if (followPath(w, g, dt)) {
+              guardState.baseYaw = g.rotation.y;
+              guardState.lookT0 = now;
+              w.wait = between(GUARD_LOOK) / 1000;
+            }
+          } else {
+            g.rotation.y = guardState.baseYaw + Math.sin(((now - guardState.lookT0) / 1000) * 1.2) * 0.9;
+            w.wait -= dt;
+            if (w.wait <= 0) {
+              const a = npc.area;
+              const tx = a.x0 + Math.floor(Math.random() * (a.x1 - a.x0 + 1));
+              const ty = a.y0 + Math.floor(Math.random() * (a.y1 - a.y0 + 1));
+              if (!blocked[ty * W + tx]) w.path = findPath(blocked, W, H, tileOf(w.pos.x, w.pos.z), [[tx, ty]], canStep) ?? [];
+              w.wait = 0.3;
+            }
+          }
+          guardState.sees = inBeam(w.pos.x, w.pos.z, g.rotation.y, me.pos);
+          g.position.set(w.pos.x, 0.03, w.pos.z);
+          animateCharacter(g, w.moving ? 'walk' : 'idle', now, 4.2);
+          continue;
         } else if (npc.kind === 'baller') {
           // Ballers are moved by the basketball game.
           const b = hoops.player(npc.id === 'baller_0' ? 0 : 1, now / 1000);
@@ -808,10 +857,24 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
+      {
+        const gw = npcWalk.get('guard');
+        const gg = npcGroups.get('guard');
+        if (gw && gg) {
+          beam.position.set(gw.pos.x, 0.1, gw.pos.z);
+          beam.rotation.y = gg.rotation.y;
+          beam.visible = gw.mode === 'normal';
+          const working = !!job && CRIME_BY_ID[job.crimeId]?.catcher === 'guard';
+          beamMat.color.set(guardState.sees && working ? 0xff3a2a : 0xfff0b0);
+          beamMat.opacity = guardState.sees && working ? 0.55 : 0.3;
+        }
+        // Only an NPC in his usual routine can see you.
+        if (gw?.mode !== 'normal') guardState.sees = false;
+      }
       // Seen mid-attempt by someone who watches (the bartender): the attempt is lost and he comes for you.
       if (job && !st.player.caught) {
         const watcher = CRIME_BY_ID[job.crimeId]?.catcher;
-        if (watcher === 'bartender' && barState.sees) actRef.current((d, t) => spotted(d, t));
+        if ((watcher === 'bartender' && barState.sees) || (watcher === 'guard' && guardState.sees)) actRef.current((d, t) => spotted(d, t));
       }
       // Spots that were emptied (shelves, meters) look empty until they refill.
       for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, Date.now()) > 0);
