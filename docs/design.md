@@ -180,6 +180,9 @@ timing) in `src/game/data/crimes.ts`.
 
 ## 7. The map
 
+**The numbered map:** [docs/map.md](map.md) (blocks 001–009, lots A–D, generated from the game's map). Use those names
+when talking about places: "002-C" is block 002, lot C (Eddy's).
+
 - An **island in the ocean**: a sandy beach with rocks around the city, then open sea.
 - **The grid (v0.30, decided: layout B):** 3×3 **blocks** of 10×10 tiles, each block **4 lots** of 5×5 (2×2), with
   **7-tile streets** between the blocks: a sidewalk (1.5), a road for two cars (4, dashed centre line), a sidewalk

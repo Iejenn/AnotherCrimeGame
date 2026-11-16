@@ -46,6 +46,31 @@ export const lotRect = (bx: number, by: number, lx: number, ly: number): Rect =>
   return { x0, y0, x1: x0 + LOT_SIZE - 1, y1: y0 + LOT_SIZE - 1 };
 };
 
+// ---------- names, to talk about the map (docs/map.md, docs/map.png) ----------
+// Blocks are numbered row by row from the north-west corner: 001 002 003 / 004 005 006 / 007 008 009.
+// Lots in a block: A = north-west, B = north-east, C = south-west, D = south-east.
+//   A B
+//   C D
+export type LotLetter = 'A' | 'B' | 'C' | 'D';
+export const blockName = (bx: number, by: number) => String(by * BCOLS + bx + 1).padStart(3, '0');
+export const lotLetter = (lx: number, ly: number): LotLetter => (['A', 'B', 'C', 'D'] as const)[ly * 2 + lx];
+export const lotName = (bx: number, by: number, lx: number, ly: number) => `${blockName(bx, by)}-${lotLetter(lx, ly)}`;
+/** Block "005" → (bx, by). */
+const blockXY = (name: string): [number, number] => {
+  const n = Number(name) - 1;
+  if (!(n >= 0 && n < BCOLS * BROWS)) throw new Error(`no block ${name}`);
+  return [n % BCOLS, Math.floor(n / BCOLS)];
+};
+/** Block "005" and lot "C" → [bx, by, lx, ly]. */
+const lotXY = (block: string, letter: LotLetter): [number, number, number, number] => {
+  const i = 'ABCD'.indexOf(letter);
+  return [...blockXY(block), i % 2, Math.floor(i / 2)];
+};
+/** The tiles of a lot by its name: lot('002', 'C'). */
+export const lot = (block: string, letter: LotLetter): Rect => lotRect(...lotXY(block, letter));
+/** The tiles of a block by its number: block('008'). */
+export const block = (name: string): Rect => blockRect(...blockXY(name));
+
 export interface StreetNode {
   id: string;
   crimeId: string;
@@ -64,6 +89,8 @@ export interface StreetNode {
 /** What fills a lot: buildings, a pocket park, or something special (drawn by its own section in city.ts). */
 export type LotKind = 'buildings' | 'park' | 'special';
 export interface Lot {
+  /** Its name on the map, like "002-C" (block 002, lot C). */
+  name: string;
   bx: number;
   by: number;
   lx: number;
@@ -86,7 +113,7 @@ export interface Building {
 }
 
 /** Pocket parks (one lot each). */
-const PARKS: [number, number, number, number][] = [[2, 0, 1, 0], [0, 2, 0, 1]];
+const PARKS: [string, LotLetter][] = [['003', 'B'], ['007', 'C']];
 
 /** Where you start (and wake up after dying): on the sidewalk between the candy store's block and the park. */
 export const SPAWN: [number, number] = [29, 35];
@@ -99,14 +126,14 @@ export function isRoad(x: number, y: number) {
 // ---------- Central Park (Pickpocket Tourists, level 1) ----------
 // A whole block (10×10) of lawn with hedges around the edge, gravel paths in a # shape, a fountain in the middle
 // with benches, a pond, trees and flowerbeds. Three tourists stroll around in it, and the Pigeons live here.
-export const PARK: Rect = blockRect(1, 2);
+export const PARK: Rect = block('008');
 /** The gravel paths: these rows and columns (offsets inside the park). */
 export const PARK_PATHS = { rows: [2, 7], cols: [2, 7] };
 
 // ---------- the basketball court (Raid Gym Bags, level 5) ----------
 // A fenced court left of the park. The open (north) side faces the street, with a bench where the
 // players left their gym bags. Two players shoot hoops inside.
-export const COURT: Rect = lotRect(0, 1, 1, 0);
+export const COURT: Rect = lot('004', 'B');
 
 // ---------- rooms you can walk into ----------
 // Each fills (part of) a block, with walls along the edge and one door in the middle of the front
@@ -125,17 +152,17 @@ const room = (id: string, name: string, r: Rect, shop: boolean, rows = 5): Room 
 };
 /** Eddy's General Store, on the north side of the middle block's street. The server checks you're inside it when
  *  you sell (sell_item). */
-export const STORE = room('store', "Eddy's General Store", lotRect(1, 0, 0, 1), true);
+export const STORE = room('store', "Eddy's General Store", lot('002', 'C'), true);
 /** The candy store (Shoplift Candy Store, level 10), facing the park. */
-export const CANDY = room('candy', 'Candy store', lotRect(1, 1, 0, 1), true);
+export const CANDY = room('candy', 'Candy store', lot('005', 'C'), true);
 /** The bar (Pickpocket Drunks, level 15), under the basketball court. */
-export const BAR = room('bar', 'The bar', lotRect(0, 1, 0, 1), false);
+export const BAR = room('bar', 'The bar', lot('004', 'C'), false);
 /** The gas station shop (Shoplift Gas Station, level 25): the top-left lot of the east block. The shop is its
  *  top four rows; the pumps stand in the row in front of it, under a canopy. */
-export const GAS = room('gas', 'Gas station', lotRect(2, 1, 0, 0), true, 4);
+export const GAS = room('gas', 'Gas station', lot('006', 'A'), true, 4);
 /** Ray's weapon store (combat, docs/design.md §12), next to Eddy's. The server checks you're inside it when you buy
  *  (buy_item). */
-export const WEAPONS = room('weapons', "Ray's Arms", lotRect(1, 0, 1, 1), true);
+export const WEAPONS = room('weapons', "Ray's Arms", lot('002', 'D'), true);
 export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS, WEAPONS];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
@@ -146,10 +173,10 @@ export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y
 //   G G P P P
 //   P P P P P     the two south lots: one long strip
 //   P P P P P
-export const STATION: Rect = blockRect(2, 1);
+export const STATION: Rect = block('006');
 /** The north-east parking lot and the long south strip. */
-export const PARKING_NE: Rect = lotRect(2, 1, 1, 0);
-export const PARKING_S: Rect = { ...lotRect(2, 1, 0, 1), x1: lotRect(2, 1, 1, 1).x1 };
+export const PARKING_NE: Rect = lot('006', 'B');
+export const PARKING_S: Rect = { ...lot('006', 'C'), x1: lot('006', 'D').x1 };
 export const PARKING: Rect[] = [PARKING_NE, PARKING_S];
 /** Where the guard may walk (to catch you, too): the station block and the sidewalks around it. */
 export const PATROL: Rect = { x0: STATION.x0 - 1, y0: STATION.y0 - 1, x1: STATION.x1 + 1, y1: STATION.y1 + 1 };
@@ -157,12 +184,12 @@ export const PATROL: Rect = { x0: STATION.x0 - 1, y0: STATION.y0 - 1, x1: STATIO
 export const NO_ROAD: Rect[] = [];
 
 /** Lots that aren't normal buildings. */
-const SPECIAL: [number, number, number, number][] = [
-  [1, 0, 0, 1], [1, 0, 1, 1], // Eddy's, Ray's
-  [0, 1, 1, 0], [0, 1, 0, 1], // the court, the bar
-  [1, 1, 0, 1], // the candy store
-  [2, 1, 0, 0], [2, 1, 1, 0], [2, 1, 0, 1], [2, 1, 1, 1], // the gas station and its parking lot
-  [1, 2, 0, 0], [1, 2, 1, 0], [1, 2, 0, 1], [1, 2, 1, 1], // Central Park
+const SPECIAL: [string, LotLetter][] = [
+  ['002', 'C'], ['002', 'D'], // Eddy's, Ray's
+  ['004', 'B'], ['004', 'C'], // the court, the bar
+  ['005', 'C'], // the candy store
+  ['006', 'A'], ['006', 'B'], ['006', 'C'], ['006', 'D'], // the gas station and its parking lot
+  ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
 ];
 
 /**
@@ -189,15 +216,14 @@ export const enclosureAt = (x: number, y: number) => ENCLOSURES.find((e) => inRe
 
 export const LOTS: Lot[] = (() => {
   const out: Lot[] = [];
-  const key = (a: number[]) => a.join(',');
-  const special = new Set(SPECIAL.map(key));
-  const parks = new Set(PARKS.map(key));
+  const special = new Set(SPECIAL.map(([b, l]) => `${b}-${l}`));
+  const parks = new Set(PARKS.map(([b, l]) => `${b}-${l}`));
   for (let bx = 0; bx < BCOLS; bx++)
     for (let by = 0; by < BROWS; by++)
       for (let ly = 0; ly < 2; ly++)
         for (let lx = 0; lx < 2; lx++) {
-          const k = key([bx, by, lx, ly]);
-          out.push({ bx, by, lx, ly, rect: lotRect(bx, by, lx, ly), kind: special.has(k) ? 'special' : parks.has(k) ? 'park' : 'buildings' });
+          const name = lotName(bx, by, lx, ly);
+          out.push({ name, bx, by, lx, ly, rect: lotRect(bx, by, lx, ly), kind: special.has(name) ? 'special' : parks.has(name) ? 'park' : 'buildings' });
         }
   return out;
 })();
