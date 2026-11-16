@@ -293,7 +293,13 @@ Realtime cost) low.
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.
 
-**Launch:** accounts start fresh ("Season 1"). Local saves can be edited, so they won't be imported.
+**Bringing offline characters along (decided):** the first testers can move their offline character into their
+new account once (`import_local_character`), when they sign in for the first time on the device they played on.
+Because a browser save can be edited, the server caps everything (XP 20,000 per skill, $250,000, 500 of each
+food, unknown items dropped), and importing **closes on 1 March 2027**. After that, new players start fresh.
+
+**One world:** everyone plays on the same server and the same island (one Supabase project). Seeing each other
+needs step 2 below.
 
 **Progress on step 1:**
 - Database (migration `0001_players`, see `supabase/`): players, graves, shared spot state, the crimes table;

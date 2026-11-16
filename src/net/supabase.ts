@@ -22,4 +22,6 @@ export const REASONS: Record<string, string> = {
   name_taken: 'That name is taken. Try another one.',
   bad_look: "That look isn't allowed.",
   no_character: "You don't have a character yet.",
+  import_closed: 'Bringing offline characters over has closed. Make a new character instead.',
+  bad_save: "That offline character can't be brought over. Make a new one instead.",
 };

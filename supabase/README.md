@@ -13,3 +13,4 @@ The database for the multiplayer version (docs/design.md §11). Project ref: `bc
 | Migration | What |
 |---|---|
 | 0001_players | crimes (rules data), players, graves, spot_state (shared); `create_character`, `get_my_player` |
+| 0002_import_local_character | `import_local_character`: bring an offline (browser) character into a new account, with every number capped; open until 2027-03-01 |

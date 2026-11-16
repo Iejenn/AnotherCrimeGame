@@ -9,6 +9,8 @@ import { levelFromXp } from '../game/xp';
 import { fmtMoney } from '../game/engine';
 import { AuthScreen } from './AuthScreen';
 import { REASONS, supabase } from './supabase';
+import { loadGame } from '../game/save';
+import { levelFromXp as lvl } from '../game/xp';
 
 /** A player row as the server sends it (see supabase/migrations/0001_players.sql). */
 interface PlayerRow {
@@ -25,6 +27,8 @@ export function OnlineGate() {
   const [player, setPlayer] = useState<PlayerRow | null | undefined>(undefined);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  /** The name to use when bringing an offline character along (it may need changing: online names are unique). */
+  const [importName, setImportName] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -56,8 +60,10 @@ export function OnlineGate() {
   if (!session || recovering) return <AuthScreen recovering={recovering} onDone={() => setRecovering(false)} />;
   if (player === undefined) return <div className="create"><p className="muted">{error || 'Loading your character…'}</p></div>;
 
-  if (player === null)
-    return (
+  if (player === null) {
+    // Played offline before? Offer to bring that character into this account (until the server's cutoff date).
+    const local = loadGame();
+    const create = (
       <CreateCharacter
         busy={busy}
         error={error}
@@ -72,6 +78,43 @@ export function OnlineGate() {
         }}
       />
     );
+    if (!local) return create;
+    return (
+      <>
+        <div className="create import-offer">
+          <div className="kicker">You played offline on this device</div>
+          <h2 className="headline">Bring {local.name} along?</h2>
+          <p className="small">
+            Street Crimes level {lvl(local.skills.street.xp)}, {fmtMoney(local.cash)} in cash. Your character moves into this account so you can
+            play it online. (Your offline copy on this device stays as it is.)
+          </p>
+          <label className="field">
+            <span className="label">Name online</span>
+            <input value={importName ?? local.name} maxLength={16} onChange={(e) => setImportName(e.target.value)} />
+          </label>
+          {error && <p className="auth-error">{error}</p>}
+          <button
+            className="btn primary block"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError('');
+              const { name, look, cash, skills, inventory, stats, version } = local;
+              const { data, error: e } = await supabase.rpc('import_local_character', { p_save: { name: importName ?? name, look, cash, skills, inventory, stats, version } });
+              setBusy(false);
+              if (e) return setError(e.message);
+              if (!data?.ok) return setError(REASONS[data?.reason] ?? 'Something went wrong.');
+              load();
+            }}
+          >
+            Bring {local.name} along
+          </button>
+          <p className="muted small">Or make a brand new character below.</p>
+        </div>
+        {create}
+      </>
+    );
+  }
 
   return (
     <div className="create">
