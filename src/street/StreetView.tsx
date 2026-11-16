@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { GameState, Report } from '../game/types';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
+import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel, spotted, startJob, stopJob } from '../game/engine';
 import { ITEM_BY_ID } from '../game/data/items';
 import { BLOCK, BLOCKS, BUILDINGS, COURT, H, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
@@ -29,6 +29,14 @@ const LABEL_RANGE = 5; // tiles
 const NPC_LABEL_RANGE = 9; // NPC names show from further away
 
 const MAX_LABELS = 6;
+/** The bartender watches the room for 3–5.5s, then turns his back for 3.5–5s (seconds, min–max). */
+const BAR_WATCH: [number, number] = [3, 5.5];
+const BAR_BACK: [number, number] = [3.5, 5];
+const between = ([a, b]: [number, number]) => (a + Math.random() * (b - a)) * 1000;
+/** Smallest signed difference between two angles. */
+const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+/** Turn angle `a` towards `goal` by at most `step` radians. */
+const turnTowards = (a: number, goal: number, step: number) => a + Math.max(-step, Math.min(step, angDiff(goal, a)));
 function lockMessage(s: GameState, crimeId: string) {
   const crime = CRIME_BY_ID[crimeId];
   const skill = SKILL_BY_ID[crime.skill];
@@ -130,6 +138,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       g.add(hit);
     };
     const people = new Map<string, THREE.Group>();
+    const seatedIds = new Set(NODES.filter((n) => n.seated).map((n) => n.id));
     for (const n of NODES) {
       let g: THREE.Group;
       const c = center(n.x, n.y);
@@ -147,6 +156,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         g = buildShelf([0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8, 0xe86aa0], n.x * 3 + n.y);
       }
       g.position.copy(c);
+      if (n.seated) g.position.y = 0.06;
       if (n.facing !== undefined) g.rotation.y = n.facing;
       g.traverse((o) => (o.userData.nodeId = n.id));
       scene.add(g);
@@ -179,6 +189,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       baller_0: [{ skin: 3, hair: 0, hairColor: 0, top: 4, bottom: 1 }, undefined],
       baller_1: [{ skin: 0, hair: 1, hairColor: 2, top: 1, bottom: 3 }, undefined],
       candy_clerk: [{ skin: 2, hair: 2, hairColor: 3, top: 5, bottom: 0 }, { apron: 0xff7ab8 }], // pink apron
+      bartender: [{ skin: 1, hair: 0, hairColor: 0, top: 4, bottom: 0 }, { apron: 0x1e1b18 }], // white shirt, black apron
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
@@ -232,8 +243,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       w.speed = Math.max(2.5, (path.length + 0.5) / timeLeft);
       w.until = at + CATCH_SECONDS * 1000;
     };
-    /** The name over an NPC's head. */
-    const npcLabel = (npc: Npc) => npc.name;
+    /** The bartender's routine: watching the room, or his back turned (polishing bottles). */
+    const barState = { watching: true, until: performance.now() + between(BAR_WATCH), sees: false };
+    /** The name over an NPC's head, and whether it's a warning (red) or safe (green). */
+    const npcLabel = (npc: Npc): [string, string] => {
+      if (npc.kind === 'bartender') return barState.watching ? [`${npc.name} · watching`, 'alert'] : [`${npc.name} · back turned`, 'safe'];
+      return [npc.name, ''];
+    };
     /** Move an NPC along its path; true when it has arrived. */
     const followPath = (w: NpcState, g: THREE.Group, dt: number) => {
       if (!w.path.length) return true;
@@ -349,6 +365,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
         if (npc.kind === 'baller') return say("They're busy playing. Their bags on the bench aren't watched much…");
         if (npc.kind === 'clerk') return say(`The ${npc.name.toLowerCase()} keeps an eye on the shelves. Don't get caught.`);
+        if (npc.kind === 'bartender') return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
         stopWorking();
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
@@ -692,7 +709,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       let k = 0;
       for (const [id, g] of people) {
         const w = walkers.get(id);
-        animateCharacter(g, w?.moving ? 'walk' : 'idle', now, k++ * 0.7);
+        animateCharacter(g, seatedIds.has(id) ? 'sit' : w?.moving ? 'walk' : 'idle', now, k++ * 0.7);
         if (w) w.moving = false;
       }
       const caught = st.player.caught;
@@ -725,6 +742,10 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           } else if (followPath(w, g, dt)) {
             w.mode = 'normal';
             w.target.copy(w.pos);
+            if (npc.kind === 'bartender') {
+              barState.watching = true;
+              barState.until = now + between(BAR_WATCH);
+            }
           }
           g.position.set(w.pos.x, 0.03, w.pos.z);
           animateCharacter(g, w.mode === 'hit' ? 'work' : w.moving ? 'walk' : 'idle', now, 3.1);
@@ -733,6 +754,30 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         if (busy) {
           w.target.copy(center(...tileOf(w.pos.x, w.pos.z)));
           if (talkingNow === npc.id) g.rotation.y = Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z);
+        } else if (npc.kind === 'bartender') {
+          // Every few seconds he turns his back to polish the bottles (walking to another spot along
+          // the back bar first), then turns around and watches the room again.
+          if (now > barState.until) {
+            barState.watching = !barState.watching;
+            barState.until = now + between(barState.watching ? BAR_WATCH : BAR_BACK);
+            if (!barState.watching) {
+              const x = npc.area.x0 + Math.floor(Math.random() * (npc.area.x1 - npc.area.x0 + 1));
+              w.target = center(x, npc.area.y0);
+            }
+          }
+          const d = w.target.clone().sub(w.pos);
+          if (d.length() > 0.02) {
+            w.pos.add(d.clampLength(0, 1.3 * dt));
+            g.rotation.y = Math.atan2(d.x, d.z);
+            w.moving = true;
+          } else {
+            g.rotation.y = turnTowards(g.rotation.y, barState.watching ? 0 : Math.PI, dt * 6);
+          }
+          // He sees the whole room once he's fully turned towards it.
+          barState.sees = barState.watching && !w.moving && Math.abs(angDiff(g.rotation.y, 0)) < 0.6;
+          g.position.set(w.pos.x, 0.03, w.pos.z);
+          animateCharacter(g, w.moving ? 'walk' : barState.watching ? 'idle' : 'work', now, 2.3);
+          continue;
         } else if (npc.kind === 'baller') {
           // Ballers are moved by the basketball game.
           const b = hoops.player(npc.id === 'baller_0' ? 0 : 1, now / 1000);
@@ -763,6 +808,11 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
+      // Seen mid-attempt by someone who watches (the bartender): the attempt is lost and he comes for you.
+      if (job && !st.player.caught) {
+        const watcher = CRIME_BY_ID[job.crimeId]?.catcher;
+        if (watcher === 'bartender' && barState.sees) actRef.current((d, t) => spotted(d, t));
+      }
       // Spots that were emptied (shelves, meters) look empty until they refill.
       for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, Date.now()) > 0);
       // Inside a room: fade its walls and lift the roof so you can see in.
@@ -830,8 +880,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
           labelLayer.appendChild(el);
           labelEls.set(`npc:${npc.id}`, el);
         }
-        const text = npcLabel(npc);
+        const [text, tone] = npcLabel(npc);
         if (el.textContent !== text) el.textContent = text;
+        if (el.dataset.tone !== tone) el.dataset.tone = tone;
         seen.add(`npc:${npc.id}`);
         placed.push([x, y, text.length * 6 + 10]);
         el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;

@@ -36,6 +36,8 @@ export interface StreetNode {
   wanders?: Rect;
   /** Which way the thing faces (radians around the vertical, 0 = +z / south). */
   facing?: number;
+  /** Sits on a bar stool (drunks). */
+  seated?: boolean;
 }
 
 export type BlockKind = { type: 'park' } | { type: 'buildings' } | { type: 'special' };
@@ -89,11 +91,13 @@ const room = (id: string, name: string, bx: number, by: number, shop: boolean, r
 export const STORE = room('store', "Eddy's General Store", 2, 1, true);
 /** The candy store (Shoplift Candy Store, level 10), north of the park. */
 export const CANDY = room('candy', 'Candy store', 3, 2, true);
-export const ROOMS: Room[] = [STORE, CANDY];
+/** The bar (Pickpocket Drunks, level 15), above the basketball court. */
+export const BAR = room('bar', 'The bar', 1, 2, false);
+export const ROOMS: Room[] = [STORE, CANDY, BAR];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 /** Blocks that aren't normal buildings: the park, the court, the rooms… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2]];
+const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2]];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -162,7 +166,7 @@ export const BUILDINGS: Building[] = (() => {
 })();
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'backbar' | 'bar' | 'table' | 'jukebox';
 export interface Fixture {
   x: number;
   y: number;
@@ -208,6 +212,18 @@ export const FIXTURES: Fixture[] = (() => {
   //   . . D . .
   out.push({ x: CANDY.x0, y: CANDY.y0 + 2, kind: 'counter' }, { x: CANDY.x0 + 1, y: CANDY.y0 + 2, kind: 'counter' });
 
+  // The bar. Layout (B = back bar with bottles, J = jukebox, c = bar counter, d = drunk on a stool
+  // (a spot, see NODES), T = table):
+  //   B B B B J
+  //   . . . . .     <- the bartender works back here
+  //   c c c . .
+  //   d d d . T
+  //   . . D . .
+  for (let dx = 0; dx < 4; dx++) out.push({ x: BAR.x0 + dx, y: BAR.y0, kind: 'backbar' });
+  out.push({ x: BAR.x1, y: BAR.y0, kind: 'jukebox' });
+  for (let dx = 0; dx < 3; dx++) out.push({ x: BAR.x0 + dx, y: BAR.y0 + 2, kind: 'bar' });
+  out.push({ x: BAR.x1, y: BAR.y0 + 3, kind: 'table' });
+
   // The court's bench (the gym bags on it are spots, see NODES).
   out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
   return out;
@@ -227,6 +243,8 @@ export const NODES: StreetNode[] = (() => {
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
   // Four candy shelves along the back wall of the candy store.
   [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
+  // Three drunks on stools at the bar, facing the counter.
+  for (let i = 0; i < 3; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + i, BAR.y0 + 3, { facing: Math.PI, seated: true });
   return out;
 })();
 
@@ -250,7 +268,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller' | 'clerk';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender';
 export interface Npc {
   id: string;
   name: string;
@@ -275,6 +293,11 @@ export const NPCS: Npc[] = [
   {
     id: 'candy_clerk', name: 'Clerk', role: 'Candy store', kind: 'clerk', x: CANDY.x0 + 1, y: CANDY.y0 + 3,
     area: { x0: CANDY.x0, y0: CANDY.y0 + 1, x1: CANDY.x0 + 2, y1: CANDY.y0 + 3 }, named: true, catches: ['candy_store'],
+  },
+  // The bartender works behind the counter. Every few seconds he turns his back to the room.
+  {
+    id: 'bartender', name: 'Bartender', role: 'The bar', kind: 'bartender', x: BAR.x0 + 1, y: BAR.y0 + 1,
+    area: { x0: BAR.x0, y0: BAR.y0 + 1, x1: BAR.x0 + 2, y1: BAR.y0 + 1 }, named: true, catches: ['pick_drunk'],
   },
   { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
   { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },

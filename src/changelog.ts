@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.15.0',
+    date: '2026-11-16',
+    title: 'The bar',
+    items: [
+      'Pickpocket Drunks (level 15): a new bar above the basketball court, with three drunks on stools. Picking their pockets always works ($10–20)…',
+      '…but the bartender watches the room. Every few seconds he turns his back to polish the bottles: his name turns green. Time it right.',
+      'If he sees you, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP, stunned 3s).',
+    ],
+  },
+  {
     version: '0.14.0',
     date: '2026-11-16',
     title: 'The candy store',

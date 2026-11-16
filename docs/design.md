@@ -63,7 +63,7 @@ XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **e
 
 > **Status: v2 being built, one place per step.** Source: `docs/street-crimes-v1.xlsx` (the designer's sheet).
 > Built: **1 Pickpocket Tourists** (big park), **5 Raid Gym Bags** (basketball court),
-> **10 Shoplift Candy Store** (candy store with a clerk). The rest show
+> **10 Shoplift Candy Store** (candy store with a clerk), **15 Pickpocket Drunks** (the bar). The rest show
 > "coming soon" in the Skills tab until their place exists. The rules for all seven (odds, rewards, getting caught,
 > shelves and meters that empty) are already in the game engine and tested.
 
@@ -169,8 +169,15 @@ the time you spend waiting for the bartender or guard into account. To be tuned 
   shoves you. Shop icon on the minimap.
 - **Rooms you can walk into** all work the same way: walls along the block edge, one door in the middle of the
   front wall, and the roof lifts while you're inside.
-- Still to come (see §4): a **bar** (enterable), a **parking lot at the edge of town** with meters, cars and a
-  guard, and a **gas station** next to it (enterable, shop icon).
+- **The bar** (built), above the basketball court: walk in like a shop. Dark wood, a red neon BAR sign, a back bar of
+  glowing bottles with a mirror, a jukebox, the counter with beer taps and pendant lamps, a small table with a candle.
+  **Three drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
+  The **bartender** works behind the counter: he **watches the room for 3–5.5s**, then **turns his back for 3.5–5s**
+  to polish the bottles. His label says "watching" (red) or "back turned" (green). If he is facing the room at any
+  moment of your attempt, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP,
+  stunned 3s). The timings are constants at the top of `StreetView.tsx` (`BAR_WATCH`, `BAR_BACK`).
+- Still to come (see §4): a **parking lot at the edge of town** with meters, cars and a guard, and a
+  **gas station** next to it (enterable, shop icon).
 - **Eddy's General Store** (Eddy = NPC, yellow name): sells nothing yet, buys loot. **You can walk in**
   through the door in the middle of the front wall; inside, the walls fade and the roof lifts so you see the shop:
   shelves with goods, a drinks fridge, a counter with a register. Eddy wanders around inside.

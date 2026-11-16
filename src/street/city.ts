@@ -6,7 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, H, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
+import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, H, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -708,6 +708,76 @@ export function buildCity(scene: THREE.Scene) {
     }
     // A pink glow spilling out of the door onto the pavement.
     pools.add(doorX + 0.5, 0.075, Z1 + 0.6);
+  }
+
+  // ---------- the bar (Pickpocket Drunks) ----------
+  // Dark wood, a red neon BAR sign, a dim amber light. A back bar full of glowing bottles and a
+  // mirror, a jukebox in the corner, the counter with beer taps and a brass foot rail, stools with
+  // the drunks on them (spots, added by the Street view), a little table with a candle.
+  {
+    const { Z0, X1, t } = shopShell(BAR, {
+      wall: 0x4a3a30, trim: 0x2a1a14, stripe: ['#5a1a14', '#c8b8a0'], sign: 'BAR', signBg: '#14100c', signFg: '#ff5a3a',
+      floor: ['#5a4232', '#46321f'], light: 0xffa060,
+    });
+    const dark = lam(0x3a2418);
+    const wood = lam(0x5a3a22);
+    // The back bar: a low cabinet, a mirror, and two shelves of bottles.
+    const back = FIXTURES.filter((f) => f.kind === 'backbar' && inRect(BAR, f.x, f.y));
+    const bx0 = Math.min(...back.map((f) => f.x));
+    const bx1 = Math.max(...back.map((f) => f.x)) + 1;
+    const bcx = (bx0 + bx1) / 2;
+    const bz = Z0 + t + 0.2;
+    add(geoBox(bx1 - bx0 - 0.1, 0.55, 0.4), dark, bcx, 0.3, bz);
+    add(geoBox(bx1 - bx0 - 0.4, 0.4, 0.02), lam(0x8a9aa8, { emissive: 0x2a3440, emissiveIntensity: 0.8 }), bcx, 0.85, Z0 + t + 0.02, false); // mirror
+    const bottleColors = [0x3a7a3a, 0x8a5a2a, 0xc8b8a0, 0x2a4a7a, 0x9a2a2a, 0xd8a83a];
+    for (const shelfY of [0.68, 1.02]) {
+      add(geoBox(bx1 - bx0 - 0.2, 0.03, 0.2), wood, bcx, shelfY, Z0 + t + 0.1, false);
+      for (let i = 0; i < 14; i++) {
+        const c = bottleColors[(i * 5 + Math.round(shelfY * 10)) % bottleColors.length];
+        add(own(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 6)), lam(c, { emissive: c, emissiveIntensity: 0.35 }), bx0 + 0.25 + i * ((bx1 - bx0 - 0.5) / 13), shelfY + 0.11, Z0 + t + 0.1, false);
+      }
+    }
+    // The jukebox: a box with a glowing arched front.
+    const jb = FIXTURES.find((f) => f.kind === 'jukebox' && inRect(BAR, f.x, f.y))!;
+    add(geoBox(0.6, 0.8, 0.4), lam(0x6a2a1a), jb.x + 0.5, 0.4, Z0 + t + 0.22);
+    add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.4, 12, 1, false, -Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), lam(0xffb04a, { emissive: 0xff8a2a, emissiveIntensity: 1.1 }), jb.x + 0.5, 0.8, Z0 + t + 0.22, false);
+    for (let i = 0; i < 3; i++) add(geoBox(0.08, 0.5, 0.02), lam([0xff5a3a, 0x5ac8ff, 0xffd84a][i], { emissive: [0xff5a3a, 0x5ac8ff, 0xffd84a][i], emissiveIntensity: 1 }), jb.x + 0.32 + i * 0.18, 0.42, Z0 + t + 0.43, false);
+    // The counter, with a brass foot rail, beer taps, and a beer in front of each stool.
+    const bars = FIXTURES.filter((f) => f.kind === 'bar' && inRect(BAR, f.x, f.y));
+    const cx0 = Math.min(...bars.map((f) => f.x));
+    const cx1 = Math.max(...bars.map((f) => f.x)) + 1;
+    const ccx = (cx0 + cx1) / 2;
+    const cz = bars[0].y + 0.5;
+    add(geoBox(cx1 - cx0, 0.6, 0.5), dark, ccx, 0.3, cz);
+    add(geoBox(cx1 - cx0 + 0.06, 0.06, 0.62), wood, ccx, 0.63, cz);
+    add(geoBox(cx1 - cx0, 0.04, 0.04), lam(0xc8a040), ccx, 0.12, cz + 0.3, false); // foot rail
+    for (let i = 0; i < 3; i++) add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 6)), lam(0xc8a040), ccx - 0.3 + i * 0.3, 0.77, cz - 0.15, false);
+    for (const f of bars) {
+      add(own(new THREE.CylinderGeometry(0.05, 0.045, 0.14, 8)), lam(0xe0a030, { emissive: 0x8a5010, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }), f.x + 0.5, 0.73, cz + 0.18, false);
+      add(own(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8)), lam(0xf2ece0), f.x + 0.5, 0.815, cz + 0.18, false);
+      // A stool on the tile below (the drunk sits on it).
+      add(own(new THREE.CylinderGeometry(0.03, 0.04, 0.38, 6)), lam(0x2b2b2e), f.x + 0.5, 0.19, f.y + 1.45);
+      add(own(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), lam(0x7a2a1a), f.x + 0.5, 0.4, f.y + 1.45);
+    }
+    // Pendant lamps over the counter.
+    for (let i = 0; i < 3; i++) {
+      add(own(new THREE.CylinderGeometry(0.01, 0.01, 0.35, 4)), lam(0x1e1b18), cx0 + 0.5 + i, 1.05, cz, false);
+      add(own(new THREE.ConeGeometry(0.12, 0.1, 8)), lam(0x2a4a3a), cx0 + 0.5 + i, 0.85, cz, false);
+      add(own(new THREE.SphereGeometry(0.05, 6, 5)), lam(0xffd8a0, { emissive: 0xffc070, emissiveIntensity: 1.6 }), cx0 + 0.5 + i, 0.8, cz, false);
+    }
+    // A small round table with two chairs and a candle.
+    const tb = FIXTURES.find((f) => f.kind === 'table' && inRect(BAR, f.x, f.y))!;
+    add(own(new THREE.CylinderGeometry(0.03, 0.05, 0.45, 6)), lam(0x2b2b2e), tb.x + 0.5, 0.23, tb.y + 0.5);
+    add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 12)), wood, tb.x + 0.5, 0.46, tb.y + 0.5);
+    add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.07, 6)), lam(0xffe8c0, { emissive: 0xffc070, emissiveIntensity: 1.5 }), tb.x + 0.5, 0.52, tb.y + 0.5, false);
+    for (const dz of [-0.4, 0.4]) {
+      add(geoBox(0.26, 0.04, 0.26), wood, tb.x + 0.5, 0.28, tb.y + 0.5 + dz);
+      add(geoBox(0.26, 0.28, 0.04), wood, tb.x + 0.5, 0.42, tb.y + 0.5 + dz * 1.32);
+    }
+    // A neon beer sign on the east wall and a dartboard on the west wall.
+    add(geoBox(0.02, 0.22, 0.6), lam(0x5ac8ff, { emissive: 0x5ac8ff, emissiveIntensity: 1.3 }), X1 - t - 0.02, 0.95, Z0 + 2.6, false);
+    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 14)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
+    add(own(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 10)).rotateZ(Math.PI / 2), lam(0xb8282a), BAR.x0 + t + 0.035, 0.85, Z0 + 3.5, false);
   }
 
   // Build all instanced batches that were filled above.

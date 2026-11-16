@@ -3,7 +3,7 @@ import { ENCLOSURES, FIXTURES, NODES, NPCS, PARK, SPAWN, W, H, buildBlocked, can
 import { findPath, neighbors } from './pathfind';
 
 /** Crimes that have a place on the map so far (Street Crimes v2 is built step by step, design §4). */
-const PLACED = ['pick_tourist', 'gym_bags', 'candy_store'];
+const PLACED = ['pick_tourist', 'gym_bags', 'candy_store', 'pick_drunk'];
 
 it('every street spot and NPC is reachable from spawn', () => {
   const b = buildBlocked();
