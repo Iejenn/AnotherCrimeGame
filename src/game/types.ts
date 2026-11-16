@@ -73,6 +73,8 @@ export interface GameState {
   name: string;
   look: Look;
   createdAt: number;
+  /** When you were last online before this session (null: never / first time). */
+  lastOnline?: number | null;
   /** Money, in dollars. */
   cash: number;
   /** Health. Failed jobs hurt a little; it regenerates over time (see hpAt). */
@@ -84,6 +86,10 @@ export interface GameState {
   inventory: Record<string, number>;
   /** Your grave, if you died and haven't collected your stuff yet. */
   grave?: Grave | null;
+  /** What you wield and wear: slot → item id (docs/design.md §12). */
+  equipment?: Partial<Record<'weapon' | 'head' | 'body' | 'legs' | 'feet', string>>;
+  /** The enemy you're fighting right now. */
+  fight?: { enemy: string } | null;
   stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };
   log: LogEntry[];
   nextId: number;

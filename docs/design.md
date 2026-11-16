@@ -30,10 +30,10 @@ All skills start at level 1. Max level is **30** for now *(tunable)*.
 | Skill | Status |
 |---|---|
 | Street Crimes | Designed (below) |
-| Melee | **To scope** |
-| Defense | **To scope** |
-| Gunfire | **To scope** |
-| Health | **To scope.** Already gives +2 max HP per level. |
+| Melee | Combat (§12, draft) |
+| Defense | Combat (§12, draft) |
+| Gunfire | Combat (§12, draft) |
+| Health | Combat (§12, draft). Gives +2 max HP per level today; the draft makes it +1. |
 
 ### XP curve (all skills)
 
@@ -105,7 +105,8 @@ timing) in `src/game/data/crimes.ts`.
 
 1. **Pickpocket Tourists (1).** Two tourists stroll around the park. Tap one to try. Success: $1–3.
 2. **Raid Gym Bags (5).** Two NPCs play basketball on a court; their gym bags sit on a bench at the side.
-   Tap a bag. Success: $2–6.
+   Tap a bag. Success: $2–6. Failure: the nearest player yells **"Stop that!"** and throws the basketball at you;
+   it hits you (−1 HP, stunned 2s) when it lands.
 3. **Shoplift Candy Store (10).** An enterable shop (like Eddy's) with a **clerk** wandering around the register
    and some **shelves**. Tap a shelf. Success: **1 candy bar** (food, +1 HP when eaten). A shelf you stole from is
    **empty for 10 seconds**. Failure: the clerk yells **"Hey!"**, comes over and hits you (−1 HP).
@@ -308,6 +309,19 @@ per second and 5 per 10 seconds (200 letters max). Kept for 7 days. No word filt
 if a newer build is out it says "A new version of Underworld is out. Updating…" and reloads itself to `?v=<build>`
 (which skips cached copies of the page; it won't loop if that still isn't the new one). `src/useUpdateCheck.ts`.
 
+**Smooth movement (v0.25):** other players are drawn gliding towards where their route says they are (a bit faster
+than walking, to catch up), instead of being placed there each frame; only a gap of more than 4 tiles (dying) snaps.
+The game clock moves gently towards each server answer instead of jumping to it. Before, a re-tap mid-walk (new
+route from a tile's middle) and clock corrections made players hop. Measured after: biggest step 11 px per 100 ms
+(normal walking speed) while the other player re-tapped every 1.2 s.
+
+**One device at a time (built, v0.26):** each open game makes up a session id and sends it with every request
+(header `x-game-session`). Opening the game claims the account (`claim_session`). If it's being played on another
+device right now (heard from in the last 30s), you're asked: **Play here** (the other device is logged out) or
+Log out. The server refuses game actions and chat from any other session (`session_replaced`); that device notices
+within ~10 seconds, logs out (on that device only) and the sign-in screen says why. Logging out (gear menu, idle)
+only logs out the device you're on.
+
 **Load to expect:** about 2 RPCs per attempt (one every ~2.5s per active player): ~80 calls/s at 100 players
 working at once. Small, indexed queries, but plan for the Pro plan at that size.
 
@@ -338,12 +352,160 @@ needs step 2 below.
   (could you have got to its start, neighbouring tiles only, on the map); other phones hear it through Realtime
   changes on the `walks` table, whose rows say whose route it is. So nobody can show up as someone else.
   Other players show with a white name and as white dots on the minimap.
+- **Seeing what others do (v0.28):** `public.player_status` holds, per player, the spot they're working (and until
+  when), when their stun ends, the enemy they're fighting, and their health. A trigger on `players` writes it
+  whenever one of those changes (not for health regen), so nobody can fake it; Realtime sends it to everyone. Other
+  players are shown working (facing the spot), stunned, or fighting (facing the enemy), with a hitsplat when they get
+  hurt and their health bar while hurt or low, like your own.
 - **Highscores (built, v0.20):** a Highscores tab with a table per skill (top 50, rank, name, level, XP; your
   own row highlighted, and your rank if you're further down).
 - Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).
 
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
 shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
+
+## 12. Combat
+
+> **Status: v1 built (v0.27).** The Pigeon, fists and brass knuckles, Ray's weapon store. No drops yet. Based on the
+> designer's sheet. Decisions are listed at the end; numbers live in `src/game/combat.ts`, `src/game/enemies.ts`,
+> `src/game/data/items.ts` and the same tables on the server (`supabase/migrations/0010_combat.sql`).
+
+### The loop
+
+Tap an enemy → you walk up and **fight until one of you drops, or you walk away**. (Combat is the one place where
+one tap is not one attempt: you keep swinging, like OSRS.) You and the enemy each attack on your own **attack speed**.
+Each swing is **hit or miss**; a hit does **1 to max hit** damage. When the enemy dies: **XP and loot**, and it
+**respawns** after a while. When you drop to 0 HP you die as usual (your grave, §5). Food is how you keep going.
+
+### Ticks and speed
+
+- Game tick = 0.5 s (§2). **Attack speed = ticks between swings.** Unarmed: **3 ticks (1.5 s)**. Weapons set their own.
+
+### Will it hit? (accuracy vs defence)
+
+The same well-tested roll as OSRS, so it scales cleanly to level 100 and gear:
+
+```
+attack roll   A = (attacker's level + 8) × (accuracy bonus + 64)
+defence roll  D = (defender's Defense level + 8) × (defence bonus + 64)
+hit chance    = A > D ? 1 − (D + 2) / (2 × (A + 1))   :   A / (2 × (D + 1))
+```
+
+- "attacker's level" = **Melee** (no weapon or a melee weapon) or **Gunfire** (a gun). Enemies have one attack level.
+- Level 1 unarmed vs a level-1 enemy with 0 defence: **≈ 50–55%**. Ten levels or a good weapon above it: **≈ 75%**.
+
+### How much damage?
+
+```
+max hit = weapon damage + floor((your Melee or Gunfire level − 1) / 8)
+damage on a hit = random whole number from 1 to max hit
+```
+
+- Unarmed: weapon damage **1** → max hit **1** at level 1, **2** at 9, **3** at 17, **4** at 25–30.
+- No separate Strength skill: your attack skill drives both accuracy and damage.
+
+### XP (from the sheet)
+
+| Skill | Trains when | XP |
+|---|---|---|
+| Melee | you hit with no weapon or a melee weapon | **1 per damage** |
+| Gunfire | you hit with a gun | **1 per damage** |
+| Defense | damage you deal **and** damage you take | **0.5 per damage each way** |
+| Health | you lose health **in combat** | **1 per HP lost** |
+
+**Pace (decided):** 1 XP per damage, so combat levels slower than skilling on purpose (~22 minutes to Melee 10 on
+Pigeons; Street Crimes ~7). One number: `COMBAT_XP` in combat.ts.
+
+### Health
+
+- **Max HP = Health level.** Health **starts at level 10** (10 HP), so level 100 = 100 HP. Regen stays 1 HP/min.
+- Health XP comes from combat only. (Existing characters were moved up to Health 10.)
+
+### Combat level (shown over players and enemies, like OSRS)
+
+```
+combat level = floor( (Defense + Health) / 4  +  max(Melee, Gunfire) / 2 )
+```
+A new character (Health 10, the rest 1) is **3**. All 30 → **30**. Shown next to player names: "Iejen (level 3)".
+
+### Gear
+
+- **Slots:** weapon, head, body, legs, feet *(more later: gloves, off-hand)*.
+- **Every item:** slot, level needed (Melee / Gunfire / Defense), and bonuses: **accuracy**, **damage** (weapons),
+  **attack speed** (weapons, in ticks), **defence** (armour). Guns: **range** (tiles) and maybe **ammo**.
+- **Equip** from the bag (tap → Wield / Wear). The Inventory tab gets an **equipment panel** (OSRS "worn equipment")
+  with the slots and your total bonuses.
+- **It shows on your character:** the weapon in your hand, hats and helmets on your head, jackets and vests over your
+  top, trousers and shoes recoloured. Other players see your gear too (it comes from the database, like names).
+
+Starter ladders *(examples, to tune)*:
+
+| Lv | Melee (damage / speed) | Gunfire (damage / speed / range) | Armour (defence) |
+|---|---|---|---|
+| 1 | Fists 1 / 3 · Brass knuckles 2 / 3 | Slingshot 1 / 3 / 4 | Hoodie 2 |
+| 5 | Baseball bat 3 / 4 | BB gun 2 / 3 / 5 | Leather jacket 5 |
+| 10 | Crowbar 4 / 4 | Revolver 4 / 5 / 6 | Biker helmet 4 |
+| 15 | Knife 3 / 2 (fast) | Pistol 4 / 3 / 6 | Padded vest 9 |
+| 20 | Machete 6 / 4 | SMG 3 / 2 / 5 | Steel-toe boots 3 |
+| 25 | Sledgehammer 9 / 6 (slow) | Shotgun 8 / 5 / 3 | Riot helmet 8 |
+| 30 | Katana 8 / 3 | Rifle 7 / 4 / 9 | Kevlar vest 15 |
+
+Where gear comes from: **shops** (a place to spend dollars) and later **enemy loot tables** (§6).
+
+**v1:** only the weapon slot. **Ray's Arms** (top row, 5th block) — Ray sells **brass knuckles for $50**: damage 2
+(+1 over fists), no accuracy or defence bonus, same speed as fists (3 ticks). **Weapons never wear out.** Equip from
+the Inventory tab (Wield); the Equipment panel there shows your weapon, max hit, speed and combat level. Knuckles
+show on your character's hand, for everyone.
+
+### Enemies
+
+Each enemy type: level, HP, attack level, defence level and bonus, attack speed, max hit, style (melee/ranged),
+**aggressive or not**, where it lives (and how many), respawn time, XP, **loot table** (weighted rolls).
+
+| Enemy | Lv | Where | HP | Def | Speed | Max hit | Respawn | Notes |
+|---|---|---|---|---|---|---|---|---|
+| **Pigeon** (sheet) | 1 | The park (3) | 3 | 0 | 4 ticks (2 s) *(proposal)* | 1 | 25 s | not aggressive; pecks back when attacked |
+
+Proposed ladder, one every 5 levels like the crimes: **Rat** (5, alleys/dumpsters), **Stray dog** (10), **Junkie** (15),
+**Thug** (20), **Gang member with a pistol** (25, ranged), **Bouncer** (30, at the bar).
+
+A Pigeon fight at level 1: it hits you ~50% of the time for 1, every 2 s, so you lose **~2 HP per Pigeon**. With 10 HP
+that's ~4 Pigeons before you need to eat: food matters (§5).
+
+### Shared enemies (online)
+
+- Enemies are **shared**: everyone sees the same Pigeons in the same places (they walk a fixed schedule, like the
+  guard, §11). **One player fights an enemy at a time** *(proposal)*; others see it's busy.
+- An enemy nobody hits for 10 s heals back to full. Walking away ends the fight.
+- **The server runs every fight:** `attack(enemy, standing tile)` starts it; the app asks the server to "catch up the
+  fight" about every second, and the server rolls every swing that's due (hit/miss, damage, XP, loot, death) and
+  sends them back to animate. Nothing about a fight is decided by the phone.
+- Load: about 1 call per second per fighting player (crimes are ~0.4).
+
+### On the Street
+
+Tap a Pigeon → you walk up (following it if it flutters off) and fight. Hitsplats like OSRS: **red with the damage**,
+**blue 0 for a miss**. The enemy shows "Pigeon (level 1)" and a health bar once hurt. A killed Pigeon drops dead and
+comes back after 25 s. Tapping anywhere else walks you away and ends the fight. Others see who's fighting what: a
+Pigeon in a fight stands still where it was attacked.
+
+### Build order
+
+1. ✅ Combat core: the Pigeon, fists, hit/miss/damage, XP, death, enemy health bars, combat level.
+2. ✅ Equipment panel + equipping (weapon slot) + Ray's weapon store with brass knuckles; gear visible on characters.
+3. Loot dropped on the ground to pick up.
+4. The next enemies and the gear ladders, one level band at a time (like Street Crimes v2). Guns with ammo.
+
+### Decisions
+
+1. **XP pace:** 1 XP per damage (skilling is faster than combat).
+2. **Defense XP:** 0.5 per damage dealt and 0.5 per damage taken.
+3. **Health XP:** combat only.
+4. **Loot:** dropped on the ground (later).
+5. **The Pigeon:** 4 ticks, max hit 1, no drops yet.
+6. **Shared enemies:** yes, one player per enemy at a time.
+7. **Guns:** ammo, later.
+8. **PvP:** undecided.
 
 ## 10. How we work
 

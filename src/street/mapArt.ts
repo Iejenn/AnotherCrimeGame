@@ -5,7 +5,7 @@ import { BLOCK, BLOCKS, BUILDINGS, COURT, FIXTURES, GAS, H, LOT, PARK, ROOMS, W,
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
 
-export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#3a5a8a' };
+export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#3a5a8a', weapons: '#5a5a62' };
 
 /**
  * Draw the whole map into a new canvas at `px` canvas pixels per tile. Tile (x, y) starts at

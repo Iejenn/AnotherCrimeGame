@@ -1,13 +1,22 @@
-// Start-up screen: your character file and what's new. (Nothing happens while you're away, so no "since you left".)
+// Start-up screen: who you are, when you were last here, and what's new. Kept short so "What's new" is in view.
+// (Your skills and levels are in the Skills tab.)
 import { gameNow } from '../game/clock';
 import { useMemo } from 'react';
 import type { GameState } from '../game/types';
-import { SKILLS } from '../game/data/skills';
-import { fmtDuration, fmtMoney, hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
-import { levelProgress } from '../game/xp';
+import { rankFor, totalLevel } from '../game/engine';
 import { hashString } from '../game/rng';
 import { CHANGELOG, getSeenVersion, markVersionSeen } from '../changelog';
-import { Bar } from './ui';
+
+/** "3 days ago", "5 hours ago", "12 minutes ago", "just now". */
+export function timeAgo(ms: number) {
+  const min = Math.floor(ms / 60000);
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'} ago`;
+  if (min < 1) return 'just now';
+  if (min < 60) return plural(min, 'minute');
+  const h = Math.floor(min / 60);
+  if (h < 24) return plural(h, 'hour');
+  return plural(Math.floor(h / 24), 'day');
+}
 
 function isNewer(a: string, b: string | null) {
   if (!b) return true;
@@ -21,8 +30,7 @@ export function StartScreen({ s, onClose }: { s: GameState; onClose: () => void 
   const now = gameNow();
   // Read once on open, so the NEW stamps stay visible until the screen closes.
   const seen = useMemo(() => getSeenVersion(), []);
-  const total = totalLevel(s);
-  const rank = rankFor(total);
+  const rank = rankFor(totalLevel(s));
   const fileNo = String(hashString(s.name + s.createdAt) % 90000 + 10000);
   const close = () => {
     markVersionSeen();
@@ -36,34 +44,10 @@ export function StartScreen({ s, onClose }: { s: GameState; onClose: () => void 
           <div>
             <div className="kicker">Case file Nº {fileNo}</div>
             <h1 className="dossier-name">{s.name}</h1>
-            <div className="muted">On the books {fmtDuration((now - s.createdAt) / 1000)}</div>
+            <div className="muted">{s.lastOnline ? `Last online ${timeAgo(now - s.lastOnline)}` : 'First time on the streets'}</div>
           </div>
           <div className="stamp">{rank.name}</div>
         </div>
-
-        <dl className="figures">
-          <div><dt>Total level</dt><dd>{total}</dd></div>
-          <div><dt>Cash</dt><dd className="money">{fmtMoney(s.cash)}</dd></div>
-          <div><dt>Health</dt><dd>{Math.floor(hpAt(s, now))}/{maxHp(s)}</dd></div>
-          <div><dt>Jobs pulled</dt><dd>{s.stats.jobs.toLocaleString('en-US')}</dd></div>
-        </dl>
-
-        <section>
-          <h3 className="rule-head">Skills</h3>
-          <ul className="skill-ledger">
-            {SKILLS.map((sk) => {
-              const lp = levelProgress(s.skills[sk.id].xp);
-              return (
-                <li key={sk.id}>
-                  <span className="code">{sk.code}</span>
-                  <span>{sk.name}</span>
-                  <Bar pct={lp.pct} />
-                  <span className="num">{lp.level}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
 
         <section>
           <h3 className="rule-head">What's new</h3>
@@ -81,7 +65,7 @@ export function StartScreen({ s, onClose }: { s: GameState; onClose: () => void 
           ))}
         </section>
 
-        <button className="btn primary block" onClick={close} autoFocus>
+        <button className="btn primary block" onClick={close}>
           Back to work
         </button>
       </div>

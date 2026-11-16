@@ -6,6 +6,9 @@ import { INVENTORY_SLOTS, cantEat, fmtMoney, slotsUsed } from '../game/engine';
 import { gameNow } from '../game/clock';
 import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from './Bag';
+import { ItemIcon } from './ItemIcon';
+import { maxHit, myCombatLevel, weaponStats } from '../game/combat';
+import { skillLevel } from '../game/engine';
 
 export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
   const [sel, setSel] = useState<string>('cash');
@@ -36,12 +39,21 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
             const why = cantEat(s, selected.id, now);
             return (
               <>
-                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : 'Item'}</div>
+                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? 'Weapon' : 'Item'}</div>
                 <strong className="detail-name">
                   {def.name} {selected.count > 1 && <span className="muted mono">×{selected.count}</span>}
                 </strong>
-                <p className="muted small">Eddy at the General Store pays {fmtMoney(def.value)} each.</p>
+                {def.value > 0 ? (
+                  <p className="muted small">Eddy at the General Store pays {fmtMoney(def.value)} each.</p>
+                ) : def.gear ? (
+                  <p className="muted small">+{(def.gear.damage ?? 1) - 1} damage over your fists. Same speed. Never wears out.</p>
+                ) : null}
                 <div className="save-row">
+                  {def.gear && (
+                    <button className="btn small primary" onClick={() => api.equip(selected.id)}>
+                      Wield
+                    </button>
+                  )}
                   {def.heal > 0 && (
                     <button className="btn small primary" disabled={!!why} title={why ?? ''} onClick={() => api.eat(selected.id)}>
                       Eat (+{def.heal} HP)
@@ -63,6 +75,38 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
         )}
       </div>
       {slotsUsed(s) >= INVENTORY_SLOTS && <p className="warn small">Your inventory is full.</p>}
+      <Equipment s={s} api={api} />
     </div>
+  );
+}
+
+/** What you're wielding (docs/design.md §12), and what it does for you in a fight. Only a weapon slot for now. */
+function Equipment({ s, api }: { s: GameState; api: GameApi }) {
+  const weapon = s.equipment?.weapon;
+  const w = weaponStats(s);
+  const hit = maxHit(w.damage, skillLevel(s, 'melee'));
+  return (
+    <section className="equipment">
+      <div className="section-head">
+        <h3 className="rule-head">Equipment</h3>
+        <span className="muted mono small">Combat level {myCombatLevel(s)}</span>
+      </div>
+      <div className="equip-row">
+        <div className={`slot ${weapon ? '' : 'empty'}`} title={weapon ? ITEM_BY_ID[weapon]?.name : 'Weapon slot (empty)'}>
+          {weapon ? <ItemIcon id={weapon} /> : <span className="muted small">Weapon</span>}
+        </div>
+        <div className="equip-info small">
+          <strong>{weapon ? ITEM_BY_ID[weapon]?.name : 'Bare fists'}</strong>
+          <div className="muted">
+            Max hit {hit} · a swing every {(w.speed * 0.5).toFixed(1)}s · accuracy +{w.accuracy}
+          </div>
+          {weapon && (
+            <button className="btn tiny" onClick={() => api.unequip('weapon')}>
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

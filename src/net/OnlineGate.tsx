@@ -11,7 +11,7 @@ import { useOnlineGame, type ServerAnswer } from './useOnlineGame';
 import { useWorld } from './world';
 import { useChat } from './chat';
 import { AuthScreen } from './AuthScreen';
-import { REASONS, supabase } from './supabase';
+import { REASONS, logOut, supabase } from './supabase';
 import { loadGame } from '../game/save';
 import { levelFromXp as lvl } from '../game/xp';
 
@@ -24,6 +24,8 @@ export function OnlineGate() {
   const [busy, setBusy] = useState(false);
   /** The name to use when bringing an offline character along (it may need changing: online names are unique). */
   const [importName, setImportName] = useState<string | null>(null);
+  /** This account is being played on another device right now: ask before taking over. */
+  const [elsewhere, setElsewhere] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -35,8 +37,15 @@ export function OnlineGate() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  /** Load your character (and line the game clock up with the server's). */
-  const load = useCallback(async () => {
+  /**
+   * Claim the account for this device (one device at a time; `takeOver` logs the other device out), then load your
+   * character and line the game clock up with the server's.
+   */
+  const load = useCallback(async (takeOver = false) => {
+    const claim = await supabase.rpc('claim_session', { p_force: takeOver });
+    if (claim.error) return setError(claim.error.message);
+    if (claim.data?.reason === 'active_elsewhere') return setElsewhere(true);
+    setElsewhere(false);
     const sentAt = Date.now();
     const { data, error: e } = await supabase.rpc('game_state');
     if (e) return setError(e.message);
@@ -47,12 +56,28 @@ export function OnlineGate() {
   }, []);
 
   useEffect(() => {
-    if (session && !recovering) load();
+    if (session && !recovering) void load();
     if (!session) setPlayer(undefined);
   }, [session, recovering, load]);
 
   if (session === undefined) return <div className="create"><p className="muted">Connecting…</p></div>;
   if (!session || recovering) return <AuthScreen recovering={recovering} onDone={() => setRecovering(false)} />;
+  if (elsewhere)
+    return (
+      <div className="create">
+        <h1 className="title">Underworld</h1>
+        <h2 className="headline">You're already playing on another device</h2>
+        <p className="deck">This account is in the game somewhere else right now. One device at a time: if you play here, the other device is logged out.</p>
+        <div className="save-row">
+          <button className="btn primary" onClick={() => void load(true)}>
+            Play here
+          </button>
+          <button className="btn" onClick={() => void logOut()}>
+            Log out
+          </button>
+        </div>
+      </div>
+    );
   if (player === undefined) return <div className="create"><p className="muted">{error || 'Loading your character…'}</p></div>;
 
   if (player === null) {
@@ -69,7 +94,7 @@ export function OnlineGate() {
           setBusy(false);
           if (e) return setError(e.message);
           if (!data?.ok) return setError(REASONS[data?.reason] ?? 'Something went wrong.');
-          load();
+          void load(true);
         }}
       />
     );
@@ -99,7 +124,7 @@ export function OnlineGate() {
               setBusy(false);
               if (e) return setError(e.message);
               if (!data?.ok) return setError(REASONS[data?.reason] ?? 'Something went wrong.');
-              load();
+              void load(true);
             }}
           >
             Bring {local.name} along
@@ -116,12 +141,11 @@ export function OnlineGate() {
 
 /** Log out after this long without touching the game (taps, swipes, scrolls, keys). */
 const IDLE_MS = 5 * 60_000;
-/** Tells the sign-in screen why you're there. */
-export const IDLE_FLAG = 'underworld-idle-logout';
 
 /** Playing online: the normal game screen, run by the server, with the other players around you. */
 function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: string; email: string }) {
-  const g = useOnlineGame(first);
+  // Another device took over this account: log out here, and say why on the sign-in screen.
+  const g = useOnlineGame(first, () => void logOut('replaced'));
   const apiRef = useRef(g.api);
   apiRef.current = g.api;
 
@@ -137,12 +161,7 @@ function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: str
       if (Date.now() - last < IDLE_MS) return;
       clearInterval(id);
       apiRef.current.stopAttempt();
-      try {
-        sessionStorage.setItem(IDLE_FLAG, '1');
-      } catch {
-        /* storage blocked: the sign-in screen just won't say why */
-      }
-      void supabase.auth.signOut();
+      void logOut('idle');
     }, 10_000);
     return () => {
       clearInterval(id);
@@ -150,7 +169,7 @@ function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: str
     };
   }, []);
 
-  const world = useWorld(userId, g.roster, g.refresh);
+  const world = useWorld(userId, g.roster, g.refresh, g.enemies, g.onFight);
   const chat = useChat(userId);
   return (
     <GameScreen
@@ -160,7 +179,7 @@ function OnlinePlay({ first, userId, email }: { first: ServerAnswer; userId: str
       welcome={g.welcome}
       dismissWelcome={g.dismissWelcome}
       toasts={g.toasts}
-      account={{ email, onSignOut: () => void supabase.auth.signOut() }}
+      account={{ email, onSignOut: () => void logOut() }}
       world={world}
       chat={chat}
     />

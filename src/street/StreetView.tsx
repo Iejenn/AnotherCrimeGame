@@ -15,12 +15,14 @@ import { ITEM_BY_ID } from '../game/data/items';
 import { COURT, H, NODES, NPCS, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, buildCar, buildGrave, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, animatePigeon, buildCar, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
+import type { EnemyState, FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
 import { findPath, neighbors } from './pathfind';
-import { Hoops } from './hoops';
+import { BALL_COLOR, Hoops } from './hoops';
 import { ChatBox } from './ChatBox';
 import type { ChatLink } from '../net/chat';
 import { mulberry32 } from '../game/rng';
@@ -68,11 +70,32 @@ export interface OtherPlayer {
   from: [number, number];
   path: [number, number][];
   at: number;
+  equipment?: Partial<Record<string, string>>;
+  /** Their combat level (shown next to their name). */
+  combat?: number;
+  /** What they're doing right now, and their health (from the server, live). */
+  status?: OtherStatus;
+}
+/** What another player is doing (public.player_status), so everyone sees it. Times in ms. */
+export interface OtherStatus {
+  /** The spot they're working (crime attempt), until jobEndsAt. */
+  spot: string | null;
+  jobEndsAt: number;
+  stunnedUntil: number;
+  fightEnemy: string | null;
+  hp: number;
+  hpAt: number;
+  maxHp: number;
 }
 /** The shared world, online: who else is here, and how to tell them where you walk. */
 export interface WorldLink {
   others: () => OtherPlayer[];
   move: (from: [number, number], path: [number, number][]) => void;
+  /** Your own player id. */
+  myId: string;
+  /** The enemies (shared by everyone), and the swings of your fight as the server rolls them. */
+  enemies: () => EnemyState[];
+  onFight: (fn: (events: FightEvent[]) => void) => () => void;
 }
 
 /** Where someone is `dist` tiles along a walk (from `from` through `path`), and which way they face. */
@@ -110,7 +133,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   const zoomRef = useRef(15);
   const yawRef = useRef(0); // camera angle around you
   const pitchRef = useRef(1.16); // how steeply the camera looks down (radians)
-  const [msgs, setMsgs] = useState<Msg[]>([{ t: gameNow(), text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' }]);
+  // The log always starts with the welcome (time 0, so it sorts above everything else), then the how-to line.
+  const [msgs, setMsgs] = useState<Msg[]>([
+    { t: 0, text: 'Welcome to Underworld.' },
+    { t: 1, text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' },
+  ]);
   const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-20), { t: gameNow(), text }]));
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
   const [talking, setTalking] = useState<Npc | null>(null);
@@ -344,6 +371,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       facing: 0,
       /** Walking to your grave to pick up your stuff. */
       goalGrave: false,
+      /** Walking up to an enemy to attack it. */
+      goalEnemy: null as string | null,
+      /** Throwing a punch (pose) until this time. */
+      punchUntil: 0,
     };
     /** Remember the tile you're on in the save (so switching tabs or reloading keeps you here). */
     const savePos = () => {
@@ -373,8 +404,77 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     player.position.copy(me.pos);
     worldRef.current?.move(tileOf(me.pos.x, me.pos.z), []);
 
+    // ---------- enemies (combat, docs/design.md §12) ----------
+    // Shared by everyone: where they are comes from their schedule (pigeonAt), or where they stand still while
+    // someone fights them. Tap one to walk up and fight it; the server rolls every swing.
+    const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number; lastHp: number | null; wasDead: boolean }>();
+    const enemyAt = (e: EnemyState) => {
+      if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
+      return pigeonAt(e.index, gameNow());
+    };
+    /** Walk up to an enemy (and attack it when you get there). */
+    const goFight = (id: string) => {
+      const e = worldRef.current?.enemies().find((x) => x.id === id);
+      if (!e || e.deadUntil) return;
+      const w = worldRef.current!;
+      if (e.fighter && e.fighter !== w.myId) return say(`Someone else is fighting that ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'thing'}.`);
+      const at = enemyAt(e);
+      const [ex, ey] = tileOf(at.x, at.z);
+      if (walkTo(neighbors(ex, ey), null)) {
+        me.goalEnemy = id;
+        if (!me.path.length) reachEnemy();
+      }
+    };
+    /** Arrived next to it: attack, or follow it if it flew off meanwhile. */
+    let chases = 0;
+    const reachEnemy = () => {
+      const id = me.goalEnemy;
+      me.goalEnemy = null;
+      if (!id) return;
+      const e = worldRef.current?.enemies().find((x) => x.id === id);
+      if (!e || e.deadUntil) return;
+      const at = enemyAt(e);
+      if (Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
+        // It moved while you walked: follow it a few times, then give up (instead of a swing the server refuses).
+        if (chases++ < 6) return goFight(id);
+        chases = 0;
+        return say(`The ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'enemy'} keeps getting away. Try again.`);
+      }
+      chases = 0;
+      apiRef.current.attack(id, tileOf(me.pos.x, me.pos.z));
+    };
+    // Your fight's swings, as the server rolled them: play them out (punches, pecks and hitsplats).
+    const offFight = worldRef.current?.onFight((events) => {
+      const first = events[0]?.at ?? 0;
+      const target = sRef.current.fight?.enemy ?? lastFoe;
+      for (const ev of events) {
+        const delay = Math.min(1200, Math.max(0, ev.at - first));
+        setTimeout(() => {
+          const view = target ? enemyViews.get(target) : undefined;
+          if (ev.killed) {
+            if (view) view.dyingUntil = performance.now() + 700;
+            return;
+          }
+          if (ev.by === 'you') {
+            me.punchUntil = performance.now() + 350;
+            if (view) hitsplat(view.g.position, ev.dmg ?? 0);
+          } else {
+            if (view) view.peckUntil = performance.now() + 350;
+            hitsplat(me.pos, ev.dmg ?? 0);
+          }
+        }, delay);
+      }
+    });
+    let lastFoe: string | null = null;
+
     // ---------- other players (online) ----------
-    const others = new Map<string, { g: THREE.Group; facing: number }>();
+    /** Other players: their model, where we draw them (smoothed), and which way they face. */
+    const others = new Map<
+      string,
+      // hpBar: their health bar (shown for a while after they get hurt, and while low, like yours); lastHp: to
+      // notice damage (a hitsplat over them).
+      { g: THREE.Group; pos: THREE.Vector3 | null; facing: number; hpBar: HTMLDivElement | null; hpBarUntil: number; lastHp: number | null }
+    >();
     /** Chat over heads: who said what, until when; and the newest message already handled. */
     const said = new Map<string, { text: string; until: number }>();
     let lastSaid = Math.max(0, ...(chatRef.current?.messages ?? []).map((m) => m.id));
@@ -390,6 +490,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goal = goal;
       me.goalNpc = npc;
       me.goalGrave = false;
+      me.goalEnemy = null;
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
@@ -440,6 +541,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         say('You stop what you were doing.');
       }
       me.attached = null;
+      if (sRef.current.fight) {
+        apiRef.current.stopFight();
+        say('You walk away from the fight.');
+      }
     };
 
     const tap = (clientX: number, clientY: number) => {
@@ -450,6 +555,13 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
       const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      if (hit?.object.userData.enemyId) {
+        setTalkingRef.current(null);
+        if (me.attached && sRef.current.player.job) stopWorking();
+        chases = 0;
+        goFight(hit.object.userData.enemyId);
+        return;
+      }
       if (hit?.object.userData.grave) {
         const g = st.grave;
         if (!g) return;
@@ -582,6 +694,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         dot(w.pos.x, w.pos.z, 2, canStart(st, n.crimeId) ? '#8b8378' : '#d9a441');
       }
       for (const r of ROOMS.filter((x) => x.shop)) upright((r.x0 + r.x1 + 1) / 2, (r.y0 + r.y1 + 1) / 2, () => drawBag(g, 0, 0, 10));
+      for (const v of enemyViews.values()) if (v.g.visible) dot(v.g.position.x, v.g.position.z, 1.8, '#e8d84a');
       for (const e of others.values()) dot(e.g.position.x, e.g.position.z, 2.6, '#ffffff', '#141210');
       for (const npc of NPCS.filter((n) => n.named)) {
         const ep = npcWalk.get(npc.id)!.pos;
@@ -688,7 +801,47 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     labelLayer.appendChild(hpBar);
     let hpBarUntil = 0;
     // ---------- floating "+$5" over your head ----------
+    // ---------- caught at the gym bags: a baller yells "Stop that!" and throws the ball at you ----------
+    // The server has already decided the hit; we play the throw and show the hit when the ball lands.
+    const thrown = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshLambertMaterial({ color: BALL_COLOR }));
+    thrown.castShadow = true;
+    thrown.visible = false;
+    scene.add(thrown);
+    geoms.push(thrown.geometry);
+    disposables.push(thrown.material as THREE.Material);
+    const THROW_MS = 600;
+    let toss: { from: THREE.Vector3; to: THREE.Vector3; t0: number; baller: string } | null = null;
+    const throwAtMe = () => {
+      const ballers = NPCS.filter((n) => n.kind === 'baller');
+      const baller = ballers.sort((a, b) => npcWalk.get(a.id)!.pos.distanceTo(me.pos) - npcWalk.get(b.id)!.pos.distanceTo(me.pos))[0];
+      if (!baller) return;
+      const from = npcWalk.get(baller.id)!.pos.clone().setY(1.0);
+      yell(baller.id, 'Stop that!');
+      toss = { from, to: me.pos.clone().setY(1.0), t0: performance.now(), baller: baller.id };
+    };
+
+    /** A hitsplat over someone: a red splat with the damage, or a blue one for a miss (0), like OSRS. */
+    const hitsplat = (where: THREE.Vector3, dmg: number) => {
+      const [x, y] = project(where.clone().setY(0.9));
+      const el = document.createElement('div');
+      el.className = `hitsplat ${dmg > 0 ? 'hit' : 'miss'}`;
+      el.textContent = String(dmg);
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      host.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    };
+
     const off = onReport((r) => {
+      // A failed grab at the gym bags: the throw first, the hit when the ball lands.
+      if (r.hit && me.lastSpot.startsWith('bag_')) {
+        throwAtMe();
+        setTimeout(() => showReport(r), THROW_MS);
+        return;
+      }
+      showReport(r);
+    });
+    const showReport = (r: Report) => {
       // One line per attempt (attempts come every second, so separate lines would pile up),
       // plus a second, bigger line for level-ups, big scores and stuns.
       const parts: [string, string][] = [];
@@ -735,7 +888,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         void host.offsetWidth; // restart the animation
         host.classList.add('shake');
       }
-    });
+    };
 
     // ---------- labels for nearby spots ----------
     const labelEls = new Map<string, HTMLDivElement>();
@@ -785,6 +938,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             me.goalGrave = false;
             openGrave();
           }
+          if (!me.path.length && me.goalEnemy) {
+            savePos();
+            reachEnemy();
+          }
           if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
@@ -814,9 +971,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const catcher = [...npcWalk.values()].find((w) => w.mode === 'rush' || w.mode === 'hit');
         if (catcher) me.facing = Math.atan2(catcher.pos.x - me.pos.x, catcher.pos.z - me.pos.z);
       }
+      // In a fight: face your foe.
+      const foe = st.fight?.enemy;
+      if (foe) lastFoe = foe;
+      const foeView = foe ? enemyViews.get(foe) : undefined;
+      if (foeView && !me.path.length) me.facing = Math.atan2(foeView.g.position.x - me.pos.x, foeView.g.position.z - me.pos.z);
+      setGear(player, st.equipment);
       player.position.set(me.pos.x, 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
-      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working ? 'work' : 'idle';
+      const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working || now < me.punchUntil ? 'work' : 'idle';
       animateCharacter(player, pose, now);
       player.rotation.y = me.facing;
 
@@ -917,14 +1080,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           animateCharacter(g, w.moving ? 'walk' : 'idle', now, 4.2);
           continue;
         } else if (npc.kind === 'baller') {
-          // Ballers are moved by the basketball game.
+          // Ballers are moved by the basketball game (except the one throwing a ball at you).
           const b = hoops.player(npc.id === 'baller_0' ? 0 : 1, now / 1000);
           const d = b.pos.clone().sub(w.pos);
           w.moving = d.length() > 0.01;
           w.pos.copy(b.pos);
-          g.rotation.y = b.facing;
+          const throwing = toss?.baller === npc.id && now - toss.t0 < THROW_MS;
+          g.rotation.y = throwing ? Math.atan2(me.pos.x - w.pos.x, me.pos.z - w.pos.z) : b.facing;
           g.position.set(w.pos.x, 0.03 + b.jump, w.pos.z);
-          animateCharacter(g, b.shooting ? 'work' : w.moving ? 'walk' : 'idle', now, npc.id === 'baller_0' ? 0 : 1.7);
+          animateCharacter(g, throwing || b.shooting ? 'work' : w.moving ? 'walk' : 'idle', now, npc.id === 'baller_0' ? 0 : 1.7);
           continue;
         } else {
           const d = w.target.clone().sub(w.pos);
@@ -946,6 +1110,23 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
+      // The thrown ball: an arc from the baller's hands to your head, then it bounces off and drops.
+      if (toss) {
+        const u = (now - toss.t0) / THROW_MS;
+        thrown.visible = true;
+        if (u < 1) {
+          thrown.position.copy(toss.from).lerp(toss.to, u);
+          thrown.position.y += 0.6 * 4 * u * (1 - u);
+        } else if (u < 1.8) {
+          const k = (u - 1) / 0.8;
+          const away = toss.to.clone().sub(toss.from).setY(0).normalize();
+          thrown.position.copy(toss.to).addScaledVector(away, -0.9 * k);
+          thrown.position.y = 1.0 * (1 - k) + Math.abs(Math.sin(k * Math.PI * 1.5)) * 0.35 * (1 - k) + 0.09;
+        } else {
+          thrown.visible = false;
+          toss = null;
+        }
+      }
       {
         const gw = npcWalk.get('guard');
         const gg = npcGroups.get('guard');
@@ -966,6 +1147,47 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile);
 
+      // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
+      for (const e of worldRef.current?.enemies() ?? []) {
+        let v = enemyViews.get(e.id);
+        // Someone else hit it: show the damage too (your own fight shows every swing, misses included).
+        if (v && e.fighter && e.fighter !== worldRef.current?.myId && v.lastHp !== null && e.hp < v.lastHp && v.g.visible) hitsplat(v.g.position, v.lastHp - e.hp);
+        if (v) v.lastHp = e.hp;
+        if (!v) {
+          const g = buildPigeon();
+          g.traverse((o) => (o.userData.enemyId = e.id));
+          // A bigger invisible tap area: pigeons are small.
+          const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8), hitMat);
+          hitArea.position.y = 0.3;
+          hitArea.userData.enemyId = e.id;
+          g.add(hitArea);
+          scene.add(g);
+          pickables.push(g);
+          v = { g, pos: null, peckUntil: 0, dyingUntil: 0, lastHp: e.hp, wasDead: !!e.deadUntil };
+          enemyViews.set(e.id, v);
+        }
+        // Just died (killed by anyone): play the fall before hiding it.
+        const deadNow = !!e.deadUntil && e.deadUntil > gameNow();
+        if (deadNow && !v.wasDead && now >= v.dyingUntil) v.dyingUntil = now + 700;
+        v.wasDead = deadNow;
+        const dying = now < v.dyingUntil;
+        const dead = deadNow && !dying;
+        v.g.visible = !dead;
+        if (dead) {
+          v.pos = null;
+          continue;
+        }
+        const at = enemyAt(e);
+        const goal = new THREE.Vector3(at.x, 0, at.z);
+        if (!v.pos) v.pos = goal.clone();
+        v.pos.lerp(goal, Math.min(1, dt * 12));
+        const d = goal.clone().sub(v.g.position).setY(0);
+        if (d.length() > 0.02) v.g.rotation.y = Math.atan2(d.x, d.z);
+        if (e.fighter && foe === e.id) v.g.rotation.y = Math.atan2(me.pos.x - v.pos.x, me.pos.z - v.pos.z);
+        v.g.position.set(v.pos.x, 0.03 + (at.flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
+        animatePigeon(v.g, dying ? 'dead' : at.flying ? 'fly' : now < v.peckUntil ? 'attack' : 'peck', now, e.index * 1.3);
+      }
+
       // Other players: walk them along the route they shared.
       const list = worldRef.current?.others() ?? [];
       const here = new Set<string>();
@@ -975,18 +1197,79 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (!e) {
           const g = buildCharacter(o.look);
           scene.add(g);
-          e = { g, facing: 0 };
+          e = { g, pos: null, facing: 0, hpBar: null, hpBarUntil: 0, lastHp: null };
           others.set(o.id, e);
         }
+        // Where their route says they are now. We don't jump there: we glide (a bit faster than walking, so we
+        // catch up), so a new route that starts from the middle of a tile, or a small clock correction, doesn't
+        // make them hop. Only a big gap (they died and woke up at the start) snaps straight there.
         const at = along(o.from, o.path, Math.max(0, ((gameNow() - o.at) / 1000) * WALK_SPEED));
-        if (at.facing !== null && at.moving) e.facing = at.facing;
-        e.g.position.set(at.x, 0.03, at.z);
+        const goal = new THREE.Vector3(at.x, 0, at.z);
+        if (!e.pos || e.pos.distanceTo(goal) > 4) e.pos = goal.clone();
+        const gap = goal.clone().sub(e.pos);
+        const gliding = gap.length() > 0.03;
+        if (gliding) {
+          e.pos.add(gap.clone().clampLength(0, WALK_SPEED * 1.35 * dt));
+          e.facing = Math.atan2(gap.x, gap.z);
+        } else if (at.facing !== null && at.moving) e.facing = at.facing;
+        // What they're doing (public.player_status): stunned, working a spot (facing it), or fighting (facing the enemy).
+        const os = o.status;
+        const t = gameNow();
+        const moving = at.moving || gliding;
+        let pose: Pose = moving ? 'walk' : 'idle';
+        if (os && !moving) {
+          if (os.stunnedUntil > t) pose = 'stunned';
+          else if (os.fightEnemy) {
+            const v = enemyViews.get(os.fightEnemy);
+            if (v?.g.visible) {
+              e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
+              pose = 'work';
+            }
+          } else if (os.spot && os.jobEndsAt > t) {
+            const n = NODES.find((x) => x.id === os.spot);
+            if (n) {
+              const [nx, ny] = nodeTile(n);
+              if (Math.hypot(nx + 0.5 - e.pos.x, ny + 0.5 - e.pos.z) > 0.2) e.facing = Math.atan2(nx + 0.5 - e.pos.x, ny + 0.5 - e.pos.z);
+            }
+            pose = 'work';
+          }
+        }
+        // Their health: a hitsplat when it drops, and the health bar for a while (everyone sees it, like your own).
+        if (os) {
+          const hpNow = Math.min(os.maxHp, os.hp + (Math.max(0, t - os.hpAt) / 60000) * 1);
+          if (e.lastHp !== null && os.hp < e.lastHp - 0.001) {
+            hitsplat(e.pos, Math.round(e.lastHp - os.hp));
+            e.hpBarUntil = now + 6000;
+          }
+          e.lastHp = os.hp;
+          const show = now < e.hpBarUntil || hpNow / os.maxHp <= 0.3;
+          if (show && !e.hpBar) {
+            e.hpBar = document.createElement('div');
+            e.hpBar.className = 'hp-bar';
+            e.hpBar.appendChild(document.createElement('div'));
+            labelLayer.appendChild(e.hpBar);
+          }
+          if (e.hpBar) {
+            e.hpBar.style.display = show ? 'block' : 'none';
+            if (show) {
+              // Above their name label (which sits at 1.55), not on top of it.
+              const [bx, by, depth] = project(e.pos.clone().setY(1.55));
+              e.hpBar.style.transform = `translate(${bx}px, ${by - 20}px) translate(-50%, -100%)`;
+              e.hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
+              (e.hpBar.firstChild as HTMLElement).style.width = `${Math.max(0, Math.min(1, hpNow / os.maxHp)) * 100}%`;
+              e.hpBar.classList.toggle('low', hpNow / os.maxHp <= 0.3);
+            }
+          }
+        }
+        e.g.position.set(e.pos.x, 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
-        animateCharacter(e.g, at.moving ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
+        setGear(e.g, o.equipment);
+        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37);
       }
       for (const [id, e] of others)
         if (!here.has(id)) {
           scene.remove(e.g);
+          e.hpBar?.remove();
           others.delete(id);
         }
 
@@ -1025,6 +1308,32 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Nearest few only, and skip any that would overlap one already placed.
       const seen = new Set<string>();
       const placed: [number, number, number][] = [];
+      // Enemies: "Pigeon (level 1)" nearby, and a health bar while hurt or in a fight.
+      for (const e of worldRef.current?.enemies() ?? []) {
+        const v = enemyViews.get(e.id);
+        const k = ENEMY_KINDS[e.kind];
+        if (!v || !v.g.visible || !k || v.g.position.distanceTo(me.pos) > LABEL_RANGE + 2) continue;
+        const [x, y, depth] = project(v.g.position.clone().setY(0.75));
+        if (depth > 1) continue;
+        let el = labelEls.get(`enemy:${e.id}`);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node-label enemy';
+          el.innerHTML = '<span class="enemy-name"></span><span class="enemy-hp"><span></span></span>';
+          labelLayer.appendChild(el);
+          labelEls.set(`enemy:${e.id}`, el);
+        }
+        const name = el.firstChild as HTMLElement;
+        const text = `${k.name} (level ${k.level})`;
+        if (name.textContent !== text) name.textContent = text;
+        const bar = el.lastChild as HTMLElement;
+        const showBar = e.hp < k.hp || !!e.fighter;
+        bar.style.display = showBar ? 'block' : 'none';
+        (bar.firstChild as HTMLElement).style.width = `${(Math.max(0, e.hp) / k.hp) * 100}%`;
+        seen.add(`enemy:${e.id}`);
+        placed.push([x, y, text.length * 6 + 10]);
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
       // Other players' names (white), from far away.
       for (const [id, e] of others) {
         const o = list.find((x) => x.id === id);
@@ -1038,9 +1347,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           labelLayer.appendChild(el);
           labelEls.set(`player:${id}`, el);
         }
-        if (el.textContent !== o.name) el.textContent = o.name;
+        const tag = o.combat ? `${o.name} (level ${o.combat})` : o.name;
+        if (el.textContent !== tag) el.textContent = tag;
         seen.add(`player:${id}`);
-        placed.push([x, y, o.name.length * 6 + 10]);
+        placed.push([x, y, tag.length * 6 + 10]);
         el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
       // "Your grave · 4:31" over your grave (from further away than other labels).
@@ -1198,6 +1508,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       savePos();
       cancelAnimationFrame(raf);
       off();
+      offFight?.();
       ro.disconnect();
       mini.removeEventListener('pointerup', onMiniTap);
       renderer.domElement.removeEventListener('pointerdown', onDown);

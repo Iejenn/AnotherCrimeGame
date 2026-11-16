@@ -473,3 +473,29 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) { .hp-bar.low { animation: none; } }
 /* "A new version is out": shown for a few seconds before the game reloads itself. */
 .update-banner { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 100; background: #f2d27a; color: #141210; font: 700 0.9rem var(--sans); padding: 10px 16px; border-radius: 3px; box-shadow: 0 6px 20px #000c; }
+/* Desktop: the game fills the whole window (no boxed column). The Street takes all the height that's left
+   under the header and tabs; the other tabs keep a readable width in the middle. */
+@media (min-width: 721px) {
+  .app { max-width: none; padding: 10px 20px 14px; }
+  .content > :not(.street) { max-width: 1080px; margin-left: auto; margin-right: auto; }
+  .street { height: calc(100dvh - 132px); }
+}
+/* The chat takes less room: a bit lower on phones; on desktop an OSRS-style panel in the bottom-left corner. */
+.chat { height: 30%; max-height: 200px; min-height: 110px; }
+@media (min-width: 721px) {
+  .chat { right: auto; width: min(560px, 55%); border-right: 1px solid #6a6258; border-top-right-radius: 3px; }
+}
+
+/* Combat (docs/design.md §12): enemy name + health bar, and OSRS-style hitsplats (red = damage, blue = a miss). */
+.node-label.enemy { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #f2e14a; background: none; text-shadow: 0 1px 0 #000, 0 0 3px #000; }
+.enemy-hp { display: none; width: 34px; height: 5px; background: #c0281e; border: 1px solid #000; }
+.enemy-hp > span { display: block; height: 100%; background: #3bd04a; }
+.hitsplat { position: absolute; transform: translate(-50%, -50%); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 800 0.8rem var(--mono); color: #fff; text-shadow: 0 1px 0 #000; border: 1px solid #000; pointer-events: none; animation: hitsplat 0.9s ease-out forwards; z-index: 3; }
+.hitsplat.hit { background: #c0281e; }
+.hitsplat.miss { background: #2a62c8; }
+@keyframes hitsplat { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%); } }
+/* Equipment (Inventory tab): the weapon slot and what it does. */
+.equipment { margin-top: 14px; border-top: 1px solid var(--rule-strong); padding-top: 8px; }
+.equip-row { display: flex; gap: 10px; align-items: center; }
+.equip-row > .slot { width: 56px; flex: none; align-items: center; justify-content: center; cursor: default; }
+.equip-info { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }

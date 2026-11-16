@@ -8,6 +8,50 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.28.0',
+    date: '2026-11-16',
+    title: 'Watch your back',
+    items: [
+      'You now see what other players are doing: working a spot, standing there stunned, or fighting a Pigeon.',
+      'When another player gets hurt, everyone sees the hitsplat and their health bar, just like your own.',
+      'Every login starts with a fresh chat (no old messages), and the log greets you with "Welcome to Underworld."',
+      'The start-up screen is shorter: it says when you were last online, and "What\'s new" is right in view. Your skills are in the Skills tab.',
+    ],
+  },
+  {
+    version: '0.27.0',
+    date: '2026-11-16',
+    title: 'Combat!',
+    items: [
+      'Fight the Pigeons in the park: tap one to walk up and start swinging. Red hitsplats show your damage, blue ones a miss.',
+      'Fighting trains Melee (1 XP per damage), Defense (0.5 XP per damage you deal and per damage you take) and Health.',
+      'Health now starts at level 10, and your max HP equals your Health level: 10 HP now, 100 HP at level 100.',
+      "New shop: Ray's Arms, on the top row of the city. Ray sells brass knuckles for $50: +1 damage, and they never wear out.",
+      'Wield weapons from the Inventory tab. The new Equipment panel shows your max hit, attack speed and combat level.',
+      'Players now show their combat level next to their name, and you can see what they are wielding.',
+    ],
+  },
+  {
+    version: '0.26.0',
+    date: '2026-11-16',
+    title: 'One device at a time',
+    items: [
+      'Your account can only play on one device at a time. Signing in somewhere else asks if you want to play there; the other device is then logged out.',
+      'Logging out (or the idle log-out) now only logs out the device you are on.',
+    ],
+  },
+  {
+    version: '0.25.0',
+    date: '2026-11-16',
+    title: 'Stop that!',
+    items: [
+      'Get caught at the gym bags and one of the players yells "Stop that!" and throws the basketball at your head.',
+      'On a computer the game now fills your whole screen, with the chat as a panel in the bottom-left corner.',
+      'Other players walk smoothly now instead of jumping around.',
+      'The chat takes less room on phones, and stays scrolled to the newest message.',
+    ],
+  },
+  {
     version: '0.24.0',
     date: '2026-11-16',
     title: 'Living dangerously',

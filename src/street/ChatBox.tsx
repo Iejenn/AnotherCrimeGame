@@ -37,12 +37,12 @@ export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatL
     .sort((a, b) => a.t - b.t)
     .slice(-60);
 
-  // Keep the newest line in view.
-  const last = lines[lines.length - 1]?.key;
+  // Keep the newest line in view, unless you've scrolled up to read older ones.
+  const stick = useRef(true);
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [last, open, filter]);
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  });
 
   const send = async () => {
     const msg = text.trim();
@@ -65,7 +65,15 @@ export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatL
               </button>
             ))}
           </div>
-          <div className="chat-lines" ref={listRef} aria-live="polite">
+          <div
+            className="chat-lines"
+            ref={listRef}
+            aria-live="polite"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+            }}
+          >
             {lines.map((l) => (
               <div key={l.key} className={`chat-line from-${l.kind}`}>
                 {l.name && <span className={`chat-name ${l.mine ? 'mine' : ''}`}>{l.name}: </span>}

@@ -5,7 +5,7 @@ import { SKILL_BY_ID, SKILL_IDS } from './data/skills';
 import { CATCH_SECONDS, CRIME_BY_ID, EAT_SECONDS, type CrimeDef } from './data/crimes';
 import { ITEM_BY_ID } from './data/items';
 import { RANKS } from './data/world';
-import { levelFromXp, MAX_LEVEL } from './xp';
+import { levelFromXp, MAX_LEVEL, totalXpForLevel } from './xp';
 import { pick, randRange, type Rng } from './rng';
 import { firstSeen } from './watchers';
 import { emptyReport } from './types';
@@ -41,8 +41,10 @@ export function slotsUsed(s: GameState) {
 }
 
 
-/** Max health: 10, plus 2 per Health level above 1. */
-export const maxHp = (s: GameState) => 10 + 2 * (skillLevel(s, 'health') - 1);
+/** Max health = your Health level (which starts at 10: 10 HP, 100 HP at level 100). docs/design.md §12. */
+export const maxHp = (s: GameState) => skillLevel(s, 'health');
+/** Health starts at this level (with this much XP). */
+export const HEALTH_START_LEVEL = 10;
 
 /** Current health after regeneration up to time t (does not mutate). */
 export function hpAt(s: GameState, t: number) {
@@ -80,6 +82,7 @@ export function crimeStats(s: GameState, crime: CrimeDef): CrimeStats {
 
 export function newGame(name: string, look: Look, now: number): GameState {
   const skills = Object.fromEntries(SKILL_IDS.map((id) => [id, { xp: 0 }])) as unknown as GameState['skills'];
+  skills.health.xp = totalXpForLevel(HEALTH_START_LEVEL); // you start with 10 HP = Health level 10
   const s: GameState = {
     version: 2, name: name.trim() || 'Nobody', look, createdAt: now,
     cash: 10, hp: 10, hpAt: now,

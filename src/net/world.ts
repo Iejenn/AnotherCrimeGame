@@ -6,8 +6,29 @@
 // Other phones animate the walk along the route, so one tap to walk is one message, not one per step.
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { supabase } from './supabase';
-import type { WorldEntry } from './useOnlineGame';
-import type { WorldLink } from '../street/StreetView';
+import type { EnemyState, FightEvent, WorldEntry } from './useOnlineGame';
+import type { OtherStatus, WorldLink } from '../street/StreetView';
+
+interface StatusRow {
+  player_id: string;
+  job_spot: string | null;
+  job_ends_at: string | null;
+  stunned_until: string | null;
+  fight_enemy: string | null;
+  hp: number | string;
+  hp_at: string;
+  max_hp: number;
+}
+const ms = (t: string | null) => (t ? Date.parse(t) : 0);
+const toStatus = (r: StatusRow): OtherStatus => ({
+  spot: r.job_spot,
+  jobEndsAt: ms(r.job_ends_at),
+  stunnedUntil: ms(r.stunned_until),
+  fightEnemy: r.fight_enemy,
+  hp: Number(r.hp),
+  hpAt: ms(r.hp_at),
+  maxHp: r.max_hp,
+});
 
 interface WalkRow {
   player_id: string;
@@ -17,9 +38,37 @@ interface WalkRow {
   started_at: string;
 }
 
-export function useWorld(userId: string, roster: MutableRefObject<WorldEntry[]>, refresh: () => void): WorldLink {
+export function useWorld(
+  userId: string,
+  roster: MutableRefObject<WorldEntry[]>,
+  refresh: () => void,
+  enemies: MutableRefObject<EnemyState[]>,
+  onFight: (fn: (events: FightEvent[]) => void) => () => void,
+): WorldLink {
   /** Routes heard live (newer than the last roster), by player id. */
   const routes = useRef(new Map<string, { from: [number, number]; path: [number, number][]; at: number }>());
+  /** What everyone is doing (working, stunned, fighting) and their health: public.player_status, kept live. */
+  const status = useRef(new Map<string, OtherStatus>());
+
+  useEffect(() => {
+    // Everyone's current status once, then every change live (the server's trigger writes it; nobody else can).
+    void supabase
+      .from('player_status')
+      .select('*')
+      .then(({ data }) => {
+        for (const r of (data ?? []) as StatusRow[]) if (!status.current.has(r.player_id)) status.current.set(r.player_id, toStatus(r));
+      });
+    const ch = supabase
+      .channel('player_status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'player_status' }, (msg) => {
+        const r = msg.new as StatusRow;
+        if (r?.player_id) status.current.set(r.player_id, toStatus(r));
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, []);
 
   useEffect(() => {
     const ch = supabase
@@ -49,10 +98,14 @@ export function useWorld(userId: string, roster: MutableRefObject<WorldEntry[]>,
         roster.current.map((p) => {
           const live = routes.current.get(p.id);
           const r = live && live.at >= p.at ? live : p;
-          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at };
+          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at, equipment: p.equipment, combat: p.combat, status: status.current.get(p.id) };
         }),
       move,
+      myId: userId,
+      // The shared enemies (kept fresh by Realtime in useOnlineGame) and your fight's swings.
+      enemies: () => enemies.current,
+      onFight,
     }),
-    [roster, move],
+    [roster, move, userId, enemies, onFight],
   );
 }

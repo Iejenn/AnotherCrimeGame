@@ -53,6 +53,15 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <path d="M15 9 H17 V16 A1.5 1.5 0 0 0 20 16 V10 L18 8" stroke="#e8e2d0" strokeWidth="1.4" fill="none" />
     </>
   ),
+  weapons: (
+    <>
+      {/* brass knuckles: four rings on a bar */}
+      <rect x="4" y="12" width="16" height="5" rx="2" fill="#d8b04a" />
+      {[6, 10, 14, 18].map((x) => (
+        <circle key={x} cx={x} cy="9.5" r="2.6" fill="none" stroke="#d8b04a" strokeWidth="2" />
+      ))}
+    </>
+  ),
   lot: (
     <>
       <rect x="5" y="5" width="14" height="14" rx="2" fill="#2a5a9a" />

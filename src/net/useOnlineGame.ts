@@ -26,6 +26,7 @@ export interface ServerAnswer {
     name: string;
     look: GameState['look'];
     createdAt: number;
+    lastOnline?: number | null;
     cash: number;
     hp: number;
     hpAt: number;
@@ -37,6 +38,8 @@ export interface ServerAnswer {
     pos: [number, number] | null;
     inventory: Record<string, number>;
     stats: GameState['stats'];
+    equipment?: GameState['equipment'];
+    fight?: GameState['fight'];
   };
   grave?: GameState['grave'];
   spots?: Record<string, number>;
@@ -44,6 +47,31 @@ export interface ServerAnswer {
   log?: string[];
   /** Who else is on the island (game_state only): name and look from the database. */
   world?: WorldEntry[];
+  /** The enemies, shared by everyone (game.enemies_json). */
+  enemies?: EnemyState[];
+  /** Fight swings the server just rolled (fight_step), to animate. */
+  events?: FightEvent[];
+}
+
+/** An enemy as the server describes it. */
+export interface EnemyState {
+  id: string;
+  kind: string;
+  index: number;
+  hp: number;
+  /** Dead until this time (ms), or null when alive. */
+  deadUntil: number | null;
+  /** Who's fighting it, and where it stands still meanwhile. */
+  fighter: string | null;
+  fightPos: [number, number] | null;
+}
+
+/** One swing in a fight: yours or the enemy's, how much damage (0 = miss), or the enemy dying. */
+export interface FightEvent {
+  at: number;
+  by: 'you' | 'enemy';
+  dmg?: number;
+  killed?: boolean;
 }
 
 /** Another player, as the server describes them (game.world in the SQL). */
@@ -51,15 +79,24 @@ export interface WorldEntry {
   id: string;
   name: string;
   look: GameState['look'];
+  equipment?: GameState['equipment'];
+  /** Their combat level (shown next to their name). */
+  combat?: number;
   from: [number, number];
   path: [number, number][];
   at: number;
 }
 
 /** Server reasons that the game explains itself already (or that need no message). */
-const QUIET = new Set(['not_yet', 'no_attempt']);
+const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far']);
 /** What the server's "no" means, in words. */
 const SAY: Record<string, string> = {
+  enemy_busy: 'Someone else is already fighting that.',
+  enemy_dead: "It's gone. It'll be back soon.",
+  cant_equip: "You can't wear that.",
+  bag_full: 'Your bag is full.',
+  not_enough_cash: "You don't have enough cash.",
+  not_in_shop: 'You need to be in the shop to buy that.',
   too_far: "You're too far away.",
   too_fast: 'The server lost track of where you are. Walk there again.',
   empty: "It's empty. Come back in a bit.",
@@ -80,6 +117,7 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     name: p.name,
     look: p.look,
     createdAt: p.createdAt,
+    lastOnline: p.lastOnline ?? null,
     cash: Number(p.cash),
     hp: Number(p.hp),
     hpAt: p.hpAt,
@@ -93,6 +131,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
       pos: p.pos,
     },
     inventory: p.inventory ?? {},
+    equipment: p.equipment ?? {},
+    fight: p.fight ?? null,
     grave: a.grave ?? null,
     stats: p.stats,
     log,
@@ -100,12 +140,14 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
   };
 }
 
-export function useOnlineGame(first: ServerAnswer) {
+export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
   const ref = useRef<GameState>(fromServer(first, []));
   const [, rerender] = useReducer((x: number) => x + 1, 0);
   const [welcome, setWelcome] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(1);
+  const replacedRef = useRef(onReplaced);
+  replacedRef.current = onReplaced;
   const listeners = useRef(new Set<(r: Report) => void>());
   /** The chain of server calls (one at a time, in order). */
   const queue = useRef<Promise<unknown>>(Promise.resolve());
@@ -114,6 +156,11 @@ export function useOnlineGame(first: ServerAnswer) {
   const retryAt = useRef(0);
   /** Who else is online, as the server last told us. */
   const roster = useRef<WorldEntry[]>(first.world ?? []);
+  /** The enemies (shared), from the server's answers and live updates. */
+  const enemies = useRef<EnemyState[]>(first.enemies ?? []);
+  /** Who wants to hear about fight swings (the Street, to animate them). */
+  const fightListeners = useRef(new Set<(events: FightEvent[]) => void>());
+  const lastFightStep = useRef(0);
 
   const toast = useCallback((items: Omit<Toast, 'id'>[]) => {
     if (!items.length) return;
@@ -129,6 +176,8 @@ export function useOnlineGame(first: ServerAnswer) {
       if (!a) return;
       if (a.server_now) syncClock(a.server_now, sentAt, Date.now());
       if (a.world) roster.current = a.world;
+      if (a.enemies) enemies.current = a.enemies;
+      if (a.events?.length) fightListeners.current.forEach((fn) => fn(a.events!));
       if (!a.ok && a.reason && !QUIET.has(a.reason)) toast([{ text: SAY[a.reason] ?? 'The server said no.', kind: 'event' }]);
       if (!a.player) return;
       const t = gameNow();
@@ -151,6 +200,11 @@ export function useOnlineGame(first: ServerAnswer) {
       const run = async () => {
         const sentAt = Date.now();
         const { data, error } = await supabase.rpc(fn, args);
+        // The account was taken over by another device: this one stops here.
+        if (error && /session_replaced/.test(error.message)) {
+          replacedRef.current();
+          return null;
+        }
         if (error) {
           toast([{ text: "Can't reach the server. Check your connection.", kind: 'event' }]);
           return null;
@@ -167,7 +221,7 @@ export function useOnlineGame(first: ServerAnswer) {
 
   /** Ask the server to finish the attempt / bring things up to date, once at a time. */
   const settle = useCallback(
-    async (fn: 'finish_attempt' | 'game_state') => {
+    async (fn: 'finish_attempt' | 'game_state' | 'fight_step') => {
       busy.current = true;
       const a = await call(fn);
       busy.current = false;
@@ -186,7 +240,11 @@ export function useOnlineGame(first: ServerAnswer) {
       if (!busy.current && now >= retryAt.current) {
         const j = s.player.job;
         const caught = s.player.caught;
-        if (j) {
+        if (s.fight && Date.now() - lastFightStep.current > 600) {
+          // In a fight: ask the server to roll the swings that are due (about every 0.6 s).
+          lastFightStep.current = Date.now();
+          settle('fight_step');
+        } else if (j) {
           const w = CRIME_BY_ID[j.crimeId]?.catcher;
           const seen = w === 'bartender' || w === 'guard' ? firstSeen(w, j.pos, j.startedAt, Math.min(now, j.endsAt)) : null;
           if (now >= j.endsAt + 50 || seen !== null) settle('finish_attempt');
@@ -223,6 +281,14 @@ export function useOnlineGame(first: ServerAnswer) {
         ref.current.player.pos = pos;
         void call('save_position', { p_x: pos[0], p_y: pos[1] });
       },
+      attack: (enemyId, pos) => {
+        lastFightStep.current = Date.now();
+        void call('attack', { p_enemy: enemyId, p_x: pos[0], p_y: pos[1] });
+      },
+      stopFight: () => void call('stop_fight'),
+      equip: (id) => void call('equip_item', { p_item: id }),
+      unequip: (slot) => void call('unequip_item', { p_slot: slot }),
+      buy: (id) => void call('buy_item', { p_item: id }),
     }),
     [call],
   );
@@ -239,5 +305,38 @@ export function useOnlineGame(first: ServerAnswer) {
     if (!busy.current) void settle('game_state');
   }, [settle]);
 
-  return { state: ref.current, api, onReport, welcome, dismissWelcome: () => setWelcome(false), toasts, roster, refresh };
+  // Enemies change when anyone fights them: hear about it live (their rows say what changed).
+  useEffect(() => {
+    const ch = supabase
+      .channel('enemies')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'enemies' }, (msg) => {
+        const r = msg.new as { id: string; kind: string; idx: number; hp: number; dead_until: string | null; fighter: string | null; fight_x: number | null; fight_y: number | null; fight_seen: string | null };
+        const now = gameNow();
+        const dead = r.dead_until ? Date.parse(r.dead_until) : 0;
+        const fighting = !!r.fighter && !!r.fight_seen && Date.parse(r.fight_seen) > now - 5000;
+        const next: EnemyState = {
+          id: r.id,
+          kind: r.kind,
+          index: r.idx,
+          hp: dead > now ? 0 : r.hp,
+          deadUntil: dead > now ? dead : null,
+          fighter: fighting ? r.fighter : null,
+          fightPos: fighting && r.fight_x !== null && r.fight_y !== null ? [r.fight_x, r.fight_y] : null,
+        };
+        enemies.current = [...enemies.current.filter((e) => e.id !== r.id), next];
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, []);
+
+  const onFight = useCallback((fn: (events: FightEvent[]) => void) => {
+    fightListeners.current.add(fn);
+    return () => {
+      fightListeners.current.delete(fn);
+    };
+  }, []);
+
+  return { state: ref.current, api, onReport, welcome, dismissWelcome: () => setWelcome(false), toasts, roster, refresh, enemies, onFight };
 }

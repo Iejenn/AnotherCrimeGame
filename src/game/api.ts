@@ -20,4 +20,13 @@ export interface GameApi {
   collectGrave(): void;
   /** Remember where you're standing on the Street. */
   savePos(pos: [number, number]): void;
+  /** Attack an enemy, standing on tile `pos` next to it (combat, docs/design.md §12). */
+  attack(enemyId: string, pos: [number, number]): void;
+  /** Walk away from a fight. */
+  stopFight(): void;
+  /** Wield or wear an item from your bag; take off what's in a slot. */
+  equip(itemId: string): void;
+  unequip(slot: string): void;
+  /** Buy one item from the shop you're in. */
+  buy(itemId: string): void;
 }

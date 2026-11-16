@@ -12,3 +12,9 @@ console.log(`insert into public.spots (id, crime_id, x, y, area_x0, area_y0, are
 import { totalXpForLevel } from '../src/game/xp';
 const xp = Array.from({ length: 31 }, (_, l) => (l === 0 ? 0 : totalXpForLevel(l)));
 console.log(`-- xp table: array[${xp.join(', ')}]`);
+
+// The park tiles a Pigeon can land on, as two arrays (x and y), copied into game.pigeon_at().
+import { PIGEON_TILES } from '../src/game/enemies';
+console.log(`-- pigeon tiles (${PIGEON_TILES.length}):`);
+console.log(`px int[] := array[${PIGEON_TILES.map((t) => t[0]).join(',')}];`);
+console.log(`py int[] := array[${PIGEON_TILES.map((t) => t[1]).join(',')}];`);

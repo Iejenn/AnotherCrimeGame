@@ -6,7 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, GAS, H, LOT, NODES, NO_ROAD, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
+import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, GAS, H, LOT, NODES, NO_ROAD, NPCS, PARK, ROWS, STORE, W, WEAPONS, inRect, type Room } from './map';
 import { mulberry32 } from '../game/rng';
 import { buildCar } from './props';
 
@@ -695,7 +695,38 @@ export function buildCity(scene: THREE.Scene) {
     counter(STORE);
   }
 
-  // ---------- the candy store (Shoplift Candy Store) ----------
+  // ---------- Ray's Arms, the weapon store (combat) ----------
+  // Dark gunmetal walls and a red-on-black sign; racks on the back wall with bats, a machete and brass
+  // knuckles on pegs; a glass display case on the counter. Ray (an NPC) sells you the knuckles.
+  {
+    const { Z0, t } = shopShell(WEAPONS, {
+      wall: 0x4e5056, trim: 0x8a2f28, stripe: ['#2b2b2e', '#8a2f28'], sign: "RAY'S ARMS", signBg: '#141210', signFg: '#e2604c',
+      floor: ['#6a6660', '#545049'], light: 0xffd8a8,
+    });
+    const steel = lam(0x8a8f96);
+    const wood = lam(0x6b4a2e);
+    const brass = lam(0xd8b04a, { emissive: 0x3a2a08, emissiveIntensity: 0.4 });
+    for (const f of FIXTURES.filter((x) => x.kind === 'rack' && inRect(WEAPONS, x.x, x.y))) {
+      const fx = f.x + 0.5;
+      const fz = Z0 + t + 0.08;
+      add(geoBox(0.9, 0.9, 0.06), lam(0x3a3530), fx, 0.6, fz); // pegboard
+      // a baseball bat, leaning
+      const bat = add(own(new THREE.CylinderGeometry(0.035, 0.06, 0.7, 6)), wood, fx - 0.25, 0.55, fz + 0.08);
+      bat.rotation.z = 0.25;
+      // a machete
+      add(geoBox(0.05, 0.45, 0.02), steel, fx + 0.05, 0.7, fz + 0.06);
+      add(geoBox(0.05, 0.14, 0.04), lam(0x1e1b18), fx + 0.05, 0.4, fz + 0.06);
+      // brass knuckles on a peg
+      for (let i = 0; i < 4; i++) add(own(new THREE.TorusGeometry(0.03, 0.01, 4, 8)), brass, fx + 0.22 + i * 0.05, 0.88, fz + 0.07, false);
+      add(geoBox(0.2, 0.03, 0.02), brass, fx + 0.295, 0.85, fz + 0.07, false);
+    }
+    // The counter with a glass display case on it.
+    const { ccx, ccz } = counter(WEAPONS, 0x3a3530, 0x2b2b2e);
+    add(geoBox(0.9, 0.2, 0.4), lam(0xbfd8e8, { transparent: true, opacity: 0.35 }), ccx - 0.3, 0.7, ccz, false);
+    for (let i = 0; i < 3; i++) add(own(new THREE.TorusGeometry(0.04, 0.012, 4, 8)), brass, ccx - 0.55 + i * 0.2, 0.64, ccz, false);
+  }
+
+    // ---------- the candy store (Shoplift Candy Store) ----------
   // Dusty pink walls and a pink neon sign; pink-and-cream floor. The four candy shelves on the back
   // wall are spots (added by the Street view). Candy jars on the counter, a gumball machine, and a
   // wall of lollipops by the door.
