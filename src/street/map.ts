@@ -59,7 +59,7 @@ const PARKS: [number, number][] = [[0, 4], [5, 0], [1, 0]];
 export const SPAWN: [number, number] = [2 * BLOCK + 4, 3 * BLOCK + 1];
 
 export function isRoad(x: number, y: number) {
-  return (x % BLOCK < 2 || y % BLOCK < 2) && !inRect(PARK, x, y);
+  return (x % BLOCK < 2 || y % BLOCK < 2) && !NO_ROAD.some((r) => inRect(r, x, y));
 }
 
 // ---------- the big park (Pickpocket Tourists, level 1) ----------
@@ -93,23 +93,28 @@ export const STORE = room('store', "Eddy's General Store", 2, 1, true);
 export const CANDY = room('candy', 'Candy store', 3, 2, true);
 /** The bar (Pickpocket Drunks, level 15), above the basketball court. */
 export const BAR = room('bar', 'The bar', 1, 2, false);
-/** The gas station shop (Shoplift Gas Station, level 25), below the parking lot. The shop is the top
- *  four rows of the block; the pumps stand under a canopy along the front. */
-export const GAS = room('gas', 'Gas station', 5, 3, true, 4);
+/** The gas station shop (Shoplift Gas Station, level 25), at the north end of the gas station + parking
+ *  lot area. The shop is the top four rows of its block; the pumps stand under a canopy along the front. */
+export const GAS = room('gas', 'Gas station', 5, 2, true, 4);
 export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 // ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
-// An open lot at the east edge of town, next to the beach. Meters along the bays, a guard booth,
+// An open lot at the east edge of town, next to the beach, south of the gas station. The road that ran
+// between them is gone: gas station, driveway and lot are one big rectangle. Meters along the bays, a guard booth,
 // four parked cars, and a guard who patrols with a flashlight. Layout (M = meter, C = car, B = booth):
 //   M . M . M
 //   . C . C .     cars nose-in at the north bays
 //   . . . . .
 //   . . C . C     cars nose-in at the south bays
 //   B M . M .
-export const LOT: Rect = blockRect(5, 2);
-/** Where the guard patrols: the lot and the pavement and road around it. */
-export const PATROL: Rect = { x0: LOT.x0 - 1, y0: LOT.y0 - 1, x1: LOT.x1 + 1, y1: LOT.y1 + 1 };
+export const LOT: Rect = blockRect(5, 3);
+/** The whole gas station + parking lot area, including the old road between them (now a driveway). */
+export const STATION: Rect = { x0: LOT.x0, y0: GAS.y0, x1: LOT.x1, y1: LOT.y1 };
+/** Where the guard patrols: the lot, the driveway in front of the pumps, and the road around them. */
+export const PATROL: Rect = { x0: LOT.x0 - 1, y0: GAS.y1 + 2, x1: LOT.x1 + 1, y1: LOT.y1 + 1 };
+/** Areas that cover what used to be road (no road paint, not counted as road). */
+export const NO_ROAD: Rect[] = [PARK, STATION];
 
 /** Blocks that aren't normal buildings: the park, the court, the rooms, the lot… */
 const SPECIAL: [number, number][] = [[2, 3], [3, 3], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3]];

@@ -6,7 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, GAS, H, LOT, NODES, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
+import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, GAS, H, LOT, NODES, NO_ROAD, NPCS, PARK, ROWS, STORE, W, inRect, type Room } from './map';
 import { mulberry32 } from '../game/rng';
 import { buildCar } from './props';
 
@@ -158,6 +158,8 @@ export function buildCity(scene: THREE.Scene) {
   const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, ...extra }));
   const geoBox = (w: number, h: number, d: number) => own(new THREE.BoxGeometry(w, h, d));
   const rng = mulberry32(2024);
+  /** Is this point on what used to be road but is now park or parking lot? */
+  const noRoad = (x: number, z: number) => NO_ROAD.some((r) => inRect(r, Math.floor(x), Math.floor(z)));
   let ironMat: THREE.Material | null = null;
   const iron2 = () => (ironMat ??= lam(0x3a3d42));
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], x: number, y: number, z: number, shadow = true) => {
@@ -203,18 +205,18 @@ export function buildCity(scene: THREE.Scene) {
   const inIntersection = (v: number) => v % BLOCK < 2;
   for (let k = 0; k <= COLS; k++) {
     const x = k * BLOCK + 1; // centre of a vertical road
-    for (let z = 0; z < H; z++) if (!inIntersection(z) && !inRect(PARK, Math.floor(x), z)) dash.add(x, 0.006, z + 0.5);
+    for (let z = 0; z < H; z++) if (!inIntersection(z) && !noRoad(x, z)) dash.add(x, 0.006, z + 0.5);
   }
   for (let k = 0; k <= ROWS; k++) {
     const z = k * BLOCK + 1;
-    for (let x = 0; x < W; x++) if (!inIntersection(x)) dash.add(x + 0.5, 0.006, z, 1, 1, 1, Math.PI / 2);
+    for (let x = 0; x < W; x++) if (!inIntersection(x) && !noRoad(x, z)) dash.add(x + 0.5, 0.006, z, 1, 1, 1, Math.PI / 2);
   }
   // Zebra crossings on the four sides of the inner intersections.
   for (let i = 1; i < COLS; i++)
     for (let j = 1; j < ROWS; j++) {
       const ix = i * BLOCK + 1;
       const iz = j * BLOCK + 1;
-      const z = (x: number, zz: number, rot = 0) => !inRect(PARK, Math.floor(x), Math.floor(zz)) && zebra.add(x, 0.007, zz, 1, 1, 1, rot);
+      const z = (x: number, zz: number, rot = 0) => !noRoad(x, zz) && zebra.add(x, 0.007, zz, 1, 1, 1, rot);
       for (let s = 0; s < 6; s++) {
         const off = -0.75 + s * 0.3;
         z(ix + off, iz - 1.45); // north
@@ -289,7 +291,8 @@ export function buildCity(scene: THREE.Scene) {
     for (let j = 1; j < ROWS; j++) {
       const x = i * BLOCK + 2.15;
       const z = j * BLOCK + 2.15;
-      if (inRect(PARK, Math.floor(x), Math.floor(z))) continue;
+      // No traffic light inside the park, the lot, or a special block's corner (it'd poke through a shop).
+      if (noRoad(x, z) || BLOCKS.get(`${i},${j}`)?.type === 'special') continue;
       poles.add(x, 0.68, z);
       lightBox.add(x, 1.45, z);
       ((i + j) % 2 ? redDot : greenDot).add(x, 1.5, z - 0.06);
@@ -791,8 +794,18 @@ export function buildCity(scene: THREE.Scene) {
     const Z1 = LOT.y1 + 1;
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
-    add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
-    add(geoBox(X1 - X0 - 0.1, 0.03, Z1 - Z0 - 0.1), lam(0x2c2e33), cx, 0.065, cz, false);
+    // One pavement edge around the whole gas station + lot area, and one asphalt surface from the
+    // pumps' driveway (the old road) down to the end of the lot.
+    const S0 = GAS.y0;
+    const D0 = GAS.y1 + 2; // the driveway starts below the pump row
+    add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - S0 + 0.6), pavement, cx, 0.03, (S0 + Z1) / 2, false);
+    add(geoBox(X1 - X0 - 0.1, 0.03, Z1 - D0 - 0.05), lam(0x2c2e33), cx, 0.065, (D0 + Z1) / 2, false);
+    // Arrows painted on the driveway: in from the west, out to the east.
+    for (const [ax, rot] of [[X0 + 1.2, 0], [X1 - 1.2, Math.PI]] as const) {
+      const arrow = add(own(new THREE.ConeGeometry(0.18, 0.4, 3).rotateZ(-Math.PI / 2).rotateX(-Math.PI / 2)), lam(0xd8d0c0), ax, 0.088, D0 + 1, false);
+      arrow.scale.y = 0.05;
+      arrow.rotation.y = rot;
+    }
     // Oil stains.
     const stains = new Batch(own(new THREE.CircleGeometry(0.22, 7).rotateX(-Math.PI / 2)), lam(0x1f2023), false);
     for (let i = 0; i < 10; i++) stains.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.082, Z0 + 1.2 + rng() * (Z1 - Z0 - 2.4), 0.6 + rng(), 1, 0.4 + rng() * 0.6, rng() * 6);
@@ -857,9 +870,6 @@ export function buildCity(scene: THREE.Scene) {
   // under a lit canopy (which fades like a building when it hides you), a car filling up, and a
   // tall price sign on the corner.
   {
-    const bx0 = GAS.x0;
-    const bz0 = GAS.y0;
-    add(geoBox(5.6, 0.06, 5.6), pavement, bx0 + 2.5, 0.03, bz0 + 2.5, false);
     const { Z0, t, cx } = shopShell(GAS, {
       wall: 0x9a958a, trim: 0x2a4a7a, stripe: ['#b8282a', '#e8e2d0'], sign: 'GAS & GO', signBg: '#1a3a6a', signFg: '#ffd84a',
       floor: ['#c8c4bc', '#a8a49c'], light: 0xfff0d8, height: 1.15,
