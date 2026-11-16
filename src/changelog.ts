@@ -16,6 +16,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'At 0 HP the screen goes black: you passed out. You wake up in the hospital ward instead of the park. Your stuff is still in your grave.',
       'Tap the stairs to go up or down.',
       'Cooking now shows a little bar over your head that fills while each piece cooks.',
+      'Fixed: your health could show 0 while you were still alive (at less than 1 HP). It now shows 1 until you really pass out.',
     ],
   },
   {

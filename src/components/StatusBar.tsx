@@ -5,7 +5,10 @@ import { hpAt, maxHp, rankFor, totalLevel } from '../game/engine';
 import { useInstall } from '../useInstall';
 
 export function StatusBar({ s, now, account }: { s: GameState; now: number; account: { email: string; onSignOut: () => void } }) {
-  const hp = Math.floor(hpAt(s, now));
+  // Health regenerates in fractions (1 HP a minute), so you can be at 0.6 HP: still alive (you only pass out at 0).
+  // Round down, but never show 0 while you're alive.
+  const exact = hpAt(s, now);
+  const hp = exact > 0 ? Math.max(1, Math.floor(exact)) : 0;
   const max = maxHp(s);
   const [menu, setMenu] = useState(false);
   const [iosHelp, setIosHelp] = useState(false);
