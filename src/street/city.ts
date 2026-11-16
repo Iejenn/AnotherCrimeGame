@@ -1166,8 +1166,8 @@ export function buildCity(scene: THREE.Scene) {
     for (let i = 0; i < 14; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
     cracks.build(scene);
     // Graffiti: tags on the side walls (facing in) and the back wall.
-    /** Spray-paint graffiti: fat letters in a colour fade, a white then a black outline, a highlight, drips and
-     *  overspray, a little crooked. Drawn on a transparent plane in front of a wall. */
+    /** Spray-paint graffiti, matte and worn: soft sprayed edges, a dark outline, speckles of overspray, drips, and
+     *  small chipped spots where the wall shows through. Lit like the wall it's on (never glowing). */
     const sprayTex = (text: string, c1: string, c2: string) =>
       own(
         canvasTex(
@@ -1175,69 +1175,84 @@ export function buildCity(scene: THREE.Scene) {
           192,
           (g) => {
             g.clearRect(0, 0, 512, 192);
-            const mist = g.createRadialGradient(256, 96, 30, 256, 96, 250);
-            mist.addColorStop(0, `${c1}44`);
-            mist.addColorStop(1, `${c1}00`);
-            g.fillStyle = mist;
-            g.fillRect(0, 0, 512, 192);
             g.save();
             g.translate(256, 92);
-            g.rotate(-0.07);
+            g.rotate(-0.06);
             g.font = '900 104px "Arial Black", Impact, Arial, sans-serif';
             g.textAlign = 'center';
             g.textBaseline = 'middle';
             const sc = Math.min(1, 470 / g.measureText(text).width);
             g.scale(sc, 1.05);
             g.lineJoin = 'round';
-            g.lineWidth = 26;
-            g.strokeStyle = '#141210';
+            // A soft dark outline (sprayed, so blurry at the edge), then the fill in a colour fade.
+            g.shadowColor = 'rgba(15, 12, 10, 0.8)';
+            g.shadowBlur = 10;
+            g.lineWidth = 16;
+            g.strokeStyle = 'rgba(20, 16, 14, 0.85)';
             g.strokeText(text, 0, 0);
-            g.lineWidth = 12;
-            g.strokeStyle = '#f2ece0';
-            g.strokeText(text, 0, 0);
+            g.shadowBlur = 4;
+            g.shadowColor = c2;
             const fill = g.createLinearGradient(0, -52, 0, 52);
             fill.addColorStop(0, c1);
             fill.addColorStop(1, c2);
             g.fillStyle = fill;
             g.fillText(text, 0, 0);
-            g.globalAlpha = 0.35;
-            g.fillStyle = '#ffffff';
-            g.fillText(text, -3, -6);
-            g.globalAlpha = 1;
-            g.fillStyle = fill;
-            g.fillText(text, 0, 2);
             g.restore();
-            // Paint drips running down from the letters.
+            // Overspray: fine speckles of paint around the letters.
+            for (let i = 0; i < 900; i++) {
+              const x = 30 + rng() * 452;
+              const y = 30 + rng() * 120;
+              g.fillStyle = rng() < 0.5 ? c1 : c2;
+              g.globalAlpha = 0.25 + rng() * 0.35;
+              g.fillRect(x, y, 1 + rng() * 1.5, 1 + rng() * 1.5);
+            }
+            g.globalAlpha = 1;
+            // Drips running down from the letters.
             g.fillStyle = c2;
-            for (let i = 0; i < 16; i++) {
-              const x = 50 + rng() * 410;
-              const y0 = 118 + rng() * 22;
-              const len = 8 + rng() * 44;
-              g.fillRect(x, y0, 3, len);
+            for (let i = 0; i < 12; i++) {
+              const x = 60 + rng() * 390;
+              const y0 = 120 + rng() * 18;
+              const len = 8 + rng() * 38;
+              g.globalAlpha = 0.85;
+              g.fillRect(x, y0, 2.5, len);
               g.beginPath();
-              g.arc(x + 1.5, y0 + len, 3.2, 0, Math.PI * 2);
+              g.arc(x + 1.25, y0 + len, 2.6, 0, Math.PI * 2);
               g.fill();
             }
+            g.globalAlpha = 1;
+            // Wear: chip small holes out of the paint so the wall shows through.
+            g.globalCompositeOperation = 'destination-out';
+            for (let i = 0; i < 260; i++) {
+              g.globalAlpha = 0.4 + rng() * 0.6;
+              g.beginPath();
+              g.arc(rng() * 512, rng() * 192, 0.8 + rng() * 2.6, 0, Math.PI * 2);
+              g.fill();
+            }
+            g.globalCompositeOperation = 'source-over';
+            g.globalAlpha = 1;
           },
           false,
         ),
       );
+    /** Paint on a wall: lit by the scene like the wall (Lambert, not glowing), a little see-through, never flickering. */
+    const paintMat = (text: string, c1: string, c2: string) =>
+      lam(0xffffff, { map: sprayTex(text, c1, c2), transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     const graffiti = (text: string, c1: string, c2: string, w: number, x: number, y: number, z: number, rotY: number) => {
-      const mat = own(new THREE.MeshBasicMaterial({ map: sprayTex(text, c1, c2), transparent: true, depthWrite: false }));
+      const mat = paintMat(text, c1, c2);
       const m = add(own(new THREE.PlaneGeometry(w, w * 0.375)), mat, x, y, z, false);
       m.rotation.y = rotY;
       m.receiveShadow = false;
     };
     // On the bare ground floors of the two side buildings, facing into the Yard.
-    graffiti('YARD', '#ff5a4a', '#a8201a', 2.6, X0 + 0.03, 0.62, cz - 0.3, Math.PI / 2);
-    graffiti('KEEP OUT', '#ffd84a', '#d07a1a', 3.0, X1 - 0.03, 0.62, cz - 0.2, -Math.PI / 2);
+    graffiti('YARD', '#c8382c', '#7a1a14', 2.6, X0 + 0.03, 0.62, cz - 0.3, Math.PI / 2);
+    graffiti('KEEP OUT', '#d8a83a', '#9a5a1a', 3.0, X1 - 0.03, 0.62, cz - 0.2, -Math.PI / 2);
     // The back wall has windows: that tag goes on a sheet of plywood leaning against it, next to the couch.
     {
       const px = X1 - 1.4;
       const pz = Z0 + 0.22;
       const ply = add(geoBox(2.2, 1.2, 0.05), lam(0xb8935a, { flatShading: true }), px, 0.62, pz);
       ply.rotation.x = -0.12;
-      const m = add(own(new THREE.PlaneGeometry(2.1, 0.79)), own(new THREE.MeshBasicMaterial({ map: sprayTex('NO SNITCH', '#5bd06a', '#1e7a3a'), transparent: true, depthWrite: false })), px, 0.64, pz + 0.035, false);
+      const m = add(own(new THREE.PlaneGeometry(2.1, 0.79)), paintMat('NO SNITCH', '#4a9a52', '#1e5a2a'), px, 0.64, pz + 0.035, false);
       m.rotation.x = -0.12;
       m.receiveShadow = false;
     }
