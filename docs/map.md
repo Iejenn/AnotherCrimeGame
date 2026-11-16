@@ -51,8 +51,8 @@ This page and the picture are generated from the game's map: after changing `src
 | 006-D | Parking lot | 46–50 | 29–33 |
 | 007-A | Buildings | 7–11 | 41–45 |
 | 007-B | Buildings | 12–16 | 41–45 |
-| 007-C | Pocket park | 7–11 | 46–50 |
-| 007-D | Buildings | 12–16 | 46–50 |
+| 007-C | The Yard (thugs) | 7–11 | 46–50 |
+| 007-D | The Yard (thugs) | 12–16 | 46–50 |
 | 008-A | Central Park | 24–28 | 41–45 |
 | 008-B | Central Park | 29–33 | 41–45 |
 | 008-C | Central Park | 24–28 | 46–50 |

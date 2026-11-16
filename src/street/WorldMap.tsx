@@ -62,6 +62,13 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       ))}
     </>
   ),
+  thugs: (
+    <>
+      {/* a knife */}
+      <path d="M5 17 L15 7 Q18 5 19 6 Q19.5 7 17 10 L8 19 Z" fill="#d8dde2" stroke="#5a5f66" strokeWidth="0.8" />
+      <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
+    </>
+  ),
   fire: (
     <>
       {/* a flame */}

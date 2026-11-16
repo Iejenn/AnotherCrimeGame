@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.34.0',
+    date: '2026-11-16',
+    title: 'Welcome to the Yard',
+    items: [
+      'Block 007 is now the Yard: a rough courtyard with graffiti, an old couch and a burning barrel. Get in through the two gaps in the fence.',
+      'Three thugs hang around in it (level 5, 10 HP). They carry knives and stab fast, but they leave you alone until you start something.',
+      'Thugs drop $5–10 now and then (1 in 5), and once in a while their knife (1 in 20).',
+      'The knife: needs Melee 5, +1 damage, and it is fast: a stab every second. Ray buys it for $62.',
+    ],
+  },
+  {
     version: '0.33.0',
     date: '2026-11-16',
     title: 'Fire up the barbecue',

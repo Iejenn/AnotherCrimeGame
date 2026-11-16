@@ -2,13 +2,13 @@
 // lot), from src/street/map.ts, so the map we talk about is always the map in the game.
 // Run: npx vite-node scripts/map-doc.ts
 import { writeFileSync } from 'node:fs';
-import { AREAS, BCOLS, BROWS, BLOCK_SIZE, COURT, H, LOTS, PARK, PARKING, ROOMS, SPAWN, STATIONS, W, blockName, blockRect, inRect, type Lot } from '../src/street/map';
+import { AREAS, BCOLS, BROWS, BLOCK_SIZE, COURT, H, LOTS, PARK, PARKING, ROOMS, SPAWN, STATIONS, W, YARD, blockName, blockRect, inRect, type Lot } from '../src/street/map';
 
 const PX = 14; // pixels per tile
 const M = 30; // margin
 const COLORS: Record<string, string> = {
   street: '#3a3d44', sidewalk: '#6d6962', buildings: '#8a7f70', park: '#4f7a44', store: '#2f7a46', candy: '#b0588a', bar: '#7a5432',
-  gas: '#3a5a8a', weapons: '#5a5a62', court: '#8a4434', parking: '#2a2c31', bigpark: '#4f7a44',
+  gas: '#3a5a8a', weapons: '#5a5a62', yard: '#6a3a3a', court: '#8a4434', parking: '#2a2c31', bigpark: '#4f7a44',
 };
 
 /** What's on a lot, in words, and its colour. */
@@ -18,6 +18,7 @@ function describe(lot: Lot): [string, string] {
   const room = ROOMS.find((x) => inRect(x, c, r));
   if (room) return [AREAS.find((a) => a.id === room.id)?.name ?? room.name, COLORS[room.id] ?? COLORS.buildings];
   if (inRect(COURT, c, r)) return ['Basketball court', COLORS.court];
+  if (inRect(YARD, c, r)) return ['The Yard (thugs)', COLORS.yard];
   if (inRect(PARK, c, r)) return ['Central Park', COLORS.bigpark];
   if (PARKING.some((p) => inRect(p, c, r))) return ['Parking lot', COLORS.parking];
   if (STATIONS.some((s) => inRect(lot.rect, s.x, s.y))) return ['Park + barbecue', COLORS.park];

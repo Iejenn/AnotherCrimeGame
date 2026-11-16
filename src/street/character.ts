@@ -55,7 +55,7 @@ export interface Rig {
 }
 
 /** Build a character. The returned group has `userData.rig` for animateCharacter(). */
-export function buildCharacter(look: Look, extra?: { apron?: number }): THREE.Group {
+export function buildCharacter(look: Look, extra?: { apron?: number; hood?: number }): THREE.Group {
   const root = new THREE.Group();
   const body = new THREE.Group(); // everything above the feet, so it can bob and wobble
   root.add(body);
@@ -120,6 +120,15 @@ export function buildCharacter(look: Look, extra?: { apron?: number }): THREE.Gr
       break;
     default: // bald
       break;
+  }
+  // A hood pulled up over the head (thugs): a dome over the head and down the back of the neck, in its own colour.
+  if (extra?.hood !== undefined) {
+    const hood = mat(extra.hood);
+    const dome = mesh(new THREE.SphereGeometry(0.185, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), hood, 0, 1.0, -0.015);
+    dome.scale.set(1.06, 1.12, 1.08);
+    mesh(new THREE.BoxGeometry(0.3, 0.16, 0.12), hood, 0, 0.86, -0.1);
+    // The opening's rim around the face.
+    mesh(new THREE.TorusGeometry(0.15, 0.025, 6, 16, Math.PI * 1.2), hood, 0, 1.0, 0.11).rotation.z = -Math.PI * 0.1;
   }
   // A soft round shadow blob under the feet (cheap, reads well even without real shadows).
   const blob = new THREE.Mesh(geo.shadow, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));

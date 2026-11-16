@@ -16,7 +16,7 @@ import { COURT, H, NODES, NPCS, ROOMS, SPAWN, STATIONS, W, buildBlocked, canStep
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, buildGrave, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
-import { ENEMY_KINDS, pigeonAt } from '../game/enemies';
+import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
@@ -32,6 +32,25 @@ import { mulberry32 } from '../game/rng';
 interface Msg {
   t: number;
   text: string;
+}
+
+/** How each kind of enemy looks: a Pigeon, or (thugs) a person in a dark hoodie with the hood up and a knife. */
+const THUG_LOOKS: Look[] = [
+  { skin: 2, hair: 0, hairColor: 0, top: 3, bottom: 0 },
+  { skin: 3, hair: 0, hairColor: 0, top: 3, bottom: 3 },
+  { skin: 1, hair: 0, hairColor: 0, top: 3, bottom: 1 },
+];
+let thugCount = 0;
+function buildEnemy(kind: string): THREE.Group {
+  if (kind === 'pigeon') return buildPigeon();
+  const g = buildCharacter(THUG_LOOKS[thugCount++ % THUG_LOOKS.length], { hood: 0x4a4d52 });
+  setGear(g, { weapon: 'knife' });
+  return g;
+}
+/** Animate an enemy: idle ('peck'), walking, flying (pigeons), attacking, or going down ('dead'). */
+function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly' | 'attack' | 'dead', now: number, phase: number) {
+  if (kind === 'pigeon') return animatePigeon(g, mode, now, phase);
+  animateCharacter(g, mode === 'dead' ? 'stunned' : mode === 'attack' ? 'work' : mode === 'walk' ? 'walk' : 'idle', now, phase);
 }
 
 /** How a weapon's swing looks (see ItemDef.gear.anim). */
@@ -427,7 +446,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number; lastHp: number | null; wasDead: boolean }>();
     const enemyAt = (e: EnemyState) => {
       if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
-      return pigeonAt(e.index, gameNow());
+      return scheduleAt(e.kind, e.index, gameNow());
     };
     /** Walk up to an enemy (and attack it when you get there). */
     const goFight = (id: string) => {
@@ -1283,11 +1302,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (v && e.fighter && e.fighter !== worldRef.current?.myId && v.lastHp !== null && e.hp < v.lastHp && v.g.visible) hitsplat(v.g.position, v.lastHp - e.hp);
         if (v) v.lastHp = e.hp;
         if (!v) {
-          const g = buildPigeon();
+          const g = buildEnemy(e.kind);
           g.traverse((o) => (o.userData.enemyId = e.id));
-          // A bigger invisible tap area: pigeons are small.
-          const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.8, 8), hitMat);
-          hitArea.position.y = 0.3;
+          // A bigger invisible tap area (pigeons are small).
+          const tall = e.kind !== 'pigeon';
+          const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, tall ? 1.4 : 0.8, 8), hitMat);
+          hitArea.position.y = tall ? 0.7 : 0.3;
           hitArea.userData.enemyId = e.id;
           g.add(hitArea);
           scene.add(g);
@@ -1309,7 +1329,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         // Dying: it falls where it was hit, it doesn't fly back to its spot first.
         if (dying && v.pos) {
           v.g.position.set(v.pos.x, 0.03, v.pos.z);
-          animatePigeon(v.g, 'dead', now, e.index * 1.3);
+          animateEnemy(e.kind, v.g, 'dead', now, e.index * 1.3);
           continue;
         }
         const at = enemyAt(e);
@@ -1338,7 +1358,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (d.length() > 0.002) v.g.rotation.y = Math.atan2(d.x, d.z);
         if (e.fighter && foe === e.id) v.g.rotation.y = Math.atan2(me.pos.x - v.pos.x, me.pos.z - v.pos.z);
         v.g.position.set(v.pos.x, 0.03 + (flying ? 0.45 + Math.sin(now / 160) * 0.05 : 0), v.pos.z);
-        animatePigeon(v.g, flying ? 'fly' : now < v.peckUntil ? 'attack' : walking && ret ? 'walk' : 'peck', now, e.index * 1.3);
+        animateEnemy(e.kind, v.g, flying ? 'fly' : now < v.peckUntil ? 'attack' : walking && (ret || e.kind !== 'pigeon') ? 'walk' : 'peck', now, e.index * 1.3);
       }
 
       // Other players: walk them along the route they shared.
@@ -1489,7 +1509,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         const v = enemyViews.get(e.id);
         const k = ENEMY_KINDS[e.kind];
         if (!v || !v.g.visible || !k || v.g.position.distanceTo(me.pos) > LABEL_RANGE + 2) continue;
-        const [x, y, depth] = project(v.g.position.clone().setY(0.75));
+        const [x, y, depth] = project(v.g.position.clone().setY(e.kind === 'pigeon' ? 0.75 : 1.6));
         if (depth > 1) continue;
         let el = labelEls.get(`enemy:${e.id}`);
         if (!el) {

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
-  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -271,6 +271,8 @@ export function buildCity(scene: THREE.Scene) {
   for (const p of NPCS) busy.add(`${p.x},${p.y}`);
   for (const e of ENCLOSURES) for (const o of e.openings) for (let d = -1; d <= 1; d++) busy.add(`${o.outside[0] + d},${o.outside[1]}`), busy.add(`${o.outside[0] + d},${o.outside[1] + 1}`);
   for (let d = -1; d <= 1; d++) busy.add(`${SPAWN[0] + d},${SPAWN[1]}`);
+  // Nothing in front of the Yard's gates.
+  for (const [gx, gy] of YARD_GATES) for (let d = -1; d <= 1; d++) for (let e = 1; e <= 2; e++) busy.add(`${gx + d},${gy + e}`);
   for (const lot of LOTS) {
     const r = lot.rect;
     const cx = r.x0 + 2.5;
@@ -1099,10 +1101,103 @@ export function buildCity(scene: THREE.Scene) {
 
   shopFronts();
 
-  // ---------- cooking stations: the barbecue (docs/design.md §13) ----------
-  // A brick barbecue with a grill, glowing coals and a few flames, a warm light, and a gravel patch around it.
+  // Fires that flicker (the Yard's barrel, the barbecue): animate() moves them every frame.
   const flames: THREE.Mesh[] = [];
   const fireLights: THREE.PointLight[] = [];
+
+  // ---------- the Yard (007): where the thugs hang out ----------
+  // Cracked concrete, graffiti on the walls around it, an old couch, a burning barrel, a chain-link fence along the
+  // street with two gaps (the gates), and a single bulb over the back.
+  {
+    const Y = YARD;
+    const X0 = Y.x0;
+    const Z0 = Y.y0;
+    const X1 = Y.x1 + 1;
+    const Z1 = Y.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    add(geoBox(X1 - X0, 0.075, Z1 - Z0), lam(0x55524d), cx, 0.037, cz, false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 0.9), lam(0x2e2c29), false);
+    for (let i = 0; i < 14; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
+    cracks.build(scene);
+    // Graffiti: tags on the side walls (facing in) and the back wall.
+    const graffiti = (text: string, color: string, w: number, x: number, z: number, rotY: number) => {
+      const mat = own(new THREE.MeshBasicMaterial({
+        map: own(canvasTex(256, 96, (g) => {
+          g.clearRect(0, 0, 256, 96);
+          g.font = 'italic bold 54px Impact, Arial Black, sans-serif';
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          g.lineWidth = 8;
+          g.strokeStyle = '#141210';
+          g.strokeText(text, 128, 50);
+          g.fillStyle = color;
+          g.fillText(text, 128, 50);
+        }, false)),
+        transparent: true,
+        depthWrite: false,
+      }));
+      const m = add(own(new THREE.PlaneGeometry(w, w * 0.375)), mat, x, 0.75, z, false);
+      m.rotation.y = rotY;
+      m.receiveShadow = false;
+    };
+    graffiti('YARD', '#e0473a', 2.2, X0 + 0.02, cz - 0.6, Math.PI / 2); // west wall, facing east
+    graffiti('KEEP OUT', '#f2d27a', 2.6, X1 - 0.02, cz - 0.4, -Math.PI / 2); // east wall, facing west
+    graffiti('NO SNITCH', '#5bd06a', 2.6, cx, Z0 + 0.02, 0); // the back wall
+    // The old couch (two tiles, against the back).
+    const couch = FIXTURES.filter((f) => f.kind === 'couch');
+    if (couch.length) {
+      const ux = (Math.min(...couch.map((f) => f.x)) + Math.max(...couch.map((f) => f.x)) + 1) / 2;
+      const uz = couch[0].y + 0.5;
+      const fabric = lam(0x6a4a3a, { flatShading: true });
+      add(geoBox(1.8, 0.3, 0.7), fabric, ux, 0.25, uz);
+      add(geoBox(1.8, 0.45, 0.2), fabric, ux, 0.5, uz - 0.3);
+      for (const dx of [-0.85, 0.85]) add(geoBox(0.16, 0.38, 0.7), fabric, ux + dx, 0.32, uz);
+      add(geoBox(0.6, 0.05, 0.5), lam(0x4a2a1e), ux - 0.4, 0.42, uz + 0.05).rotation.y = 0.2; // a sagging cushion
+    }
+    // The burning barrel: a rusty drum with flames and a flickering orange light.
+    for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) {
+      const x = b.x + 0.5;
+      const z = b.y + 0.5;
+      add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.75, 12)), lam(0x6a4a32, { flatShading: true }), x, 0.4, z);
+      for (const y of [0.2, 0.6]) add(own(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 12)), lam(0x3a2a1e), x, y, z, false);
+      add(own(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 12)), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 1 }), x, 0.78, z, false);
+      for (let i = 0; i < 5; i++) {
+        const f = add(own(new THREE.ConeGeometry(0.07 + rng() * 0.04, 0.32, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 }), x + (rng() - 0.5) * 0.3, 0.95, z + (rng() - 0.5) * 0.3, false);
+        flames.push(f);
+      }
+      const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
+      light.position.set(x, 1.2, z);
+      scene.add(light);
+      fireLights.push(light);
+    }
+    // Chain-link fence along the street: posts and a see-through mesh panel on every fence tile.
+    const post = new Batch(own(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6)), lam(0x8a8f96));
+    const linkTex = own(canvasTex(32, 32, (g) => {
+      g.clearRect(0, 0, 32, 32);
+      g.strokeStyle = '#b8bcc2';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+      g.stroke();
+    }));
+    linkTex.repeat.set(4, 4);
+    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    for (const f of FIXTURES.filter((x) => x.kind === 'fence')) {
+      add(own(new THREE.PlaneGeometry(1, 1.1)), linkMat, f.x + 0.5, 0.6, f.y + 0.5, false).receiveShadow = false;
+      post.add(f.x, 0.6, f.y + 0.5);
+      post.add(f.x + 1, 0.6, f.y + 0.5);
+    }
+    post.build(scene);
+    // A bare bulb on the back wall.
+    add(geoBox(0.12, 0.12, 0.12), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), cx + 1.5, 1.6, Z0 + 0.1, false);
+    const bulb = new THREE.PointLight(0xffd9a0, 3, 5, 1.6);
+    bulb.position.set(cx + 1.5, 1.5, Z0 + 0.6);
+    scene.add(bulb);
+  }
+
+  // ---------- cooking stations: the barbecue (docs/design.md §13) ----------
+  // A brick barbecue with a grill, glowing coals and a few flames, a warm light, and a gravel patch around it.
   for (const st of STATIONS) {
     const x = st.x + 0.5;
     const z = st.y + 0.5;

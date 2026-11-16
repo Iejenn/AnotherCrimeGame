@@ -22,7 +22,7 @@ export interface ItemDef {
     /** The skill level you need to use it. */
     needs?: { skill: 'melee' | 'gunfire' | 'defense'; level: number };
     /** How a swing looks: a punch (default), a big swing from the side (bats), later a stab (knives). */
-    anim?: 'punch' | 'swing';
+    anim?: 'punch' | 'swing' | 'stab';
   };
 }
 
@@ -36,6 +36,8 @@ export const ITEMS: ItemDef[] = [
   { id: 'cooked_bird_meat', name: 'Cooked Bird Meat', heal: 1, value: 4 },
   // The first weapon: Ray's weapon store sells them for $50. +1 damage over bare fists, same speed, no defence.
   { id: 'brass_knuckles', name: 'Brass Knuckles', heal: 0, value: 50, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 3, needs: { skill: 'melee', level: 1 } } },
+  // The thugs' knife (a 1-in-20 drop in the Yard, not sold): Melee 5, +1 damage over fists, but fast: a stab every 1 s.
+  { id: 'knife', name: 'Knife', heal: 0, value: 250, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 2, needs: { skill: 'melee', level: 5 }, anim: 'stab' } },
   // Ray's second weapon ($250, Melee 3): hits hard (+4 damage over fists) but slowly (a swing every 3 s).
   { id: 'baseball_bat', name: 'Baseball Bat', heal: 0, value: 250, gear: { slot: 'weapon', damage: 5, accuracy: 0, speed: 6, needs: { skill: 'melee', level: 3 }, anim: 'swing' } },
 ];

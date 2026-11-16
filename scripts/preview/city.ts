@@ -5,6 +5,8 @@ import { animateCharacter, buildCharacter } from '../../src/street/character';
 import { buildBigCar } from '../../src/street/streetLife';
 import { buildMeter } from '../../src/street/props';
 import { NODES } from '../../src/street/map';
+import { thugAt } from '../../src/game/enemies';
+import { setGear } from '../../src/street/props';
 
 const q = new URLSearchParams(location.search);
 const x = Number(q.get('x') ?? 29) + 0.5;
@@ -38,6 +40,16 @@ for (const n of NODES) {
   g.position.set(n.x + 0.5, 0, n.y + 0.5);
   if (n.kind === 'car' && n.facing !== undefined) g.position.add(new THREE.Vector3(-Math.cos(n.facing), 0, Math.sin(n.facing)).multiplyScalar(0.45));
   g.rotation.y = n.facing ?? 0;
+  scene.add(g);
+}
+// The Yard's thugs where their schedule puts them right now.
+for (let i = 0; i < 3; i++) {
+  const t = thugAt(i, Date.now());
+  const g = buildCharacter({ skin: 2 + (i % 2), hair: 0, hairColor: 0, top: 3, bottom: i }, { hood: 0x4a4d52 });
+  setGear(g, { weapon: 'knife' });
+  g.position.set(t.x, 0.03, t.z);
+  g.rotation.y = i * 2.1;
+  animateCharacter(g, 'idle', 0);
   scene.add(g);
 }
 const you = buildCharacter({ skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 });

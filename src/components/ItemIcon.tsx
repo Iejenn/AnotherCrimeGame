@@ -81,7 +81,21 @@ const BirdMeat = ({ cooked }: { cooked: boolean }) => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
+const Knife = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    {/* a knife lying diagonally: steel blade with a bright edge, a guard, a dark wooden handle */}
+    <g transform="rotate(-40 20 20)">
+      <path d="M17 17.5 L35 18 Q37 20 35 21.5 L17 22 Z" fill="#dfe4ea" stroke="#5a5f66" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M18 21 L34.5 20.6" stroke="#ffffff" strokeWidth="0.8" opacity="0.8" />
+      <rect x="15.5" y="15.8" width="2.2" height="8.4" rx="0.8" fill="#8a8f96" stroke="#3a3d42" strokeWidth="0.8" />
+      <rect x="5" y="17.6" width="10.8" height="4.8" rx="2" fill="#5a3a22" stroke="#2a1a0e" strokeWidth="0.9" />
+      <circle cx="8" cy="20" r="0.8" fill="#c8b07a" />
+      <circle cx="12" cy="20" r="0.8" fill="#c8b07a" />
+    </g>
+  </svg>
+);
+
+const ICONS: Record<string, () => JSX.Element> = { knife: Knife, raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {

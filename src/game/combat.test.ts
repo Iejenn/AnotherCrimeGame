@@ -35,6 +35,22 @@ describe('combat maths (design §12)', () => {
     expect(itemPrice('sandwich')).toBe(2);
   });
 
+  it('thugs: level 5, 10 HP, a stab every 1 s; they stroll around the Yard; the knife: Melee 5, +1 damage, fast', async () => {
+    const { thugAt, THUG_TILES } = await import('./enemies');
+    const { YARD } = await import('../street/map');
+    const t = ENEMY_KINDS.thug;
+    expect([t.level, t.hp, t.attack, t.defense, t.maxHit, t.speed, t.respawn, t.aggressive]).toEqual([5, 10, 5, 5, 2, 2, 30, false]);
+    for (let i = 0; i < 3; i++)
+      for (let ms = 0; ms < 60000; ms += 777) {
+        const p = thugAt(i, 1.8e12 + ms); // real clock times (the schedule counts from 1970)
+        expect(inRect(YARD, Math.floor(p.x), Math.floor(p.z))).toBe(true);
+      }
+    expect(THUG_TILES.length).toBe(21);
+    const k = ITEM_BY_ID.knife.gear!;
+    expect([k.damage, k.speed, k.needs?.level, k.anim]).toEqual([2, 2, 5, 'stab']);
+    expect(itemPrice('knife')).toBe(62);
+  });
+
   it('cooking: raw bird meat burns half the time at level 1, never from 15; cooked meat heals 1', async () => {
     const { RECIPE_BY_ITEM, burnChance } = await import('./data/recipes');
     const r = RECIPE_BY_ITEM.raw_bird_meat;
