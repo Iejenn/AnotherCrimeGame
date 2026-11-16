@@ -192,7 +192,7 @@ timing) in `src/game/data/crimes.ts`.
   to polish the bottles. His label says "watching" (red) or "back turned" (green). If he is facing the room at any
   moment of your attempt, he yells "Leave my guests alone!", comes round the counter and punches you (−2 HP,
   stunned 3s). The timings are constants at the top of `StreetView.tsx` (`BAR_WATCH`, `BAR_BACK`).
-- **The parking lot** (built), at the east edge of town by the beach: dark asphalt with white bays, wheel stops and
+- **The parking lot** (built), at the east edge of town by the beach, south of the gas station: dark asphalt with white bays, wheel stops and
   oil stains, a guard booth with a lit window and a barrier arm, two tall sodium lamps, a blue P sign.
   **Five parking meters** (tap one: 3s, always works if unseen, $15–30). An emptied meter's light turns red and
   it fills up again after 15s.
@@ -203,7 +203,7 @@ timing) in `src/game/data/crimes.ts`.
   `GUARD_LOOK`).
 - **Cars** (built): four parked cars nose-in at the lot's bays (Steal From Cars: 3s, 35%, $30–60). A failed
   attempt sets off the car alarm and brings the guard; he can also simply see you in his beam.
-- **The gas station** (built), below the parking lot: a pale concrete shop with a blue trim and a yellow
+- **The gas station** (built), at the north end of the parking lot (the road between them is gone: gas station, driveway and lot form one big rectangle): a pale concrete shop with a blue trim and a yellow
   GAS & GO sign, the top four rows of the block. Inside: four shelves either side of a glowing drinks fridge
   (Shoplift Gas Station: sandwich or candy bar; shelves restock after 10s), and the counter with the **clerk**
   behind it. Out front: two pumps under a lit canopy (it fades when it hides you), a car filling up, a price sign.

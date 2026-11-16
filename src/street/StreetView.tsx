@@ -9,7 +9,7 @@ import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, skillLevel, spotted, startJob, stopJob } from '../game/engine';
 import { ITEM_BY_ID } from '../game/data/items';
-import { BLOCK, BLOCKS, BUILDINGS, COURT, H, LOT, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
+import { BLOCK, BLOCKS, BUILDINGS, COURT, GAS, H, LOT, NODES, NPCS, PARK, ROOMS, SPAWN, W, buildBlocked, canStep, inRect, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, buildCar, buildGymBag, buildMeter, buildShelf, setSpotEmpty } from './props';
@@ -475,7 +475,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       area(PARK, '#45663a');
       tile(PARK.x0, PARK.y0 + 2, PARK.x1 - PARK.x0 + 1, 1, '#8a8070'); // the path across
       area(COURT, '#7a3b2c');
-      area(LOT, '#3a3c42');
+      area({ ...LOT, y0: GAS.y1 + 1 }, '#3a3c42'); // forecourt, driveway and lot in one
       const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#7a6a3a' };
       for (const r of ROOMS) area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
       for (const b of BUILDINGS) tile(b.x, b.y, b.w, b.h, '#8a7f70');
