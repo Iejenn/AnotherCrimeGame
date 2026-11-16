@@ -73,6 +73,19 @@ export interface OtherPlayer {
   equipment?: Partial<Record<string, string>>;
   /** Their combat level (shown next to their name). */
   combat?: number;
+  /** What they're doing right now, and their health (from the server, live). */
+  status?: OtherStatus;
+}
+/** What another player is doing (public.player_status), so everyone sees it. Times in ms. */
+export interface OtherStatus {
+  /** The spot they're working (crime attempt), until jobEndsAt. */
+  spot: string | null;
+  jobEndsAt: number;
+  stunnedUntil: number;
+  fightEnemy: string | null;
+  hp: number;
+  hpAt: number;
+  maxHp: number;
 }
 /** The shared world, online: who else is here, and how to tell them where you walk. */
 export interface WorldLink {
@@ -390,7 +403,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     // ---------- enemies (combat, docs/design.md §12) ----------
     // Shared by everyone: where they are comes from their schedule (pigeonAt), or where they stand still while
     // someone fights them. Tap one to walk up and fight it; the server rolls every swing.
-    const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number }>();
+    const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number; lastHp: number | null; wasDead: boolean }>();
     const enemyAt = (e: EnemyState) => {
       if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
       return pigeonAt(e.index, gameNow());
@@ -452,7 +465,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
 
     // ---------- other players (online) ----------
     /** Other players: their model, where we draw them (smoothed), and which way they face. */
-    const others = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; facing: number }>();
+    const others = new Map<
+      string,
+      // hpBar: their health bar (shown for a while after they get hurt, and while low, like yours); lastHp: to
+      // notice damage (a hitsplat over them).
+      { g: THREE.Group; pos: THREE.Vector3 | null; facing: number; hpBar: HTMLDivElement | null; hpBarUntil: number; lastHp: number | null }
+    >();
     /** Chat over heads: who said what, until when; and the newest message already handled. */
     const said = new Map<string, { text: string; until: number }>();
     let lastSaid = Math.max(0, ...(chatRef.current?.messages ?? []).map((m) => m.id));
@@ -1128,6 +1146,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
       for (const e of worldRef.current?.enemies() ?? []) {
         let v = enemyViews.get(e.id);
+        // Someone else hit it: show the damage too (your own fight shows every swing, misses included).
+        if (v && e.fighter && e.fighter !== worldRef.current?.myId && v.lastHp !== null && e.hp < v.lastHp && v.g.visible) hitsplat(v.g.position, v.lastHp - e.hp);
+        if (v) v.lastHp = e.hp;
         if (!v) {
           const g = buildPigeon();
           g.traverse((o) => (o.userData.enemyId = e.id));
@@ -1138,11 +1159,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           g.add(hitArea);
           scene.add(g);
           pickables.push(g);
-          v = { g, pos: null, peckUntil: 0, dyingUntil: 0 };
+          v = { g, pos: null, peckUntil: 0, dyingUntil: 0, lastHp: e.hp, wasDead: !!e.deadUntil };
           enemyViews.set(e.id, v);
         }
+        // Just died (killed by anyone): play the fall before hiding it.
+        const deadNow = !!e.deadUntil && e.deadUntil > gameNow();
+        if (deadNow && !v.wasDead && now >= v.dyingUntil) v.dyingUntil = now + 700;
+        v.wasDead = deadNow;
         const dying = now < v.dyingUntil;
-        const dead = !!e.deadUntil && e.deadUntil > gameNow() && !dying;
+        const dead = deadNow && !dying;
         v.g.visible = !dead;
         if (dead) {
           v.pos = null;
@@ -1168,7 +1193,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (!e) {
           const g = buildCharacter(o.look);
           scene.add(g);
-          e = { g, pos: null, facing: 0 };
+          e = { g, pos: null, facing: 0, hpBar: null, hpBarUntil: 0, lastHp: null };
           others.set(o.id, e);
         }
         // Where their route says they are now. We don't jump there: we glide (a bit faster than walking, so we
@@ -1183,14 +1208,64 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           e.pos.add(gap.clone().clampLength(0, WALK_SPEED * 1.35 * dt));
           e.facing = Math.atan2(gap.x, gap.z);
         } else if (at.facing !== null && at.moving) e.facing = at.facing;
+        // What they're doing (public.player_status): stunned, working a spot (facing it), or fighting (facing the enemy).
+        const os = o.status;
+        const t = gameNow();
+        const moving = at.moving || gliding;
+        let pose: Pose = moving ? 'walk' : 'idle';
+        if (os && !moving) {
+          if (os.stunnedUntil > t) pose = 'stunned';
+          else if (os.fightEnemy) {
+            const v = enemyViews.get(os.fightEnemy);
+            if (v?.g.visible) {
+              e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
+              pose = 'work';
+            }
+          } else if (os.spot && os.jobEndsAt > t) {
+            const n = NODES.find((x) => x.id === os.spot);
+            if (n) {
+              const [nx, ny] = nodeTile(n);
+              if (Math.hypot(nx + 0.5 - e.pos.x, ny + 0.5 - e.pos.z) > 0.2) e.facing = Math.atan2(nx + 0.5 - e.pos.x, ny + 0.5 - e.pos.z);
+            }
+            pose = 'work';
+          }
+        }
+        // Their health: a hitsplat when it drops, and the health bar for a while (everyone sees it, like your own).
+        if (os) {
+          const hpNow = Math.min(os.maxHp, os.hp + (Math.max(0, t - os.hpAt) / 60000) * 1);
+          if (e.lastHp !== null && os.hp < e.lastHp - 0.001) {
+            hitsplat(e.pos, Math.round(e.lastHp - os.hp));
+            e.hpBarUntil = now + 6000;
+          }
+          e.lastHp = os.hp;
+          const show = now < e.hpBarUntil || hpNow / os.maxHp <= 0.3;
+          if (show && !e.hpBar) {
+            e.hpBar = document.createElement('div');
+            e.hpBar.className = 'hp-bar';
+            e.hpBar.appendChild(document.createElement('div'));
+            labelLayer.appendChild(e.hpBar);
+          }
+          if (e.hpBar) {
+            e.hpBar.style.display = show ? 'block' : 'none';
+            if (show) {
+              // Above their name label (which sits at 1.55), not on top of it.
+              const [bx, by, depth] = project(e.pos.clone().setY(1.55));
+              e.hpBar.style.transform = `translate(${bx}px, ${by - 20}px) translate(-50%, -100%)`;
+              e.hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
+              (e.hpBar.firstChild as HTMLElement).style.width = `${Math.max(0, Math.min(1, hpNow / os.maxHp)) * 100}%`;
+              e.hpBar.classList.toggle('low', hpNow / os.maxHp <= 0.3);
+            }
+          }
+        }
         e.g.position.set(e.pos.x, 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
         setGear(e.g, o.equipment);
-        animateCharacter(e.g, at.moving || gliding ? 'walk' : 'idle', now, o.id.charCodeAt(0) * 0.37);
+        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37);
       }
       for (const [id, e] of others)
         if (!here.has(id)) {
           scene.remove(e.g);
+          e.hpBar?.remove();
           others.delete(id);
         }
 

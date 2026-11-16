@@ -26,6 +26,7 @@ export interface ServerAnswer {
     name: string;
     look: GameState['look'];
     createdAt: number;
+    lastOnline?: number | null;
     cash: number;
     hp: number;
     hpAt: number;
@@ -116,6 +117,7 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     name: p.name,
     look: p.look,
     createdAt: p.createdAt,
+    lastOnline: p.lastOnline ?? null,
     cash: Number(p.cash),
     hp: Number(p.hp),
     hpAt: p.hpAt,

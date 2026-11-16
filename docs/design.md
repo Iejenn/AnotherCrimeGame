@@ -352,6 +352,11 @@ needs step 2 below.
   (could you have got to its start, neighbouring tiles only, on the map); other phones hear it through Realtime
   changes on the `walks` table, whose rows say whose route it is. So nobody can show up as someone else.
   Other players show with a white name and as white dots on the minimap.
+- **Seeing what others do (v0.28):** `public.player_status` holds, per player, the spot they're working (and until
+  when), when their stun ends, the enemy they're fighting, and their health. A trigger on `players` writes it
+  whenever one of those changes (not for health regen), so nobody can fake it; Realtime sends it to everyone. Other
+  players are shown working (facing the spot), stunned, or fighting (facing the enemy), with a hitsplat when they get
+  hurt and their health bar while hurt or low, like your own.
 - **Highscores (built, v0.20):** a Highscores tab with a table per skill (top 50, rank, name, level, XP; your
   own row highlighted, and your rank if you're further down).
 - Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).

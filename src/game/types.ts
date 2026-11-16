@@ -73,6 +73,8 @@ export interface GameState {
   name: string;
   look: Look;
   createdAt: number;
+  /** When you were last online before this session (null: never / first time). */
+  lastOnline?: number | null;
   /** Money, in dollars. */
   cash: number;
   /** Health. Failed jobs hurt a little; it regenerates over time (see hpAt). */

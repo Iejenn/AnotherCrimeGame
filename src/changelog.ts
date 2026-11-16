@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.28.0',
+    date: '2026-11-16',
+    title: 'Watch your back',
+    items: [
+      'You now see what other players are doing: working a spot, standing there stunned, or fighting a Pigeon.',
+      'When another player gets hurt, everyone sees the hitsplat and their health bar, just like your own.',
+      'The start-up screen is shorter: it says when you were last online, and "What\'s new" is right in view. Your skills are in the Skills tab.',
+    ],
+  },
+  {
     version: '0.27.0',
     date: '2026-11-16',
     title: 'Combat!',
