@@ -246,6 +246,10 @@ rounded characters with walk and action animations.
 
 ## 8. Screens
 
+Tabs: Street · Inventory · Skills · Quests · Highscores. Top right: a **gear** menu (your account, Log out).
+**Idle log-out:** after 5 minutes without any tap, swipe, scroll or key press, your attempt stops and you are logged out
+(`IDLE_MS` in `src/net/OnlineGate.tsx`); the sign-in screen says why.
+
 Street (default) · Inventory (28 slots) · Quests (coming soon) · Skills (levels + guide + save codes).
 The start screen shows your character file and what's new.
 

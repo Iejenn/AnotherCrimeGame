@@ -1,4 +1,4 @@
-// The game itself: status bar, tabs (Street, Inventory, Highscores, Quests, Skills), toasts.
+// The game itself: status bar (with the gear menu), tabs (Street, Inventory, Skills, Quests, Highscores), toasts.
 // Every rule runs on the server (useOnlineGame); this screen only shows the game and passes on what you do.
 import { useState } from 'react';
 import type { GameState, Report, Toast } from '../game/types';
@@ -18,9 +18,9 @@ type Tab = 'street' | 'inventory' | 'highscores' | 'quests' | 'skills';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'street', label: 'Street' },
   { id: 'inventory', label: 'Inventory' },
-  { id: 'highscores', label: 'Highscores' },
-  { id: 'quests', label: 'Quests' },
   { id: 'skills', label: 'Skills' },
+  { id: 'quests', label: 'Quests' },
+  { id: 'highscores', label: 'Highscores' },
 ];
 
 export interface GameScreenProps {
@@ -42,7 +42,7 @@ export function GameScreen(p: GameScreenProps) {
   const bagFull = slotsUsed(state) >= INVENTORY_SLOTS;
   return (
     <div className="app">
-      <StatusBar s={state} now={gameNow()} />
+      <StatusBar s={state} now={gameNow()} account={p.account} />
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>

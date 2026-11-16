@@ -15,6 +15,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Talk to everyone on the island: the box at the bottom of the Street is now a chat too. Type and press Enter.',
       'What you say also pops up over your head for a few seconds.',
       'Filter the box to just the game messages or just the chat, or fold it down with the arrow.',
+      'New gear button (top right): see which account you are on, and log out.',
+      'After 5 minutes without touching the game you are logged out automatically.',
+      'The tabs are now Street, Inventory, Skills, Quests, Highscores.',
     ],
   },
   {
