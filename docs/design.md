@@ -37,38 +37,45 @@ All skills start at level 1. Max level is **30** for now *(tunable)*.
 
 ### XP curve (all skills)
 
-XP to go from level L to L+1 *(tunable)*:
-- levels 1–9: `1000 × 1.285^(L−1)` (each level needs 28.5% more), so **150 successful pickpockets take you from 1 to 10**;
-- level 10 and up: steeper, each level needs 32.5% more than the last, so level 30 takes about 16 hours.
+**One curve for every skill**, built for levels 1–100 (the cap is 30 for now).
+XP to go from level L to L+1 = `29.13 × 1.13^(L−1)`, rounded *(tunable)*: **each level needs 13% more XP** than the last.
 
 | Reach level | Total XP |
 |---|---|
-| 2 | 1,000 |
-| 5 | 6,058 |
-| 10 | 30,010 |
-| 15 | 123,477 |
-| 20 | 505,195 |
-| 25 | 2,064,110 |
-| 30 | 8,430,624 |
+| 2 | 29 |
+| 5 | 141 |
+| 10 | 449 |
+| 15 | 1,017 |
+| 20 | 2,062 |
+| 25 | 3,987 |
+| 30 | 7,533 |
+
+### How the pace works (the "thin line")
+
+- Each training method has its own **XP per hour**. Pickpocketing a tourist: **5,400 XP/h if every attempt succeeds**.
+- Every new method (every 5 levels) earns **about 30% more XP per hour** than the one before.
+- The curve rises 13% per level, which is faster than your XP per hour rises on average. So **every level takes a
+  little longer**, right after an unlock the next level is a bit quicker, then it climbs again (a sawtooth).
+- Targets with option 1 (chosen): **150 successful pickpockets to level 10**, ~1 hour to 30, ~140 hours to 100
+  (once more methods exist). Lvl 1→2 ~1 min, 29→30 ~5 min, 99→100 ~10 h.
 
 ## 4. Street Crimes (levels 1–30)
 
-Something new unlocks **every 5 levels**. Target: **about 16 hours of active play to reach 30**.
-**Each new crime earns 25% more XP per hour than the one before**, so moving up always pays off.
+Something new unlocks **every 5 levels**.
 
-| Lv | Crime | Spot on the map | Ticks (time) | Odds at unlock | XP | Gold |
-|---|---|---|---|---|---|---|
-| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 65% | 201 | 1–3 |
-| 5 | Shoplift | Corner shop | 5 (2.5s) | 65% | 312 | 2–5 |
-| 10 | Strip a Parked Car | Parked car | 6 (3s) | 65% | 451 | 4–9 |
-| 15 | Run a Shell Game | Card table | 7 (3.5s) | 65% | 641 | 6–14 |
-| 20 | Burgle a House | Family house | 8 (4s) | 65% | 897 | 10–22 |
-| 25 | Rob a Corner Store | Corner store | 10 (5s) | 65% | 1,361 | 18–36 |
-| 30 | Mug a Banker | Banker | 12 (6s) | 65% | 2,001 | 30–60 |
+| Lv | Crime | Spot on the map | Ticks (time) | Odds at unlock | XP | XP/h if all succeed | Gold |
+|---|---|---|---|---|---|---|---|
+| 1 | Lift a Wallet | Tourist (they wander) | 4 (2s) | 65% | 3 | 5,400 | 1–3 |
+| 5 | Shoplift | Corner shop | 5 (2.5s) | 65% | 5 | 7,200 | 2–5 |
+| 10 | Strip a Parked Car | Parked car | 6 (3s) | 65% | 8 | 9,600 | 4–9 |
+| 15 | Run a Shell Game | Card table | 7 (3.5s) | 65% | 12 | 12,343 | 6–14 |
+| 20 | Burgle a House | Family house | 8 (4s) | 65% | 17 | 15,300 | 10–22 |
+| 25 | Rob a Corner Store | Corner store | 10 (5s) | 65% | 28 | 20,160 | 18–36 |
+| 30 | Mug a Banker | Banker | 12 (6s) | 65% | 43 | 25,800 | 30–60 |
 
-Rough time per band, always using the best crime you have and tapping again right away:
-1→5 ~2 min, 5→10 ~6 min, 10→15 ~20 min, 15→20 ~1 h, 20→25 ~3½ h, 25→30 ~11 h.
-(Pickpocketing only, 1→10 is ~10 minutes: 150 successes.) Real play (walking, resting for health) is slower.
+Minutes per level with the best crime you have (tapping again right away, real odds):
+1→2 0.7 · 4→5 0.9 · **5→6 0.8** · 9→10 1.2 · **10→11 1.0** · 14→15 1.6 · **15→16 1.4** · 19→20 2.3 ·
+**20→21 2.1** · 24→25 3.3 · **25→26 2.9** · 29→30 4.5. Real play (walking, resting for health) is slower.
 
 **Per attempt:**
 - **Success:** gold and XP. 5% chance of a **Big Score** (double gold and XP).

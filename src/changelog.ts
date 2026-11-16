@@ -14,7 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Every crime now starts at 65% success when you unlock it, and gets 0.5% better for every Street Crimes level above that.',
       'A failed attempt gives no XP any more.',
-      'XP rebalanced: 150 successful pickpockets take you from level 1 to 10. Every next crime earns more XP per hour than the one before; level 30 still takes about 16 hours.',
+      'XP rebalanced: every skill uses one XP curve where each level needs a bit more than the last. 150 successful pickpockets take you to level 10, and each new crime earns about 30% more XP per hour.',
     ],
   },
   {

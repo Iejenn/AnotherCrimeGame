@@ -12,8 +12,9 @@ const fresh = (name = 'Tester') => structuredClone(newGame(name, DEFAULT_LOOK, T
 describe('levels (design §3)', () => {
   it('go from 1 to 30 and match the design doc table', () => {
     expect(MAX_LEVEL).toBe(30);
-    expect(totalXpForLevel(10)).toBe(30010);
-    expect(totalXpForLevel(30)).toBe(8430624);
+    expect(totalXpForLevel(2)).toBe(29);
+    expect(totalXpForLevel(10)).toBe(449);
+    expect(totalXpForLevel(30)).toBe(7533);
     for (let l = 1; l <= MAX_LEVEL; l++) {
       expect(levelFromXp(totalXpForLevel(l))).toBe(l);
       if (l > 1) expect(levelFromXp(totalXpForLevel(l) - 1)).toBe(l - 1);
@@ -57,19 +58,34 @@ describe('street crimes (design §4)', () => {
     expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.795);
   });
 
-  it('each new crime pays more XP per hour than the one before', () => {
-    const perHour = CRIMES.map((c) => pace(c, c.level).xpPerHour);
-    for (let i = 1; i < perHour.length; i++) expect(perHour[i]).toBeGreaterThan(perHour[i - 1]);
+  it('a pickpocket earns about 5,000 XP/h if every attempt succeeds', () => {
+    const c = CRIME_BY_ID.pick_wallet;
+    expect((3600 / c.duration) * c.xp).toBe(5400);
   });
 
-  it('reaching 30 takes roughly 16 hours of active play (always using the best crime)', () => {
-    let hours = 0;
+  it('each new crime earns about 30% more XP per hour (if every attempt succeeds)', () => {
+    const perfect = CRIMES.map((c) => (3600 / c.duration) * c.xp);
+    for (let i = 1; i < perfect.length; i++) {
+      const bump = perfect[i] / perfect[i - 1];
+      expect(bump).toBeGreaterThan(1.2);
+      expect(bump).toBeLessThan(1.4);
+    }
+  });
+
+  it('levels take a little longer each time, with a dip whenever a new crime unlocks', () => {
+    const minutes: number[] = [];
     for (let l = 1; l < MAX_LEVEL; l++) {
       const best = Math.max(...CRIMES.filter((c) => c.level <= l).map((c) => pace(c, l).xpPerHour));
-      hours += (totalXpForLevel(l + 1) - totalXpForLevel(l)) / best;
+      minutes[l] = ((totalXpForLevel(l + 1) - totalXpForLevel(l)) / best) * 60;
     }
-    expect(hours).toBeGreaterThan(14);
-    expect(hours).toBeLessThan(18);
+    const unlocks = new Set(CRIMES.map((c) => c.level));
+    for (let l = 2; l < MAX_LEVEL; l++) {
+      if (unlocks.has(l)) expect(minutes[l]).toBeLessThan(minutes[l - 1]); // new crime: quicker again
+      else expect(minutes[l]).toBeGreaterThan(minutes[l - 1]); // otherwise: a bit longer each level
+    }
+    const total = minutes.slice(1).reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(40); // about an hour to the current cap of 30
+    expect(total).toBeLessThan(80);
   });
 });
 

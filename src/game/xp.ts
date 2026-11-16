@@ -1,24 +1,18 @@
-// Levels 1–30 (see docs/design.md §3).
-// Levels 1–10 are quick (150 successful pickpockets gets you to 10); after that each level
-// gets steeper, so level 30 takes about 16 hours of play.
+// One XP curve for every skill (docs/design.md §3). It's built for levels 1–100; the cap is 30 for now.
+// Each level needs 13% more XP than the one before. How fast you level then depends on the method:
+// better methods earn more XP per hour, but the levels keep getting a little longer.
 
+/** Current level cap. The curve itself goes to CURVE_LEVELS. */
 export const MAX_LEVEL = 30;
-/** XP to go from level 1 to 2. */
-const BASE_XP = 1000;
-/** Up to level 10, each level needs 28.5% more XP than the one before. */
-const EARLY_GROWTH = 1.285;
-/** From level 10 on, each level needs 32.5% more. */
-const LATE_GROWTH = 1.325;
-
-/** XP needed to go from `level` to `level + 1` (before rounding). */
-function stepXp(level: number) {
-  if (level < 10) return BASE_XP * Math.pow(EARLY_GROWTH, level - 1);
-  return BASE_XP * Math.pow(EARLY_GROWTH, 8) * Math.pow(LATE_GROWTH, level - 9);
-}
+const CURVE_LEVELS = 100;
+/** XP to go from level 1 to 2 (tuned so 150 successful pickpockets × 3 XP reach level 10). */
+const BASE_XP = 29.13;
+/** Each next level needs 13% more XP. */
+const GROWTH = 1.13;
 
 /** XP_TABLE[L] = total XP needed to BE level L. */
 const XP_TABLE: number[] = [0, 0];
-for (let l = 1; l < MAX_LEVEL; l++) XP_TABLE.push(XP_TABLE[l] + Math.round(stepXp(l)));
+for (let l = 1; l < CURVE_LEVELS; l++) XP_TABLE.push(XP_TABLE[l] + Math.round(BASE_XP * Math.pow(GROWTH, l - 1)));
 
 export function totalXpForLevel(level: number): number {
   return XP_TABLE[Math.min(Math.max(level, 1), MAX_LEVEL)];
