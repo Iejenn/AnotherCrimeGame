@@ -6,9 +6,12 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BAR, BEACH, BLOCK, BLOCKS, BUILDINGS, CANDY, COLS, COURT, FIXTURES, GAS, H, LOT, NODES, NO_ROAD, NPCS, PARK, ROWS, STORE, W, WEAPONS, inRect, type Room } from './map';
+import {
+  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
+  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+} from './map';
+import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
-import { buildCar } from './props';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
 const C = {
@@ -158,8 +161,6 @@ export function buildCity(scene: THREE.Scene) {
   const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, ...extra }));
   const geoBox = (w: number, h: number, d: number) => own(new THREE.BoxGeometry(w, h, d));
   const rng = mulberry32(2024);
-  /** Is this point on what used to be road but is now park or parking lot? */
-  const noRoad = (x: number, z: number) => NO_ROAD.some((r) => inRect(r, Math.floor(x), Math.floor(z)));
   let ironMat: THREE.Material | null = null;
   const iron2 = () => (ironMat ??= lam(0x3a3d42));
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], x: number, y: number, z: number, shadow = true) => {
@@ -184,7 +185,8 @@ export function buildCity(scene: THREE.Scene) {
   plane(W + BEACH * 2 + 3, H + BEACH * 2 + 3, C.shallows, -0.3); // lighter shallow water around the beach
   const sand = add(geoBox(W + BEACH * 2, 0.3, H + BEACH * 2), lam(C.sand), W / 2, -0.17, H / 2, false);
   sand.receiveShadow = true;
-  add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.05, H / 2, false); // a low kerb where the streets meet the sand
+  // A low kerb where the streets meet the sand (just below the asphalt, so it only shows around the edge).
+  add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.075, H / 2, false);
   plane(W, H, C.asphalt, 0);
   // Rocks scattered along the waterline.
   const rocks = new Batch(own(new THREE.DodecahedronGeometry(0.35, 0)), lam(C.rock, { flatShading: true }));
@@ -199,34 +201,57 @@ export function buildCity(scene: THREE.Scene) {
   }
   rocks.build(scene);
 
-  // ---------- road paint: dashed centre lines and zebra crossings ----------
-  const dash = new Batch(geoBox(0.07, 0.01, 0.42), lam(C.paint), false);
-  const zebra = new Batch(geoBox(0.16, 0.01, 0.62), lam(C.paint), false);
-  const inIntersection = (v: number) => v % BLOCK < 2;
-  for (let k = 0; k <= COLS; k++) {
-    const x = k * BLOCK + 1; // centre of a vertical road
-    for (let z = 0; z < H; z++) if (!inIntersection(z) && !noRoad(x, z)) dash.add(x, 0.006, z + 0.5);
+  // ---------- streets: a road for two cars (dashed centre line), zebra crossings, curbs and sidewalks ----------
+  // Every street is 7 tiles: sidewalk 1.5, road 4, sidewalk 1.5. Each block has a sidewalk all around it, with a
+  // curb along the road edge.
+  const dash = new Batch(geoBox(0.07, 0.01, 0.7), lam(C.paint), false);
+  const zebra = new Batch(geoBox(0.32, 0.01, 2.6), lam(0xd8d2c4), false);
+  const inCrossing = (v: number) => v % PITCH < STREET;
+  for (let k = 0; k <= BCOLS; k++) {
+    const x = k * PITCH + STREET / 2; // centre of a north–south street
+    for (let z = 0; z < H; z += 1.6) if (!inCrossing(Math.floor(z)) && !inCrossing(Math.floor(z + 0.7))) dash.add(x, 0.006, z + 0.35);
   }
-  for (let k = 0; k <= ROWS; k++) {
-    const z = k * BLOCK + 1;
-    for (let x = 0; x < W; x++) if (!inIntersection(x) && !noRoad(x, z)) dash.add(x + 0.5, 0.006, z, 1, 1, 1, Math.PI / 2);
+  for (let k = 0; k <= BROWS; k++) {
+    const z = k * PITCH + STREET / 2;
+    for (let x = 0; x < W; x += 1.6) if (!inCrossing(Math.floor(x)) && !inCrossing(Math.floor(x + 0.7))) dash.add(x + 0.35, 0.006, z, 1, 1, 1, Math.PI / 2);
   }
-  // Zebra crossings on the four sides of the inner intersections.
-  for (let i = 1; i < COLS; i++)
-    for (let j = 1; j < ROWS; j++) {
-      const ix = i * BLOCK + 1;
-      const iz = j * BLOCK + 1;
-      const z = (x: number, zz: number, rot = 0) => !noRoad(x, zz) && zebra.add(x, 0.007, zz, 1, 1, 1, rot);
-      for (let s = 0; s < 6; s++) {
-        const off = -0.75 + s * 0.3;
-        z(ix + off, iz - 1.45); // north
-        z(ix + off, iz + 1.45); // south
-        z(ix - 1.45, iz + off, Math.PI / 2); // west
-        z(ix + 1.45, iz + off, Math.PI / 2); // east
+  // Zebra crossings on the four sides of every crossing (just outside it, across the road).
+  for (let i = 0; i <= BCOLS; i++)
+    for (let j = 0; j <= BROWS; j++) {
+      const ix = i * PITCH + STREET / 2;
+      const iz = j * PITCH + STREET / 2;
+      for (let st = 0; st < 6; st++) {
+        const off = -1.5 + st * 0.6;
+        if (j > 0) zebra.add(ix + off, 0.007, iz - STREET / 2 - 1.4);
+        if (j < BROWS) zebra.add(ix + off, 0.007, iz + STREET / 2 + 1.4);
+        if (i > 0) zebra.add(ix - STREET / 2 - 1.4, 0.007, iz + off, 1, 1, 1, Math.PI / 2);
+        if (i < BCOLS) zebra.add(ix + STREET / 2 + 1.4, 0.007, iz + off, 1, 1, 1, Math.PI / 2);
       }
     }
   dash.build(scene);
   zebra.build(scene);
+  // Sidewalks: one slab around each block (1.5 tiles out from it), with a lighter curb on the road edge and joints.
+  const SW = 1.5;
+  const sidewalkMat = lam(C.pavement);
+  const curbMat = lam(0x8a857c);
+  const joints = new Batch(geoBox(0.03, 0.004, SW), lam(0x5c5852), false);
+  for (let bx = 0; bx < BCOLS; bx++)
+    for (let by = 0; by < BROWS; by++) {
+      const b = blockRect(bx, by);
+      const cx = b.x0 + BLOCK_SIZE / 2;
+      const cz = b.y0 + BLOCK_SIZE / 2;
+      const size = BLOCK_SIZE + 2 * SW;
+      add(geoBox(size, 0.07, size), sidewalkMat, cx, 0.035, cz, false);
+      for (const [w, d, dx, dz] of [[size, 0.12, 0, -size / 2], [size, 0.12, 0, size / 2], [0.12, size, -size / 2, 0], [0.12, size, size / 2, 0]] as const)
+        add(geoBox(w, 0.09, d), curbMat, cx + dx, 0.045, cz + dz, false);
+      for (let t = -size / 2 + 1; t < size / 2; t += 1) {
+        joints.add(cx + t, 0.072, b.y0 - SW / 2, 1, 1, 1, 0);
+        joints.add(cx + t, 0.072, b.y1 + 1 + SW / 2, 1, 1, 1, 0);
+        joints.add(b.x0 - SW / 2, 0.072, cz + t, 1, 1, 1, Math.PI / 2);
+        joints.add(b.x1 + 1 + SW / 2, 0.072, cz + t, 1, 1, 1, Math.PI / 2);
+      }
+    }
+  joints.build(scene);
 
   // ---------- pavements, parks, trees ----------
   const trunks = new Batch(own(new THREE.CylinderGeometry(0.06, 0.08, 0.5, 6)), lam(C.trunk));
@@ -242,78 +267,137 @@ export function buildCity(scene: THREE.Scene) {
   };
   const pavement = lam(C.pavement);
   const grassMat = lam(C.grass);
-  const busy = new Set<string>(); // tiles with spots/NPCs: keep trees off them
+  const busy = new Set<string>(); // tiles with spots/NPCs or in front of doors: keep trees and props off them
   for (const n of NODES) busy.add(`${n.x},${n.y}`);
   for (const p of NPCS) busy.add(`${p.x},${p.y}`);
-  for (let bx = 0; bx < COLS; bx++)
-    for (let by = 0; by < ROWS; by++) {
-      const kind = BLOCKS.get(`${bx},${by}`)!;
-      const cx = bx * BLOCK + 2 + 2.5;
-      const cz = by * BLOCK + 2 + 2.5;
-      if (kind.type === 'special') continue; // drawn by their own sections below
-      add(geoBox(5.6, 0.06, 5.6), pavement, cx, 0.03, cz, false);
-      if (kind.type === 'park') {
-        add(geoBox(5, 0.08, 5), grassMat, cx, 0.04, cz, false);
-        for (let i = 0; i < 6; i++) tree(cx - 2 + rng() * 4, cz - 2 + rng() * 4, 0.9 + rng() * 0.5);
+  for (const e of ENCLOSURES) for (const o of e.openings) for (let d = -1; d <= 1; d++) busy.add(`${o.outside[0] + d},${o.outside[1]}`), busy.add(`${o.outside[0] + d},${o.outside[1] + 1}`);
+  for (let d = -1; d <= 1; d++) busy.add(`${SPAWN[0] + d},${SPAWN[1]}`);
+  for (const lot of LOTS) {
+    const r = lot.rect;
+    const cx = r.x0 + 2.5;
+    const cz = r.y0 + 2.5;
+    if (lot.kind === 'special') continue; // drawn by their own sections below
+    add(geoBox(5, 0.075, 5), pavement, cx, 0.037, cz, false);
+    if (lot.kind === 'park') {
+      add(geoBox(4.8, 0.09, 4.8), grassMat, cx, 0.045, cz, false);
+      for (let i = 0; i < 5; i++) tree(cx - 1.8 + rng() * 3.6, cz - 1.8 + rng() * 3.6, 1.1 + rng() * 0.5);
+    }
+  }
+  // Street trees in pits along the sidewalks, a few per block side (never in front of a door or a spot).
+  const pit = new Batch(geoBox(0.8, 0.02, 0.8), lam(0x3a2a1e), false);
+  for (let bx = 0; bx < BCOLS; bx++)
+    for (let by = 0; by < BROWS; by++) {
+      const b = blockRect(bx, by);
+      const spots: [number, number][] = [];
+      for (const t of [1.5, 5, 8.5]) {
+        spots.push([b.x0 + t, b.y0 - 0.75], [b.x0 + t, b.y1 + 1.75], [b.x0 - 0.75, b.y0 + t], [b.x1 + 1.75, b.y0 + t]);
       }
-      // A few street trees along the pavement edge (never in front of a spot, and not in Eddy's shop).
-      for (let i = 0; i < 5; i++) {
-        if (rng() < 0.55) continue;
-        const along = 2 + i;
-        const tx = bx * BLOCK + along;
-        const tz = by * BLOCK + 7;
-        if (busy.has(`${tx},${tz}`) || busy.has(`${tx},${tz - 1}`)) continue;
-        tree(tx + 0.5, by * BLOCK + 6.85, 0.75);
+      for (const [tx, tz] of spots) {
+        if (rng() < 0.6 || busy.has(`${Math.floor(tx)},${Math.floor(tz)}`)) continue;
+        pit.add(tx, 0.075, tz);
+        tree(tx, tz, 1.25 + rng() * 0.3);
       }
     }
+  pit.build(scene);
 
-  // ---------- street lamps and traffic lights ----------
-  const poleGeo = own(new THREE.CylinderGeometry(0.03, 0.035, 1.35, 6));
-  const poles = new Batch(poleGeo, lam(0x5a5f66));
-  const lampHeads = new Batch(geoBox(0.22, 0.05, 0.1), lam(0x5a5f66));
-  const lampGlow = new Batch(geoBox(0.16, 0.03, 0.08), lam(C.lamp, { emissive: C.lamp, emissiveIntensity: 1.6 }), false);
+  // ---------- street lamps (tall, an arm over the road) and traffic lights at the crossings ----------
+  const poleGeo = own(new THREE.CylinderGeometry(0.04, 0.06, 2.3, 6));
+  const poles = new Batch(poleGeo, lam(0x2b2b2e));
+  const lampHeads = new Batch(geoBox(0.26, 0.08, 0.6), lam(0x2b2b2e));
+  const lampGlow = new Batch(geoBox(0.2, 0.03, 0.24), lam(C.lamp, { emissive: C.lamp, emissiveIntensity: 1.8 }), false);
   const poolMat = own(new THREE.MeshBasicMaterial({ map: own(lightPoolTex()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  const pools = new Batch(own(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2)), poolMat, false);
-  const lightBox = new Batch(geoBox(0.1, 0.28, 0.1), lam(0x2b2b2e));
-  const redDot = new Batch(geoBox(0.05, 0.05, 0.02), lam(0xe0473a, { emissive: 0xe0473a, emissiveIntensity: 0.8 }), false);
-  const greenDot = new Batch(geoBox(0.05, 0.05, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.8 }), false);
-  for (let bx = 0; bx < COLS; bx++)
-    for (let by = 0; by < ROWS; by++) {
-      // two lamps per block, on opposite corners of the pavement
-      for (const [lx, lz] of [[bx * BLOCK + 1.85, by * BLOCK + 1.85], [bx * BLOCK + 7.15, by * BLOCK + 7.15]]) {
-        if (noRoad(lx, lz) && inRect(PARK, Math.floor(lx), Math.floor(lz))) continue; // the park has its own lamps
-        poles.add(lx, 0.68, lz);
-        lampHeads.add(lx + 0.08, 1.36, lz);
-        lampGlow.add(lx + 0.12, 1.33, lz);
-        pools.add(lx + 0.12, 0.075, lz);
+  const pools = new Batch(own(new THREE.PlaneGeometry(3.2, 3.2).rotateX(-Math.PI / 2)), poolMat, false);
+  const lightPole = new Batch(own(new THREE.CylinderGeometry(0.035, 0.04, 1.9, 6)), lam(0x5a5f66));
+  const lightBox = new Batch(geoBox(0.14, 0.4, 0.14), lam(0x2b2b2e));
+  const redDot = new Batch(geoBox(0.07, 0.07, 0.02), lam(0xe0473a, { emissive: 0xe0473a, emissiveIntensity: 0.9 }), false);
+  const greenDot = new Batch(geoBox(0.07, 0.07, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.9 }), false);
+  /** A lamp at (x, z) whose arm reaches over the road in direction (dx, dz). */
+  const lamp = (x: number, z: number, dx: number, dz: number) => {
+    poles.add(x, 1.15, z);
+    const rot = Math.atan2(dx, dz);
+    lampHeads.add(x + dx * 0.4, 2.3, z + dz * 0.4, 1, 1, 1, rot);
+    lampGlow.add(x + dx * 0.45, 2.25, z + dz * 0.45, 1, 1, 1, rot);
+    pools.add(x + dx * 0.7, 0.08, z + dz * 0.7);
+  };
+  for (let bx = 0; bx < BCOLS; bx++)
+    for (let by = 0; by < BROWS; by++) {
+      const b = blockRect(bx, by);
+      // Two lamps on each side of the block, near the curb, staggered so they don't face each other.
+      for (const t of [3.2, 7.8]) {
+        lamp(b.x0 + t, b.y0 - 1.3, 0, -1);
+        lamp(b.x0 + BLOCK_SIZE - t, b.y1 + 2.3, 0, 1);
+        lamp(b.x0 - 1.3, b.y0 + BLOCK_SIZE - t, -1, 0);
+        lamp(b.x1 + 2.3, b.y0 + t, 1, 0);
+      }
+      // Traffic lights on the block's corners, facing the crossing.
+      for (const [cx, cz, i] of [[b.x0 - 1.3, b.y0 - 1.3, 0], [b.x1 + 2.3, b.y0 - 1.3, 1], [b.x0 - 1.3, b.y1 + 2.3, 1], [b.x1 + 2.3, b.y1 + 2.3, 0]] as const) {
+        lightPole.add(cx, 0.95, cz);
+        lightBox.add(cx, 1.9, cz);
+        (i ? redDot : greenDot).add(cx, 2.0, cz + (cz < b.y0 ? -0.08 : 0.08));
       }
     }
-  for (let i = 1; i < COLS; i++)
-    for (let j = 1; j < ROWS; j++) {
-      const x = i * BLOCK + 2.15;
-      const z = j * BLOCK + 2.15;
-      // No traffic light inside the park, the lot, or a special block's corner (it'd poke through a shop).
-      if (noRoad(x, z) || BLOCKS.get(`${i},${j}`)?.type === 'special') continue;
-      poles.add(x, 0.68, z);
-      lightBox.add(x, 1.45, z);
-      ((i + j) % 2 ? redDot : greenDot).add(x, 1.5, z - 0.06);
-    }
 
-  // ---------- grime: dumpsters and trash bags on the pavements ----------
-  const dumpsters = new Batch(geoBox(0.55, 0.38, 0.32), lam(0x2f4a36));
-  const dumpLids = new Batch(geoBox(0.57, 0.04, 0.34), lam(0x1f2a22));
-  const bags = new Batch(own(new THREE.IcosahedronGeometry(0.13, 0)), lam(0x1c1c1f, { flatShading: true }));
-  for (let bx = 0; bx < COLS; bx++)
-    for (let by = 0; by < ROWS; by++) {
-      if (BLOCKS.get(`${bx},${by}`)?.type !== 'buildings' || rng() < 0.5) continue;
-      // Along the block's east side (no spots there), facing the road.
-      const x = bx * BLOCK + 7 - 0.12;
-      const z = by * BLOCK + 3 + rng() * 3;
-      dumpsters.add(x, 0.25, z, 1, 1, 1, Math.PI / 2);
-      dumpLids.add(x, 0.45, z, 1, 1, 1, Math.PI / 2);
-      for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) bags.add(x - 0.05 + rng() * 0.15, 0.12, z + 0.35 + rng() * 0.4, 1, 0.8 + rng() * 0.3, 1, rng() * 3);
+  // ---------- grime: dumpsters and trash bags in the alleys between buildings ----------
+  const dumpsters = new Batch(geoBox(1.1, 0.7, 0.62), lam(0x2f4a36));
+  const dumpLids = new Batch(geoBox(1.12, 0.05, 0.64), lam(0x1f2a22));
+  const bags = new Batch(own(new THREE.IcosahedronGeometry(0.17, 0)), lam(0x1c1c1f, { flatShading: true }));
+  {
+    const blocked = buildBlocked();
+    for (const lot of LOTS) {
+      if (lot.kind !== 'buildings') continue;
+      // Free tiles inside the lot (alleys and gaps between its buildings): one in three gets a dumpster.
+      const free: [number, number][] = [];
+      for (let y = lot.rect.y0; y <= lot.rect.y1; y++) for (let x = lot.rect.x0; x <= lot.rect.x1; x++) if (!blocked[y * W + x]) free.push([x, y]);
+      if (!free.length || rng() < 0.35) continue;
+      const [x, y] = free[Math.floor(rng() * free.length)];
+      const rot = rng() < 0.5 ? 0 : Math.PI / 2;
+      dumpsters.add(x + 0.5, 0.42, y + 0.5, 1, 1, 1, rot);
+      dumpLids.add(x + 0.5, 0.79, y + 0.5, 1, 1, 1, rot);
+      for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) bags.add(x + 0.2 + rng() * 0.6, 0.15, y + 0.2 + rng() * 0.6, 1, 0.8 + rng() * 0.3, 1, rng() * 3);
     }
+  }
   for (const b of [dumpsters, dumpLids, bags]) b.build(scene);
+
+  // ---------- street life: cars parked along the curbs, and things on the sidewalks ----------
+  for (const c of PARKED_CARS) {
+    const car = L.buildBigCar(c.color);
+    const mid = c.along === 'x' ? [c.x + 1.5, c.y + 0.5] : [c.x + 0.5, c.y + 1.5];
+    car.position.set(mid[0], 0.0, mid[1]);
+    car.rotation.y = c.along === 'x' ? (c.y % PITCH < STREET / 2 ? Math.PI : 0) : c.x % PITCH < STREET / 2 ? Math.PI / 2 : -Math.PI / 2;
+    scene.add(car);
+  }
+  {
+    // Per block side, maybe a hydrant, a bin, a mailbox, newspaper boxes, a bench or a bike rack, on the sidewalk
+    // close to the buildings or the curb. Never in front of a door.
+    const kinds = [() => L.buildHydrant(), () => L.buildBin(rng() < 0.3), () => L.buildMailbox(), () => L.buildNewsBoxes(), () => L.buildBench(), () => L.buildBikeRack()];
+    for (let bx = 0; bx < BCOLS; bx++)
+      for (let by = 0; by < BROWS; by++) {
+        const b = blockRect(bx, by);
+        const sides = [
+          { x: (t: number) => b.x0 + t, z: () => b.y0 - 0.45, rot: Math.PI },
+          { x: (t: number) => b.x0 + t, z: () => b.y1 + 1.45, rot: 0 },
+          { x: () => b.x0 - 0.45, z: (t: number) => b.y0 + t, rot: -Math.PI / 2 },
+          { x: () => b.x1 + 1.45, z: (t: number) => b.y0 + t, rot: Math.PI / 2 },
+        ];
+        for (const side of sides) {
+          for (const t of [2.2, 6.7]) {
+            if (rng() < 0.55) continue;
+            const x = side.x(t);
+            const z = side.z(t);
+            if (busy.has(`${Math.floor(x)},${Math.floor(z)}`)) continue;
+            const g = kinds[Math.floor(rng() * kinds.length)]();
+            g.position.set(x, 0.07, z);
+            g.rotation.y = side.rot;
+            scene.add(g);
+          }
+        }
+      }
+    // A bus stop on the park's sidewalk, across from the candy store (where you start).
+    const stop = L.buildBusStop();
+    stop.position.set(PARK.x0 + 6.5, 0.07, PARK.y0 - 0.55);
+    stop.rotation.y = Math.PI;
+    scene.add(stop);
+  }
 
   /** A coloured band around the roof edge (a parapet), leaving the grey roof visible in the middle. */
   const parapet = (cx: number, cz: number, w: number, d: number, top: number, m: THREE.Material) => {
@@ -331,9 +415,11 @@ export function buildCity(scene: THREE.Scene) {
   const atlases = [1, 2, 3, 4].map((seed) => windowAtlas(seed * 977));
   for (const a of atlases) own(a.map), own(a.glow);
   const fadeables: Fadeable[] = [];
-  const FLOOR = 0.55;
+  // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
+  // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
+  const FLOOR = 1.45;
   for (const b of BUILDINGS) {
-    const floors = Math.max(1, Math.round(b.height / FLOOR));
+    const floors = b.height > 1.8 ? 3 : 2;
     const height = floors * FLOOR + 0.12;
     const wall = C.walls[Math.floor(rng() * C.walls.length)];
     const trim = C.trims[Math.floor(rng() * C.trims.length)];
@@ -373,14 +459,30 @@ export function buildCity(scene: THREE.Scene) {
       const ant = add(own(new THREE.CylinderGeometry(0.015, 0.015, 0.7, 4)), lam(0x6a6f76), b.x + b.w - 0.4, height + 0.35, b.y + 0.4);
       props.push(ant);
     }
-    // Some ground floors are shops facing the street (south side): glass front + striped awning.
-    const facesStreet = (b.y + b.h) % BLOCK === 0;
-    if (facesStreet && rng() < 0.55) {
-      const glass = add(geoBox(Math.max(0.6, bw - 0.5), 0.42, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 0.7 }), cx, 0.27, b.y + b.h - 0.04, false);
+    // Every building has a front door at person size (on its street side), with a step and a lamp: so you can
+    // tell how big it is, and that people live there.
+    // The front faces the street: south for most, north for buildings along a block's north edge (s = which way
+    // "out" is along z).
+    const sgn = b.front === 'n' ? -1 : 1;
+    const front = b.front === 'n' ? b.y + 0.05 : b.y + b.h - 0.05;
+    const doorX = b.x + 0.5 + Math.floor(rng() * Math.max(1, b.w - 1));
+    props.push(
+      add(geoBox(0.62, 1.12, 0.06), lam(trim), doorX, 0.56, front + sgn * 0.02, false), // frame
+      add(geoBox(0.5, 1.02, 0.07), lam(0x3a2a20), doorX, 0.53, front + sgn * 0.03, false), // door
+      add(geoBox(0.8, 0.08, 0.3), lam(0x8a857c), doorX, 0.08, front + sgn * 0.15, false), // step
+      add(geoBox(0.12, 0.12, 0.08), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.2 }), doorX + 0.42, 1.0, front + sgn * 0.06, false), // lamp
+    );
+    // Some ground floors on a street are shops: a shop window at person height + an awning.
+    const block = blockRect(Math.floor(b.x / PITCH), Math.floor(b.y / PITCH));
+    const onStreet = b.front === 'n' ? b.y === block.y0 : b.y + b.h - 1 === block.y1;
+    if (onStreet && b.w >= 2 && rng() < 0.55) {
+      const gw = Math.max(0.6, bw - 1.1);
+      const gx = doorX < cx ? cx + 0.3 : cx - 0.3;
+      const glass = add(geoBox(gw, 0.8, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 0.7 }), gx, 0.55, front + sgn * 0.01, false);
       const stripe = own(stripeTex(`#${C.trims[Math.floor(rng() * C.trims.length)].toString(16).padStart(6, '0')}`, '#b8b0a0'));
       stripe.repeat.set(Math.max(1, Math.round(bw)), 1);
-      const awning = add(geoBox(Math.max(0.7, bw - 0.3), 0.04, 0.38), lam(0xffffff, { map: stripe }), cx, 0.6, b.y + b.h + 0.12);
-      awning.rotation.x = 0.35;
+      const awning = add(geoBox(Math.max(0.7, bw - 0.3), 0.04, 0.42), lam(0xffffff, { map: stripe }), cx, 1.3, front + sgn * 0.19);
+      awning.rotation.x = sgn * 0.35;
       props.push(glass, awning);
     }
     fadeables.push({ walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1 });
@@ -403,13 +505,13 @@ export function buildCity(scene: THREE.Scene) {
     const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31), false);
     for (let i = 0; i < 60; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), 0.082 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
     patch.build(scene);
-    // Paths in a # shape, through the gaps in the hedges (rows 2 and 9, columns 3 and 8).
+    // Paths in a # shape, through the gaps in the hedges (PARK_PATHS), out to the sidewalks.
     const gravel = lam(0x8a8070);
     const midZ = cz; // the fountain is in the middle
-    for (const pz of [P.y0 + 2.5, P.y0 + 9.5]) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, 0.09, pz, false);
-    for (const px of [P.x0 + 3.5, P.x0 + 8.5]) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, px, 0.091, cz, false);
+    for (const r of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, 0.09, P.y0 + r + 0.5, false);
+    for (const c of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, P.x0 + c + 0.5, 0.091, cz, false);
     // A gravel square around the fountain, joining the paths.
-    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(2.1, 24).rotateX(-Math.PI / 2)), gravel);
+    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 24).rotateX(-Math.PI / 2)), gravel);
     ringPath.position.set(cx, 0.092, midZ);
     ringPath.receiveShadow = true;
     scene.add(ringPath);
@@ -451,22 +553,20 @@ export function buildCity(scene: THREE.Scene) {
     if (pond.length) {
       const px = (Math.min(...pond.map((f) => f.x)) + Math.max(...pond.map((f) => f.x)) + 1) / 2;
       const pz = (Math.min(...pond.map((f) => f.y)) + Math.max(...pond.map((f) => f.y)) + 1) / 2;
-      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, 0.1, pz);
-      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false);
+      // An oval pond, as wide as its tiles (one column between the path and the hedge).
+      const sx = (Math.max(...pond.map((f) => f.x)) - Math.min(...pond.map((f) => f.x)) + 1) / 2;
+      const sz = (Math.max(...pond.map((f) => f.y)) - Math.min(...pond.map((f) => f.y)) + 1) / 2;
+      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 16)), stone, px, 0.1, pz).scale.set(sx, 1, sz);
+      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 16)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false).scale.set(sx, 1, sz);
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
-        const r = 0.25 + rng() * 0.45;
+        const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
         add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, 0.185, pz + Math.sin(a) * r, false);
       }
-      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.3 + rng() * 0.2, 0.03), lam(0x4a6a32), px + 0.7 + rng() * 0.15, 0.25, pz - 0.4 + i * 0.16, false);
+      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.3 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.7 + rng() * 0.1, 0.25, pz - 0.4 + i * 0.16, false);
     }
     // Old park lamps at the inner corners of the paths.
-    for (const [lx, lz] of [[P.x0 + 4.2, P.y0 + 3.2], [P.x0 + 7.8, P.y0 + 3.2], [P.x0 + 4.2, P.y0 + 8.8], [P.x0 + 7.8, P.y0 + 8.8]]) {
-      poles.add(lx, 0.68, lz);
-      lampHeads.add(lx + 0.08, 1.36, lz);
-      lampGlow.add(lx + 0.12, 1.33, lz);
-      pools.add(lx + 0.12, 0.095, lz);
-    }
+    for (const [lx, lz] of [[P.x0 + 3.2, P.y0 + 1.8], [P.x0 + 6.8, P.y0 + 1.8], [P.x0 + 3.2, P.y0 + 8.2], [P.x0 + 6.8, P.y0 + 8.2]]) lamp(lx, lz, 0, lz < cz ? 1 : -1);
   }
 
   // ---------- the basketball court (Raid Gym Bags) ----------
@@ -586,7 +686,9 @@ export function buildCity(scene: THREE.Scene) {
     const Z1 = r.y1 + 1;
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
-    const sh = st.height ?? 1.25;
+    // One storey a person fits in (with room above their head), with the sign above it.
+    const sh = (st.height ?? 1.25) * 1.4;
+    const DOOR = 1.2;
     const t = 0.12; // wall thickness
     const [doorX] = r.door;
     add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
@@ -599,18 +701,18 @@ export function buildCity(scene: THREE.Scene) {
       add(geoBox(t, sh, Z1 - Z0), mWall, X1 - t / 2, sh / 2, cz), // east
       add(geoBox(doorX - X0, sh, t), mWall, (X0 + doorX) / 2, sh / 2, Z1 - t / 2), // front, left of the door
       add(geoBox(X1 - doorX - 1, sh, t), mWall, (doorX + 1 + X1) / 2, sh / 2, Z1 - t / 2), // front, right of the door
-      add(geoBox(1, sh - 0.85, t), mWall, doorX + 0.5, 0.85 + (sh - 0.85) / 2, Z1 - t / 2), // above the door
+      add(geoBox(1, sh - DOOR, t), mWall, doorX + 0.5, DOOR + (sh - DOOR) / 2, Z1 - t / 2), // above the door
     ];
     const roof = add(geoBox(X1 - X0, 0.08, Z1 - Z0), mRoof, cx, sh + 0.04, cz);
     const trimBand = parapet(cx, cz, X1 - X0 + 0.06, Z1 - Z0 + 0.06, sh + 0.06, mTrim);
     // Shop windows either side of the door, lit from inside.
     const glassMat = lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 });
-    const winL = add(geoBox(1.3, 0.5, 0.04), glassMat, X0 + 1, 0.55, Z1 + 0.005, false);
-    const winR = add(geoBox(1.3, 0.5, 0.04), glassMat, X1 - 1, 0.55, Z1 + 0.005, false);
-    const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, 0.86, Z1 - t / 2, false);
+    const winL = add(geoBox(1.3, 0.85, 0.04), glassMat, X0 + 1, 0.68, Z1 + 0.005, false);
+    const winR = add(geoBox(1.3, 0.85, 0.04), glassMat, X1 - 1, 0.68, Z1 + 0.005, false);
+    const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, DOOR + 0.01, Z1 - t / 2, false);
     const stripe = own(stripeTex(st.stripe[0], st.stripe[1]));
     stripe.repeat.set(5, 1);
-    const awning = add(geoBox(X1 - X0 - 0.8, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, 0.98, Z1 + 0.22);
+    const awning = add(geoBox(X1 - X0 - 0.8, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, DOOR + 0.18, Z1 + 0.22);
     awning.rotation.x = 0.4;
     const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture(st.sign, st.signBg, st.signFg)) }));
     const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, Z1 + 0.03, false);
@@ -636,7 +738,7 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(0.8, 0.02, 0.5), lam(st.trim), doorX + 0.5, 0.075, Z1 - 0.4, false);
     // Warm light inside, so the shop glows when you look in.
     const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
-    lamp.position.set(cx, 1.1, cz);
+    lamp.position.set(cx, sh - 0.2, cz);
     scene.add(lamp);
     const fade: Fadeable = {
       walls: [...walls, ...trimBand],
@@ -647,6 +749,29 @@ export function buildCity(scene: THREE.Scene) {
     fadeables.push(fade);
     rooms.set(r.id, fade);
     return { X0, Z0, X1, Z1, cx, cz, t, doorX, sh };
+  };
+  /** Something on a shop's front (or in its window) that hides with the roof when the shop fades. */
+  const shopExtra = (r: Room, o: THREE.Object3D, x: number, y: number, z: number, rotY = 0) => {
+    o.position.set(x, y, z);
+    o.rotation.y = rotY;
+    scene.add(o);
+    rooms.get(r.id)!.props.push(o);
+  };
+  /** The shop fronts with character (docs/design.md §7c). */
+  const shopFronts = () => {
+    // Eddy's: fruit and vegetable crates and a chalkboard outside.
+    shopExtra(STORE, L.buildCrates(), STORE.x0 + 0.9, 0.07, STORE.y1 + 1.55);
+    shopExtra(STORE, L.buildChalkboard('SANDWICH $2'), STORE.x1 + 0.3, 0.07, STORE.y1 + 1.6, -0.3);
+    // The candy store: a giant lollipop on the roof, jars of sweets in the windows, a neon OPEN sign.
+    const candyH = 1.25 * 1.4;
+    shopExtra(CANDY, L.buildLollipop(1.05), CANDY.x1 + 0.4, candyH, CANDY.y1 - 0.2);
+    shopExtra(CANDY, L.buildCandyDisplay(1.25), CANDY.x0 + 1, 0.02, CANDY.y1 + 1.33);
+    shopExtra(CANDY, L.buildCandyDisplay(1.25), CANDY.x1, 0.02, CANDY.y1 + 1.33);
+    shopExtra(CANDY, L.buildOpenSign(), CANDY.x1, 1.0, CANDY.y1 + 1.03);
+    // Ray's Arms: the shutter half down over one window, bars on the other, a camera watching the door.
+    shopExtra(WEAPONS, L.buildShutter(1.4, 1.15, 0.6), WEAPONS.x0 + 1, 0, WEAPONS.y1 + 1.0);
+    shopExtra(WEAPONS, L.buildBars(1.35, 0.9), WEAPONS.x1, 0.23, WEAPONS.y1 + 0.97);
+    shopExtra(WEAPONS, L.buildCamera(), WEAPONS.x0 + 3.65, 1.55, WEAPONS.y1 + 1.0, -0.4);
   };
   /** A shop counter (fixture tiles in a row) with a cash register at one end. */
   const counter = (r: Room, top = 0x9a7a52, body = 0x5a3d26) => {
@@ -831,60 +956,47 @@ export function buildCity(scene: THREE.Scene) {
   }
 
   // ---------- the parking lot (Parking Meters, Steal From Cars) ----------
-  // Dark worn asphalt with white bays and wheel stops, a guard booth with a lit window, two tall
-  // sodium lamps, and a blue P sign. The meters (and later the cars) are spots, added by the Street view.
+  // Three lots around the gas station in an L: the north-east lot and the long south strip. Dark worn asphalt with
+  // white bays and wheel stops, a guard booth with a lit window, tall sodium lamps, and a blue P sign. The meters
+  // and cars are spots, added by the Street view.
   {
-    const X0 = LOT.x0;
-    const Z0 = LOT.y0;
-    const X1 = LOT.x1 + 1;
-    const Z1 = LOT.y1 + 1;
-    const cx = (X0 + X1) / 2;
-    const cz = (Z0 + Z1) / 2;
-    // One pavement edge around the whole gas station + lot area, and one asphalt surface from the
-    // pumps' driveway (the old road) down to the end of the lot.
-    const S0 = GAS.y0;
-    const D0 = GAS.y1 + 2; // the driveway starts below the pump row
-    add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - S0 + 0.6), pavement, cx, 0.03, (S0 + Z1) / 2, false);
-    add(geoBox(X1 - X0 - 0.1, 0.03, Z1 - D0 - 0.05), lam(0x2c2e33), cx, 0.065, (D0 + Z1) / 2, false);
-    // Arrows painted on the driveway: in from the west, out to the east.
-    for (const [ax, rot] of [[X0 + 1.2, 0], [X1 - 1.2, Math.PI]] as const) {
-      const arrow = add(own(new THREE.ConeGeometry(0.18, 0.4, 3).rotateZ(-Math.PI / 2).rotateX(-Math.PI / 2)), lam(0xd8d0c0), ax, 0.088, D0 + 1, false);
-      arrow.scale.y = 0.05;
-      arrow.rotation.y = rot;
+    for (const r of PARKING) {
+      const X0 = r.x0;
+      const Z0 = r.y0;
+      const X1 = r.x1 + 1;
+      const Z1 = r.y1 + 1;
+      add(geoBox(X1 - X0, 0.03, Z1 - Z0), lam(0x2c2e33), (X0 + X1) / 2, 0.07, (Z0 + Z1) / 2, false);
+      const stains = new Batch(own(new THREE.CircleGeometry(0.22, 7).rotateX(-Math.PI / 2)), lam(0x1f2023), false);
+      for (let i = 0; i < 8; i++) stains.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.087, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), 0.6 + rng(), 1, 0.4 + rng() * 0.6, rng() * 6);
+      stains.build(scene);
     }
-    // Oil stains.
-    const stains = new Batch(own(new THREE.CircleGeometry(0.22, 7).rotateX(-Math.PI / 2)), lam(0x1f2023), false);
-    for (let i = 0; i < 10; i++) stains.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.082, Z0 + 1.2 + rng() * (Z1 - Z0 - 2.4), 0.6 + rng(), 1, 0.4 + rng() * 0.6, rng() * 6);
-    stains.build(scene);
-    // Bays: white lines across the north and south rows, wheel stops in each bay.
     const paint = lam(0xd8d0c0);
-    for (let x = X0; x <= X1; x++) {
-      add(geoBox(0.05, 0.01, 1.3), paint, x, 0.085, Z0 + 1.65, false);
-      add(geoBox(0.05, 0.01, 1.3), paint, x, 0.085, Z1 - 1.65, false);
+    const stop = lam(0x8a8478);
+    // Bays: the north-east lot's cars nose up to the meters on its north edge; the south strip's to the meters on its
+    // south edge. Each bay is a tile wide and two deep (the cars are big).
+    {
+      const r = PARKING_NE;
+      for (let x = r.x0; x <= r.x1 + 1; x++) add(geoBox(0.05, 0.01, 2), paint, x, 0.09, r.y0 + 2, false);
+      for (let x = r.x0; x <= r.x1; x++) add(geoBox(0.6, 0.06, 0.1), stop, x + 0.5, 0.11, r.y0 + 1.15, true);
     }
-    for (let x = X0; x < X1; x++) {
-      add(geoBox(0.6, 0.06, 0.1), lam(0x8a8478), x + 0.5, 0.11, Z0 + 1.15, true);
-      add(geoBox(0.6, 0.06, 0.1), lam(0x8a8478), x + 0.5, 0.11, Z1 - 1.15, true);
+    {
+      const r = PARKING_S;
+      for (let x = r.x0; x <= r.x1 + 1; x++) add(geoBox(0.05, 0.01, 2), paint, x, 0.09, r.y1 - 1, false);
+      for (let x = r.x0; x <= r.x1; x++) add(geoBox(0.6, 0.06, 0.1), stop, x + 0.5, 0.11, r.y1 - 0.15, true);
+      // Dashed driving lane along the strip.
+      for (let x = r.x0 + 0.3; x < r.x1 + 0.8; x += 0.7) add(geoBox(0.35, 0.01, 0.05), lam(0xc8a83a), x + 0.17, 0.09, r.y0 + 1.5, false);
     }
-    // Dashed driving lane down the middle.
-    for (let x = X0 + 0.3; x < X1 - 0.2; x += 0.7) add(geoBox(0.35, 0.01, 0.05), lam(0xc8a83a), x + 0.17, 0.086, cz, false);
     // The guard booth: a small hut with a lit window and a flat roof.
-    const booth = FIXTURES.find((f) => f.kind === 'booth' && inRect(LOT, f.x, f.y))!;
-    add(geoBox(0.85, 0.95, 0.85), lam(0x8a8478), booth.x + 0.5, 0.5, booth.y + 0.5);
-    add(geoBox(0.95, 0.06, 0.95), lam(0x2f4562), booth.x + 0.5, 1.0, booth.y + 0.5);
-    add(geoBox(0.5, 0.3, 0.02), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.5, 0.65, booth.y + 0.06, false);
-    add(geoBox(0.02, 0.3, 0.4), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.94, 0.65, booth.y + 0.5, false);
-    // A barrier arm by the booth.
-    add(geoBox(0.08, 0.4, 0.08), lam(0x2b2b2e), booth.x + 1.1, 0.2, booth.y + 0.92);
-    const arm = add(geoBox(1.2, 0.05, 0.05), lam(0xd9473a), booth.x + 1.7, 0.38, booth.y + 0.92);
-    arm.rotation.z = 0.15;
-    // Two tall sodium lamps.
-    for (const [lx, lz] of [[X0 + 0.15, cz], [X1 - 0.15, cz]]) {
-      add(own(new THREE.CylinderGeometry(0.035, 0.045, 2.1, 6)), lam(0x5a5f66), lx, 1.05, lz);
-      add(geoBox(0.3, 0.06, 0.14), lam(0x5a5f66), lx + (lx < cx ? 0.12 : -0.12), 2.1, lz);
-      add(geoBox(0.22, 0.03, 0.1), lam(C.lamp, { emissive: C.lamp, emissiveIntensity: 1.6 }), lx + (lx < cx ? 0.16 : -0.16), 2.07, lz, false);
-      pools.add(lx + (lx < cx ? 0.6 : -0.6), 0.09, lz, 1.4, 1, 1.4);
-    }
+    const booth = FIXTURES.find((f) => f.kind === 'booth')!;
+    add(geoBox(0.85, 1.35, 0.85), lam(0x8a8478), booth.x + 0.5, 0.7, booth.y + 0.5);
+    add(geoBox(0.95, 0.06, 0.95), lam(0x2f4562), booth.x + 0.5, 1.4, booth.y + 0.5);
+    add(geoBox(0.5, 0.4, 0.02), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.5, 0.95, booth.y + 0.06, false);
+    add(geoBox(0.02, 0.4, 0.4), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.94, 0.95, booth.y + 0.5, false);
+    // Tall sodium lamps.
+    lamp(PARKING_NE.x1 + 0.8, PARKING_NE.y0 + 2.5, -1, 0);
+    lamp(PARKING_S.x0 + 5, PARKING_S.y1 + 0.8, 0, -1);
+    const X0 = PARKING_NE.x1 + 1;
+    const Z0 = PARKING_NE.y0;
     // The blue P sign on the corner.
     const pSign = own(
       canvasTex(
@@ -905,8 +1017,8 @@ export function buildCity(scene: THREE.Scene) {
         false,
       ),
     );
-    add(own(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 6)), lam(0x5a5f66), X0 - 0.15, 0.65, Z0 - 0.15);
-    const ps = add(own(new THREE.PlaneGeometry(0.4, 0.4)), own(new THREE.MeshBasicMaterial({ map: pSign, side: THREE.DoubleSide })), X0 - 0.15, 1.2, Z0 - 0.15, false);
+    add(own(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 6)), lam(0x5a5f66), X0 + 0.4, 1.0, Z0 - 0.4);
+    const ps = add(own(new THREE.PlaneGeometry(0.6, 0.6)), own(new THREE.MeshBasicMaterial({ map: pSign, side: THREE.DoubleSide })), X0 + 0.4, 1.9, Z0 - 0.4, false);
     ps.rotation.y = Math.PI / 4;
   }
 
@@ -940,26 +1052,18 @@ export function buildCity(scene: THREE.Scene) {
     // Canopy: a flat roof with a blue fascia and lights underneath.
     const cMats = [lam(0xd8d4cc), lam(0x2a4a7a)];
     const canopyZ = fz + 0.95; // over the pumps, a little in front of the shop (so its sign shows)
-    const canopy = add(geoBox(4.6, 0.1, 1.5), cMats[0], cx, 1.3, canopyZ);
+    const canopy = add(geoBox(4.6, 0.1, 1.5), cMats[0], cx, 1.9, canopyZ);
     // A thin blue band around the edge, with a red stripe, so from above it reads as a canopy.
-    const fascia = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.3, canopyZ + 0.77);
-    const fasciaBack = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.3, canopyZ - 0.77);
-    for (const ex of [cx - 2.33, cx + 2.33]) add(geoBox(0.06, 0.2, 1.6), cMats[1], ex, 1.3, canopyZ);
-    add(geoBox(4.72, 0.04, 0.07), lam(0xb8282a), cx, 1.25, canopyZ + 0.78, false);
-    for (const px of [cx - 1.6, cx + 1.6]) add(geoBox(0.1, 1.25, 0.1), lam(0xe8e2d0), px, 0.63, canopyZ);
-    for (let i = 0; i < 3; i++) add(geoBox(0.5, 0.02, 0.2), lam(0xffffff, { emissive: 0xfff4e0, emissiveIntensity: 1.6 }), cx - 1.4 + i * 1.4, 1.24, canopyZ, false);
+    const fascia = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.9, canopyZ + 0.77);
+    const fasciaBack = add(geoBox(4.7, 0.2, 0.06), cMats[1], cx, 1.9, canopyZ - 0.77);
+    for (const ex of [cx - 2.33, cx + 2.33]) add(geoBox(0.06, 0.2, 1.6), cMats[1], ex, 1.9, canopyZ);
+    add(geoBox(4.72, 0.04, 0.07), lam(0xb8282a), cx, 1.85, canopyZ + 0.78, false);
+    for (const px of [cx - 1.6, cx + 1.6]) add(geoBox(0.1, 1.85, 0.1), lam(0xe8e2d0), px, 0.93, canopyZ);
+    for (let i = 0; i < 3; i++) add(geoBox(0.5, 0.02, 0.2), lam(0xffffff, { emissive: 0xfff4e0, emissiveIntensity: 1.6 }), cx - 1.4 + i * 1.4, 1.84, canopyZ, false);
     const glow = new THREE.PointLight(0xfff0d8, 5, 4, 1.6);
-    glow.position.set(cx, 1.05, canopyZ);
+    glow.position.set(cx, 1.6, canopyZ);
     scene.add(glow);
     fadeables.push({ walls: [canopy, fascia, fasciaBack], mats: cMats, props: [], opacity: 1 });
-    // A car filling up at the left pump.
-    if (pumps[0]) {
-      const car = buildCar(0x6a4526);
-      car.position.set(pumps[0].x - 0.45, 0.02, pumps[0].y + 0.5);
-      car.rotation.y = Math.PI / 2;
-      car.scale.setScalar(0.92);
-      scene.add(car);
-    }
     // The price sign on the corner: a tall post with a lit board.
     const priceTex = own(
       canvasTex(
@@ -980,12 +1084,14 @@ export function buildCity(scene: THREE.Scene) {
         false,
       ),
     );
-    const sx = GAS.x1 + 1.15;
-    const sz = fz + 0.85;
+    const sx = GAS.x0 - 0.8;
+    const sz = fz + 0.5;
     add(geoBox(0.08, 2.0, 0.08), lam(0x5a5f66), sx, 1.0, sz);
     const board = add(own(new THREE.PlaneGeometry(0.5, 1.0)), own(new THREE.MeshBasicMaterial({ map: priceTex, side: THREE.DoubleSide })), sx, 2.1, sz, false);
     board.rotation.y = -Math.PI / 4;
   }
+
+  shopFronts();
 
   // Build all instanced batches that were filled above.
   const poolMesh = pools.build(scene);

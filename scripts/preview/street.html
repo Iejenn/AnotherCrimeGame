@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- A mock-up of one street with the proposed street life and shop fronts (not part of the game build).
+     Run `npx vite` and open /scripts/preview/street.html. ?cam=low tilts the camera down. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Street preview</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1c2230; overflow: hidden; }
+      canvas { display: block; }
+      .tag { position: absolute; font: 600 12px Arial, sans-serif; color: #f2ece0; background: rgba(20, 18, 16, 0.72); padding: 1px 5px; transform: translate(-50%, -100%); white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="./street.ts"></script>
+  </body>
+</html>

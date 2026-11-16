@@ -1,16 +1,26 @@
-// The city grid (docs/design.md §7). Roads are 2 tiles wide every 7 tiles; the 5×5 squares
-// between them are blocks. Most blocks are a cluster of buildings in one of a few layouts; some are
-// small parks; and some are special places where a crime happens (the big park, the basketball
-// court, shops you can walk into…). The whole city is an island in the ocean, with a beach around it.
+// The city grid (docs/design.md §7). The city is 3×3 BLOCKS of 10×10 tiles with STREETS 7 tiles wide between
+// them (a road for two cars with a sidewalk on each side, drawn in city.ts). Each block is 4 LOTS of 5×5 (2×2);
+// a lot is a few buildings in one of several layouts, a pocket park, or a special place where something happens
+// (a shop you walk into, the basketball court…). Some places take more than one lot: the gas station's parking
+// lot takes three, Central Park a whole block. The city is an island, with a beach around it.
+//
+// The server keeps a copy of a few of these numbers (map size, spawn, shop areas, the guard's route, the
+// pigeon tiles, the crime spots): scripts/spots-sql.ts prints them from this file. Keep them in step.
 import type { SpotKind } from '../game/data/crimes';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { mulberry32 } from '../game/rng';
 
-export const BLOCK = 7;
-export const COLS = 6;
-export const ROWS = 5;
-export const W = COLS * BLOCK + 2;
-export const H = ROWS * BLOCK + 2;
+export const LOT_SIZE = 5;
+/** A block is 2×2 lots. */
+export const BLOCK_SIZE = 2 * LOT_SIZE;
+/** A street: sidewalk 1.5 + road 4 + sidewalk 1.5. */
+export const STREET = 7;
+/** From one block to the next. */
+export const PITCH = BLOCK_SIZE + STREET;
+export const BCOLS = 3;
+export const BROWS = 3;
+export const W = BCOLS * PITCH + STREET;
+export const H = BROWS * PITCH + STREET;
 /** How wide the beach around the city is, in tiles (then it's open ocean). */
 export const BEACH = 2;
 
@@ -22,8 +32,44 @@ export interface Rect {
   y1: number;
 }
 export const inRect = (r: Rect, x: number, y: number) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
-/** The 5×5 tiles inside block (bx, by). */
-const blockRect = (bx: number, by: number): Rect => ({ x0: bx * BLOCK + 2, y0: by * BLOCK + 2, x1: bx * BLOCK + 6, y1: by * BLOCK + 6 });
+/** The 10×10 tiles of block (bx, by). */
+export const blockRect = (bx: number, by: number): Rect => {
+  const x0 = bx * PITCH + STREET;
+  const y0 = by * PITCH + STREET;
+  return { x0, y0, x1: x0 + BLOCK_SIZE - 1, y1: y0 + BLOCK_SIZE - 1 };
+};
+/** The 5×5 tiles of lot (lx, ly) (0 or 1 each) in block (bx, by). */
+export const lotRect = (bx: number, by: number, lx: number, ly: number): Rect => {
+  const b = blockRect(bx, by);
+  const x0 = b.x0 + lx * LOT_SIZE;
+  const y0 = b.y0 + ly * LOT_SIZE;
+  return { x0, y0, x1: x0 + LOT_SIZE - 1, y1: y0 + LOT_SIZE - 1 };
+};
+
+// ---------- names, to talk about the map (docs/map.md, docs/map.png) ----------
+// Blocks are numbered row by row from the north-west corner: 001 002 003 / 004 005 006 / 007 008 009.
+// Lots in a block: A = north-west, B = north-east, C = south-west, D = south-east.
+//   A B
+//   C D
+export type LotLetter = 'A' | 'B' | 'C' | 'D';
+export const blockName = (bx: number, by: number) => String(by * BCOLS + bx + 1).padStart(3, '0');
+export const lotLetter = (lx: number, ly: number): LotLetter => (['A', 'B', 'C', 'D'] as const)[ly * 2 + lx];
+export const lotName = (bx: number, by: number, lx: number, ly: number) => `${blockName(bx, by)}-${lotLetter(lx, ly)}`;
+/** Block "005" → (bx, by). */
+const blockXY = (name: string): [number, number] => {
+  const n = Number(name) - 1;
+  if (!(n >= 0 && n < BCOLS * BROWS)) throw new Error(`no block ${name}`);
+  return [n % BCOLS, Math.floor(n / BCOLS)];
+};
+/** Block "005" and lot "C" → [bx, by, lx, ly]. */
+const lotXY = (block: string, letter: LotLetter): [number, number, number, number] => {
+  const i = 'ABCD'.indexOf(letter);
+  return [...blockXY(block), i % 2, Math.floor(i / 2)];
+};
+/** The tiles of a lot by its name: lot('002', 'C'). */
+export const lot = (block: string, letter: LotLetter): Rect => lotRect(...lotXY(block, letter));
+/** The tiles of a block by its number: block('008'). */
+export const block = (name: string): Rect => blockRect(...blockXY(name));
 
 export interface StreetNode {
   id: string;
@@ -40,7 +86,18 @@ export interface StreetNode {
   seated?: boolean;
 }
 
-export type BlockKind = { type: 'park' } | { type: 'buildings' } | { type: 'special' };
+/** What fills a lot: buildings, a pocket park, or something special (drawn by its own section in city.ts). */
+export type LotKind = 'buildings' | 'park' | 'special';
+export interface Lot {
+  /** Its name on the map, like "002-C" (block 002, lot C). */
+  name: string;
+  bx: number;
+  by: number;
+  lx: number;
+  ly: number;
+  rect: Rect;
+  kind: LotKind;
+}
 
 export interface Building {
   /** Top-left tile and size in tiles. */
@@ -51,27 +108,34 @@ export interface Building {
   /** Height in world units. */
   height: number;
   color: number;
+  /** Which side its front door is on: the side facing a street. */
+  front: 'n' | 's';
 }
 
-/** Small parks (one block each). */
-const PARKS: [number, number][] = [[0, 4], [5, 0], [1, 0]];
+/** Pocket parks (one lot each). */
+const PARKS: [string, LotLetter][] = [['003', 'B'], ['007', 'C']];
 
-export const SPAWN: [number, number] = [2 * BLOCK + 4, 3 * BLOCK + 1];
 
+/** Street tiles (everything that isn't in a block). */
 export function isRoad(x: number, y: number) {
-  return (x % BLOCK < 2 || y % BLOCK < 2) && !NO_ROAD.some((r) => inRect(r, x, y));
+  return x % PITCH < STREET || y % PITCH < STREET;
 }
 
-// ---------- the big park (Pickpocket Tourists, level 1) ----------
-// Four blocks (2×2) plus the roads and the crossing between them, right below where you start:
-// 12×12 tiles of lawn with hedges around the edge, gravel paths in a # shape, a fountain in the
-// middle with benches, a pond, trees and flowerbeds. Three tourists stroll around in it.
-export const PARK: Rect = { x0: 2 * BLOCK + 2, y0: 3 * BLOCK + 2, x1: 3 * BLOCK + 6, y1: 4 * BLOCK + 6 };
+// ---------- Central Park (Pickpocket Tourists, level 1) ----------
+// A whole block (10×10) of lawn with hedges around the edge, gravel paths in a # shape, a fountain in the middle
+// with benches, a pond, trees and flowerbeds. Three tourists stroll around in it, and the Pigeons live here.
+export const PARK: Rect = block('008');
+/** The gravel paths: these rows and columns (offsets inside the park). */
+export const PARK_PATHS = { rows: [2, 7], cols: [2, 7] };
+
+/** Where you start (and wake up after dying): in Central Park, on the path just north of the fountain, the benches
+ *  right below you. */
+export const SPAWN: [number, number] = [PARK.x0 + 4, PARK.y0 + 2];
 
 // ---------- the basketball court (Raid Gym Bags, level 5) ----------
 // A fenced court left of the park. The open (north) side faces the street, with a bench where the
 // players left their gym bags. Two players shoot hoops inside.
-export const COURT: Rect = blockRect(1, 3);
+export const COURT: Rect = lot('004', 'B');
 
 // ---------- rooms you can walk into ----------
 // Each fills (part of) a block, with walls along the edge and one door in the middle of the front
@@ -83,45 +147,52 @@ export interface Room extends Rect {
   /** Shops get a shopping-bag icon on the minimap. */
   shop: boolean;
 }
-const room = (id: string, name: string, bx: number, by: number, shop: boolean, rows = 5): Room => {
-  const r = blockRect(bx, by);
+/** A room on a lot: walls around it, the door in the middle of its front (south) wall, facing the street. */
+const room = (id: string, name: string, r: Rect, shop: boolean, rows = 5): Room => {
   const y1 = r.y0 + rows - 1;
   return { ...r, y1, id, name, door: [r.x0 + 2, y1], shop };
 };
-/** Eddy's General Store, just north of where you start. */
-export const STORE = room('store', "Eddy's General Store", 2, 1, true);
-/** The candy store (Shoplift Candy Store, level 10), north of the park. */
-export const CANDY = room('candy', 'Candy store', 3, 2, true);
-/** The bar (Pickpocket Drunks, level 15), above the basketball court. */
-export const BAR = room('bar', 'The bar', 1, 2, false);
-/** The gas station shop (Shoplift Gas Station, level 25), at the north end of the gas station + parking
- *  lot area. The shop is the top four rows of its block; the pumps stand under a canopy along the front. */
-export const GAS = room('gas', 'Gas station', 5, 2, true, 4);
-/** Ray's weapon store (combat, docs/design.md §12), top row of the city. The server checks you're inside it
- *  (tiles 30–34, 2–6) when you buy: keep in step with buy_item in supabase/migrations/0010_combat.sql. */
-export const WEAPONS = room('weapons', "Ray's Arms", 4, 0, true);
+/** Eddy's General Store, on the north side of the middle block's street. The server checks you're inside it when
+ *  you sell (sell_item). */
+export const STORE = room('store', "Eddy's General Store", lot('002', 'C'), true);
+/** The candy store (Shoplift Candy Store, level 10), facing the park. */
+export const CANDY = room('candy', 'Candy store', lot('005', 'C'), true);
+/** The bar (Pickpocket Drunks, level 15), under the basketball court. */
+export const BAR = room('bar', 'The bar', lot('004', 'C'), false);
+/** The gas station shop (Shoplift Gas Station, level 25): the top-left lot of the east block. The shop is its
+ *  top four rows; the pumps stand in the row in front of it, under a canopy. */
+export const GAS = room('gas', 'Gas station', lot('006', 'A'), true, 4);
+/** Ray's weapon store (combat, docs/design.md §12), next to Eddy's. The server checks you're inside it when you buy
+ *  (buy_item). */
+export const WEAPONS = room('weapons', "Ray's Arms", lot('002', 'D'), true);
 export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS, WEAPONS];
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 // ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
-// An open lot at the east edge of town, next to the beach, south of the gas station. The road that ran
-// between them is gone: gas station, driveway and lot are one big rectangle. Meters along the bays, a guard booth,
-// four parked cars, and a guard who patrols with a flashlight. Layout (M = meter, C = car, B = booth):
-//   M . M . M
-//   . C . C .     cars nose-in at the north bays
-//   . . . . .
-//   . . C . C     cars nose-in at the south bays
-//   B M . M .
-export const LOT: Rect = blockRect(5, 3);
-/** The whole gas station + parking lot area, including the old road between them (now a driveway). */
-export const STATION: Rect = { x0: LOT.x0, y0: GAS.y0, x1: LOT.x1, y1: LOT.y1 };
-/** Where the guard patrols: the lot, the driveway in front of the pumps, and the road around them. */
-export const PATROL: Rect = { x0: LOT.x0 - 1, y0: GAS.y1 + 2, x1: LOT.x1 + 1, y1: LOT.y1 + 1 };
-/** Areas that cover what used to be road (no road paint, not counted as road). */
-export const NO_ROAD: Rect[] = [PARK, STATION];
+// The gas station's block: the shop and pumps on one lot, the parking lot on the other three (an L). Meters along the
+// edges, cars nose-in next to them, a guard booth in the corner and a guard who patrols with a flashlight.
+//   G G P P P     G = gas station lot, P = parking (north-east lot)
+//   G G P P P
+//   P P P P P     the two south lots: one long strip
+//   P P P P P
+export const STATION: Rect = block('006');
+/** The north-east parking lot and the long south strip. */
+export const PARKING_NE: Rect = lot('006', 'B');
+export const PARKING_S: Rect = { ...lot('006', 'C'), x1: lot('006', 'D').x1 };
+export const PARKING: Rect[] = [PARKING_NE, PARKING_S];
+/** Where the guard may walk (to catch you, too): the station block and the sidewalks around it. */
+export const PATROL: Rect = { x0: STATION.x0 - 1, y0: STATION.y0 - 1, x1: STATION.x1 + 1, y1: STATION.y1 + 1 };
+/** Areas that cover what would be road (no road paint). None since the blocks got their own streets. */
+export const NO_ROAD: Rect[] = [];
 
-/** Blocks that aren't normal buildings: the park, the court, the rooms, the lot… */
-const SPECIAL: [number, number][] = [[2, 3], [3, 3], [2, 4], [3, 4], [1, 3], [2, 1], [3, 2], [1, 2], [5, 2], [5, 3], [4, 0]];
+/** Lots that aren't normal buildings. */
+const SPECIAL: [string, LotLetter][] = [
+  ['002', 'C'], ['002', 'D'], // Eddy's, Ray's
+  ['004', 'B'], ['004', 'C'], // the court, the bar
+  ['005', 'C'], // the candy store
+  ['006', 'A'], ['006', 'B'], ['006', 'C'], ['006', 'D'], // the gas station and its parking lot
+  ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
+];
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -145,22 +216,27 @@ export const ENCLOSURES: Enclosure[] = [
 ];
 export const enclosureAt = (x: number, y: number) => ENCLOSURES.find((e) => inRect(e.rect, x, y));
 
-export const BLOCKS: Map<string, BlockKind> = (() => {
-  const m = new Map<string, BlockKind>();
-  for (let bx = 0; bx < COLS; bx++) for (let by = 0; by < ROWS; by++) m.set(`${bx},${by}`, { type: 'buildings' });
-  for (const [bx, by] of PARKS) m.set(`${bx},${by}`, { type: 'park' });
-  for (const [bx, by] of SPECIAL) m.set(`${bx},${by}`, { type: 'special' });
-  return m;
+export const LOTS: Lot[] = (() => {
+  const out: Lot[] = [];
+  const special = new Set(SPECIAL.map(([b, l]) => `${b}-${l}`));
+  const parks = new Set(PARKS.map(([b, l]) => `${b}-${l}`));
+  for (let bx = 0; bx < BCOLS; bx++)
+    for (let by = 0; by < BROWS; by++)
+      for (let ly = 0; ly < 2; ly++)
+        for (let lx = 0; lx < 2; lx++) {
+          const name = lotName(bx, by, lx, ly);
+          out.push({ name, bx, by, lx, ly, rect: lotRect(bx, by, lx, ly), kind: special.has(name) ? 'special' : parks.has(name) ? 'park' : 'buildings' });
+        }
+  return out;
 })();
 
 const WALL_COLORS = [0x37322d, 0x3f3a33, 0x332f2b, 0x45392f, 0x3a3936, 0x4a3f36, 0x2f3236];
 
-/** Each building block gets one of these layouts (offsets inside the 5×5 block). */
+/** Each building lot gets one of these layouts (offsets inside the 5×5 lot). */
 const LAYOUTS: [number, number, number, number][][] = [
   [[0, 0, 5, 5]], // one big building
   [[0, 0, 2, 5], [3, 0, 2, 5]], // two tall ones, alley in the middle
   [[0, 0, 5, 2], [0, 3, 5, 2]], // two wide ones, alley in the middle
-  [[0, 0, 2, 2], [3, 0, 2, 2], [0, 3, 2, 2], [3, 0 + 3, 2, 2]], // four small ones, cross-shaped alley
   [[0, 0, 5, 2], [0, 2, 5, 3]], // a short and a deep building, back to back
   [[0, 0, 3, 5], [3, 0, 2, 5]], // wide + narrow, back to back
   [[0, 0, 5, 3], [0, 3, 2, 2], [3, 3, 2, 2]], // big one at the back, two small at the front with a gap
@@ -169,23 +245,25 @@ const LAYOUTS: [number, number, number, number][][] = [
 export const BUILDINGS: Building[] = (() => {
   const out: Building[] = [];
   const rng = mulberry32(42);
-  for (let bx = 0; bx < COLS; bx++)
-    for (let by = 0; by < ROWS; by++) {
-      if (BLOCKS.get(`${bx},${by}`)?.type !== 'buildings') continue;
-      const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
-      for (const [ox, oy, w, h] of layout) {
-        const big = w * h >= 10;
-        out.push({
-          x: bx * BLOCK + 2 + ox,
-          y: by * BLOCK + 2 + oy,
-          w,
-          h,
-          // Kept fairly low so they don't hide you; small buildings can still be tall-ish towers.
-          height: big ? 0.9 + rng() * 1.6 : 0.7 + rng() * 1.3,
-          color: WALL_COLORS[Math.floor(rng() * WALL_COLORS.length)],
-        });
-      }
+  for (const lot of LOTS) {
+    if (lot.kind !== 'buildings') continue;
+    const block = blockRect(lot.bx, lot.by);
+    const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
+    for (const [ox, oy, w, h] of layout) {
+      const big = w * h >= 10;
+      const y = lot.rect.y0 + oy;
+      out.push({
+        x: lot.rect.x0 + ox,
+        y,
+        w,
+        h,
+        height: big ? 0.9 + rng() * 1.6 : 0.7 + rng() * 1.3,
+        color: WALL_COLORS[Math.floor(rng() * WALL_COLORS.length)],
+        // The door faces the street: north for buildings along the block's north edge, south otherwise.
+        front: y === block.y0 && y + h - 1 !== block.y1 ? 'n' : 's',
+      });
     }
+  }
   return out;
 })();
 
@@ -210,27 +288,28 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: S.x0, y: S.y0 + 2, kind: 'counter' }, { x: S.x0 + 1, y: S.y0 + 2, kind: 'counter' });
   out.push({ x: S.x1, y: S.y0 + 2, kind: 'shelf' }, { x: S.x1, y: S.y0 + 3, kind: 'shelf' });
 
-  // The park (12×12). Offsets from its top-left corner:
-  //  - hedges all around, with gaps where the paths come in (north/south at 3 and 8, west/east at 2 and 9),
-  //    and a tree in each corner;
-  //  - gravel paths in a # shape: rows 2 and 9, columns 3 and 8 (walkable, drawn in city.ts);
-  //  - a 2×2 fountain in the middle (5–6, 5–6) with benches above and below it;
-  //  - a 2×2 pond in the east, and trees and flowerbeds in the lawns.
+  // Central Park (10×10). Offsets from its top-left corner:
+  //  - hedges all around, with gaps where the paths come in (at 2 and 7 on every side), a tree in each corner;
+  //  - gravel paths in a # shape: rows 2 and 7, columns 2 and 7 (walkable, drawn in city.ts);
+  //  - a 2×2 fountain in the middle (4–5, 4–5) with benches above and below it;
+  //  - a pond in the east (8, 4–5), and trees and flowerbeds in the lawns.
   const P = PARK;
   const at = (dx: number, dy: number, kind: FixtureKind) => out.push({ x: P.x0 + dx, y: P.y0 + dy, kind });
-  for (let d = 0; d < 12; d++) {
-    const corner = d === 0 || d === 11;
-    for (const e of [0, 11]) {
+  const N = BLOCK_SIZE;
+  for (let d = 0; d < N; d++) {
+    const corner = d === 0 || d === N - 1;
+    const gap = PARK_PATHS.rows.includes(d);
+    for (const e of [0, N - 1]) {
       if (corner) at(d, e, 'tree');
-      else if (d !== 3 && d !== 8) at(d, e, 'hedge'); // north and south edges
-      if (!corner && d !== 2 && d !== 9) at(e, d, 'hedge'); // west and east edges
+      else if (!PARK_PATHS.cols.includes(d)) at(d, e, 'hedge'); // north and south edges
+      if (!corner && !gap) at(e, d, 'hedge'); // west and east edges
     }
   }
-  for (const dx of [5, 6]) for (const dy of [5, 6]) at(dx, dy, 'fountain');
-  for (const dx of [5, 6]) at(dx, 4, 'bench'), at(dx, 7, 'bench');
-  for (const dx of [9, 10]) for (const dy of [6, 7]) at(dx, dy, 'pond');
-  for (const [dx, dy] of [[1, 1], [4, 1], [1, 5], [1, 8], [4, 10], [10, 10], [9, 4]]) at(dx, dy, 'tree');
-  for (const [dx, dy] of [[7, 1], [10, 1], [1, 10], [7, 10]]) at(dx, dy, 'flowers');
+  for (const dx of [4, 5]) for (const dy of [4, 5]) at(dx, dy, 'fountain');
+  for (const dx of [4, 5]) at(dx, 3, 'bench'), at(dx, 6, 'bench');
+  for (const dy of [4, 5]) at(8, dy, 'pond');
+  for (const [dx, dy] of [[1, 4], [4, 8], [8, 1]]) at(dx, dy, 'tree');
+  for (const [dx, dy] of [[4, 1], [1, 8], [8, 8]]) at(dx, dy, 'flowers');
 
   // Ray's weapon store. Layout (R = weapon rack on the wall, C = counter with the register, D = door):
   //   R R . R R
@@ -272,8 +351,8 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: GAS.x0 + 3, y: GAS.y0 + 2, kind: 'counter' }, { x: GAS.x0 + 4, y: GAS.y0 + 2, kind: 'counter' });
   out.push({ x: GAS.x0 + 1, y: GAS.y1 + 1, kind: 'pump' }, { x: GAS.x0 + 3, y: GAS.y1 + 1, kind: 'pump' });
 
-  // The guard booth in the parking lot's corner.
-  out.push({ x: LOT.x0, y: LOT.y1, kind: 'booth' });
+  // The guard booth in the parking lot's south-west corner.
+  out.push({ x: PARKING_S.x0, y: PARKING_S.y1, kind: 'booth' });
 
   // The court's bench (the gym bags on it are spots, see NODES).
   out.push({ x: COURT.x0 + 2, y: COURT.y0, kind: 'bench' });
@@ -288,8 +367,8 @@ export const NODES: StreetNode[] = (() => {
   };
   // Three tourists strolling around the park.
   node('tourist_0', 'pick_tourist', PARK.x0 + 2, PARK.y0 + 2, { wanders: PARK });
-  node('tourist_1', 'pick_tourist', PARK.x0 + 9, PARK.y0 + 2, { wanders: PARK });
-  node('tourist_2', 'pick_tourist', PARK.x0 + 4, PARK.y0 + 9, { wanders: PARK });
+  node('tourist_1', 'pick_tourist', PARK.x0 + 7, PARK.y0 + 2, { wanders: PARK });
+  node('tourist_2', 'pick_tourist', PARK.x0 + 2, PARK.y0 + 7, { wanders: PARK });
   // Two gym bags on the bench at the court.
   node('bag_0', 'gym_bags', COURT.x0 + 1, COURT.y0, { facing: 0 });
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
@@ -297,12 +376,12 @@ export const NODES: StreetNode[] = (() => {
   [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
   // Three drunks on stools at the bar, facing the counter.
   for (let i = 0; i < 3; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + i, BAR.y0 + 3, { facing: Math.PI, seated: true });
-  // Five parking meters: three along the north edge of the lot (facing in), two along the south edge.
-  [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', LOT.x0 + dx, LOT.y0, { facing: 0 }));
-  [1, 3].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', LOT.x0 + dx, LOT.y1, { facing: Math.PI }));
+  // Five parking meters: three along the north edge of the north-east lot (facing in), two along the south edge.
+  [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', PARKING_NE.x0 + dx, PARKING_NE.y0, { facing: 0 }));
+  [2, 6].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', PARKING_S.x0 + dx, PARKING_S.y1, { facing: Math.PI }));
   // Four parked cars (Steal From Cars): two nose-in at the north bays, two at the south bays.
-  [1, 3].forEach((dx, i) => node(`car_${i}`, 'steal_car', LOT.x0 + dx, LOT.y0 + 1, { facing: Math.PI / 2 }));
-  [2, 4].forEach((dx, i) => node(`car_${i + 2}`, 'steal_car', LOT.x0 + dx, LOT.y1 - 1, { facing: -Math.PI / 2 }));
+  [1, 3].forEach((dx, i) => node(`car_${i}`, 'steal_car', PARKING_NE.x0 + dx, PARKING_NE.y0 + 1, { facing: Math.PI / 2 }));
+  [3, 7].forEach((dx, i) => node(`car_${i + 2}`, 'steal_car', PARKING_S.x0 + dx, PARKING_S.y1 - 1, { facing: -Math.PI / 2 }));
   // Four shelves at the gas station, either side of the fridge.
   [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
@@ -368,16 +447,52 @@ export const NPCS: Npc[] = [
   },
   // The parking lot guard patrols the lot with a flashlight.
   {
-    id: 'guard', name: 'Guard', role: 'Parking lot', kind: 'guard', x: LOT.x0 + 2, y: LOT.y0 + 2,
+    id: 'guard', name: 'Guard', role: 'Parking lot', kind: 'guard', x: PARKING_NE.x0, y: PARKING_NE.y0 + 3,
     area: PATROL, named: true, catches: ['parking_meter', 'steal_car'],
   },
   { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
   { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
 ];
 
-/** Tiles you can't walk through: buildings, fixtures, and fixed spots. Roads, alleys, parks and shop floors are open. */
+// ---------- cars parked along the curbs (3 tiles long, you walk around them) ----------
+export interface ParkedCar {
+  /** The first of its three tiles, and which way the street runs. */
+  x: number;
+  y: number;
+  along: 'x' | 'y';
+  color: number;
+}
+export const PARKED_CARS: ParkedCar[] = (() => {
+  const out: ParkedCar[] = [];
+  const rng = mulberry32(7);
+  const colors = [0x8a2f28, 0x2f4562, 0x9a7a2e, 0x35553a, 0xb0aa9c, 0x6a4526, 0x2e5f5b, 0x5a5f66];
+  // Each street between two crossings is one block long (10 tiles). About half get a car, in the lane next to one
+  // of the two sidewalks (lane tiles 2 or 4 of the 7-wide street), never in front of the spawn.
+  for (let k = 0; k <= BROWS; k++)
+    for (let bx = 0; bx < BCOLS; bx++) {
+      if (rng() < 0.45) continue;
+      const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
+      // Between the zebra crossings at both ends (they take the first and last 3 tiles of the street).
+      const x = bx * PITCH + STREET + 3 + Math.floor(rng() * 2);
+      if (lane === SPAWN[1] || (SPAWN[0] >= x - 1 && SPAWN[0] <= x + 3 && Math.abs(lane - SPAWN[1]) < 3)) continue;
+      out.push({ x, y: lane, along: 'x', color: colors[Math.floor(rng() * colors.length)] });
+    }
+  for (let k = 0; k <= BCOLS; k++)
+    for (let by = 0; by < BROWS; by++) {
+      if (rng() < 0.55) continue;
+      const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
+      const y = by * PITCH + STREET + 3 + Math.floor(rng() * 2);
+      out.push({ x: lane, y, along: 'y', color: colors[Math.floor(rng() * colors.length)] });
+    }
+  return out;
+})();
+export const parkedTiles = (c: ParkedCar): [number, number][] =>
+  [0, 1, 2].map((i) => (c.along === 'x' ? [c.x + i, c.y] : [c.x, c.y + i]));
+
+/** Tiles you can't walk through: buildings, fixtures, fixed spots and parked cars. Streets, alleys, parks and shop floors are open. */
 export function buildBlocked(): Uint8Array {
   const g = new Uint8Array(W * H);
+  for (const c of PARKED_CARS) for (const [x, y] of parkedTiles(c)) g[y * W + x] = 1;
   for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
   for (const f of FIXTURES) g[f.y * W + f.x] = 1;
   for (const n of NODES) if (!n.wanders) g[n.y * W + n.x] = 1;
@@ -428,7 +543,7 @@ export const AREAS: Area[] = [
     blurb: 'A gas station with sandwiches and candy on the shelves, and a clerk behind the counter.',
   },
   {
-    id: 'lot', name: 'Parking lot', rect: { ...LOT, y0: GAS.y1 + 2 }, icon: 'lot', crimes: ['parking_meter', 'steal_car'], npcs: ['guard'],
+    id: 'lot', name: 'Parking lot', rect: PARKING_S, icon: 'lot', crimes: ['parking_meter', 'steal_car'], npcs: ['guard'],
     blurb: 'Meters full of quarters and cars with unlocked doors. A guard patrols with a flashlight.',
   },
 ];
