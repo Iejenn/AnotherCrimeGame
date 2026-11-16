@@ -16,7 +16,10 @@ export interface Recipe {
   stopBurn: number;
 }
 
-export const RECIPES: Recipe[] = [{ from: 'raw_bird_meat', to: 'cooked_bird_meat', station: 'bbq', level: 1, xp: 5, stopBurn: 15 }];
+export const RECIPES: Recipe[] = [
+  { from: 'raw_bird_meat', to: 'cooked_bird_meat', station: 'bbq', level: 1, xp: 5, stopBurn: 15 },
+  { from: 'raw_rat_meat', to: 'cooked_rat_meat', station: 'bbq', level: 1, xp: 5, stopBurn: 15 },
+];
 export const RECIPE_BY_ITEM: Record<string, Recipe> = Object.fromEntries(RECIPES.map((r) => [r.from, r]));
 
 /** Each item takes this many ticks (½ s each) on the fire. */

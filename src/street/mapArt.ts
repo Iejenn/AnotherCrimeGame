@@ -1,6 +1,6 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, H, HOSPITAL, LOTS, PARK, PARKING, PARK_PATHS, ROOMS, W, blockRect, type Rect } from './map';
+import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, PARK, PARKING, PARK_PATHS, ROOMS, SEWER, W, blockRect, isSewage, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
@@ -11,10 +11,11 @@ export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#
  * Draw the whole map into a new canvas at `px` canvas pixels per tile. Tile (x, y) starts at
  * ((x + MAP_EDGE) * px, (y + MAP_EDGE) * px).
  */
-export function drawWorld(px: number): HTMLCanvasElement {
+export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = (W + MAP_EDGE * 2) * px;
-  c.height = (H + MAP_EDGE * 2) * px;
+  // The minimap also has the sewer (drawn below the island, where its tiles are); the world map only the island.
+  c.height = ((withSewer ? GH : H) + MAP_EDGE * 2) * px;
   const g = c.getContext('2d')!;
   const tile = (x: number, y: number, w: number, h: number, col: string) => {
     g.fillStyle = col;
@@ -54,6 +55,19 @@ export function drawWorld(px: number): HTMLCanvasElement {
   for (const b of BUILDINGS) {
     tile(b.x, b.y, b.w, b.h, '#8a7f70');
     tile(b.x + 0.15, b.y + 0.15, b.w - 0.3, b.h - 0.3, '#7a6f62');
+  }
+  // The pothole down to the sewer.
+  g.fillStyle = '#0a0a0a';
+  g.beginPath();
+  g.arc((MANHOLE[0] + 0.5 + MAP_EDGE) * px, (MANHOLE[1] + 0.5 + MAP_EDGE) * px, px * 0.55, 0, Math.PI * 2);
+  g.fill();
+  if (withSewer) {
+    // The sewer: rock all round, the walkways, the channel and its bridges, the ladder.
+    tile(-MAP_EDGE, H + 1, W + MAP_EDGE * 2, GH - H - 1 + MAP_EDGE, '#0c0f0d');
+    for (let y = SEWER.y0; y <= SEWER.y1; y++)
+      for (let x = SEWER.x0; x <= SEWER.x1; x++) tile(x, y, 1, 1, isSewage(x, y) ? '#2f4a2a' : '#6e7468');
+    for (const f of FIXTURES) if (f.kind === 'crate' || f.kind === 'trash') tile(f.x + 0.15, f.y + 0.15, 0.7, 0.7, f.kind === 'crate' ? '#6a4a2e' : '#1e2022');
+    for (const f of FIXTURES) if (f.kind === 'ladder') tile(f.x + 0.2, f.y, 0.6, 0.5, '#c8a46a');
   }
   return c;
 }

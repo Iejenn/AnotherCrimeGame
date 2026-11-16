@@ -69,6 +69,14 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  dungeon: (
+    <>
+      {/* a dungeon entrance: a stone arch, dark inside, a ladder going down */}
+      <path d="M4 20 V11 A8 8 0 0 1 20 11 V20 Z" fill="#8a8580" stroke="#141210" strokeWidth="1" />
+      <path d="M7.5 20 V12 A4.5 4.5 0 0 1 16.5 12 V20 Z" fill="#141210" />
+      <path d="M10 13 V20 M14 13 V20 M10 15 H14 M10 17.5 H14" stroke="#c8a46a" strokeWidth="1.1" />
+    </>
+  ),
   hospital: (
     <>
       {/* a white cross on red */}

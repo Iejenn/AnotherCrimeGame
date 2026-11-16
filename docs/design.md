@@ -532,6 +532,18 @@ comes back after 25 s. Tapping anywhere else walks you away and ends the fight. 
 it can't be attacked meanwhile. A killed Pigeon falls where it was hit. Others see who's fighting what: a
 Pigeon in a fight stands still where it was attacked.
 
+**The sewer and its rats (v0.38):** a pothole (an open manhole with cones) in the crossing east of the candy shop
+(tile 37, 37; a dungeon icon on the world map). Tap it: you walk next to it and climb down (the screen dips to black).
+The sewer is 24×12 tiles: a walkway each side of a channel of sewage, two grate bridges, crates and rubbish bags,
+lanterns, the ladder back up on the north wall. **Ten rats**, five per walkway, each scurrying around its own patch
+(`ratAt`, the same schedule as `game.rat_at`): level 3, 6 HP, attack 3, defence 2, max hit 1, a bite every 1.5 s,
+back after 20 s, not aggressive, and they always drop **raw rat meat** (cook it at the barbecue: +1 HP, like bird
+meat). Between the Pigeons and the thugs: a level-1 player with knuckles kills one in about 13 s and takes about
+5 damage. **How it's built:** like the hospital's ward, the sewer is ordinary tiles: rows below the island's grid
+(`SEWER`, y ≥ 64), drawn `SEWER_DEPTH` under the ground, with the camera following you down (dim light, dark around).
+Climbing is a server function (`climb`, migration 0019): it checks you stand next to the pothole or the ladder and
+moves you; `walk`/`can_reach` accept the island or the sewer (`game.on_map`).
+
 **Eating (v0.37):** a round **quick-eat button** sits bottom-right on the Street, above the chat, always there when
 you carry food (dimmed at full health, pulsing red at 30% or less). **Tap** eats the best fit (`pickFood`): the
 biggest heal that doesn't go over your max; if every food would go over, the smallest (1/10 with a +2 and a +1 → the

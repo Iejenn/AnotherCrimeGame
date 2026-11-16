@@ -4,7 +4,7 @@
 // Enemies are shared by everyone, so where they walk is a FIXED SCHEDULE worked out from the game clock (like the
 // guard, watchers.ts): every phone and the server agree where each Pigeon is. The server has the same function
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
-import { FIXTURES, PARK, YARD } from '../street/map';
+import { FIXTURES, PARK, SEWER, SEWER_CHANNEL, YARD } from '../street/map';
 import { minstd } from './watchers';
 
 export interface EnemyKind {
@@ -41,6 +41,12 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
     id: 'pigeon', name: 'Pigeon', level: 1, hp: 3, attack: 1, defense: 0, defenceBonus: 0, speed: 4, maxHit: 1, respawn: 25, aggressive: false,
     where: 'Central Park (008)', loot: [{ item: 'raw_bird_meat', chance: 1, min: 1, max: 1 }],
   },
+  // The sewer's rats: between the Pigeons and the thugs, where new players train. Not aggressive. Always drop raw rat
+  // meat (cook it: +1 HP).
+  rat: {
+    id: 'rat', name: 'Rat', level: 3, hp: 6, attack: 3, defense: 2, defenceBonus: 0, speed: 3, maxHit: 1, respawn: 20, aggressive: false,
+    where: 'The sewer (pothole by 005)', loot: [{ item: 'raw_rat_meat', chance: 1, min: 1, max: 1 }],
+  },
   // The Yard's thugs (007): hooded, with a knife. Not aggressive (for now). Drop $5–10 (1 in 5) and a knife (1 in 20).
   thug: {
     id: 'thug', name: 'Thug', level: 5, hp: 10, attack: 5, defense: 5, defenceBonus: 0, speed: 2, maxHit: 2, respawn: 30, aggressive: false,
@@ -56,6 +62,7 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
 export const ENEMIES = [
   ...[0, 1, 2].map((i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })),
   ...[0, 1, 2].map((i) => ({ id: `thug_${i}`, kind: 'thug', index: i })),
+  ...Array.from({ length: 10 }, (_, i) => ({ id: `rat_${i}`, kind: 'rat', index: i })),
 ];
 
 /** Open park tiles a Pigeon may land on (the park minus hedges, trees, the fountain, benches, the pond, flowers). */
@@ -118,9 +125,47 @@ export function thugAt(index: number, t: number) {
   return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
 }
 
+// ---------- the rats: each scurries around its own patch of a walkway in the sewer ----------
+/** Rat i's patch: the walkways are cut into five patches each (north: rats 0–4, south: rats 5–9), its open tiles. */
+export const RAT_ZONES: [number, number][][] = (() => {
+  const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
+  const zones: [number, number][][] = [];
+  const cols = [[0, 4], [5, 9], [10, 14], [15, 19], [20, 23]];
+  for (const [r0, r1] of [[0, SEWER_CHANNEL.y0 - 1], [SEWER_CHANNEL.y1 + 1, SEWER.y1 - SEWER.y0]])
+    for (const [c0, c1] of cols) {
+      const z: [number, number][] = [];
+      for (let dy = r0; dy <= r1; dy++)
+        for (let dx = c0; dx <= c1; dx++) if (!solid.has(`${SEWER.x0 + dx},${SEWER.y0 + dy}`)) z.push([SEWER.x0 + dx, SEWER.y0 + dy]);
+      zones.push(z);
+    }
+  return zones;
+})();
+/** A rat's routine: every 9 s it scurries (2 s) to another spot in its patch. */
+export const RAT_MOVE_MS = 9000;
+export const RAT_WALK_MS = 2000;
+
+export function ratSpot(index: number, k: number): [number, number] {
+  const zone = RAT_ZONES[index];
+  const h = minstd(((k * 3 + index) % M) + 1);
+  return zone[h % zone.length];
+}
+
+/** Where rat `index` is at time t, and whether it's moving (the same as game.rat_at on the server). */
+export function ratAt(index: number, t: number) {
+  const shifted = t + index * 3331;
+  const k = Math.floor(shifted / RAT_MOVE_MS);
+  const into = shifted - k * RAT_MOVE_MS;
+  const [tx, ty] = ratSpot(index, k);
+  if (into >= RAT_WALK_MS) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
+  const [fx, fy] = ratSpot(index, k - 1);
+  const f = into / RAT_WALK_MS;
+  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+}
+
 /** Where an enemy of this kind is at time t (game.enemy_at on the server). */
 export function enemyAt(kind: string, index: number, t: number) {
   if (kind === 'thug') return thugAt(index, t);
+  if (kind === 'rat') return ratAt(index, t);
   const p = pigeonAt(index, t);
   return { ...p, moving: p.flying };
 }

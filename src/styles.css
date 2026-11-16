@@ -545,3 +545,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .quick-eat-food .qe-count { right: -5px; bottom: -5px; }
 @media (min-width: 721px) { .quick-eat { bottom: 14px; } }
 @media (prefers-reduced-motion: reduce) { .quick-eat-btn.low { animation: none; } }
+/* Climbing in or out of the sewer: the same black screen, quicker. */
+.passout.quick, .passout.quick.on { transition-duration: 0.45s; }
+.passout.quick.on span { transition: opacity 0.3s; }

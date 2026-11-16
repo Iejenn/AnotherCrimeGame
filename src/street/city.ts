@@ -10,6 +10,7 @@ import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
+  MANHOLE, SEWER, SEWER_BRIDGES, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -1500,6 +1501,228 @@ export function buildCity(scene: THREE.Scene) {
     rooms.set(LOBBY.id, fade);
   }
 
+  // ---------- the pothole and the sewer under the city (rats; docs/design.md §12) ----------
+  // On the street: an open manhole in the crossing, broken asphalt round it, the cover lying next to it, two cones.
+  // Below (SEWER_DEPTH down, where the camera follows you): a cut-away sewer like a model: grimy brick walls with moss,
+  // pipes and two lanterns, a walkway each side of a channel of green sewage, two grate bridges, the ladder up to a
+  // shaft of street light, the tunnel's dark arch at the east end, crates and rubbish bags.
+  const links: THREE.Object3D[] = [];
+  {
+    const hole = new THREE.Group();
+    const hx = MANHOLE[0] + 0.5;
+    const hz = MANHOLE[1] + 0.5;
+    const iron = lam(0x2e3034);
+    const black = new THREE.Mesh(own(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 20)), new THREE.MeshBasicMaterial({ color: 0x050505 }));
+    black.position.set(hx, 0.012, hz);
+    hole.add(black);
+    const rim = new THREE.Mesh(own(new THREE.TorusGeometry(0.42, 0.05, 6, 20)), iron);
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.set(hx, 0.03, hz);
+    hole.add(rim);
+    // The ladder's top rungs just showing in the hole.
+    for (const dx of [-0.15, 0.15]) {
+      const rail = new THREE.Mesh(geoBox(0.04, 0.16, 0.04), iron);
+      rail.position.set(hx + dx, 0.0, hz - 0.3);
+      hole.add(rail);
+    }
+    // Chunks of broken asphalt round the edge.
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + rng() * 0.4;
+      const chunk = new THREE.Mesh(geoBox(0.12 + rng() * 0.1, 0.04, 0.1 + rng() * 0.08), lam(0x2a2c30));
+      chunk.position.set(hx + Math.cos(a) * 0.55, 0.02, hz + Math.sin(a) * 0.55);
+      chunk.rotation.set(rng() * 0.3, rng() * 3, rng() * 0.3);
+      hole.add(chunk);
+    }
+    // The cover, pushed aside and tilted against the kerb of the hole.
+    const cover = new THREE.Mesh(own(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 18)), lam(0x45474c));
+    cover.position.set(hx + 0.75, 0.08, hz + 0.3);
+    cover.rotation.set(0.25, 0, 0.15);
+    hole.add(cover);
+    // Two traffic cones.
+    for (const [dx, dz] of [[-0.6, 0.55], [0.55, -0.6]]) {
+      const cone = new THREE.Mesh(own(new THREE.ConeGeometry(0.12, 0.38, 10)), lam(0xe8641e));
+      cone.position.set(hx + dx, 0.21, hz + dz);
+      cone.castShadow = true;
+      hole.add(cone);
+      const band = new THREE.Mesh(own(new THREE.CylinderGeometry(0.065, 0.085, 0.07, 10)), lam(0xf2f2ee));
+      band.position.set(hx + dx, 0.22, hz + dz);
+      hole.add(band);
+      const foot = new THREE.Mesh(geoBox(0.28, 0.03, 0.28), lam(0x2a2a2a));
+      foot.position.set(hx + dx, 0.015, hz + dz);
+      hole.add(foot);
+    }
+    hole.traverse((o) => (o.userData.linkId = 'sewer_down'));
+    scene.add(hole);
+    links.push(hole);
+
+    // --- the sewer ---
+    const D = -SEWER_DEPTH;
+    const X0 = SEWER.x0;
+    const X1 = SEWER.x1 + 1;
+    const Z0 = SEWER.y0;
+    const Z1 = SEWER.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const CH0 = Z0 + SEWER_CHANNEL.y0;
+    const CH1 = Z0 + SEWER_CHANNEL.y1 + 1;
+    const WALL = 3.2;
+    // Solid dark rock all round, so the edges look cut out of the ground.
+    add(geoBox(X1 - X0 + 40, 0.2, Z1 - Z0 + 40), lam(0x0c0f0d), cx, D - 1.3, (Z0 + Z1) / 2, false);
+    // Stone walkways (with joints), their edges a little darker.
+    const slabTex = own(
+      canvasTex(64, 64, (g) => {
+        g.fillStyle = '#7a8078';
+        g.fillRect(0, 0, 64, 64);
+        g.strokeStyle = '#4a5048';
+        g.lineWidth = 3;
+        g.strokeRect(1, 1, 62, 62);
+        g.fillStyle = 'rgba(60, 80, 50, 0.35)';
+        g.fillRect(10, 40, 18, 10);
+      }),
+    );
+    const walkway = (z0: number, z1: number) => {
+      const t = own(slabTex.clone());
+      t.repeat.set(X1 - X0, z1 - z0);
+      t.needsUpdate = true;
+      add(geoBox(X1 - X0, 1.2, z1 - z0), lam(0x9a9a90, { map: t }), cx, D - 0.6, (z0 + z1) / 2);
+      // The kerb along the channel.
+      add(geoBox(X1 - X0, 0.08, 0.16), lam(0x4a5048), cx, D + 0.02, z0 === Z0 ? z1 - 0.08 : z0 + 0.08, false);
+    };
+    walkway(Z0, CH0);
+    walkway(CH1, Z1);
+    // The channel: a dark bed, murky green sewage with a sheen, and floating muck.
+    add(geoBox(X1 - X0, 0.2, CH1 - CH0), lam(0x1a2018), cx, D - 1.2, (CH0 + CH1) / 2, false);
+    const sewage = new THREE.Mesh(
+      own(new THREE.PlaneGeometry(X1 - X0, CH1 - CH0)),
+      lam(0x3a5a34, { emissive: 0x12301a, emissiveIntensity: 0.7, transparent: true, opacity: 0.92 }),
+    );
+    sewage.rotation.x = -Math.PI / 2;
+    sewage.position.set(cx, D - 0.55, (CH0 + CH1) / 2);
+    sewage.receiveShadow = true;
+    scene.add(sewage);
+    for (let i = 0; i < 16; i++) {
+      const muck = new THREE.Mesh(own(new THREE.CircleGeometry(0.12 + rng() * 0.18, 6)), lam(rng() < 0.5 ? 0x4f6a2a : 0x5a5236));
+      muck.rotation.x = -Math.PI / 2;
+      muck.position.set(X0 + 0.5 + rng() * (X1 - X0 - 1), D - 0.54, CH0 + 0.4 + rng() * (CH1 - CH0 - 0.8));
+      scene.add(muck);
+    }
+    // The grate bridges, with a rail on each side.
+    const grateTex = own(
+      canvasTex(32, 32, (g) => {
+        g.fillStyle = '#1a1c1e';
+        g.fillRect(0, 0, 32, 32);
+        g.fillStyle = '#6a7074';
+        for (let i = 0; i < 4; i++) g.fillRect(i * 8, 0, 4, 32);
+      }),
+    );
+    grateTex.repeat.set(2, 4);
+    for (const b of SEWER_BRIDGES) {
+      const bx = X0 + b + 1;
+      add(geoBox(2, 0.1, CH1 - CH0), lam(0xffffff, { map: grateTex }), bx, D - 0.05, (CH0 + CH1) / 2);
+      for (const side of [-1, 1]) {
+        add(geoBox(0.05, 0.05, CH1 - CH0), lam(0x6a5a3a), bx + side * 0.97, D + 0.55, (CH0 + CH1) / 2, false);
+        for (let k = 0; k <= 4; k++) add(geoBox(0.04, 0.55, 0.04), lam(0x6a5a3a), bx + side * 0.97, D + 0.28, CH0 + k, false);
+      }
+    }
+    // Walls: grimy brick at the back (north) and both ends; the east one has the tunnel's arch over the channel.
+    const brick = (across: number) => {
+      const t = own(brickTex.clone());
+      t.repeat.set(across, 2);
+      t.needsUpdate = true;
+      return lam(0x6e7466, { map: t });
+    };
+    add(geoBox(X1 - X0 + 0.6, WALL + 1.2, 0.3), brick(X1 - X0), cx, D + WALL / 2 - 0.6, Z0 - 0.15);
+    add(geoBox(0.3, WALL + 1.2, Z1 - Z0), brick(Z1 - Z0), X0 - 0.15, D + WALL / 2 - 0.6, (Z0 + Z1) / 2);
+    add(geoBox(0.3, WALL + 1.2, Z1 - Z0), brick(Z1 - Z0), X1 + 0.15, D + WALL / 2 - 0.6, (Z0 + Z1) / 2);
+    {
+      const ccz = (CH0 + CH1) / 2;
+      const ring = new THREE.Mesh(own(new THREE.TorusGeometry(2.05, 0.28, 8, 24, Math.PI)), lam(0x7a7e72, { flatShading: true }));
+      ring.rotation.y = -Math.PI / 2;
+      ring.position.set(X1 - 0.02, D - 0.55, ccz);
+      scene.add(ring);
+      const dark = new THREE.Mesh(own(new THREE.CircleGeometry(1.95, 24, 0, Math.PI)), new THREE.MeshBasicMaterial({ color: 0x030403 }));
+      dark.rotation.y = -Math.PI / 2;
+      dark.position.set(X1 - 0.01, D - 0.55, ccz);
+      scene.add(dark);
+    }
+    // Moss and slime streaks down the walls.
+    // Moss and slime: thin streaks running down from the top, in a few dull greens, thicker near the pipes.
+    const mossMats = [lam(0x2e4426), lam(0x34502a), lam(0x3a4a2a)];
+    for (let i = 0; i < 46; i++) {
+      const w = 0.08 + rng() * 0.3;
+      const h = 0.3 + rng() * 1.5;
+      add(geoBox(w, h, 0.02), mossMats[i % 3], X0 + 0.3 + rng() * (X1 - X0 - 0.6), D + WALL - 0.35 - h / 2, Z0 + 0.01 + (i % 3) * 0.002, false);
+    }
+    // Pipes: one long along the top of the back wall, a few coming down, two pouring into the channel.
+    const rust = lam(0x7a4a2a);
+    const pipeAlong = new THREE.Mesh(own(new THREE.CylinderGeometry(0.1, 0.1, X1 - X0, 10)), lam(0x4a5048));
+    pipeAlong.rotation.z = Math.PI / 2;
+    pipeAlong.position.set(cx, D + WALL - 0.4, Z0 + 0.15);
+    scene.add(pipeAlong);
+    for (const dx of [9, 14, 22]) add(own(new THREE.CylinderGeometry(0.08, 0.08, WALL - 0.4, 8)), rust, X0 + dx, D + (WALL - 0.4) / 2, Z0 + 0.15);
+    for (const dx of [4, 13]) {
+      const mouth = new THREE.Mesh(own(new THREE.CylinderGeometry(0.16, 0.16, 0.3, 10)), rust);
+      mouth.rotation.x = Math.PI / 2;
+      mouth.position.set(X0 + dx, D - 0.3, CH0 + 0.1);
+      scene.add(mouth);
+      add(geoBox(0.12, 0.3, 0.05), lam(0x4f6a2a, { emissive: 0x1a3010, emissiveIntensity: 0.6 }), X0 + dx, D - 0.45, CH0 + 0.28, false);
+    }
+    // Two lanterns on the back wall: the only warm light down here.
+    for (const dx of [7, 18]) {
+      add(geoBox(0.22, 0.3, 0.22), lam(0x2a2620), X0 + dx, D + 2.05, Z0 + 0.25);
+      add(geoBox(0.16, 0.22, 0.16), lam(0xffd890, { emissive: 0xffc060, emissiveIntensity: 2 }), X0 + dx, D + 2.03, Z0 + 0.25, false);
+      add(geoBox(0.04, 0.04, 0.3), lam(0x2a2620), X0 + dx, D + 2.25, Z0 + 0.12, false);
+      const lamp = new THREE.PointLight(0xffc070, 8, 14, 1.3);
+      lamp.position.set(X0 + dx, D + 2.1, Z0 + 2.2);
+      scene.add(lamp);
+    }
+    // The ladder up to the street, with daylight (streetlight) falling down the shaft.
+    {
+      const lad = new THREE.Group();
+      const lx = SEWER_LADDER[0] + 0.5;
+      const lz = Z0 + 0.12;
+      for (const dx of [-0.22, 0.22]) {
+        const rail = new THREE.Mesh(geoBox(0.05, WALL + 0.4, 0.05), lam(0x8a8f96));
+        rail.position.set(lx + dx, D + (WALL + 0.4) / 2, lz + 0.1);
+        lad.add(rail);
+      }
+      for (let y = 0.3; y < WALL + 0.3; y += 0.3) {
+        const rung = new THREE.Mesh(geoBox(0.44, 0.03, 0.03), lam(0x8a8f96));
+        rung.position.set(lx, D + y, lz + 0.1);
+        lad.add(rung);
+      }
+      // A box round the ladder you can tap easily.
+      const tapBox = new THREE.Mesh(geoBox(0.9, WALL, 0.6), new THREE.MeshBasicMaterial({ visible: false }));
+      tapBox.position.set(lx, D + WALL / 2, lz + 0.3);
+      lad.add(tapBox);
+      // The top of the shaft: an iron grate with a little street light coming through.
+      const shaft = new THREE.Mesh(geoBox(0.8, 0.06, 0.5), lam(0x6a6e5a, { map: grateTex, emissive: 0x6a6448, emissiveIntensity: 0.5 }));
+      shaft.position.set(lx, D + WALL + 0.62, Z0 + 0.1);
+      lad.add(shaft);
+      lad.traverse((o) => (o.userData.linkId = 'sewer_up'));
+      scene.add(lad);
+      links.push(lad);
+    }
+    // Crates and rubbish bags (the walkways' fixtures), and some junk lying about.
+    const wood = lam(0x6a4a2e);
+    for (const f of FIXTURES) {
+      if (f.kind === 'crate') {
+        const c = add(geoBox(0.72, 0.6, 0.72), wood, f.x + 0.5, D + 0.3, f.y + 0.5);
+        c.rotation.y = rng() * 0.5 - 0.25;
+        add(geoBox(0.74, 0.06, 0.74), lam(0x4a3220), f.x + 0.5, D + 0.32, f.y + 0.5, false).rotation.y = c.rotation.y;
+      } else if (f.kind === 'trash') {
+        for (let i = 0; i < 3; i++) {
+          const bag = add(own(new THREE.IcosahedronGeometry(0.22 + rng() * 0.06, 0)), lam(0x1e2022, { flatShading: true }), f.x + 0.3 + rng() * 0.4, D + 0.2, f.y + 0.3 + rng() * 0.4);
+          bag.scale.y = 0.8;
+        }
+      }
+    }
+    for (let i = 0; i < 14; i++) {
+      const onNorth = i % 2 === 0;
+      const z = onNorth ? Z0 + 0.3 + rng() * 0.6 : Z1 - 0.3 - rng() * 0.6;
+      add(geoBox(0.1 + rng() * 0.2, 0.03, 0.08 + rng() * 0.15), lam([0x8a7a5a, 0x5a5a5a, 0x7a3a2a][i % 3]), X0 + 0.5 + rng() * (X1 - X0 - 1), D + 0.015, z, false).rotation.y = rng() * 3;
+    }
+  }
+
   // ---------- cooking stations: the barbecue (docs/design.md §13) ----------
   // A brick barbecue with a grill, glowing coals and a few flames, a warm light, and a gravel patch around it.
   for (const st of STATIONS) {
@@ -1535,6 +1758,8 @@ export function buildCity(scene: THREE.Scene) {
     fadeables,
     /** The hospital's staircases (tap one to go up or down). */
     stairs,
+    /** The pothole and the sewer's ladder (tap to climb: userData.linkId). */
+    links,
     /** Call every frame: the barbecue's flames flicker. */
     animate(t: number) {
       flames.forEach((f, i) => {

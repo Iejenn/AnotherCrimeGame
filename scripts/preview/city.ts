@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { buildCity, updateFades } from '../../src/street/city';
 import { animateCharacter, buildCharacter } from '../../src/street/character';
 import { buildBigCar } from '../../src/street/streetLife';
-import { buildMeter } from '../../src/street/props';
+import { buildMeter, buildRat } from '../../src/street/props';
 import { NODES, NPCS, floorY } from '../../src/street/map';
-import { thugAt } from '../../src/game/enemies';
+import { ratAt, thugAt } from '../../src/game/enemies';
 import { setGear } from '../../src/street/props';
 
 const q = new URLSearchParams(location.search);
@@ -23,7 +23,8 @@ const scene = new THREE.Scene();
 const SKY = 0x1c2230;
 scene.background = new THREE.Color(SKY);
 scene.fog = new THREE.Fog(SKY, cam === 'top' ? 200 : 22, cam === 'top' ? 400 : 60);
-scene.add(new THREE.HemisphereLight(0x8fa3c7, 0x2a2420, 1.25));
+const sky = new THREE.HemisphereLight(0x8fa3c7, 0x2a2420, 1.25);
+scene.add(sky);
 const sun = new THREE.DirectionalLight(0xffa864, 1.8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -77,6 +78,21 @@ camera.lookAt(target);
 sun.position.copy(target).add(new THREE.Vector3(-24, 13, 8));
 sun.target.position.copy(target);
 if (cam === 'top') Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40 }), sun.shadow.camera.updateProjectionMatrix();
+// Underground (the sewer): dim sky and sun, near-black around, like the Street view.
+if (floorY(x, z) < -1) {
+  sky.intensity = 0.8;
+  sun.intensity = 0.12;
+  scene.background = new THREE.Color(0x050706);
+  scene.fog = new THREE.Fog(0x050706, 22, 60);
+}
+// Rats where their schedule puts them.
+for (let i = 0; i < 10; i++) {
+  const r = ratAt(i, Date.now());
+  const g = buildRat();
+  g.position.set(r.x, floorY(r.x, r.z) + 0.03, r.z);
+  g.rotation.y = i * 1.3;
+  scene.add(g);
+}
 // ?inside=hospital: as if you're inside that room (its walls faded, the roof off).
 const inside = q.get('inside');
 if (inside) {

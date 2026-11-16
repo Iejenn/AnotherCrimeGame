@@ -34,4 +34,7 @@ export interface GameApi {
   /** Start cooking all of an item at the barbecue (standing next to it); stops when you walk away. */
   cook(itemId: string, pos: [number, number]): void;
   stopCook(): void;
+  /** Climb down the pothole into the sewer, or up its ladder (a link in map.ts), standing on tile `pos` next to it.
+   *  True when the server moved you. */
+  climb(linkId: string, pos: [number, number]): Promise<boolean>;
 }

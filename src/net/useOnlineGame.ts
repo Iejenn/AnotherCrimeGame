@@ -117,6 +117,7 @@ const SAY: Record<string, string> = {
   full_health: "You're already at full health.",
   too_far_away: "You're too far away. Walk up to it first.",
   gone: "It's gone: someone else got there first, or it rotted away.",
+  not_at_link: 'You need to stand right next to it to climb.',
   not_near_station: 'You need to stand next to the barbecue to cook.',
   cant_cook: "You can't cook that.",
   nothing_to_cook: "You don't have any of that to cook.",
@@ -320,6 +321,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       pickUp: (groundId, pos) => void call('pick_up', { p_id: groundId, p_x: pos[0], p_y: pos[1] }),
       cook: (item, pos) => void call('start_cook', { p_item: item, p_x: pos[0], p_y: pos[1] }),
       stopCook: () => void call('stop_cook'),
+      climb: (linkId, pos) => call('climb', { p_link: linkId, p_x: pos[0], p_y: pos[1] }).then((d) => !!d?.ok),
     }),
     [call],
   );

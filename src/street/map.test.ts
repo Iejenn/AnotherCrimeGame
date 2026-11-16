@@ -125,3 +125,20 @@ describe('the hospital', () => {
     expect(floorY(LOBBY.x0 + 2.5, LOBBY.y0 + 0.5)).toBe(0); // the lobby's back row, between the stairs
   });
 });
+
+describe('the sewer', () => {
+  it('both ends of the ladder are reachable, and every rat patch from the ladder', async () => {
+    const { LINKS, GW, GH, RAT_ZONES } = { ...(await import('./map')), ...(await import('../game/enemies')) };
+    const b = buildBlocked();
+    const [down, up] = LINKS;
+    expect(findPath(b, GW, GH, SPAWN, neighbors(...down.at), canStep)).not.toBeNull();
+    expect(findPath(b, GW, GH, SPAWN, [up.to], canStep)).not.toBeNull();
+    expect(Math.max(Math.abs(up.to[0] - down.at[0]), Math.abs(up.to[1] - down.at[1]))).toBe(1); // you come up next to the pothole
+    expect(Math.max(Math.abs(down.to[0] - up.at[0]), Math.abs(down.to[1] - up.at[1]))).toBe(1); // and arrive at the ladder's foot
+    for (const zone of RAT_ZONES) {
+      expect(zone.length).toBeGreaterThan(10);
+      expect(findPath(b, GW, GH, down.to, [zone[0]], canStep)).not.toBeNull();
+    }
+    expect(RAT_ZONES).toHaveLength(10);
+  });
+});

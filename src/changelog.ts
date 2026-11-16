@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.38.0',
+    date: '2026-11-16',
+    title: 'Down the drain',
+    items: [
+      'There is a pothole in the crossing east of the candy shop (a dungeon icon on the map). Tap it to climb down into the sewer.',
+      'The sewer is home to ten rats (level 3): tougher than Pigeons, much easier than thugs. A good place to train.',
+      'Rats always drop raw rat meat. Cook it at the barbecue: +1 HP.',
+      'Climb the ladder to get back up to the street.',
+    ],
+  },
+  {
     version: '0.37.0',
     date: '2026-11-16',
     title: 'Snack attack',

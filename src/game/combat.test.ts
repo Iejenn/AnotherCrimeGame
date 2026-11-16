@@ -52,9 +52,10 @@ describe('combat maths (design §12)', () => {
   });
 
   it("the game's copy of the loot tables (shown in the Skills tab) matches the server's public.loot", () => {
-    // public.loot on the server (checked there on 2026-11-16): pigeon raw_bird_meat 1; thug cash 0.2 ($5–10), knife 0.05.
+    // public.loot on the server (checked there on 2026-11-16): pigeon raw_bird_meat 1; thug cash 0.2 ($5–10), knife 0.05;
+    // rat raw_rat_meat 1 (0019_sewer).
     const rows = Object.values(ENEMY_KINDS).flatMap((k) => k.loot.map((d) => `${k.id}:${d.item}@${d.chance}:${d.min}-${d.max}`));
-    expect(rows.sort()).toEqual(['pigeon:raw_bird_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:knife@0.05:1-1']);
+    expect(rows.sort()).toEqual(['pigeon:raw_bird_meat@1:1-1', 'rat:raw_rat_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:knife@0.05:1-1']);
   });
 
   it('cooking: raw bird meat burns half the time at level 1, never from 15; cooked meat heals 1', async () => {

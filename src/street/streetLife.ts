@@ -459,8 +459,8 @@ export function buildGroundItem(item: string) {
       const b = put(g, boxGeo(0.26, 0.015, 0.13), i % 2 ? 0x4f8455 : 0x6a9e68, (i - 1) * 0.04, 0.015 + i * 0.016, (i - 1) * 0.02, false);
       b.rotation.y = i * 0.5;
     }
-  } else if (item === 'raw_bird_meat' || item === 'cooked_bird_meat') {
-    const raw = item === 'raw_bird_meat';
+  } else if (/^(raw|cooked)_(bird|rat)_meat$/.test(item)) {
+    const raw = item.startsWith('raw_');
     put(g, new THREE.SphereGeometry(0.11, 8, 6), raw ? 0xe8a0a0 : 0x8a4a22, 0, 0.07, 0).scale.set(1.3, 0.6, 1);
     put(g, cyl(0.025, 0.02, 0.14, 6).rotateZ(Math.PI / 2.4), raw ? 0xf2e2d0 : 0xd8c8a8, 0.12, 0.08, 0); // the bone
   } else {

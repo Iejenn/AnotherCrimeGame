@@ -180,6 +180,90 @@ export function animatePigeon(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 
   else p.head.rotation.x = 0;
 }
 
+/** A sewer rat (level 3): a big, hunched, spiky-furred rat with glowing red eyes and a long pink tail. Faces +z. */
+const ratFur = new THREE.MeshLambertMaterial({ color: 0x4f4943, flatShading: true });
+const ratEye = new THREE.MeshLambertMaterial({ color: 0xff2a1a, emissive: 0xff2a1a, emissiveIntensity: 1.6 });
+export function buildRat(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const torso = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 1), ratFur);
+  torso.position.set(0, 0.2, -0.04);
+  torso.scale.set(0.95, 0.85, 1.6);
+  torso.castShadow = true;
+  body.add(torso);
+  // Spiky fur along the back.
+  for (let i = 0; i < 6; i++) {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 4), ratFur);
+    spike.position.set((i % 2 ? 1 : -1) * 0.04, 0.34 - Math.abs(i - 2.5) * 0.015, -0.2 + i * 0.07);
+    spike.rotation.x = -0.6;
+    body.add(spike);
+  }
+  const head = new THREE.Group();
+  head.position.set(0, 0.24, 0.22);
+  body.add(head);
+  const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1), ratFur);
+  skull.scale.set(0.95, 0.85, 1.1);
+  head.add(skull);
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.18, 6), ratFur);
+  snout.rotation.x = Math.PI / 2;
+  snout.position.set(0, -0.02, 0.12);
+  head.add(snout);
+  add(head, new THREE.SphereGeometry(0.022, 6, 4), 0xd88a96, 0, -0.02, 0.21, false); // nose
+  add(head, boxGeo(0.018, 0.03, 0.01), 0xf2ead8, 0.012, -0.065, 0.17, false); // teeth
+  add(head, boxGeo(0.018, 0.03, 0.01), 0xf2ead8, -0.012, -0.065, 0.17, false);
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), ratEye);
+    eye.position.set(side * 0.055, 0.025, 0.07);
+    head.add(eye);
+    const ear = add(head, new THREE.CylinderGeometry(0.05, 0.05, 0.015, 8), 0xc48a8a, side * 0.07, 0.08, -0.03, false);
+    ear.rotation.set(Math.PI / 2 - 0.3, 0, side * 0.5);
+  }
+  // Four little legs with pink feet.
+  const legs = [-1, 1].flatMap((side) =>
+    [0.12, -0.16].map((z) => {
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.1, 0.12, z);
+      body.add(leg);
+      add(leg, boxGeo(0.05, 0.12, 0.05), 0x4a4440, 0, -0.05, 0, false);
+      add(leg, boxGeo(0.06, 0.02, 0.08), 0xd8a0a0, 0, -0.11, 0.02, false);
+      return leg;
+    }),
+  );
+  // The tail: a long thin pink curve trailing behind.
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0.18, -0.3),
+    new THREE.Vector3(0.06, 0.1, -0.45),
+    new THREE.Vector3(-0.05, 0.04, -0.6),
+    new THREE.Vector3(0.08, 0.03, -0.78),
+  ]);
+  const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.014, 5), lambert(0xd8a0a0));
+  body.add(tail);
+  // Big for a rat (a level-3 monster): knee-high to a person.
+  body.scale.setScalar(1.3);
+  g.userData.parts = { body, head, legs, tail };
+  return g;
+}
+
+/** Animate a rat: sniffing around ('peck'), scurrying ('walk'), lunging at you ('attack'), or on its back ('dead'). */
+export function animateRat(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'dead' | 'walk', t: number, phase = 0) {
+  const p = g.userData.parts as { body: THREE.Group; head: THREE.Group; legs: THREE.Group[]; tail: THREE.Mesh };
+  const s = t / 1000 + phase;
+  p.body.rotation.z = mode === 'dead' ? Math.PI * 0.9 : 0;
+  p.body.position.y = mode === 'dead' ? 0.4 : mode === 'walk' ? Math.abs(Math.sin(s * 18)) * 0.03 : 0;
+  p.legs.forEach((l, i) => (l.rotation.x = mode === 'walk' ? Math.sin(s * 18 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.7 : 0));
+  p.tail.rotation.y = Math.sin(s * (mode === 'walk' ? 10 : 2.5)) * 0.25;
+  if (mode === 'attack') {
+    const k = Math.max(0, Math.sin(s * 9));
+    p.body.position.z = k * 0.12;
+    p.head.rotation.x = -0.3 * k;
+  } else {
+    p.body.position.z = 0;
+    // Sniffing: little quick nods now and then.
+    p.head.rotation.x = mode === 'peck' ? (Math.sin(s * 1.3) > 0.6 ? Math.sin(s * 22) * 0.12 : 0) : 0;
+  }
+}
+
 /** Show what someone wields: brass knuckles on the right hand, or a baseball bat or a knife held in it. */
 export function setGear(character: THREE.Group, equipment: Partial<Record<string, string>> | undefined) {
   const rig = character.userData.rig as { armR: THREE.Object3D } | undefined;
