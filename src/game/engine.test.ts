@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHANCE_PER_LEVEL, busyReason, crimeStats, hpAt, lootPrice, maxHp, newGame, sellLoot, startJob, tick, totalLevel } from './engine';
+import { CHANCE_PER_LEVEL, busyReason, cantEat, crimeStats, eat, giveItem, hpAt, itemPrice, maxHp, newGame, sellItem, startJob, tick, totalLevel } from './engine';
 import { STUN_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
@@ -34,7 +34,7 @@ describe('street crimes (design §4)', () => {
     expect(CRIMES.map((c) => c.level)).toEqual([1, 5, 10, 15, 20, 25, 30]);
   });
 
-  it('a pickpocket is 4 ticks of 0.5s (2 seconds) and pays 1–3 gold', () => {
+  it('a pickpocket is 4 ticks of 0.5s (2 seconds) and pays $1–3', () => {
     const c = CRIME_BY_ID.pick_wallet;
     expect(TICK_SECONDS).toBe(0.5);
     expect(c.ticks).toBe(4);
@@ -51,11 +51,11 @@ describe('street crimes (design §4)', () => {
   it('every crime starts at 65% and gains 0.5% per level above its requirement', () => {
     const s = fresh();
     for (const c of CRIMES) expect(c.baseChance).toBe(0.65);
-    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.65);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet).chance).toBeCloseTo(0.65);
     s.skills.street.xp = totalXpForLevel(11);
-    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.7);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet).chance).toBeCloseTo(0.7);
     s.skills.street.xp = totalXpForLevel(30);
-    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeCloseTo(0.795);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet).chance).toBeCloseTo(0.795);
   });
 
   it('a pickpocket earns about 5,000 XP/h if every attempt succeeds', () => {
@@ -134,17 +134,6 @@ describe('working a crime (one tap = one attempt)', () => {
     expect(hpAt(s, T0 + 60_000)).toBe(10);
   });
 
-  it('a bust sends you to jail and you cannot work until you are out', () => {
-    const s = fresh();
-    startJob(s, 'pick_wallet', T0);
-    let i = 0;
-    const rng = () => [0.99, 0][i++] ?? 0.5; // fail, then bust
-    const { state, report } = tick(s, T0 + 2000, rng);
-    expect(report.busts).toBe(1);
-    expect(state.player.jailedUntil).toBe(T0 + 2000 + CRIME_BY_ID.pick_wallet.jail * 1000);
-    expect(busyReason(state, T0 + 3000)).toMatch(/cell/);
-  });
-
   it('below 3 HP you cannot start', () => {
     const s = fresh();
     s.hp = 2;
@@ -154,9 +143,9 @@ describe('working a crime (one tap = one attempt)', () => {
 
   it('a higher level improves the odds', () => {
     const s = fresh();
-    const low = crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance;
+    const low = crimeStats(s, CRIME_BY_ID.pick_wallet).chance;
     s.skills.street.xp = totalXpForLevel(6);
-    expect(crimeStats(s, CRIME_BY_ID.pick_wallet, T0).chance).toBeGreaterThan(low);
+    expect(crimeStats(s, CRIME_BY_ID.pick_wallet).chance).toBeGreaterThan(low);
   });
 
   it('you cannot start a crime above your level', () => {
@@ -166,14 +155,53 @@ describe('working a crime (one tap = one attempt)', () => {
   });
 });
 
-describe('selling', () => {
-  it('pays the item value, one at a time', () => {
+describe('items: food, eating and selling', () => {
+  it('food stacks in one slot', () => {
     const s = fresh();
-    s.inventory.sunglasses = 2;
+    giveItem(s, 'candy_bar');
+    giveItem(s, 'candy_bar');
+    expect(s.inventory).toEqual({ candy_bar: 2 });
+  });
+
+  it('eating heals, takes 1 tick, and blocks crimes for that tick', () => {
+    const s = fresh();
+    s.hp = 5;
+    s.hpAt = T0;
+    giveItem(s, 'sandwich', 2);
+    eat(s, 'sandwich', T0);
+    expect(s.hp).toBe(7);
+    expect(s.inventory.sandwich).toBe(1);
+    expect(busyReason(s, T0 + 100)).toMatch(/eating/);
+    expect(cantEat(s, 'sandwich', T0 + 100)).toMatch(/eating/);
+    expect(busyReason(s, T0 + 500)).toBeNull();
+  });
+
+  it("you can't eat at full health", () => {
+    const s = fresh();
+    giveItem(s, 'candy_bar');
+    expect(cantEat(s, 'candy_bar', T0)).toMatch(/full health/);
+  });
+
+  it('selling one item pays its value in dollars', () => {
+    const s = fresh();
+    giveItem(s, 'sandwich', 2);
     const before = s.cash;
-    sellLoot(s, 'sunglasses');
-    expect(s.inventory.sunglasses).toBe(1);
-    expect(s.cash).toBe(before + lootPrice('sunglasses'));
+    sellItem(s, 'sandwich');
+    expect(s.inventory.sandwich).toBe(1);
+    expect(s.cash).toBe(before + itemPrice('sandwich'));
+  });
+
+  it('a crime pays dollars only: no item drops', () => {
+    const s = fresh();
+    let state = s;
+    for (let i = 0; i < 200; i++) {
+      startJob(state, 'pick_wallet', T0 + i * 10_000);
+      state = structuredClone(tick(state, T0 + i * 10_000 + 2000, mulberry32(i)).state);
+      state.hp = 10;
+      state.player.stunnedUntil = 0;
+    }
+    expect(state.inventory).toEqual({});
+    expect(state.cash).toBeGreaterThan(10);
   });
 });
 
@@ -188,6 +216,18 @@ describe('saves', () => {
     const back = await importSave(code);
     expect(back?.skills.street.xp).toBe(state.skills.street.xp);
     expect(back?.player.job).toBeNull();
+  });
+
+  it('old loot in a save is turned into dollars; heat and jail are dropped', async () => {
+    const { migrate } = await import('./save');
+    const old = { ...structuredClone(newGame("Vet", DEFAULT_LOOK, T0)), heat: 40, heatAt: T0 } as unknown as { inventory: Record<string, number>; player: Record<string, unknown>; cash: number };
+    old.inventory = { sunglasses: 2, gold_chain: 1 };
+    old.player.jailedUntil = T0 + 5000;
+    const s = migrate(old)!;
+    expect(s.inventory).toEqual({});
+    expect(s.cash).toBe(10 + 2 * 3 + 60);
+    expect('heat' in s).toBe(false);
+    expect('jailedUntil' in s.player).toBe(false);
   });
 
   it('saves from before v0.7 are not loaded', async () => {

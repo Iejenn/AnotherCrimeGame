@@ -4,8 +4,8 @@
 import { useMemo, useState } from 'react';
 import type { GameState } from '../game/types';
 import type { Npc } from './map';
-import { LOOT_BY_ID } from '../game/data/world';
-import { fmtMoney, lootPrice, sellLoot } from '../game/engine';
+import { ITEM_BY_ID } from '../game/data/items';
+import { fmtMoney, itemPrice, sellItem } from '../game/engine';
 import { Bag, bagSlots, slotKey } from '../components/Bag';
 
 type Act = (fn: (d: GameState, now: number) => void) => void;
@@ -27,13 +27,13 @@ export function NpcDialog({ npc, s, act, onClose }: { npc: Npc; s: GameState; ac
     if (!slot) return;
     if (slot.kind === 'cash') {
       setSel(null);
-      return setLine("That's your gold, pal. I don't buy gold.");
+      return setLine("That's your cash, pal. I don't buy cash.");
     }
-    const def = LOOT_BY_ID[slot.id];
+    const def = ITEM_BY_ID[slot.id];
     if (sel === key) {
       // Second tap on the same item: sell one.
-      act((d) => sellLoot(d, slot.id));
-      setLine(`Sold ${def.name} for ${fmtMoney(lootPrice(slot.id))}.${slot.count > 1 ? ' Tap again to sell another.' : ''}`);
+      act((d) => sellItem(d, slot.id));
+      setLine(`Sold ${def.name} for ${fmtMoney(itemPrice(slot.id))}.${slot.count > 1 ? ' Tap again to sell another.' : ''}`);
       if (slot.count <= 1) setSel(null);
       return;
     }
@@ -88,7 +88,7 @@ export function NpcDialog({ npc, s, act, onClose }: { npc: Npc; s: GameState; ac
             <button className="btn small" onClick={() => setMode('greet')}>
               Back
             </button>
-            <span className="muted small">Your gold: {fmtMoney(s.cash)}</span>
+            <span className="muted small">Your cash: {fmtMoney(s.cash)}</span>
           </div>
         </>
       )}
@@ -101,7 +101,7 @@ export function NpcDialog({ npc, s, act, onClose }: { npc: Npc; s: GameState; ac
             <button className="btn small" onClick={() => setMode('greet')}>
               Back
             </button>
-            <span className="muted small">Your gold: {fmtMoney(s.cash)}</span>
+            <span className="muted small">Your cash: {fmtMoney(s.cash)}</span>
           </div>
         </>
       )}

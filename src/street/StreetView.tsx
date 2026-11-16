@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { GameState, Report } from '../game/types';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID } from '../game/data/skills';
-import { bail, bailCost, busyReason, canStart, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
+import { busyReason, canStart, fmtDuration, fmtMoney, skillLevel, startJob, stopJob } from '../game/engine';
 import { BLOCK, BLOCKS, BUILDINGS, H, NODES, NPCS, SPAWN, STORE, W, buildBlocked, canStep, inStore, isRoad, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
@@ -265,10 +265,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
-      if (st.player.jailedUntil > Date.now()) {
-        say(`You're in a cell for another ${fmtDuration((st.player.jailedUntil - Date.now()) / 1000)}. Post bail at the top of the map.`);
-        return;
-      }
       const hit = ray.intersectObjects(pickables, true)[0];
       if (hit?.object.userData.npcId) {
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
@@ -302,7 +298,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     };
 
     const walkToTile = (tx: number, ty: number) => {
-      if (tx < 0 || ty < 0 || tx >= W || ty >= H) return say("That's the river. The city ends here, for now.");
+      if (tx < 0 || ty < 0 || tx >= W || ty >= H) return say("That's the ocean. The island ends here, for now.");
       stopWorking();
       setTalkingRef.current(null); // walking away ends the conversation
       // Tapped a building: head for the nearest street tiles around it instead.
@@ -344,8 +340,9 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
         g.fillStyle = c;
         g.fillRect((x + MINI_EDGE) * MINI_PX, (y + MINI_EDGE) * MINI_PX, w * MINI_PX, h * MINI_PX);
       };
-      g.fillStyle = '#1f4558';
+      g.fillStyle = '#15303f';
       g.fillRect(0, 0, miniW, miniH);
+      tile(-1, -1, W + 2, H + 2, '#7d705a'); // beach
       tile(0, 0, W, H, '#55585e');
       for (const [key, kind] of BLOCKS) {
         const [bx, by] = key.split(',').map(Number);
@@ -473,14 +470,13 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
     // ---------- floating "+$5" over your head ----------
     const off = onReport((r) => {
       // One line per attempt (attempts come every second, so separate lines would pile up),
-      // plus a second, bigger line for level-ups, big scores and busts.
+      // plus a second, bigger line for level-ups, big scores and stuns.
       const parts: [string, string][] = [];
       if (r.cash >= 1) parts.push([`+${fmtMoney(r.cash)}`, 'f-cash']);
       const xp = Object.values(r.xp).reduce((a, b) => a + (b ?? 0), 0);
       if (xp) parts.push([`+${Math.round(xp).toLocaleString('en-US')} xp`, 'f-xp']);
       if (r.damage) parts.push([`-${r.damage} HP`, 'f-bust']);
       const big: [string, string][] = [];
-      if (r.busts) big.push(['Busted!', 'f-bust']);
       if (r.bigScores) big.push(['Big score!', 'f-level']);
       for (const l of r.levelUps) big.push([`${SKILL_BY_ID[l.skill].name} level ${l.level}!`, 'f-level']);
       const line = (items: [string, string][], cls: string) => {
@@ -499,7 +495,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       line(parts, '');
       if (r.fails) big.push(['Stunned!', 'f-bust']);
       line(big, 'float-big');
-      if (r.fails || r.busts) {
+      if (r.fails) {
         host.classList.remove('shake');
         void host.offsetWidth; // restart the animation
         host.classList.add('shake');
@@ -537,7 +533,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const st = sRef.current;
       const meCrew = st.player;
       const job = meCrew?.job;
-      const jailed = meCrew.jailedUntil > Date.now();
 
       // Walk along the path.
       if (me.path.length) {
@@ -570,7 +565,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       if (me.attached && job && job.crimeId !== me.attached.crimeId) me.attached = findNodeFor(job.crimeId) ?? null;
 
       // Face what you're working and do a little "working" bob.
-      const working = !!(me.attached && job && !me.path.length && !jailed);
+      const working = !!(me.attached && job && !me.path.length);
       if (working && me.attached) {
         const [nx, ny] = nodeTile(me.attached);
         me.facing = Math.atan2(nx + 0.5 - me.pos.x, ny + 0.5 - me.pos.z);
@@ -580,7 +575,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       const pose: Pose = stunned ? 'stunned' : me.path.length ? 'walk' : working ? 'work' : 'idle';
       animateCharacter(player, pose, now);
       player.rotation.y = me.facing;
-      player.visible = !jailed;
 
       // Tourists stroll (unless you're targeting or working one).
       for (const [id, w] of walkers) {
@@ -764,7 +758,6 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
   // ---------- overlay ----------
   const me = s.player;
   const now = Date.now();
-  const jailed = me.jailedUntil > now;
   const job = me.job;
   const crime = job ? CRIME_BY_ID[job.crimeId] : null;
   const recent: Msg[] = [...msgs, ...s.log.slice(0, 4).map((l) => ({ t: l.t, text: l.text }))].sort((a, b) => a.t - b.t).slice(-4);
@@ -775,14 +768,7 @@ export function StreetView({ s, act, onReport }: { s: GameState; act: Act; onRep
       <div className="street-floats" ref={floatsRef} />
       <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
       <div className="street-status">
-        {jailed ? (
-          <>
-            <span className="alert">In a cell · {fmtDuration((me.jailedUntil - now) / 1000)}</span>
-            <button className="btn tiny" disabled={s.cash < bailCost(me, now)} onClick={() => act((d, t) => bail(d, t))}>
-              Bail · {fmtMoney(bailCost(me, now))}
-            </button>
-          </>
-        ) : me.stunnedUntil > now ? (
+        {me.stunnedUntil > now ? (
           <span className="alert">Stunned · {fmtDuration(Math.max(0.1, (me.stunnedUntil - now) / 1000))}</span>
         ) : crime && job ? (
           <>

@@ -26,9 +26,10 @@ export interface Job {
 
 export interface PlayerState {
   job: Job | null;
-  jailedUntil: number;
   /** After a failed attempt you're stunned until this time and can't start another. */
   stunnedUntil: number;
+  /** Eating takes 1 tick: you can't start a crime or eat again until this time. */
+  eatingUntil: number;
 }
 
 export type BuffKind = 'cash' | 'xp' | 'success' | 'crit';
@@ -55,18 +56,17 @@ export interface GameState {
   name: string;
   look: Look;
   createdAt: number;
+  /** Money, in dollars. */
   cash: number;
-  heat: number;
-  heatAt: number;
   /** Health. Failed jobs hurt a little; it regenerates over time (see hpAt). */
   hp: number;
   hpAt: number;
   skills: Record<SkillId, SkillState>;
   player: PlayerState;
-  /** Loot item id → how many. Each different item takes one inventory slot. */
+  /** Item id → how many (food stacks). Each different item takes one inventory slot. */
   inventory: Record<string, number>;
   buffs: Buff[];
-  stats: { jobs: number; busts: number; bigScores: number; earned: number; fails: number };
+  stats: { jobs: number; bigScores: number; earned: number; fails: number };
   log: LogEntry[];
   nextId: number;
 }
@@ -77,9 +77,7 @@ export interface Report {
   cash: number;
   xp: Partial<Record<SkillId, number>>;
   levelUps: { skill: SkillId; level: number }[];
-  busts: number;
   bigScores: number;
-  loot: string[];
   events: string[];
   /** Health lost to failed jobs. */
   damage: number;
@@ -88,5 +86,5 @@ export interface Report {
 }
 
 export function emptyReport(): Report {
-  return { jobs: 0, cash: 0, xp: {}, levelUps: [], busts: 0, bigScores: 0, loot: [], events: [], damage: 0, fails: 0 };
+  return { jobs: 0, cash: 0, xp: {}, levelUps: [], bigScores: 0, events: [], damage: 0, fails: 0 };
 }

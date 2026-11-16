@@ -1,4 +1,5 @@
 import type { GameState } from './types';
+import { ITEM_BY_ID, LEGACY_LOOT_VALUE } from './data/items';
 
 const KEY = 'underworld-idle-save-v1';
 /** Prefix for compressed save codes. v0.7+ codes start with UI2; older codes are refused. */
@@ -12,12 +13,24 @@ const CODE_PREFIX = 'UI2.';
 export function migrate(raw: any): GameState | null {
   if (raw?.version !== 2 || !raw.skills || !raw.look) return null;
   // Early v0.7 test saves had a one-person `crew` list and mastery stars; both are gone.
-  if (!raw.player) raw.player = { job: null, jailedUntil: raw.crew?.[0]?.jailedUntil ?? 0, stunnedUntil: 0 };
+  if (!raw.player) raw.player = { job: null, stunnedUntil: 0, eatingUntil: 0 };
   delete raw.crew;
   delete raw.mastery;
   delete raw.lastSeen;
   raw.player.job = null; // nothing carries over from last time: only active play counts
   raw.player.stunnedUntil ??= 0;
+  raw.player.eatingUntil ??= 0;
+  // v0.12 removed heat and jail.
+  delete raw.heat;
+  delete raw.heatAt;
+  delete raw.player.jailedUntil;
+  if (raw.stats) delete raw.stats.busts;
+  // v0.12 removed loot drops: old loot is turned into dollars at what Eddy used to pay, so nobody loses value.
+  for (const id of Object.keys(raw.inventory ?? {})) {
+    if (ITEM_BY_ID[id]) continue;
+    raw.cash = (raw.cash ?? 0) + (LEGACY_LOOT_VALUE[id] ?? 0) * raw.inventory[id];
+    delete raw.inventory[id];
+  }
   // Skills that didn't exist in a save start at 0 XP.
   for (const id of ['street', 'melee', 'defense', 'gunfire', 'health']) raw.skills[id] ??= { xp: 0 };
   raw.inventory ??= {};

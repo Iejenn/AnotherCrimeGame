@@ -15,7 +15,6 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
   const [copied, setCopied] = useState(false);
   const total = totalLevel(s);
   const rank = rankFor(total);
-  const now = Date.now();
   const def = SKILL_BY_ID[open];
   const lvl = skillLevel(s, open);
   const lp = levelProgress(s.skills[open].xp);
@@ -81,7 +80,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
           <ol className="ledger">
             {crimes.map((crime) => {
               const can = lvl >= crime.level;
-              const st = crimeStats(s, crime, now);
+              const st = crimeStats(s, crime);
               return (
                 <li key={crime.id} className={`entry ${can ? '' : 'locked'}`}>
                   <div className="entry-main">
@@ -96,7 +95,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
                         <>
                           <div><dt>Odds</dt><dd>{pct(st.chance)}</dd></div>
                           <div><dt>XP</dt><dd>{st.xp}</dd></div>
-                          <div><dt>Take</dt><dd className="money">{crime.cashMin}–{crime.cashMax} gold</dd></div>
+                          <div><dt>Take</dt><dd className="money">${crime.cashMin}–{crime.cashMax}</dd></div>
                         </>
                       )}
                     </dl>
@@ -126,7 +125,7 @@ export function SkillsTab({ s, onImport, onReset }: { s: GameState; onImport: ()
         <div className="stats-grid">
           <div><span className="muted">Jobs pulled</span><strong>{s.stats.jobs.toLocaleString('en-US')}</strong></div>
           <div><span className="muted">Big scores</span><strong>{s.stats.bigScores.toLocaleString('en-US')}</strong></div>
-          <div><span className="muted">Times busted</span><strong>{s.stats.busts.toLocaleString('en-US')}</strong></div>
+          <div><span className="muted">Failed attempts</span><strong>{s.stats.fails.toLocaleString('en-US')}</strong></div>
           <div><span className="muted">Lifetime earnings</span><strong>{fmtMoney(s.stats.earned)}</strong></div>
         </div>
       </section>

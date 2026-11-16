@@ -1,7 +1,7 @@
 // The city grid (docs/design.md §7). Roads are 2 tiles wide every 7 tiles; the 5×5 squares
 // between them are blocks. A block is a park, Eddy's store, or a cluster of buildings in one of
 // a few layouts (one big building, two or four smaller ones, sometimes with an alley you can
-// walk through). The whole city sits on an island with a river around it (drawn in StreetView).
+// walk through). The whole city is an island in the ocean, with a beach around it (drawn in city.ts).
 import type { SpotKind } from '../game/data/crimes';
 import { CRIME_BY_ID } from '../game/data/crimes';
 import { mulberry32 } from '../game/rng';
@@ -11,8 +11,8 @@ export const COLS = 6;
 export const ROWS = 5;
 export const W = COLS * BLOCK + 2;
 export const H = ROWS * BLOCK + 2;
-/** How wide the river around the city is, in tiles. */
-export const RIVER = 6;
+/** How wide the beach around the city is, in tiles (then it's open ocean). */
+export const BEACH = 2;
 
 export interface StreetNode {
   id: string;

@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.12.0',
+    date: '2026-11-16',
+    title: 'Dollars, food, and an island in the ocean',
+    items: [
+      'Money is dollars now. Crimes pay cash straight away; no more random item drops (old loot was turned into cash for you).',
+      'Food: candy bars and sandwiches stack in your bag. Tap one in your Inventory and eat it to heal (takes half a second). The shops that stock them are coming next.',
+      'Heat, jail and bail are gone. Soon, getting caught will mean an angry clerk, bartender or guard instead.',
+      'The city is now an island: a sandy beach with rocks, and the open ocean all around.',
+    ],
+  },
+  {
     version: '0.11.0',
     date: '2026-11-16',
     title: 'Street Crimes rebalanced',

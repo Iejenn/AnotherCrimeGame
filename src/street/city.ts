@@ -1,11 +1,11 @@
 // Builds the static city for the Street view: low-poly "model town" shapes in a dark, gritty
-// dusk palette (docs/design.md §7b):
-// asphalt with lane lines and zebra crossings, light pavements, cream buildings with window
+// dusk palette (docs/design.md §7b), on an island in the ocean:
+// asphalt with lane lines and zebra crossings, pavements, brick and concrete buildings with window
 // grids, coloured trims, rooftop props and striped awnings, round low-poly trees, lamps,
-// traffic lights, and a bright river with a stone quay around the island.
+// traffic lights, and a beach with rocks where the island meets the ocean.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, RIVER, ROWS, STORE, STORE_FIXTURES, W } from './map';
+import { BEACH, BLOCK, BLOCKS, BUILDINGS, COLS, H, NODES, NPCS, ROWS, STORE, STORE_FIXTURES, W } from './map';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -14,10 +14,11 @@ const C = {
   paint: 0x9c978a,
   pavement: 0x6d6962,
   grass: 0x45663a,
-  farGrass: 0x2f4426,
-  water: 0x1f4558,
+  sea: 0x15303f,
+  shallows: 0x24536a,
+  sand: 0x7d705a,
+  rock: 0x5a5852,
   quay: 0x5e5951,
-  rail: 0x2e2e30,
   roof: 0x45423e,
   walls: [0x7a4a3a, 0x6b4a3c, 0x5f5d5a, 0x8a7f70, 0x4f4a45, 0x6e5f50, 0x83503e],
   trims: [0x7a2f28, 0x2e5f5b, 0x8a6a2a, 0x2f4562, 0x6a4526],
@@ -164,7 +165,7 @@ export function buildCity(scene: THREE.Scene) {
     return m;
   };
 
-  // ---------- island, river, quay ----------
+  // ---------- the island: open ocean all around, shallow water, a sandy beach with rocks ----------
   const plane = (w: number, h: number, color: number, y: number, cx = W / 2, cz = H / 2) => {
     const m = new THREE.Mesh(own(new THREE.PlaneGeometry(w, h)), lam(color));
     m.rotation.x = -Math.PI / 2;
@@ -173,15 +174,24 @@ export function buildCity(scene: THREE.Scene) {
     scene.add(m);
     return m;
   };
-  plane(W + 160, H + 160, C.farGrass, -0.35);
-  plane(W + RIVER * 2, H + RIVER * 2, C.water, -0.25);
+  plane(W + 600, H + 600, C.sea, -0.32); // open ocean to the horizon (the fog hides the edge)
+  plane(W + BEACH * 2 + 3, H + BEACH * 2 + 3, C.shallows, -0.3); // lighter shallow water around the beach
+  const sand = add(geoBox(W + BEACH * 2, 0.3, H + BEACH * 2), lam(C.sand), W / 2, -0.17, H / 2, false);
+  sand.receiveShadow = true;
+  add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.05, H / 2, false); // a low kerb where the streets meet the sand
   plane(W, H, C.asphalt, 0);
-  for (const [x, z, w, d] of [
-    [W / 2, -0.12, W + 0.5, 0.24], [W / 2, H + 0.12, W + 0.5, 0.24], [-0.12, H / 2, 0.24, H + 0.5], [W + 0.12, H / 2, 0.24, H + 0.5],
-  ] as const) {
-    add(geoBox(w, 0.42, d), lam(C.quay), x, -0.13, z, false);
-    add(geoBox(w, 0.04, d * 0.35), lam(C.rail), x, 0.3, z, false);
+  // Rocks scattered along the waterline.
+  const rocks = new Batch(own(new THREE.DodecahedronGeometry(0.35, 0)), lam(C.rock, { flatShading: true }));
+  for (let i = 0; i < 90; i++) {
+    const side = i % 4;
+    const along = rng();
+    const out = BEACH - 0.2 + rng() * 0.9;
+    const x = side < 2 ? along * (W + 2 * out) - out : side === 2 ? -out : W + out;
+    const z = side >= 2 ? along * (H + 2 * out) - out : side === 0 ? -out : H + out;
+    const sc = 0.5 + rng() * 1.1;
+    rocks.add(x, -0.12, z, sc, sc * (0.5 + rng() * 0.4), sc, rng() * 6);
   }
+  rocks.build(scene);
 
   // ---------- road paint: dashed centre lines and zebra crossings ----------
   const dash = new Batch(geoBox(0.07, 0.01, 0.42), lam(C.paint), false);
@@ -248,15 +258,6 @@ export function buildCity(scene: THREE.Scene) {
         tree(tx + 0.5, by * BLOCK + 6.85, 0.75);
       }
     }
-  // Far bank: a ring of trees across the river.
-  for (let i = 0; i < 170; i++) {
-    const side = i % 4;
-    const along = rng();
-    const out = RIVER + 0.8 + rng() * 9;
-    const x = side < 2 ? along * (W + 2 * out) - out : side === 2 ? -out : W + out;
-    const z = side >= 2 ? along * (H + 2 * out) - out : side === 0 ? -out : H + out;
-    tree(x, z, 1 + rng() * 0.8);
-  }
 
   // ---------- street lamps and traffic lights ----------
   const poleGeo = own(new THREE.CylinderGeometry(0.03, 0.035, 1.35, 6));
