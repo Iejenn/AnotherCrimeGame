@@ -30,10 +30,10 @@ All skills start at level 1. Max level is **30** for now *(tunable)*.
 | Skill | Status |
 |---|---|
 | Street Crimes | Designed (below) |
-| Melee | **To scope** |
-| Defense | **To scope** |
-| Gunfire | **To scope** |
-| Health | **To scope.** Already gives +2 max HP per level. |
+| Melee | Combat (§12, draft) |
+| Defense | Combat (§12, draft) |
+| Gunfire | Combat (§12, draft) |
+| Health | Combat (§12, draft). Gives +2 max HP per level today; the draft makes it +1. |
 
 ### XP curve (all skills)
 
@@ -358,6 +358,139 @@ needs step 2 below.
 
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
 shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
+
+## 12. Combat (draft, to decide)
+
+> **Status: proposal.** Based on the designer's sheet (unarmed stats, the four combat skills, the Pigeon). Numbers
+> marked *(tunable)* live in data tables, like the crimes. Questions to decide are at the end.
+
+### The loop
+
+Tap an enemy → you walk up and **fight until one of you drops, or you walk away**. (Combat is the one place where
+one tap is not one attempt: you keep swinging, like OSRS.) You and the enemy each attack on your own **attack speed**.
+Each swing is **hit or miss**; a hit does **1 to max hit** damage. When the enemy dies: **XP and loot**, and it
+**respawns** after a while. When you drop to 0 HP you die as usual (your grave, §5). Food is how you keep going.
+
+### Ticks and speed
+
+- Game tick = 0.5 s (§2). **Attack speed = ticks between swings.** Unarmed: **3 ticks (1.5 s)**. Weapons set their own.
+
+### Will it hit? (accuracy vs defence)
+
+The same well-tested roll as OSRS, so it scales cleanly to level 100 and gear:
+
+```
+attack roll   A = (attacker's level + 8) × (accuracy bonus + 64)
+defence roll  D = (defender's Defense level + 8) × (defence bonus + 64)
+hit chance    = A > D ? 1 − (D + 2) / (2 × (A + 1))   :   A / (2 × (D + 1))
+```
+
+- "attacker's level" = **Melee** (no weapon or a melee weapon) or **Gunfire** (a gun). Enemies have one attack level.
+- Level 1 unarmed vs a level-1 enemy with 0 defence: **≈ 50–55%**. Ten levels or a good weapon above it: **≈ 75%**.
+
+### How much damage?
+
+```
+max hit = weapon damage + floor((your Melee or Gunfire level − 1) / 8)
+damage on a hit = random whole number from 1 to max hit
+```
+
+- Unarmed: weapon damage **1** → max hit **1** at level 1, **2** at 9, **3** at 17, **4** at 25–30.
+- No separate Strength skill: your attack skill drives both accuracy and damage.
+
+### XP (from the sheet)
+
+| Skill | Trains when | XP |
+|---|---|---|
+| Melee | you hit with no weapon or a melee weapon | **1 per damage** |
+| Gunfire | you hit with a gun | **1 per damage** |
+| Defense | every hit you land (always) | **0.5 per damage** |
+| Health | you lose health (to anything) | **1 per HP lost** |
+
+**Pace check (to decide):** a Pigeon has 3 HP, so it gives 3 Melee XP. At level 1 a kill takes ~8 s of swinging plus
+walking, about **1,100 Melee XP/h**: **~22 minutes to Melee 10** (Street Crimes: ~7 minutes). Multiplying every
+combat XP by **4** (OSRS does the same) gives ~4,300 XP/h and **~6 minutes to 10**, close to Street Crimes. *(One
+number: `COMBAT_XP_PER_DAMAGE`.)*
+
+### Health
+
+- **+1 max HP per Health level** (sheet), instead of +2 now: 10 HP at level 1, 39 HP at 30. Regen stays 1 HP/min.
+- Health XP comes from **losing HP to anything**, so the crimes' catchers train it too.
+
+### Combat level (shown over players and enemies, like OSRS)
+
+```
+combat level = floor( (Defense + Health) / 4  +  max(Melee, Gunfire) / 2 )
+```
+All 1 → **1**. All 30 → **30**. Lets players see who's tough at a glance.
+
+### Gear
+
+- **Slots:** weapon, head, body, legs, feet *(more later: gloves, off-hand)*.
+- **Every item:** slot, level needed (Melee / Gunfire / Defense), and bonuses: **accuracy**, **damage** (weapons),
+  **attack speed** (weapons, in ticks), **defence** (armour). Guns: **range** (tiles) and maybe **ammo**.
+- **Equip** from the bag (tap → Wield / Wear). The Inventory tab gets an **equipment panel** (OSRS "worn equipment")
+  with the slots and your total bonuses.
+- **It shows on your character:** the weapon in your hand, hats and helmets on your head, jackets and vests over your
+  top, trousers and shoes recoloured. Other players see your gear too (it comes from the database, like names).
+
+Starter ladders *(examples, to tune)*:
+
+| Lv | Melee (damage / speed) | Gunfire (damage / speed / range) | Armour (defence) |
+|---|---|---|---|
+| 1 | Fists 1 / 3 · Brass knuckles 2 / 3 | Slingshot 1 / 3 / 4 | Hoodie 2 |
+| 5 | Baseball bat 3 / 4 | BB gun 2 / 3 / 5 | Leather jacket 5 |
+| 10 | Crowbar 4 / 4 | Revolver 4 / 5 / 6 | Biker helmet 4 |
+| 15 | Knife 3 / 2 (fast) | Pistol 4 / 3 / 6 | Padded vest 9 |
+| 20 | Machete 6 / 4 | SMG 3 / 2 / 5 | Steel-toe boots 3 |
+| 25 | Sledgehammer 9 / 6 (slow) | Shotgun 8 / 5 / 3 | Riot helmet 8 |
+| 30 | Katana 8 / 3 | Rifle 7 / 4 / 9 | Kevlar vest 15 |
+
+Where gear comes from: **enemy loot tables** (§6: items must mean something) and later **shops** (a pawn shop, a gun
+store): a place to spend dollars.
+
+### Enemies
+
+Each enemy type: level, HP, attack level, defence level and bonus, attack speed, max hit, style (melee/ranged),
+**aggressive or not**, where it lives (and how many), respawn time, XP, **loot table** (weighted rolls).
+
+| Enemy | Lv | Where | HP | Def | Speed | Max hit | Respawn | Notes |
+|---|---|---|---|---|---|---|---|---|
+| **Pigeon** (sheet) | 1 | The park (3) | 3 | 0 | 4 ticks (2 s) *(proposal)* | 1 | 25 s | not aggressive; pecks back when attacked |
+
+Proposed ladder, one every 5 levels like the crimes: **Rat** (5, alleys/dumpsters), **Stray dog** (10), **Junkie** (15),
+**Thug** (20), **Gang member with a pistol** (25, ranged), **Bouncer** (30, at the bar).
+
+A Pigeon fight at level 1: it hits you ~50% of the time for 1, every 2 s, so you lose **~2 HP per Pigeon**. With 10 HP
+that's ~4 Pigeons before you need to eat: food matters (§5).
+
+### Shared enemies (online)
+
+- Enemies are **shared**: everyone sees the same Pigeons in the same places (they walk a fixed schedule, like the
+  guard, §11). **One player fights an enemy at a time** *(proposal)*; others see it's busy.
+- An enemy nobody hits for 10 s heals back to full. Walking away ends the fight.
+- **The server runs every fight:** `attack(enemy, standing tile)` starts it; the app asks the server to "catch up the
+  fight" about every second, and the server rolls every swing that's due (hit/miss, damage, XP, loot, death) and
+  sends them back to animate. Nothing about a fight is decided by the phone.
+- Load: about 1 call per second per fighting player (crimes are ~0.4).
+
+### Build order (once decided)
+
+1. Combat core: the Pigeon, fists, hit/miss/damage, XP, death, the health bar over enemies, combat level.
+2. Loot tables + the equipment panel + equipping (stats only).
+3. Gear visible on characters (yours and other players').
+4. The next enemies and the gear ladders, one level band at a time (like Street Crimes v2).
+
+### Questions to decide
+
+1. **XP pace:** keep 1 XP per damage (~22 min to Melee 10) or ×4 (~6 min, like Street Crimes)?
+2. **Defense XP:** 0.5 per damage *you deal* (as in the sheet), or earned when enemies *swing at you*?
+3. **Health XP:** from all HP you lose (crimes too), or only in combat?
+4. **Loot:** straight into your bag (simplest on a phone), or dropped on the ground to pick up (OSRS)?
+5. **The Pigeon:** attack speed 4 ticks and max hit 1 OK? What does it drop (feathers to sell, bread, a few dollars)?
+6. **Shared enemies:** one player per enemy at a time OK?
+7. **Guns:** use ammo (bought in a shop, a money sink), or not?
+8. **Players fighting players (PvP):** someday, or never?
 
 ## 10. How we work
 
