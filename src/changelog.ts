@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.30.2',
+    date: '2026-11-16',
+    title: 'Skills, tidied',
+    items: ['The skills are in a new order: Melee, Gunfire, Defense, Health, Street Crimes.', 'The "Record" section at the bottom of the Skills tab is gone.'],
+  },
+  {
     version: '0.30.1',
     date: '2026-11-16',
     title: 'Fewer zebras',
