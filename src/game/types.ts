@@ -113,6 +113,8 @@ export interface Report {
   items: Record<string, number>;
   /** You died this tick (the Street moves you back to the start). */
   died: boolean;
+  /** This came from a fight (hitsplats show the damage, so no "-1 HP" float and no shake). */
+  combat?: boolean;
 }
 
 export function emptyReport(): Report {

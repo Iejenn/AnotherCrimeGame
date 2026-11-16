@@ -168,12 +168,14 @@ export function buildPigeon(): THREE.Group {
 }
 
 /** Animate a pigeon: 'peck' (pecking at the ground), 'fly' (flapping), 'attack' (pecking at you), 'dead' (tipped over). */
-export function animatePigeon(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'dead', t: number, phase = 0) {
+export function animatePigeon(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'dead' | 'walk', t: number, phase = 0) {
   const p = g.userData.parts as { body: THREE.Group; head: THREE.Group; wings: THREE.Group[] };
   const s = t / 1000 + phase;
   p.body.rotation.z = mode === 'dead' ? Math.PI / 2 : 0;
   p.wings.forEach((w, i) => (w.rotation.z = mode === 'fly' ? (i ? -1 : 1) * (0.3 + Math.sin(s * 30) * 0.9) : 0));
   if (mode === 'attack') p.head.rotation.x = 0.6 + Math.sin(s * 25) * 0.5;
+  // Walking: the quick forward-and-back head bob pigeons do with every step.
+  else if (mode === 'walk') p.head.rotation.x = Math.sin(s * 16) * 0.35;
   else if (mode === 'peck') p.head.rotation.x = Math.max(0, Math.sin(s * 3.1)) > 0.85 ? 0.9 : Math.sin(s * 1.7) * 0.1;
   else p.head.rotation.x = 0;
 }

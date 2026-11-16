@@ -18,6 +18,7 @@ The database for the multiplayer version (docs/design.md §11). Project ref: `bc
 | 0009_one_device_at_a_time | one device per account: `session_id` on players, header `x-game-session`, `claim_session(force)`, `game.me()` and `send_chat()` refuse other sessions (`session_replaced`) |
 | 0010_combat | combat v1: Health starts at 10 (max HP = level), `items`, `shop_items`, `enemy_kinds`, `enemies` (Realtime), `game.pigeon_at` (same as src/game/enemies.ts; checked), `attack`, `fight_step`, `stop_fight`, `equip_item`, `unequip_item`, `buy_item` (Ray's store) |
 | 0011_see_what_others_do | `player_status` (Realtime, read-only, filled by a trigger on `players`): what others are doing and their health; `players.prev_seen` + `lastOnline` for "Last online … ago" |
+| 0012_enemies_walk_back | an enemy you walk away from follows you 5 s and walks back (`left_at/left_by/left_x/left_y` set by a trigger, `returning` in `enemies_json`); `attack` refuses it meanwhile (`enemy_returning`) |
 | 0008_baller_throws_ball | gym bags fail message: "Stop that!" and the ball thrown at you (only that sentence in `finish_attempt` changed, from its live definition) |
 | 0007_no_minimum_health | `start_attempt` no longer refuses below 3 HP; `game.get_hit` warns instead ("badly hurt") |
 | 0006_chat | global chat: `chat_messages` (Realtime, read by everyone signed in), `send_chat()` stamps your name from the database, max 1 message/s and 5 per 10s, 200 letters, kept 7 days |
