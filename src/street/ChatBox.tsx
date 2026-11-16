@@ -67,7 +67,7 @@ export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatL
           </div>
           <div className="chat-lines" ref={listRef} aria-live="polite">
             {lines.map((l) => (
-              <div key={l.key} className={`chat-line ${l.kind}`}>
+              <div key={l.key} className={`chat-line from-${l.kind}`}>
                 {l.name && <span className={`chat-name ${l.mine ? 'mine' : ''}`}>{l.name}: </span>}
                 <span>{l.text}</span>
               </div>
