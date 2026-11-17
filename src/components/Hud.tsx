@@ -115,8 +115,8 @@ function CharacterPreview({ s }: { s: GameState }) {
     sun.position.set(2, 4, 3);
     scene.add(sun);
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    camera.position.set(0, 1.0, 2.9);
-    camera.lookAt(0, 0.68, 0);
+    camera.position.set(0, 1.05, 3.1);
+    camera.lookAt(0, 0.7, 0);
     const me = buildCharacter(s.look);
     scene.add(me);
     const floor = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24), new THREE.MeshLambertMaterial({ color: 0x2a2622 }));

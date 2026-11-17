@@ -44,8 +44,12 @@ if (who === 'human' && q.get('gear')) {
   animateOld(old, 'idle', 0);
   animateCharacter(fresh, 'idle', 0);
 } else if (who === 'human') {
-  animateOld(old, 'idle', 0);
-  animateCharacter(fresh, 'idle', 0);
+  // ?pose=walk|sit|sitFloor|work|swing (?t= ms into it, ?p= how far into a swing), ?weapon=tin_bat
+  const pose = (q.get('pose') ?? 'idle') as Parameters<typeof animateCharacter>[1];
+  const t = Number(q.get('t') ?? 0);
+  if (q.get('weapon')) NEW.setGear(fresh, { weapon: q.get('weapon')! });
+  animateOld(old, pose === 'sitFloor' ? 'sit' : pose, t, 0, Number(q.get('p') ?? 0));
+  animateCharacter(fresh, pose, t, 0, Number(q.get('p') ?? 0));
 } else if (who === 'pigeon') {
   OLD.animatePigeon(old, 'peck', 0);
   NEW.animatePigeon(fresh, 'peck', 0);

@@ -3,7 +3,7 @@
 // (joints, a face, hands, shoes) instead of smooth curves, flat-shaded, about 2,000 triangles at most.
 // Everyone on the Street uses this model: you, tourists, the banker, Eddy.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Look } from '../game/types';
 
 export const SKIN_TONES = [0xf6d7bd, 0xe0b48f, 0xc08a62, 0x8d5f3e, 0x5c3b26];
@@ -21,16 +21,27 @@ export function randomLook(rng: () => number = Math.random): Look {
 
 export const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-// Shared geometry and materials: built once, reused by every character.
-// People are the asset you look at most, so they get the most detail (docs/design.md §18: up to about 2,000 triangles),
-// spent on STRUCTURE, not smooth curves: a shaped head (jaw, cheeks, brow) with eyes, eyebrows, a nose, a mouth and ears;
-// a neck and a shirt collar; a chest broad at the shoulders, a waist, a belt with a buckle, hips and trouser pockets; arms
-// in a shoulder, a muscled upper arm, an elbow, a forearm, a cuff and a hand with fingers and a thumb; legs in a thigh, a
-// knee cap, a calf and an ankle; shoes with a sole, a heel and a toe cap. Everything 6- or 8-sided and flat-shaded.
-// Each character's parts are merged per limb and colour when it's built, so all this detail costs only a few draw calls.
+// ---------- the body (v0.45: the human base model; docs/design.md §18) ----------
+// Learned from old-school RuneScape, not copied: adult proportions (the head about 1/6 of the height, legs half of it,
+// broad shoulders tapering to the waist, long arms with the fists at mid-thigh), detail spent on SHAPE (a strong chest
+// and shoulders, forearms, baggy trousers, fists, a simple strong face) rather than trinkets, and smooth shading with
+// hard edges only where the shape turns sharply (fists, shoes, the jaw). Real joints: hips, knees, shoulders, elbows,
+// the head, and a point in the right hand where weapons go. All sizes below are in tiles (1 = a tile).
+export const BODY = {
+  /** Height of the hips (the legs' pivot), the knees under them, the shoulders (the arms' pivot), the head's centre. */
+  hip: 0.62,
+  knee: -0.29,
+  shoulder: 1.0,
+  shoulderX: 0.205,
+  elbow: -0.245,
+  fist: -0.245,
+  head: 1.19,
+  /** Top of the head (for labels and tap areas). */
+  height: 1.32,
+};
 
 /** A shape made of rings stacked upwards: [height, half width, half depth, forward offset, sideways offset]. Closed at
- *  both ends, flat-shaded (unindexed). */
+ *  both ends (unindexed; the normals are set when a person's parts are merged). */
 function stack(rings: [number, number, number, number?, number?][], sides: number): THREE.BufferGeometry {
   const pts = rings.map(([y, w, d, dz = 0, dx = 0]) =>
     Array.from({ length: sides }, (_, i) => {
@@ -59,82 +70,75 @@ function stack(rings: [number, number, number, number?, number?][], sides: numbe
   g.computeVertexNormals();
   return g;
 }
-
 /** Like stack, but lying along z (front to back): for shoes. */
 const lying = (rings: [number, number, number, number?, number?][], sides: number) => stack(rings, sides).rotateX(Math.PI / 2);
 
+// Shared geometry: built once, reused by every person.
 const geo = {
-  // The head (centred on 0; placed at y 1.0): chin, jaw, cheeks, eye line, brow, crown.
-  head: stack([[-0.15, 0.04, 0.035, 0.07], [-0.135, 0.07, 0.06, 0.06], [-0.11, 0.1, 0.09, 0.035], [-0.06, 0.128, 0.122, 0.016], [-0.01, 0.138, 0.134, 0.008], [0.04, 0.14, 0.136], [0.09, 0.134, 0.13], [0.135, 0.105, 0.108, -0.01], [0.162, 0.045, 0.05, -0.01]], 10),
-  eyeWhite: new THREE.BoxGeometry(0.048, 0.032, 0.012),
-  pupil: new THREE.BoxGeometry(0.022, 0.028, 0.012),
-  brow: new THREE.BoxGeometry(0.058, 0.014, 0.018),
-  nose: stack([[-0.03, 0.022, 0.02, 0.01], [0.0, 0.016, 0.02, 0.012], [0.03, 0.008, 0.012, 0.004]], 4),
-  mouth: new THREE.BoxGeometry(0.065, 0.013, 0.012),
-  ear: stack([[-0.03, 0.012, 0.018], [0.0, 0.016, 0.028], [0.03, 0.01, 0.02, -0.004]], 6),
-  neck: stack([[0.84, 0.056, 0.054], [0.95, 0.05, 0.05]], 8),
-  collar: stack([[0.875, 0.085, 0.078, -0.005], [0.91, 0.074, 0.068, -0.01]], 10),
-  // The body: hem, waist, ribs, chest, shoulders, sloping in to the neck.
-  // (a real waist, the chest rising into sloping shoulders)
-  torso: stack([[0.43, 0.145, 0.104], [0.5, 0.138, 0.1], [0.6, 0.152, 0.112], [0.7, 0.176, 0.124], [0.79, 0.19, 0.122], [0.85, 0.182, 0.11], [0.895, 0.12, 0.085], [0.92, 0.07, 0.06]], 10),
-  belt: stack([[0.415, 0.152, 0.11], [0.458, 0.15, 0.108]], 10),
-  buckle: new THREE.BoxGeometry(0.05, 0.036, 0.012),
-  hips: stack([[0.33, 0.138, 0.098], [0.38, 0.148, 0.104], [0.42, 0.15, 0.106]], 10),
-  pocket: new THREE.BoxGeometry(0.06, 0.07, 0.01),
-  // Legs (from the hip pivot): thigh, knee cap, calf, ankle; a shoe with sole, heel and toe cap.
-  thigh: stack([[-0.2, 0.062, 0.066, 0.01], [-0.12, 0.074, 0.078, 0.004], [-0.04, 0.084, 0.086], [0.03, 0.086, 0.088]], 8),
-  knee: new THREE.IcosahedronGeometry(0.05, 0),
-  calf: stack([[-0.35, 0.042, 0.045, 0.014], [-0.31, 0.05, 0.054, 0.006], [-0.265, 0.062, 0.068, -0.008], [-0.2, 0.06, 0.064, 0.008]], 8),
-  // A shoe lying front to back: heel, instep, ball of the foot, a rounded toe.
-  shoe: lying([[-0.085, 0.045, 0.035], [-0.04, 0.052, 0.042], [0.04, 0.056, 0.036], [0.1, 0.046, 0.026], [0.125, 0.022, 0.016]], 8),
-  sole: lying([[-0.095, 0.05, 0.012], [0.135, 0.05, 0.012]], 8),
-  // Arms (from the shoulder pivot): shoulder, upper arm with a bicep, elbow, forearm, cuff; a hand with fingers, thumb.
-  shoulder: new THREE.SphereGeometry(0.066, 6, 4),
-  upperArm: stack([[-0.165, 0.048, 0.049], [-0.12, 0.055, 0.058, 0.005], [-0.06, 0.06, 0.062, 0.006], [0.0, 0.058, 0.058]], 8),
-  elbow: new THREE.IcosahedronGeometry(0.048, 0),
-  forearm: stack([[-0.275, 0.038, 0.041, 0.006], [-0.23, 0.047, 0.051, 0.006], [-0.19, 0.053, 0.056, 0.004], [-0.165, 0.049, 0.051]], 8),
-  cuff: stack([[-0.285, 0.046, 0.048, 0.006], [-0.262, 0.046, 0.048, 0.006]], 6),
-  // The hand: a tapering palm, thin in the side-to-side direction.
-  palm: stack([[-0.035, 0.02, 0.032], [0.0, 0.024, 0.04], [0.03, 0.021, 0.035]], 6),
-  finger: stack([[-0.025, 0.012, 0.009], [0.025, 0.014, 0.01]], 4),
-  placket: new THREE.BoxGeometry(0.03, 0.3, 0.012),
-  button: new THREE.BoxGeometry(0.016, 0.016, 0.01),
-  chestPocket: new THREE.BoxGeometry(0.07, 0.07, 0.012),
-  trouserCuff: stack([[-0.352, 0.052, 0.055, 0.014], [-0.328, 0.052, 0.055, 0.014]], 6),
-  lace: new THREE.BoxGeometry(0.07, 0.008, 0.012),
-  fringeLock: stack([[0, 0.028, 0.018], [0.045, 0.01, 0.008]], 4),
-  sideburn: stack([[-0.03, 0.01, 0.015], [0.03, 0.012, 0.018]], 4),
-  thumb: new THREE.BoxGeometry(0.03, 0.05, 0.032),
-  hairCap: new THREE.SphereGeometry(0.168, 10, 3, 0, Math.PI * 2, 0, Math.PI * 0.5),
-  hairBack: new THREE.BoxGeometry(0.3, 0.32, 0.1),
-  mohawk: new THREE.BoxGeometry(0.06, 0.13, 0.3),
-  capTop: new THREE.CylinderGeometry(0.16, 0.166, 0.11, 10),
-  capBrim: new THREE.BoxGeometry(0.26, 0.025, 0.16),
-  shadow: new THREE.CircleGeometry(0.24, 10),
+  // ---- the head (around its centre): chin, jaw, cheeks, eye line, brow, crown; a simple strong face ----
+  head: stack([[-0.125, 0.03, 0.028, 0.05], [-0.108, 0.064, 0.058, 0.032], [-0.07, 0.088, 0.083, 0.016], [-0.02, 0.097, 0.094, 0.01], [0.035, 0.1, 0.097], [0.08, 0.095, 0.094], [0.112, 0.068, 0.072, -0.008], [0.127, 0.025, 0.03, -0.01]], 10),
+  eye: new THREE.BoxGeometry(0.03, 0.009, 0.01),
+  brow: new THREE.BoxGeometry(0.038, 0.012, 0.014),
+  nose: stack([[-0.025, 0.016, 0.016, 0.01], [0.0, 0.012, 0.016, 0.012], [0.022, 0.006, 0.008, 0.004]], 4),
+  mouth: new THREE.BoxGeometry(0.036, 0.006, 0.008),
+  ear: stack([[-0.022, 0.009, 0.013], [0.0, 0.012, 0.02], [0.022, 0.008, 0.014, -0.003]], 6),
+  // Hair: a cap over the top and back of the head, down to the ears, with a hairline in front.
+  hairCap: new THREE.SphereGeometry(0.128, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.58),
+  hairBack: new THREE.BoxGeometry(0.2, 0.2, 0.06),
+  fringeLock: stack([[0, 0.018, 0.01], [0.03, 0.006, 0.005]], 4),
+  mohawk: new THREE.BoxGeometry(0.04, 0.09, 0.2),
+  capTop: new THREE.CylinderGeometry(0.105, 0.11, 0.07, 10),
+  capBrim: new THREE.BoxGeometry(0.17, 0.016, 0.1),
+  neck: stack([[0.99, 0.052, 0.05], [1.1, 0.047, 0.046]], 8),
+  // ---- the body: hips, belt, a T-shirt over a strong chest, the shoulders sloping up to the neck ----
+  hips: stack([[0.54, 0.128, 0.09], [0.6, 0.142, 0.098], [0.665, 0.146, 0.1]], 10),
+  belt: stack([[0.655, 0.15, 0.104], [0.7, 0.148, 0.102]], 10),
+  buckle: new THREE.BoxGeometry(0.036, 0.03, 0.01),
+  torso: stack([[0.69, 0.142, 0.1], [0.76, 0.136, 0.096], [0.84, 0.156, 0.108], [0.91, 0.184, 0.122], [0.965, 0.198, 0.118], [1.0, 0.17, 0.104], [1.03, 0.11, 0.08], [1.045, 0.06, 0.055]], 12),
+  // ---- an arm (from the shoulder pivot): deltoid, short sleeve, bicep; forearm and fist (from the elbow pivot) ----
+  deltoid: new THREE.SphereGeometry(0.058, 8, 6),
+  sleeve: stack([[-0.14, 0.06, 0.062, 0.004], [-0.07, 0.062, 0.064], [-0.01, 0.06, 0.062], [0.03, 0.035, 0.045, -0.005]], 8),
+  upperArm: stack([[-0.25, 0.04, 0.043, 0.004], [-0.19, 0.048, 0.052, 0.006], [-0.12, 0.05, 0.053]], 8),
+  forearm: stack([[-0.205, 0.03, 0.033, 0.004], [-0.15, 0.037, 0.04, 0.006], [-0.05, 0.046, 0.048, 0.008], [0.01, 0.042, 0.044]], 8),
+  fist: new THREE.BoxGeometry(0.06, 0.07, 0.072),
+  thumb: new THREE.BoxGeometry(0.024, 0.04, 0.026),
+  // ---- a leg (from the hip pivot): thigh; shin (from the knee pivot), a little baggy; a shoe ----
+  thigh: stack([[-0.3, 0.068, 0.072, 0.01], [-0.18, 0.078, 0.082, 0.005], [-0.05, 0.088, 0.09], [0.04, 0.09, 0.09]], 8),
+  shin: stack([[-0.27, 0.07, 0.074, 0.006], [-0.15, 0.066, 0.07, 0.004], [-0.02, 0.068, 0.072, 0.008], [0.02, 0.066, 0.07, 0.008]], 8),
+  shoe: lying([[-0.065, 0.04, 0.03], [-0.03, 0.046, 0.035], [0.05, 0.05, 0.03], [0.1, 0.042, 0.022], [0.12, 0.02, 0.014]], 8),
+  sole: lying([[-0.072, 0.044, 0.01], [0.128, 0.044, 0.01]], 8),
+  shadow: new THREE.CircleGeometry(0.22, 12),
 };
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
 function mat(color: number) {
   let m = matCache.get(color);
   if (!m) {
-    m = new THREE.MeshLambertMaterial({ color, flatShading: true });
+    m = new THREE.MeshLambertMaterial({ color });
     matCache.set(color, m);
   }
   return m;
 }
 
-/** Limb pivots, so the street view can animate them. */
+/** The joints, so the street view can animate them and gear can be attached. */
 export interface Rig {
   legL: THREE.Object3D;
   legR: THREE.Object3D;
+  kneeL: THREE.Object3D;
+  kneeR: THREE.Object3D;
   armL: THREE.Object3D;
   armR: THREE.Object3D;
+  elbowL: THREE.Object3D;
+  elbowR: THREE.Object3D;
+  head: THREE.Object3D;
+  /** In the right fist: where a weapon goes. */
+  hand: THREE.Object3D;
   body: THREE.Object3D;
 }
 
-/** Build a character. The returned group has `userData.rig` for animateCharacter(). */
+/** Build a person. The returned group has `userData.rig` for animateCharacter() and setGear(). */
 export function buildCharacter(look: Look, extra?: { apron?: number; hood?: number; scrubs?: number; coat?: boolean }): THREE.Group {
   const root = new THREE.Group();
-  const body = new THREE.Group(); // everything above the feet, so it can bob and wobble
+  const body = new THREE.Group(); // everything, so it can bob, wobble, twist and sit down
   root.add(body);
   const skin = mat(SKIN_TONES[look.skin] ?? SKIN_TONES[1]);
   // Doctors wear scrubs (top and trousers in one colour) under a white coat.
@@ -145,119 +149,85 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   const hair = mat(HAIR_COLORS[look.hairColor] ?? HAIR_COLORS[0]);
   const dark = mat(0x1e1b18);
   const sole = mat(0x3e352c);
-  const white = mat(0xe8e2d4);
-  const buckleMat = mat(0x9a8a5a);
-  const darker = (m: THREE.MeshLambertMaterial) => mat(m.color.clone().multiplyScalar(0.72).getHex());
+  const shade = (m: THREE.MeshLambertMaterial, k: number) => mat(m.color.clone().multiplyScalar(k).getHex());
 
-  // Parts are collected per pivot and material, then merged into one mesh each (see the bottom).
+  // Parts are collected per joint and colour, then merged into one mesh each (a handful of draw calls per person).
   const parts = new Map<THREE.Object3D, Map<THREE.Material, THREE.BufferGeometry[]>>();
   const tmp = new THREE.Object3D();
-  const put = (
-    g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = body,
-    rot: [number, number, number] = [0, 0, 0], scale: [number, number, number] = [1, 1, 1],
-  ) => {
+  const put = (g: THREE.BufferGeometry, m: THREE.Material, at: THREE.Object3D, x = 0, y = 0, z = 0, rot: [number, number, number] = [0, 0, 0], scale: [number, number, number] = [1, 1, 1]) => {
     tmp.position.set(x, y, z);
     tmp.rotation.set(...rot);
     tmp.scale.set(...scale);
     tmp.updateMatrix();
     const c = (g.index ? g.toNonIndexed() : g.clone()).applyMatrix4(tmp.matrix);
     c.deleteAttribute('uv');
-    if (!parts.has(parent)) parts.set(parent, new Map());
-    const byMat = parts.get(parent)!;
+    c.deleteAttribute('normal');
+    if (!parts.has(at)) parts.set(at, new Map());
+    const byMat = parts.get(at)!;
     if (!byMat.has(m)) byMat.set(m, []);
     byMat.get(m)!.push(c);
   };
-  const pivot = (x: number, y: number) => {
-    const p = new THREE.Group();
-    p.position.set(x, y, 0);
-    body.add(p);
-    return p;
+  const joint = (parent: THREE.Object3D, x: number, y: number, z = 0) => {
+    const j = new THREE.Group();
+    j.position.set(x, y, z);
+    parent.add(j);
+    return j;
   };
 
-  // ---------- legs (hang from hip pivots) ----------
-  const legL = pivot(-0.085, 0.4);
-  const legR = pivot(0.085, 0.4);
-  for (const leg of [legL, legR]) {
-    put(geo.thigh, bottom, 0, 0, 0, leg);
-    put(geo.knee, bottom, 0, -0.2, 0.03, leg);
-    put(geo.calf, bottom, 0, 0, 0, leg);
-    put(geo.shoe, dark, 0, -0.35, 0.02, leg);
-    put(geo.sole, sole, 0, -0.388, 0.02, leg);
-    put(geo.trouserCuff, darker(bottom as THREE.MeshLambertMaterial), 0, 0, 0, leg);
-    for (const k of [0, 1, 2]) put(geo.lace, white, 0, -0.318 - k * 0.006, 0.03 + k * 0.025, leg, [-0.45, 0, 0]);
-  }
+  // ---------- legs: hip → thigh → knee → shin → shoe ----------
+  const legs = [-1, 1].map((sd) => {
+    const leg = joint(body, sd * 0.078, BODY.hip);
+    const knee = joint(leg, 0, BODY.knee);
+    put(geo.thigh, bottom, leg);
+    put(geo.shin, bottom, knee);
+    put(geo.shoe, dark, knee, 0, -(BODY.hip + BODY.knee) + 0.04, 0.025);
+    put(geo.sole, sole, knee, 0, -(BODY.hip + BODY.knee) + 0.01, 0.025);
+    return [leg, knee] as const;
+  });
 
-  // ---------- the body: hips with pockets, a belt and buckle, the torso, a collar, the neck ----------
-  put(geo.hips, bottom);
-  for (const s of [-1, 1]) put(geo.pocket, darker(bottom as THREE.MeshLambertMaterial), s * 0.09, 0.38, 0.1, body, [0, s * 0.35, 0]);
-  put(geo.belt, dark);
-  put(geo.buckle, buckleMat, 0, 0.437, 0.119);
-  put(geo.torso, top);
-  put(geo.collar, darker(top as THREE.MeshLambertMaterial));
-  // The shirt's front: a placket with buttons, a chest pocket.
-  if (!coat) {
-    put(geo.placket, darker(top as THREE.MeshLambertMaterial), 0, 0.72, 0.128, body, [0.08, 0, 0]);
-    for (const y of [0.62, 0.71, 0.8]) put(geo.button, white, 0, y, 0.137 - (y - 0.62) * 0.05);
-    put(geo.chestPocket, darker(top as THREE.MeshLambertMaterial), -0.095, 0.77, 0.13, body, [0.1, -0.25, 0]);
-  }
-  put(geo.neck, skin);
-  if (extra?.apron !== undefined) put(new THREE.BoxGeometry(0.26, 0.34, 0.03), mat(extra.apron), 0, 0.6, 0.13);
+  // ---------- the body ----------
+  put(geo.hips, bottom, body);
+  put(geo.belt, mat(0x4a2a1e), body);
+  put(geo.buckle, mat(0x9a8a5a), body, 0, 0.678, 0.104);
+  put(geo.torso, top, body);
+  put(geo.neck, skin, body);
+  if (extra?.apron !== undefined) put(new THREE.BoxGeometry(0.24, 0.3, 0.025), mat(extra.apron), body, 0, 0.83, 0.115, [0.08, 0, 0]);
   if (coat) {
     // The coat hangs open over the scrubs: the scrubs show in a V at the chest, the coat's skirt reaches the knees,
     // a stethoscope round the neck and a name badge.
-    if (scrubs) put(new THREE.BoxGeometry(0.1, 0.2, 0.02), scrubs, 0, 0.72, 0.14);
-    put(new THREE.BoxGeometry(0.36, 0.26, 0.27), coat, 0, 0.4, 0);
-    put(new THREE.TorusGeometry(0.1, 0.012, 3, 8, Math.PI), mat(0x3a5a4a), 0, 0.8, 0.08, body, [Math.PI * 0.6, 0, Math.PI]);
-    put(new THREE.BoxGeometry(0.06, 0.04, 0.01), mat(0x3a6ea5), 0.09, 0.73, 0.14);
+    if (scrubs) put(new THREE.BoxGeometry(0.08, 0.18, 0.02), scrubs, body, 0, 0.92, 0.118, [0.15, 0, 0]);
+    put(stack([[0.36, 0.17, 0.12], [0.7, 0.15, 0.108]], 10), coat, body);
+    put(new THREE.TorusGeometry(0.075, 0.009, 3, 8, Math.PI), mat(0x3a5a4a), body, 0, 0.98, 0.07, [Math.PI * 0.6, 0, Math.PI]);
+    put(new THREE.BoxGeometry(0.045, 0.03, 0.008), mat(0x3a6ea5), body, 0.08, 0.9, 0.125);
   }
 
-  // ---------- the head: eyes (white and pupil), eyebrows, a nose, a mouth, ears ----------
-  put(geo.head, skin, 0, 1.0, 0);
-  for (const s of [-1, 1]) {
-    put(geo.eyeWhite, white, s * 0.052, 1.025, 0.132);
-    put(geo.pupil, dark, s * 0.05, 1.023, 0.137);
-    put(geo.brow, hair, s * 0.055, 1.06, 0.13, body, [0, 0, s * -0.12]);
-    put(geo.ear, skin, s * 0.138, 1.0, -0.005, body, [0, s * 0.3, 0]);
+  // ---------- the head: a simple strong face ----------
+  const head = joint(body, 0, BODY.head);
+  put(geo.head, skin, head);
+  for (const sd of [-1, 1]) {
+    put(geo.eye, dark, head, sd * 0.036, 0.018, 0.093);
+    put(geo.brow, shade(hair, 0.9), head, sd * 0.037, 0.038, 0.092, [0, 0, sd * -0.15]);
+    put(geo.ear, skin, head, sd * 0.098, 0.0, -0.005, [0, sd * 0.3, 0]);
   }
-  put(geo.nose, skin, 0, 0.985, 0.138);
-
-  put(geo.mouth, mat(0x5a2a26), 0, 0.93, 0.127);
-
-  // ---------- arms (hang from shoulder pivots; the hand stays where weapons expect it) ----------
-  const armL = pivot(-0.215, 0.8);
-  const armR = pivot(0.215, 0.8);
-  for (const arm of [armL, armR]) {
-    const side = arm === armL ? -1 : 1;
-    put(geo.shoulder, top, 0, -0.01, 0, arm);
-    put(geo.upperArm, top, 0, 0, 0, arm);
-    put(geo.elbow, top, 0, -0.168, 0, arm);
-    put(geo.forearm, top, 0, 0, 0, arm);
-    put(geo.cuff, darker(top as THREE.MeshLambertMaterial), 0, 0, 0, arm);
-    put(geo.palm, skin, 0, -0.315, 0.008, arm);
-    for (const [k, dz] of [[0, 0.032], [1, 0.012], [2, -0.008], [3, -0.026]] as const)
-      put(geo.finger, skin, side * 0.003, -0.37 + (k === 0 || k === 3 ? 0.006 : 0), dz, arm, [0.12, 0, 0]);
-    put(geo.thumb, skin, side * -0.022, -0.305, 0.042, arm, [0.3, 0, side * 0.25], [0.8, 0.9, 0.8]);
-  }
-
-  // ---------- hair ----------
+  put(geo.nose, skin, head, 0, -0.012, 0.094);
+  put(geo.mouth, shade(skin as THREE.MeshLambertMaterial, 0.6), head, 0, -0.06, 0.084);
   switch (look.hair) {
-    case 1: // short: a cap of hair with a choppy fringe of locks and sideburns
-      put(geo.hairCap, hair, 0, 1.03, -0.01, body, [0, 0, 0], [1, 0.85, 1]);
-      for (let k = 0; k < 5; k++) put(geo.fringeLock, hair, -0.08 + k * 0.04, 1.095, 0.112, body, [Math.PI * 0.72, 0, (k - 2) * 0.12]);
-      for (const s of [-1, 1]) put(geo.sideburn, hair, s * 0.13, 1.0, 0.05);
+    case 1: // short: a cap of hair with a choppy fringe
+      // A short crop: the cap tipped back (the hairline across the forehead, the back down to the neck), a quiff on top.
+      put(geo.hairCap, hair, head, 0, 0.012, -0.012, [-0.22, 0, 0], [0.97, 1.0, 1.0]);
+      put(geo.fringeLock, hair, head, 0.0, 0.11, 0.06, [1.2, 0, 0], [2.2, 1.0, 1.6]);
       break;
-    case 2: // long: a cap, hair down the back, a fringe
-      put(geo.hairCap, hair, 0, 1.03, -0.01);
-      put(geo.hairBack, hair, 0, 0.92, -0.11);
-      for (let k = 0; k < 5; k++) put(geo.fringeLock, hair, -0.08 + k * 0.04, 1.095, 0.112, body, [Math.PI * 0.72, 0, (k - 2) * 0.1]);
-      for (const s of [-1, 1]) put(geo.hairBack, hair, s * 0.15, 0.94, -0.02, body, [0, 0, 0], [0.12, 0.8, 1.2]);
+    case 2: // long: down the back and over the ears
+      put(geo.hairCap, hair, head, 0, 0.012, -0.012, [-0.22, 0, 0], [0.99, 1.0, 1.02]);
+      put(geo.hairBack, hair, head, 0, -0.06, -0.07);
+      for (const sd of [-1, 1]) put(geo.hairBack, hair, head, sd * 0.095, -0.03, -0.01, [0, 0, 0], [0.12, 0.85, 1.3]);
       break;
     case 3: // mohawk
-      put(geo.mohawk, hair, 0, 1.18, -0.01);
+      put(geo.mohawk, hair, head, 0, 0.12, -0.01);
       break;
     case 4: // cap
-      put(geo.capTop, hair, 0, 1.13, 0);
-      put(geo.capBrim, hair, 0, 1.09, 0.15);
+      put(geo.capTop, hair, head, 0, 0.085, 0);
+      put(geo.capBrim, hair, head, 0, 0.06, 0.1);
       break;
     default: // bald
       break;
@@ -265,19 +235,34 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   // A hood pulled up over the head (thugs): a dome over the head and down the back of the neck, in its own colour.
   if (extra?.hood !== undefined) {
     const hood = mat(extra.hood);
-    put(new THREE.SphereGeometry(0.19, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.62), hood, 0, 1.0, -0.015, body, [0, 0, 0], [1.06, 1.12, 1.08]);
-    put(new THREE.BoxGeometry(0.3, 0.16, 0.12), hood, 0, 0.86, -0.1);
-    // The opening's rim around the face.
-    put(new THREE.TorusGeometry(0.15, 0.025, 4, 8, Math.PI * 1.2), hood, 0, 1.0, 0.11, body, [0, 0, -Math.PI * 0.1]);
+    put(new THREE.SphereGeometry(0.122, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.62), hood, head, 0, 0, -0.01, [0, 0, 0], [1.05, 1.12, 1.08]);
+    put(new THREE.BoxGeometry(0.2, 0.12, 0.08), hood, body, 0, 1.06, -0.07);
+    put(new THREE.TorusGeometry(0.1, 0.016, 4, 10, Math.PI * 1.2), hood, head, 0, 0, 0.075, [0, 0, -Math.PI * 0.1]);
   }
 
-  // Merge each pivot's parts per material into one mesh (a handful of draw calls per person instead of dozens).
+  // ---------- arms: shoulder → deltoid, sleeve, bicep → elbow → forearm → fist ----------
+  const arms = [-1, 1].map((sd) => {
+    const arm = joint(body, sd * BODY.shoulderX, BODY.shoulder);
+    const elbow = joint(arm, 0, BODY.elbow);
+    put(geo.deltoid, top, arm, sd * -0.012, -0.02, 0, [0, 0, 0], [0.95, 1.0, 1]);
+    put(geo.sleeve, top, arm);
+    put(geo.upperArm, skin, arm);
+    put(geo.forearm, skin, elbow);
+    put(geo.fist, skin, elbow, 0, BODY.fist, 0.006);
+    put(geo.thumb, skin, elbow, sd * -0.026, BODY.fist + 0.012, 0.036, [0.2, 0, sd * 0.2]);
+    return [arm, elbow] as const;
+  });
+  const hand = joint(arms[1][1], 0, BODY.fist);
+
+  // Merge each joint's parts per colour into one mesh, smooth-shaded with hard edges where the shape turns sharply.
   for (const [parent, byMat] of parts)
     for (const [m, list] of byMat) {
       const merged = mergeGeometries(list, false);
       list.forEach((g) => g.dispose());
       if (!merged) continue;
-      const o = new THREE.Mesh(merged, m);
+      const smooth = toCreasedNormals(merged, 0.9);
+      merged.dispose();
+      const o = new THREE.Mesh(smooth, m);
       o.castShadow = true;
       parent.add(o);
     }
@@ -288,11 +273,15 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   blob.position.y = 0.012;
   root.add(blob);
 
-  root.userData.rig = { legL, legR, armL, armR, body } satisfies Rig;
+  root.userData.rig = {
+    legL: legs[0][0], legR: legs[1][0], kneeL: legs[0][1], kneeR: legs[1][1],
+    armL: arms[0][0], armR: arms[1][0], elbowL: arms[0][1], elbowR: arms[1][1],
+    head, hand, body,
+  } satisfies Rig;
   return root;
 }
 
-export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'swing';
+export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing';
 
 /**
  * Animate a character built by buildCharacter. `t` is time in ms; `phase` offsets different characters.
@@ -309,6 +298,12 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
   let wobble = 0;
   let armRSide = 0;
   let twist = 0;
+  // The joints in the middle: knees (positive = the shin swings back) and elbows (negative = the forearm comes forward).
+  let kneeL = 0;
+  let kneeR = 0;
+  let elbowL = -0.12;
+  let elbowR = -0.12;
+  let sink = 0;
   if (pose === 'swing') {
     p = Math.min(1, Math.max(0, p));
     // A big two-handed swing: wind back to the side (first 40%), whip through (next 25%), follow through and
@@ -338,23 +333,42 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     armL = fw * 0.5; // the free hand comes along a little, close to the body
     twist = tw;
     bob = 0.01;
+    elbowR = -0.25;
+    elbowL = -0.6;
   } else if (pose === 'walk') {
-    legSwing = Math.sin(s * 11) * 0.65;
+    legSwing = Math.sin(s * 11) * 0.55;
     armL = -legSwing * 0.8;
     armR = legSwing * 0.8;
-    bob = Math.abs(Math.cos(s * 11)) * 0.035;
+    bob = Math.abs(Math.cos(s * 11)) * 0.03;
+    // The leg swinging back bends at the knee; the arms bend a little more as they swing forward.
+    kneeL = Math.max(0, Math.sin(s * 11 + 1.2)) * 0.75;
+    kneeR = Math.max(0, -Math.sin(s * 11 - 1.9)) * 0.75;
+    elbowL = -0.2 - Math.max(0, -armL) * 0.5;
+    elbowR = -0.2 - Math.max(0, -armR) * 0.5;
   } else if (pose === 'work') {
     // Reach forward with the right hand, little dips.
-    armR = -1.1 + Math.sin(s * 9) * 0.35;
+    armR = -0.8 + Math.sin(s * 9) * 0.3;
     armL = 0.15;
+    elbowR = -0.7 + Math.sin(s * 9) * 0.25;
     bob = Math.abs(Math.sin(s * 9)) * 0.02;
   } else if (pose === 'sit') {
     // On a bar stool, legs forward, swaying a little (one too many), raising a glass now and then.
+    // Thighs forward, shins hanging down from the knees.
     legSwing = -1.45;
+    kneeL = kneeR = 1.4;
     wobble = Math.sin(s * 1.3) * 0.07;
-    armR = Math.sin(s * 0.7) > 0.6 ? -1.6 : -0.5;
-    armL = -0.4;
+    armR = Math.sin(s * 0.7) > 0.6 ? -1.0 : -0.4;
+    elbowR = Math.sin(s * 0.7) > 0.6 ? -1.3 : -0.9;
+    armL = -0.3;
+    elbowL = -0.9;
     bob = 0.02;
+  } else if (pose === 'sitFloor') {
+    // Sitting on the floor, back to the wall, legs out in front, hands in the lap (Splinter).
+    legSwing = -1.5;
+    kneeL = kneeR = 0.25;
+    armL = armR = -0.35;
+    elbowL = elbowR = -0.9;
+    sink = -(BODY.hip - 0.08);
   } else if (pose === 'stunned') {
     wobble = Math.sin(s * 14) * 0.16;
     armL = -0.3;
@@ -366,13 +380,18 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     armL = Math.sin(s * 2.2) * 0.04;
     armR = -armL;
   }
+  const seated = pose === 'sit' || pose === 'sitFloor';
   rig.legL.rotation.x = legSwing;
-  rig.legR.rotation.x = pose === 'sit' ? legSwing : -legSwing; // sitting: both legs forward
+  rig.legR.rotation.x = seated ? legSwing : -legSwing; // sitting: both legs forward
+  rig.kneeL.rotation.x = kneeL;
+  rig.kneeR.rotation.x = kneeR;
+  rig.elbowL.rotation.x = elbowL;
+  rig.elbowR.rotation.x = elbowR;
   rig.armL.rotation.x = armL;
   rig.armR.rotation.x = armR;
   rig.armL.rotation.z = pose === 'swing' ? -0.1 : -armRSide; // a swing only moves the right arm out
   rig.armR.rotation.z = armRSide;
-  rig.body.position.y = bob;
+  rig.body.position.y = bob + sink;
   rig.body.rotation.z = wobble;
   rig.body.rotation.y = twist;
 }

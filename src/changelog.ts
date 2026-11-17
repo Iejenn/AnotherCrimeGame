@@ -18,7 +18,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Food lying on the ground looks like food now: raw meat, ribs, a ham, candy bars and sandwiches.',
       'New rats in the old-school style: crouched, spiky-backed, open-mouthed, with beady dark red eyes. The giant rats are bigger, darker versions.',
       'New pigeons (fat, with folded barred wings and the green neck) and new guard dogs (lean, spiked collar, bared teeth).',
-      'Everyone (you, the people in the city, thugs and bikers) is rebuilt with far more detail: a real face (eyes, eyebrows, nose, mouth, ears), hair with a fringe, shoulders, elbows and knees, fingers, a shirt with buttons and a pocket, a belt buckle, shoes with laces.',
+      'A new look for everyone (you, the people in the city, thugs and bikers): grown-up proportions, broad shoulders, T-shirts and bare forearms, real knees and elbows (you bend your knees when you walk, drunks sit properly on their stools), smooth shading.',
     ],
   },
   {

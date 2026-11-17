@@ -1043,8 +1043,8 @@ export function buildCity(scene: THREE.Scene) {
       add(own(new THREE.CylinderGeometry(0.05, 0.045, 0.14, 8)), lam(0xe0a030, { emissive: 0x8a5010, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }), f.x + 0.5, 0.73, cz + 0.18, false);
       add(own(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8)), lam(0xf2ece0), f.x + 0.5, 0.815, cz + 0.18, false);
       // A stool on the tile below (the drunk sits on it).
-      add(own(new THREE.CylinderGeometry(0.03, 0.04, 0.38, 6)), lam(0x2b2b2e), f.x + 0.5, 0.19, f.y + 1.45);
-      add(own(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), lam(0x7a2a1a), f.x + 0.5, 0.4, f.y + 1.45);
+      add(own(new THREE.CylinderGeometry(0.03, 0.04, 0.46, 6)), lam(0x2b2b2e), f.x + 0.5, 0.23, f.y + 1.45);
+      add(own(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), lam(0x7a2a1a), f.x + 0.5, 0.48, f.y + 1.45);
     }
     // Pendant lamps over the counter.
     for (let i = 0; i < 3; i++) {

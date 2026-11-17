@@ -561,12 +561,16 @@ const metalPiece = (id: string): [string, string] => {
  * and a helmet, a plate vest and leg guards, all in the metal's colour.
  */
 export function setGear(character: THREE.Group, equipment: Partial<Record<string, string>> | undefined) {
-  const rig = character.userData.rig as { armR: THREE.Object3D; legL: THREE.Object3D; legR: THREE.Object3D; body: THREE.Object3D } | undefined;
+  // (The human base model's joints, v0.45: weapons go in the right fist, the helmet on the head, the vest on the body,
+  // leg guards on the thighs and knees.)
+  const rig = character.userData.rig as
+    | { hand: THREE.Object3D; head: THREE.Object3D; legL: THREE.Object3D; legR: THREE.Object3D; kneeL: THREE.Object3D; kneeR: THREE.Object3D; body: THREE.Object3D }
+    | undefined;
   if (!rig) return;
   const key = ['weapon', 'head', 'body', 'legs'].map((k) => equipment?.[k] ?? '').join('|');
   if (character.userData.gearKey === key) return;
   character.userData.gearKey = key;
-  for (const holder of [rig.armR, rig.body, rig.legL, rig.legR]) for (const name of ['weapon', 'armour']) {
+  for (const holder of [rig.hand, rig.head, rig.body, rig.legL, rig.legR, rig.kneeL, rig.kneeR]) for (const name of ['weapon', 'armour']) {
     let o: THREE.Object3D | undefined;
     while ((o = holder.getObjectByName(name))) o.parent!.remove(o);
   }
@@ -576,12 +580,11 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
     const k = new THREE.Group();
     k.name = 'weapon';
     for (let i = 0; i < 4; i++) {
-      const ring = add(k, new THREE.TorusGeometry(0.022, 0.009, 4, 8), metal, -0.045 + i * 0.03, 0, 0.045, false);
+      const ring = add(k, new THREE.TorusGeometry(0.018, 0.008, 4, 8), metal, 0.02, 0.026 - i * 0.018, 0.04, false);
       ring.rotation.y = Math.PI / 2;
     }
-    add(k, boxGeo(0.12, 0.025, 0.025), metal, 0, -0.025, 0.045, false);
-    k.position.set(0, -0.31, 0);
-    rig.armR.add(k);
+    add(k, boxGeo(0.02, 0.075, 0.02), metal, 0.034, 0, 0.04, false);
+    rig.hand.add(k);
   } else if (wPiece === 'knife') {
     // A knife held point-forward: a dark handle with a guard, and a blade of the metal.
     const knife = new THREE.Group();
@@ -595,9 +598,9 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
       m.castShadow = true;
       knife.add(m);
     }
-    knife.position.set(0, -0.33, 0.03);
+    knife.position.set(0, 0, 0.02);
     knife.rotation.x = 1.4;
-    rig.armR.add(knife);
+    rig.hand.add(knife);
   } else if (wPiece === 'bat') {
     // A bat gripped in the right hand, pointing forward and up: grip tape, then the barrel (of the metal) thickening.
     const bat = new THREE.Group();
@@ -614,9 +617,9 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
       m.castShadow = true;
       bat.add(m);
     }
-    bat.position.set(0, -0.33, 0.04);
+    bat.position.set(0, 0, 0.03);
     bat.rotation.x = 1.2; // forward, a little up from the hanging arm
-    rig.armR.add(bat);
+    rig.hand.add(bat);
   }
   // Armour, in its metal's colour, with darker rivets/straps.
   const armour = (holder: THREE.Object3D) => {
@@ -628,28 +631,28 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
   const head = equipment?.head;
   if (head) {
     const col = METAL_COLORS[metalPiece(head)[0]] ?? 0xb8bcc2;
-    const g = armour(rig.body);
-    const dome = add(g, new THREE.SphereGeometry(0.195, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.55), col, 0, 1.03, -0.01); // (faceted, §18)
+    const g = armour(rig.head);
+    const dome = add(g, new THREE.SphereGeometry(0.122, 10, 4, 0, Math.PI * 2, 0, Math.PI * 0.55), col, 0, 0.03, -0.006);
     dome.scale.set(1.05, 1.0, 1.08);
-    add(g, boxGeo(0.4, 0.035, 0.06), col, 0, 1.03, 0.17, false); // the brim over the eyes
-    add(g, boxGeo(0.03, 0.08, 0.03), 0x4a4e54, 0, 1.19, 0.05, false); // a ridge rivet
+    add(g, boxGeo(0.25, 0.022, 0.04), col, 0, 0.03, 0.11, false); // the brim over the eyes
+    add(g, boxGeo(0.02, 0.05, 0.02), 0x4a4e54, 0, 0.13, 0.03, false); // a ridge rivet
   }
   const body = equipment?.body;
   if (body) {
     const col = METAL_COLORS[metalPiece(body)[0]] ?? 0xb8bcc2;
     const g = armour(rig.body);
-    add(g, boxGeo(0.36, 0.34, 0.06), col, 0, 0.68, 0.13); // chest plate
-    add(g, boxGeo(0.36, 0.34, 0.06), col, 0, 0.68, -0.13); // back plate
-    for (const x of [-0.17, 0.17]) add(g, boxGeo(0.04, 0.05, 0.3), 0x4a3a2e, x, 0.84, 0, false); // shoulder straps
-    for (const y of [0.6, 0.76]) add(g, boxGeo(0.37, 0.02, 0.07), 0x6a6e74, 0, y, 0.135, false);
+    add(g, boxGeo(0.33, 0.3, 0.05), col, 0, 0.86, 0.118).rotation.x = -0.05; // chest plate
+    add(g, boxGeo(0.33, 0.3, 0.05), col, 0, 0.86, -0.118); // back plate
+    for (const x of [-0.14, 0.14]) add(g, boxGeo(0.035, 0.04, 0.26), 0x4a3a2e, x, 1.01, 0, false); // shoulder straps
+    for (const y of [0.78, 0.92]) add(g, boxGeo(0.34, 0.016, 0.06), 0x6a6e74, 0, y, 0.124, false);
   }
   const legs = equipment?.legs;
   if (legs) {
     const col = METAL_COLORS[metalPiece(legs)[0]] ?? 0xb8bcc2;
-    for (const leg of [rig.legL, rig.legR]) {
-      const g = armour(leg);
-      add(g, boxGeo(0.17, 0.2, 0.05), col, 0, -0.12, 0.07); // thigh plate
-      add(g, boxGeo(0.15, 0.1, 0.04), col, 0, -0.27, 0.08); // knee guard
+    for (const [leg, knee] of [[rig.legL, rig.kneeL], [rig.legR, rig.kneeR]]) {
+      add(armour(leg), boxGeo(0.15, 0.2, 0.04), col, 0, -0.13, 0.085); // thigh plate
+      add(armour(knee), boxGeo(0.13, 0.09, 0.035), col, 0, -0.01, 0.075); // knee guard
+      add(armour(knee), boxGeo(0.12, 0.14, 0.03), col, 0, -0.14, 0.073); // shin plate
     }
   }
 }

@@ -881,7 +881,9 @@ or taken from an asset pack (then adapted). Goal: an old-school RuneScape feel. 
 game's camera, in our gritty dusk colours. Nothing smooth or detailed next to something blocky.
 
 ### Shape
-- **Low-poly and faceted.** Flat shading (no smooth normals) everywhere. You see the facets.
+- **Low-poly.** Props, buildings and creatures are flat-shaded: you see the facets. **People** are smooth-shaded with
+  hard edges only where the shape turns sharply (creased normals, ~50°): soft light across a chest or an arm, crisp at
+  the fists, shoes and jaw, like old-school RuneScape.
 - **Round things stay angular.** Circles and cylinders get **6–12 sides** (8 for most things), and spheres are
   **icosahedrons, at most 1 subdivision**. No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
 - **Chunky proportions** (RuneScape): slightly big heads, hands and feet on people, thick limbs. A clear silhouette
@@ -906,14 +908,19 @@ The first Blender rat (718) was over: that's why this section exists. **v0.45:**
 (`src/street/loft.ts`: `loft` for bodies, `limb` for legs, `spikes` for fur, claws, ears and teeth) after the OSRS rat
 and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard dog 449; people are faceted (6-sided
 limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
-**People are the most important asset** (you see them all the time), so they get the biggest budget, spent on detail and
-structure rather than smooth curves: a shaped head (chin, jaw, cheeks, brow) with eye whites and pupils, eyebrows, a nose,
-a mouth and ears; hair with a choppy fringe and sideburns; a neck and collar; a shirt with a placket, buttons and a chest
-pocket; a belt with a buckle; trouser pockets and cuffs; arms in a shoulder, an upper arm, an elbow, a forearm and a cuff;
-hands with four fingers and a thumb; legs in a thigh, a knee cap and a calf; shoes with a sole, a heel, a toe cap and
-laces: 2,240, about 2,700 in full armour. Human shaped, not blocky: limbs 8-sided and tapering (a bicep, a calf, a
-slim wrist and ankle), a real waist, sloping shoulders, rounded joints, shaped hands and shoes. Each person's parts are merged per limb and colour when they're built, so
-the detail costs only a handful of draw calls.
+**People are the most important asset** (you see them all the time). The human base model (v0.45, `character.ts`):
+learned from old-school RuneScape, not copied.
+- **Proportions:** about 1.32 tall (`BODY` in character.ts holds every joint's height). The head is about 1/6 of the
+  height, the legs about half, broad shoulders taper to the waist, the arms are long (the fists at mid-thigh).
+- **Joints:** hips, knees, shoulders, elbows, the head, and a point in the right fist where weapons go
+  (`userData.rig`: legL/R, kneeL/R, armL/R, elbowL/R, head, hand, body). Walking bends the knees, sitting bends them 90°,
+  `sitFloor` sits on the ground, punches and swings bend the elbows.
+- **Detail is shape:** a strong chest and shoulders, a T-shirt with short sleeves over bare forearms, a belt with a
+  buckle, slightly baggy trousers, shoes with a sole, fists with a thumb, a simple strong face (eye slits, brows, a
+  nose, a mouth line, ears), hair with a hairline. No buttons, laces or separate fingers: you can't see them from the
+  game's camera.
+- About 1,800 triangles, 2,300 in full armour. Each person's parts are merged per joint and colour when they're built,
+  so the detail costs a handful of draw calls.
 
 ### Colour and material
 - **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney
