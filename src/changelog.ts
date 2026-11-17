@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.44.2',
+    date: '2026-11-17',
+    title: 'Dropping in the game',
+    items: ['Dropping an item asks "Gone for good?" right in your bag (Drop / Keep) instead of a browser pop-up.', 'Selling to Eddy or Ray, and putting things in the bank: you tap them in your bag at the bottom (it opens by itself), no second bag in the window.'],
+  },
+  {
     version: '0.44.1',
     date: '2026-11-17',
     title: 'Health on the minimap',

@@ -2,7 +2,8 @@
 // bottom panel (tap the open one again to hide it: the street gets the whole screen, the last two log lines stay);
 // worn gear, quests, highscores and settings open a popup over the street. Your health is the heart by the minimap.
 // Every rule runs on the server (useOnlineGame); this screen only shows the game and passes on what you do.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useCurrentBagHandler } from './bagHandler';
 import type { GameState, Report, SkillId, Toast } from '../game/types';
 import type { GameApi } from '../game/api';
 import { INVENTORY_SLOTS, slotsUsed } from '../game/engine';
@@ -38,6 +39,11 @@ export function GameScreen(p: GameScreenProps) {
   const [skill, setSkill] = useState<SkillId | null>(null);
   const bagFull = slotsUsed(state) >= INVENTORY_SLOTS;
   const close = () => setPopup(null);
+  // A shop's Sell screen or the bank opened: show your bag at the bottom, that's where you pick from.
+  const bagHandler = useCurrentBagHandler();
+  useEffect(() => {
+    if (bagHandler) setPanel('bag');
+  }, [bagHandler !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bar = (
     <IconBar

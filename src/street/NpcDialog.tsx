@@ -1,14 +1,15 @@
 // Talking to a shopkeeper: Eddy at the General Store, or Ray at Ray's Arms. RuneScape-style: a greeting with
 // numbered options, then the Buy panel (their stock: tap to hear the price, tap again to buy) or, at Eddy's,
 // Sell (your bag: tap an item to hear his price, tap it again to sell one). The server checks every sale.
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useBagHandler } from '../components/bagHandler';
 import type { GameState } from '../game/types';
 import type { Npc } from './map';
 import { ITEM_BY_ID, SHOPS, buyerOf } from '../game/data/items';
 import { ItemIcon } from '../components/ItemIcon';
 import { fmtMoney, itemPrice } from '../game/engine';
 import type { GameApi } from '../game/api';
-import { Bag, bagSlots, slotKey } from '../components/Bag';
+import { bagSlots, slotKey } from '../components/Bag';
 
 const GREETINGS: Record<string, string[]> = {
   eddy: [
@@ -83,6 +84,12 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
     setLine(`I'll give you ${fmtMoney(itemPrice(slot.id))} for the ${def.name}. Tap it again to sell.`);
   };
 
+  // Selling: you pick from your bag at the bottom of the screen (no second bag in here).
+  const offerRef = useRef(offer);
+  offerRef.current = offer;
+  const pickToSell = useCallback((k: string) => offerRef.current(k), []);
+  useBagHandler(useMemo(() => (mode === 'sell' ? { line, selected: sel, pick: pickToSell } : null), [mode, line, sel, pickToSell]));
+
   return (
     <div className="npc-dialog" role="dialog" aria-label={`Talking to ${npc.name}`} onPointerDown={(e) => e.stopPropagation()}>
       <div className="npc-head">
@@ -153,7 +160,7 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
       {mode === 'sell' && (
         <>
           <p className="npc-line">{line}</p>
-          <Bag s={s} selected={sel} onSelect={offer} compact />
+          <p className="muted small">Tap an item in your bag below.</p>
           <div className="npc-footer">
             <button className="btn small" onClick={() => setMode('greet')}>
               Back

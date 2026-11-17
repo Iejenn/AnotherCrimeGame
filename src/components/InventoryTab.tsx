@@ -11,6 +11,7 @@ import { ItemIcon } from './ItemIcon';
 import { armourBonus, maxHit, myCombatLevel, weaponStats } from '../game/combat';
 import { skillLevel } from '../game/engine';
 import { COMBOS, findCombo } from '../game/data/combos';
+import { useCurrentBagHandler } from './bagHandler';
 
 export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
   // Nothing selected at first. The cash slot shows your cash itself, so tapping it opens nothing (no extra panel).
@@ -18,6 +19,8 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
   // "Use": the item you're using; the next item you tap is the one you use it on.
   const [using, setUsing] = useState<string | null>(null);
   const [useMsg, setUseMsg] = useState<string | null>(null);
+  // Dropping asks first, in the game itself (not the browser's pop-up): the Drop button turns into "Drop it? Yes / No".
+  const [dropAsk, setDropAsk] = useState(false);
   const pick = (k: string) => {
     if (using) {
       const on = bagSlots(s).find((sl) => slotKey(sl) === k);
@@ -32,6 +35,7 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
       return;
     }
     setUseMsg(null);
+    setDropAsk(false);
     setSel(k === sel ? null : k);
   };
   const slots = bagSlots(s);
@@ -40,6 +44,8 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
   const now = gameNow();
 
   const used = slotsUsed(s);
+  // A shop's Sell screen or the bank is open: tapping goes there.
+  const handler = useCurrentBagHandler();
 
   return (
     <div className="inventory bag-panel">
@@ -52,7 +58,9 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
         <span className="money mono small">{fmtMoney(s.cash)}</span>
       </div>
       {/* What you tapped, and what you can do with it (one line, above the grid). */}
-      {using ? (
+      {handler ? (
+        <div className="item-strip use-hint small">{handler.line}</div>
+      ) : using ? (
         <div className="item-strip">
           <span className="use-hint small">Use the {ITEM_BY_ID[using]?.name} on… (tap an item)</span>
           <button className="btn tiny" onClick={() => setUsing(null)}>
@@ -95,16 +103,28 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
                     Use
                   </button>
                 )}
-                {!def.quest && (
-                  <button
-                    className="btn tiny"
-                    onClick={() => {
-                      if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
-                    }}
-                  >
-                    Drop
-                  </button>
-                )}
+                {!def.quest &&
+                  (dropAsk ? (
+                    <>
+                      <span className="warn small">Gone for good?</span>
+                      <button
+                        className="btn tiny danger"
+                        onClick={() => {
+                          setDropAsk(false);
+                          api.drop(selected.id);
+                        }}
+                      >
+                        Drop
+                      </button>
+                      <button className="btn tiny" onClick={() => setDropAsk(false)}>
+                        Keep
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn tiny" onClick={() => setDropAsk(true)}>
+                      Drop
+                    </button>
+                  ))}
               </span>
             </div>
           );
@@ -112,7 +132,7 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
       ) : (
         <div className="item-strip muted small">{useMsg ?? 'Tap an item to use it.'}</div>
       )}
-      <Bag s={s} selected={selected ? sel : null} onSelect={pick} mini />
+      <Bag s={s} selected={handler ? handler.selected : selected ? sel : null} onSelect={handler ? handler.pick : pick} mini />
     </div>
   );
 }

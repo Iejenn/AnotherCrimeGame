@@ -667,3 +667,5 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hp-heart svg { display: none; }
 .hp-heart .mono { margin-top: 0; font-size: 0.9rem; }
 .hp-heart.low { animation: hp-pulse 1s ease-in-out infinite; }
+.btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.item-strip-btns { align-items: center; }
