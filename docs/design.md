@@ -873,3 +873,76 @@ log in and in chat).
 - **The log strip:** whenever the full chat isn't open, the last two lines of the log stay over the bottom of the street.
 - **The bag** uses bank-sized slots, 10 across; tap an item and its buttons (Wield, Eat, Use, Drop) show in one line.
 - The normal arrow cursor everywhere (no hand).
+
+## 18. The look: rules for every 3D model (the art red line)
+
+Every model in the game follows these rules, whoever makes it: built in code, made in Blender (by script or by hand),
+or taken from an asset pack (then adapted). Goal: an old-school RuneScape feel. Chunky, faceted, readable from the
+game's camera, in our gritty dusk colours. Nothing smooth or detailed next to something blocky.
+
+### Shape
+- **Low-poly.** Props, buildings and creatures are flat-shaded: you see the facets. **People** are smooth-shaded with
+  hard edges only where the shape turns sharply (creased normals, ~50°): soft light across a chest or an arm, crisp at
+  the fists, shoes and jaw, like old-school RuneScape.
+- **Round things stay angular.** Circles and cylinders get **6–12 sides** (8 for most things), and spheres are
+  **icosahedrons, at most 1 subdivision**. No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
+- **Chunky proportions** (RuneScape): slightly big heads, hands and feet on people, thick limbs. A clear silhouette
+  matters more than detail; detail you can't see from the game's camera (about 15 tiles away, looking down) isn't made.
+- **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
+  Models stand on the floor at their origin.
+
+### Triangle budgets (the maximum; less is better)
+| Kind | Examples | Max triangles |
+|---|---|---|
+| Small item | food, loot, bottles, cans, a key | 200 |
+| Prop / furniture | pallet, stool, table, dumpster, barrier, TV | 300 |
+| Small creature | rat, pigeon | 400 |
+| Medium creature | guard dog, giant rat | 600 |
+| Person | you, NPCs, thugs, bikers: the asset you look at most. Spend it on detail and structure (joints, a face, hands, clothes), not smooth curves; human shaped, not blocky | 2,300 (+ up to 500 for worn gear) |
+| Vehicle | car, truck, motorbike | 800 |
+| Building | one building, all its parts | 1,500 |
+
+Measured on 2026-11-17 (`scripts/preview/models.html` counts them): the Kenney food is 44–176 and its furniture 60–280;
+the urban kit's props are 4–124 (trucks 48: they use a texture). Our code-built pigeon is 304, rat 632, dog 460.
+The first Blender rat (718) was over: that's why this section exists. **v0.45:** the creatures are rebuilt from rings
+(`src/street/loft.ts`: `loft` for bodies, `limb` for legs, `spikes` for fur, claws, ears and teeth) after the OSRS rat
+and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard dog 449; people are faceted (6-sided
+limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
+**People are the most important asset** (you see them all the time). The human base model (v0.45, `character.ts`):
+learned from old-school RuneScape, not copied.
+- **Proportions:** about 1.32 tall (`BODY` in character.ts holds every joint's height). The head is about 1/6 of the
+  height, the legs about half, broad shoulders taper to the waist, the arms are long (the fists at mid-thigh).
+- **Joints:** hips, knees, shoulders, elbows, the head, and a point in the right fist where weapons go
+  (`userData.rig`: legL/R, kneeL/R, armL/R, elbowL/R, head, hand, body). Walking bends the knees, sitting bends them 90°,
+  `sitFloor` sits on the ground, punches and swings bend the elbows.
+- **Detail is shape:** a strong chest and shoulders (the chest is 8 flat planes with hard edges, not a round barrel), a T-shirt with short sleeves over bare forearms, a belt with a
+  buckle, slightly baggy trousers, shoes with a sole, fists with a thumb, a simple strong face (eye slits, brows, a
+  nose, a mouth line, ears), hair with a hairline. Hair is built on the head's own rings, a little bigger all round, so
+  the head never pokes through (no loose domes). No buttons, laces or separate fingers: you can't see them from the
+  game's camera.
+- **Job clothes** (`Outfit` in character.ts), fitted to the same body: shopkeepers and the bartender wear an apron (a bib
+  on a neck strap, a skirt to the thighs); bankers a suit (jacket, white shirt, tie); guards a uniform (badge, shoulder
+  straps); doctors a long coat over scrubs; thugs a hoodie (the hood up, a front pocket); bikers an open leather vest;
+  Splinter an old army jacket. Jackets, coats, hoodies, suits and uniforms have long sleeves.
+- About 1,800 triangles, 2,300 in full armour. Each person's parts are merged per joint and colour when they're built,
+  so the detail costs a handful of draw calls.
+
+### Colour and material
+- **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney
+  packs' small palette or colormap textures, and the Retro Urban Kit's textures, which are dimmed (`tone: 'grimy'`).
+- **Matte:** roughness 1, metalness 0. Nothing shiny.
+- **Our palette:** the dusk colours in `city.ts` (`C`): brick, grimy concrete, soot, muted trims. Bright pack colours
+  are toned down when they load (`models.ts`: `dull`, `dark`, `grimy`). Strong colour is kept for what must catch
+  the eye: neon signs, lamps, eyes, hazard stripes, the metals of gear.
+- **Glow** (emissive) only for lights, screens, neon and creatures' eyes.
+
+### Files and parts
+- **.glb**, at most **100 KB** each, in `public/models/<pack or kind>/`. Only models the game uses are copied in.
+- **Parts that move are separate objects**, pivoted where they bend, named like the code-built ones: `body`, `head`,
+  `leg_0`…`leg_3`, `tail`, `wing_l`/`wing_r`, so the game's animations work on them. People keep the rig names in
+  `character.ts` (arms, legs, body), so gear attaches.
+- **Sources:** Kenney (CC0) packs, adapted to these rules; our own models from Blender scripts in `scripts/blender/`
+  (Blender's Python package, `bpy`), which can be opened and tweaked by hand. Paid packs only after checking their
+  licence (Synty: not in a public repo, and not with AI-generated models; §17 history).
+- **Check before it goes in:** its triangle count and size (`scripts/preview/models.html`), and a screenshot next to
+  the models around it.

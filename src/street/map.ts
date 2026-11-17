@@ -362,7 +362,9 @@ export const HOTLINE_DUMPSTERS: [number, number][] = [[1, 0], [3, 0], [4, 2], [4
 export const JUNKYARD: Rect = block('I-007');
 export const JUNKYARD_GATE: [number, number][] = [[JUNKYARD.x1, JUNKYARD.y0 + 4], [JUNKYARD.x1, JUNKYARD.y0 + 5]];
 const JUNK: [number, number, FixtureKind][] = [
-  ...([[2, 0], [3, 0], [0, 2], [0, 3], [5, 6], [6, 6], [0, 8], [0, 9], [1, 9], [7, 9], [8, 9]] as const).map(([x, y]) => [x, y, 'wreck'] as [number, number, FixtureKind]),
+  ...([[0, 2], [0, 3], [0, 8], [0, 9], [1, 9], [7, 9], [8, 9]] as const).map(([x, y]) => [x, y, 'wreck'] as [number, number, FixtureKind]),
+  // (v0.45: two old trucks, each over two tiles, where crushed cars stood.)
+  ...([[2, 0], [3, 0], [5, 6], [6, 6]] as const).map(([x, y]) => [x, y, 'junktruck'] as [number, number, FixtureKind]),
   ...([[0, 0], [9, 0], [9, 2], [4, 9]] as const).map(([x, y]) => [x, y, 'tyres'] as [number, number, FixtureKind]),
   ...([[6, 0], [7, 0], [6, 1], [7, 1]] as const).map(([x, y]) => [x, y, 'crane'] as [number, number, FixtureKind]),
   [3, 3, 'doghouse'],
@@ -644,7 +646,7 @@ export const STATIONS: Station[] = [
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
 export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench' | 'bankcounter' | 'vault' | 'pillar'
-  | 'pipes' | 'wreck' | 'tyres' | 'crane' | 'doghouse' | 'clubbar' | 'pool' | 'clubtable' | 'clubjuke' | 'motorbike' | 'mound' | 'splinter';
+  | 'pipes' | 'wreck' | 'junktruck' | 'lottruck' | 'pallets' | 'tyres' | 'crane' | 'doghouse' | 'clubbar' | 'pool' | 'clubtable' | 'clubjuke' | 'motorbike' | 'mound' | 'splinter';
 export interface Fixture {
   x: number;
   y: number;
@@ -769,6 +771,9 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: NEST.x0, y: NEST.y0, kind: 'crate' }, { x: NEST.x1, y: NEST.y1, kind: 'crate' }, { x: NEST.x1, y: NEST.y0, kind: 'trash' }, { x: NEST.x0 + 2, y: NEST.y1, kind: 'trash' });
   out.push({ x: SPLINTER[0], y: SPLINTER[1], kind: 'splinter' });
 
+  // The Factory's parking lot (v0.45): a cargo truck parked by the hall, stacked pallets in the far corner.
+  for (const dx of [7, 8]) out.push({ x: FACTORY_LOT.x0 + dx, y: FACTORY_LOT.y0 + 2, kind: 'lottruck' });
+  for (const dx of [0, 1]) out.push({ x: FACTORY_LOT.x0 + dx, y: FACTORY_LOT.y1, kind: 'pallets' });
   // The Factory: crates stacked at the back.
   for (const dx of [2, 3, 6, 7]) out.push({ x: FACTORY.x0 + dx, y: FACTORY.y0, kind: 'crate' });
 

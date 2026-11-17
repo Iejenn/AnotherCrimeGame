@@ -21,8 +21,8 @@ function Preview({ look }: { look: Look }) {
     sun.position.set(2, 4, 3);
     scene.add(sun);
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    camera.position.set(0, 1.0, 3.4);
-    camera.lookAt(0, 0.62, 0);
+    camera.position.set(0, 1.1, 3.6);
+    camera.lookAt(0, 0.7, 0);
     const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshLambertMaterial({ color: 0xd8d4cb }));
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);

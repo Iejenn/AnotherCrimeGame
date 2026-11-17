@@ -46,11 +46,11 @@ const THUG_LOOKS: Look[] = [
   { skin: 3, hair: 0, hairColor: 0, top: 3, bottom: 3 },
   { skin: 1, hair: 0, hairColor: 0, top: 3, bottom: 1 },
 ];
-/** The bikers (v0.43): leather (black tops), beards, a bandana; copper knuckles. */
+/** The bikers: open black leather vests over white, red or grey T-shirts, dark jeans; copper knuckles. */
 const BIKER_LOOKS: Look[] = [
-  { skin: 1, hair: 3, hairColor: 0, top: 3, bottom: 3 },
-  { skin: 2, hair: 1, hairColor: 1, top: 3, bottom: 0 },
-  { skin: 0, hair: 3, hairColor: 2, top: 3, bottom: 3 },
+  { skin: 1, hair: 3, hairColor: 0, top: 4, bottom: 0 },
+  { skin: 2, hair: 1, hairColor: 1, top: 0, bottom: 0 },
+  { skin: 0, hair: 3, hairColor: 2, top: 4, bottom: 3 },
 ];
 let thugCount = 0;
 let bikerCount = 0;
@@ -60,7 +60,7 @@ function buildEnemy(kind: string): THREE.Group {
   if (kind === 'giant_rat') return buildGiantRat();
   if (kind === 'dog') return buildDog();
   if (kind === 'biker') {
-    const b = buildCharacter(BIKER_LOOKS[bikerCount++ % BIKER_LOOKS.length], { apron: 0x2a2220 });
+    const b = buildCharacter(BIKER_LOOKS[bikerCount++ % BIKER_LOOKS.length], { vest: 0x1e1b18 });
     setGear(b, { weapon: 'copper_knuckles' });
     return b;
   }
@@ -276,13 +276,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     // People on the street use the same model as your character, with a random (but fixed) look.
     const lookRng = mulberry32(99);
     // People are small and move, so each gets a bigger invisible tap area (easier on phones).
-    const hitGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.9, 8); // up to just under their name label
+    const hitGeo = new THREE.CylinderGeometry(0.42, 0.42, 2.1, 8); // up to just under their name label
     const hitMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
     geoms.push(hitGeo);
     disposables.push(hitMat);
     const addHitArea = (g: THREE.Group) => {
       const hit = new THREE.Mesh(hitGeo, hitMat);
-      hit.position.y = 0.95;
+      hit.position.y = 1.05;
       g.add(hit);
     };
     const people = new Map<string, THREE.Group>();
@@ -309,7 +309,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       }
       g.position.copy(c);
       if (n.kind === 'car' && n.facing !== undefined) g.position.add(new THREE.Vector3(-Math.cos(n.facing), 0, Math.sin(n.facing)).multiplyScalar(0.45));
-      if (n.seated) g.position.y = 0.06;
+      if (n.seated) g.position.y = -0.05; // (on the bar stool's seat, v0.45 body)
       if (n.facing !== undefined) g.rotation.y = n.facing;
       g.traverse((o) => (o.userData.nodeId = n.id));
       scene.add(g);
@@ -340,23 +340,23 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       return tileOf(w.pos.x, w.pos.z);
     };
     const NPC_LOOKS: Record<string, [Parameters<typeof buildCharacter>[0], Parameters<typeof buildCharacter>[1]]> = {
-      eddy: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xf2efe8 }], // flat cap, green top, white apron
+      eddy: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xe8e2d4 }], // flat cap, green top, white apron
       baller_0: [{ skin: 3, hair: 0, hairColor: 0, top: 4, bottom: 1 }, undefined],
       baller_1: [{ skin: 0, hair: 1, hairColor: 2, top: 1, bottom: 3 }, undefined],
       candy_clerk: [{ skin: 2, hair: 2, hairColor: 3, top: 5, bottom: 0 }, { apron: 0xff7ab8 }], // pink apron
       bartender: [{ skin: 1, hair: 0, hairColor: 0, top: 4, bottom: 0 }, { apron: 0x1e1b18 }], // white shirt, black apron
-      guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, undefined], // navy uniform and cap
+      guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, { uniform: true }], // navy uniform and cap
       gas_clerk: [{ skin: 4, hair: 1, hairColor: 0, top: 0, bottom: 1 }, { apron: 0x2a4a7a }], // red shirt, blue apron
       receptionist: [{ skin: 1, hair: 2, hairColor: 2, top: 1, bottom: 0 }, undefined], // blue blouse, long hair
       doctor_0: [{ skin: 1, hair: 2, hairColor: 1, top: 4, bottom: 0 }, { scrubs: 0x2f6b4a, coat: true }], // green scrubs, white coat
-      // The bankers: dark suits, a white shirt under them (the "apron"); the bank's guard in a grey uniform.
-      banker_0: [{ skin: 1, hair: 1, hairColor: 0, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
-      banker_1: [{ skin: 3, hair: 2, hairColor: 0, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
-      banker_2: [{ skin: 0, hair: 4, hairColor: 5, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
-      bank_guard: [{ skin: 4, hair: 4, hairColor: 0, top: 4, bottom: 3 }, undefined],
+      // The bankers: dark suits over white shirts, with ties; the bank's guard in a grey uniform.
+      banker_0: [{ skin: 1, hair: 1, hairColor: 0, top: 3, bottom: 0 }, { suit: 0xf2efe8 }],
+      banker_1: [{ skin: 3, hair: 2, hairColor: 0, top: 3, bottom: 0 }, { suit: 0xf2efe8 }],
+      banker_2: [{ skin: 0, hair: 4, hairColor: 5, top: 3, bottom: 0 }, { suit: 0xf2efe8 }],
+      bank_guard: [{ skin: 4, hair: 4, hairColor: 0, top: 4, bottom: 3 }, { uniform: true }],
       doctor_1: [{ skin: 2, hair: 1, hairColor: 0, top: 4, bottom: 0 }, { scrubs: 0x7ab0d8, coat: true }], // light blue scrubs, white coat
       // Splinter: a filthy old army jacket, a cap, a beard (sits against the sewer wall).
-      splinter: [{ skin: 1, hair: 4, hairColor: 1, top: 3, bottom: 3 }, { apron: 0x4a4a32 }],
+      splinter: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 3 }, { jacket: 0x4e5236 }],
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
@@ -1506,17 +1506,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
         // Splinter sits on the floor against the wall, his back to it (he can't feel his legs).
         if (npc.kind === 'splinter') {
-          g.position.y -= 0.42;
-          g.position.z -= 0.15;
+          g.position.z -= 0.2;
           g.rotation.y = 0;
-          g.rotation.x = -0.25; // leaning back against the wall
-          animateCharacter(g, 'sit', now, 1.1);
-          // Not a drunk on a stool: no swaying, no glass, his hands in his lap.
-          const rig = g.userData.rig as { armL: THREE.Object3D; armR: THREE.Object3D; body: THREE.Object3D } | undefined;
-          if (rig) {
-            rig.armL.rotation.x = rig.armR.rotation.x = -0.7;
-            rig.body.rotation.z = 0;
-          }
+          g.rotation.x = -0.2; // leaning back against the wall
+          animateCharacter(g, 'sitFloor', now, 1.1);
         } else animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
@@ -1728,7 +1721,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
             e.hpBar.style.display = show ? 'block' : 'none';
             if (show) {
               // Above their name label (which sits at 1.55), not on top of it.
-              const [bx, by, depth] = project(lift(e.pos, 1.55));
+              const [bx, by, depth] = project(lift(e.pos, 1.7));
               e.hpBar.style.transform = `translate(${bx}px, ${by - 20}px) translate(-50%, -100%)`;
               e.hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
               (e.hpBar.firstChild as HTMLElement).style.width = `${Math.max(0, Math.min(1, hpNow / os.maxHp)) * 100}%`;
@@ -1826,7 +1819,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const v = enemyViews.get(e.id);
         const k = ENEMY_KINDS[e.kind];
         if (!v || !v.g.visible || !k || flat(v.g.position) > LABEL_RANGE + 2) continue;
-        const [x, y, depth] = project(lift(v.g.position, e.kind === 'pigeon' ? 0.75 : 1.6));
+        const [x, y, depth] = project(lift(v.g.position, e.kind === 'pigeon' ? 0.75 : 1.7));
         if (depth > 1) continue;
         let el = labelEls.get(`enemy:${e.id}`);
         if (!el) {
@@ -1851,7 +1844,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       for (const [id, e] of others) {
         const o = list.find((x) => x.id === id);
         if (!o || flat(e.g.position) > NPC_LABEL_RANGE * 1.5) continue;
-        const [x, y, depth] = project(lift(e.g.position, 1.55));
+        const [x, y, depth] = project(lift(e.g.position, 1.7));
         if (depth > 1) continue;
         let el = labelEls.get(`player:${id}`);
         if (!el) {
@@ -1899,7 +1892,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           }
           const pos = pid === ch.myId ? me.pos : others.get(pid)?.g.position;
           if (!pos) continue;
-          const [x, y, depth] = project(lift(pos, 1.95));
+          const [x, y, depth] = project(lift(pos, 2.1));
           if (depth > 1) continue;
           let el = labelEls.get(`say:${pid}`);
           if (!el) {
@@ -1937,7 +1930,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         if (!npc.named) continue;
         const g = npcGroups.get(npc.id)!;
         let el = labelEls.get(`npc:${npc.id}`);
-        const [x, y, depth] = project(lift(g.position, 1.55));
+        const [x, y, depth] = project(lift(g.position, 1.7));
         if (flat(g.position) > NPC_LABEL_RANGE || depth > 1) continue;
         if (!el) {
           el = document.createElement('div');
@@ -1959,7 +1952,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         .slice(0, MAX_LABELS);
       for (const { n } of nearby) {
         const g = nodeGroups.get(n.id)!;
-        const [x, y, depth] = project(lift(g.position, n.kind === 'person' ? 1.45 : 1.2));
+        const [x, y, depth] = project(lift(g.position, n.kind === 'person' ? 1.6 : 1.2));
         if (depth > 1) continue;
         seen.add(n.id);
         let el = labelEls.get(n.id);
@@ -1999,7 +1992,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const show = now < hpBarUntil || hpNow / hpMax <= 0.3;
         hpBar.style.display = show ? 'block' : 'none';
         if (show) {
-          const [bx, by, depth] = project(lift(me.pos, 1.72));
+          const [bx, by, depth] = project(lift(me.pos, 1.87));
           hpBar.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
           hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
           hpFill.style.width = `${Math.max(0, Math.min(1, hpNow / hpMax)) * 100}%`;
@@ -2022,7 +2015,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               ? Math.max(0, Math.min(1, 1 - (mk.next - gameNow()) / ((CRAFT_BY_ID[mk.craft]?.ticks ?? 4) * 500)))
               : Math.max(0, Math.min(1, 1 - (ck!.next - gameNow()) / (COOK_TICKS * 500)));
           const hpShown = hpBar.style.display === 'block';
-          const [bx, by, depth] = project(lift(me.pos, 1.72));
+          const [bx, by, depth] = project(lift(me.pos, 1.87));
           cookBar.style.transform = `translate(${bx}px, ${by - (hpShown ? 10 : 0)}px) translate(-50%, -100%)`;
           cookBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
           cookFill.style.width = `${p * 100}%`;
@@ -2036,7 +2029,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const left = st.player.eatingUntil - gameNow();
         eatRingRef.current.style.setProperty('--eat', String(left > 0 ? Math.min(1, left / (st.fight ? 1500 : 500)) : 0));
       }
-      const [hx, hy] = project(lift(me.pos, 1.5));
+      const [hx, hy] = project(lift(me.pos, 1.65));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
       if (now - lastMini > 100) {

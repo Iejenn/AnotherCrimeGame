@@ -8,6 +8,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.45.0',
+    date: '2026-11-17',
+    title: 'New look for creatures and people',
+    items: [
+      'The Junkyard has two old trucks rusting among the wrecks, with pallets, planks and a broken barrier along the fence.',
+      'A truck is parked in the Factory\'s lot, with a stack of pallets in the corner.',
+      'Iron Saints MC: bar stools along the counter, round tables with stools, bottles and glasses, an old TV over the bar.',
+      'Food lying on the ground looks like food now: raw meat, ribs, a ham, candy bars and sandwiches.',
+      'New rats in the old-school style: crouched, spiky-backed, open-mouthed, with beady dark red eyes. The giant rats are bigger, darker versions.',
+      'New pigeons (fat, with folded barred wings and the green neck) and new guard dogs (lean, spiked collar, bared teeth).',
+      'A new look for everyone (you, the people in the city, thugs and bikers): grown-up proportions, broad shoulders, T-shirts and bare forearms, real knees and elbows (you bend your knees when you walk, drunks sit properly on their stools), smooth shading.',
+      'Everyone dresses for their job: shopkeepers in aprons, bankers in suits and ties, guards in uniforms with a badge, doctors in long coats, thugs in hoodies, bikers in open leather vests, Splinter in an old army jacket.',
+    ],
+  },
+  {
     version: '0.44.2',
     date: '2026-11-17',
     title: 'Dropping in the game',

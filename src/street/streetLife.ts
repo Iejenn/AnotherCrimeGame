@@ -6,6 +6,7 @@
 // Sizes are in tiles, at the characters' scale: a person is about 1.2 tall, one floor 1.45, a door 1.1.
 // Everything here is a plain THREE.Group placed with its front facing +z (towards the street, when it stands on
 // the north side), so callers only position and rotate it.
+import { withModel } from './models';
 import * as THREE from 'three';
 import { boxGeo, lambert } from './props';
 
@@ -452,6 +453,14 @@ export function buildBigCar(color: number) {
 // ---------------- things lying on the ground (loot) ----------------
 
 /** What an item looks like on the ground: meat, a few bills, or (for anything without its own look) a small bundle. */
+/** Food lying on the ground (loot): which Food Kit model, and its scale (the models are about half a tile). */
+const FOOD_MODELS: Record<string, [string, number]> = {
+  raw_bird_meat: ['meat-raw', 0.65], cooked_bird_meat: ['meat-cooked', 0.65],
+  raw_rat_meat: ['meat-raw', 0.6], cooked_rat_meat: ['meat-ribs', 0.6],
+  raw_giant_rat_meat: ['meat-raw', 1.0], cooked_giant_rat_meat: ['whole-ham', 0.7],
+  candy_bar: ['candy-bar', 1.2], sandwich: ['sandwich', 0.75],
+};
+
 export function buildGroundItem(item: string) {
   const g = new THREE.Group();
   if (item === 'cash') {
@@ -459,6 +468,10 @@ export function buildGroundItem(item: string) {
       const b = put(g, boxGeo(0.26, 0.015, 0.13), i % 2 ? 0x4f8455 : 0x6a9e68, (i - 1) * 0.04, 0.015 + i * 0.016, (i - 1) * 0.02, false);
       b.rotation.y = i * 0.5;
     }
+  } else if (FOOD_MODELS[item]) {
+    // Food on the ground: a model from Kenney's Food Kit (v0.45), toned down to our colours.
+    const [file, size] = FOOD_MODELS[item];
+    withModel(`food/${file}.glb`, { scale: size * 1.4, tone: 'dull' }, g);
   } else if (/^(raw|cooked)_(bird|rat)_meat$/.test(item)) {
     const raw = item.startsWith('raw_');
     put(g, new THREE.SphereGeometry(0.11, 8, 6), raw ? 0xe8a0a0 : 0x8a4a22, 0, 0.07, 0).scale.set(1.3, 0.6, 1);

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { buildCity, updateFades } from '../../src/street/city';
 import { animateCharacter, buildCharacter } from '../../src/street/character';
-import { buildBigCar } from '../../src/street/streetLife';
+import { buildBigCar, buildGroundItem } from '../../src/street/streetLife';
 import { buildDog, buildGiantRat, buildMeter, buildRat } from '../../src/street/props';
 import { NODES, NPCS, floorY } from '../../src/street/map';
 import { ROAMS, ratAt, roamAt, thugAt } from '../../src/game/enemies';
@@ -72,8 +72,8 @@ animateCharacter(you, 'idle', 0);
 scene.add(you);
 
 const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 400);
-const pitch = cam === 'low' ? 0.8 : cam === 'top' ? 1.5 : 1.16;
-const r = (cam === 'low' ? 11 : cam === 'far' ? 24 : cam === 'top' ? 62 : 15) * 1.25;
+const pitch = cam === 'low' || cam === 'close' ? 0.8 : cam === 'top' ? 1.5 : 1.16;
+const r = (cam === 'close' ? 5 : cam === 'low' ? 11 : cam === 'far' ? 24 : cam === 'top' ? 62 : 15) * 1.25;
 const target = cam === 'top' ? new THREE.Vector3(29, 0, 29) : new THREE.Vector3(x, floorY(x, z), z);
 camera.position.set(target.x + Math.sin(yaw) * r * Math.cos(pitch), target.y + r * Math.sin(pitch), target.z + Math.cos(yaw) * r * Math.cos(pitch));
 camera.lookAt(target);
@@ -118,11 +118,24 @@ for (const n of NPCS.filter((n) => n.kind === 'splinter')) {
   scene.add(g);
 }
 city.setGateOpen(q.get('gate') === 'open');
+// ?loot=1: food lying next to you (the Food Kit models).
+if (q.get('loot'))
+  ['raw_bird_meat', 'cooked_bird_meat', 'cooked_rat_meat', 'raw_giant_rat_meat', 'cooked_giant_rat_meat', 'candy_bar', 'sandwich'].forEach((it, i) => {
+    const g = buildGroundItem(it);
+    g.position.set(x - 1.5 + (i % 4) * 1, floorY(x, z) + 0.07, z + 1 + Math.floor(i / 4));
+    scene.add(g);
+  });
 // ?inside=hospital: as if you're inside that room (its walls faded, the roof off).
 const inside = q.get('inside');
 if (inside) {
   city.rooms.get(inside)!.force = true;
   for (let i = 0; i < 40; i++) updateFades(city.fadeables, camera, you.position, 0.05);
 }
-renderer.render(scene, camera);
-(window as unknown as { ready: boolean }).ready = true;
+// Models load in the background: keep rendering for a moment, then say we're ready.
+const t0 = performance.now();
+const tick = () => {
+  renderer.render(scene, camera);
+  if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
+  else (window as unknown as { ready: boolean }).ready = true;
+};
+tick();
