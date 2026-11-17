@@ -896,7 +896,7 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
 | Prop / furniture | pallet, stool, table, dumpster, barrier, TV | 300 |
 | Small creature | rat, pigeon | 400 |
 | Medium creature | guard dog, giant rat | 600 |
-| Person | you, NPCs, thugs, bikers (with gear) | 1,200 |
+| Person | you, NPCs, thugs, bikers (with gear; spend it on structure: joints, a face, hands) | 1,200 |
 | Vehicle | car, truck, motorbike | 800 |
 | Building | one building, all its parts | 1,500 |
 
@@ -906,6 +906,9 @@ The first Blender rat (718) was over: that's why this section exists. **v0.45:**
 (`src/street/loft.ts`: `loft` for bodies, `limb` for legs, `spikes` for fur, claws, ears and teeth) after the OSRS rat
 and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard dog 449; people are faceted (6-sided
 limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
+**People get structure, not curves** (they're who you look at and talk to): arms in an upper arm, an elbow and a forearm;
+legs in a thigh, a knee and a shin; shoulders, a chest, waist, belt and hips; a neck; a face with a nose and ears; a
+thumb; shoes with a toe cap: 686, about 1,150 in full armour. Detail and body structure beat smooth curves.
 
 ### Colour and material
 - **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney

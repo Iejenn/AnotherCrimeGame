@@ -21,14 +21,29 @@ export function randomLook(rng: () => number = Math.random): Look {
 export const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 // Shared geometry and materials: built once, reused by every character.
+// (Structure over smoothness, §18: limbs in two parts with a joint between them, a body built from chest, waist, belt
+// and hips, a neck, a face with a nose and ears, hands with a thumb, shoes with a toe cap; everything 6-sided.)
 const geo = {
-  leg: new THREE.CylinderGeometry(0.078, 0.066, 0.4, 6),
-  arm: new THREE.CylinderGeometry(0.06, 0.05, 0.3, 6),
-  // Wider at the shoulders than at the waist (a chunky, slightly top-heavy RuneScape torso).
-  torso: new THREE.CylinderGeometry(0.2, 0.155, 0.5, 6),
+  thigh: new THREE.CylinderGeometry(0.088, 0.072, 0.2, 6),
+  knee: new THREE.OctahedronGeometry(0.07),
+  shin: new THREE.CylinderGeometry(0.068, 0.056, 0.19, 6),
+  upperArm: new THREE.CylinderGeometry(0.064, 0.055, 0.16, 6),
+  elbow: new THREE.OctahedronGeometry(0.056),
+  forearm: new THREE.CylinderGeometry(0.052, 0.044, 0.14, 6),
+  shoulder: new THREE.IcosahedronGeometry(0.078, 0),
+  // The body: a broad chest (wider at the shoulders), a narrower waist, a belt, the hips.
+  chest: new THREE.CylinderGeometry(0.205, 0.165, 0.28, 6),
+  waist: new THREE.CylinderGeometry(0.16, 0.15, 0.1, 6),
+  belt: new THREE.CylinderGeometry(0.163, 0.163, 0.04, 6),
+  hips: new THREE.CylinderGeometry(0.162, 0.15, 0.11, 6),
+  neck: new THREE.CylinderGeometry(0.06, 0.068, 0.09, 6),
   head: new THREE.IcosahedronGeometry(0.17, 1),
-  hand: new THREE.BoxGeometry(0.085, 0.095, 0.085),
+  nose: new THREE.BoxGeometry(0.04, 0.055, 0.045),
+  ear: new THREE.BoxGeometry(0.03, 0.06, 0.045),
+  hand: new THREE.BoxGeometry(0.08, 0.09, 0.08),
+  thumb: new THREE.BoxGeometry(0.03, 0.045, 0.03),
   shoe: new THREE.BoxGeometry(0.13, 0.075, 0.2),
+  toe: new THREE.BoxGeometry(0.12, 0.055, 0.05),
   eye: new THREE.BoxGeometry(0.035, 0.035, 0.02),
   hairCap: new THREE.SphereGeometry(0.182, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.5),
   hairBack: new THREE.BoxGeometry(0.3, 0.32, 0.1),
@@ -86,13 +101,20 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   // Legs hang from hip pivots; shoes at the bottom.
   const legL = pivot(-0.085, 0.4);
   const legR = pivot(0.085, 0.4);
+  // Legs: a thigh, a knee, a shin; a shoe with a toe cap.
   for (const leg of [legL, legR]) {
-    mesh(geo.leg, bottom, 0, -0.19, 0, leg);
+    mesh(geo.thigh, bottom, 0, -0.1, 0, leg);
+    mesh(geo.knee, bottom, 0, -0.2, 0.008, leg);
+    mesh(geo.shin, bottom, 0, -0.29, 0.008, leg);
     mesh(geo.shoe, dark, 0, -0.37, 0.025, leg);
+    mesh(geo.toe, dark, 0, -0.38, 0.12, leg);
   }
-  // Torso (+ optional apron), head, eyes.
-  const torso = mesh(geo.torso, top, 0, 0.66, 0);
-  torso.scale.set(1, 1, 0.78);
+  // The body (+ optional apron): hips, a belt, the waist, a broad chest (a little flatter front to back).
+  mesh(geo.hips, bottom, 0, 0.445, 0).scale.set(1, 1, 0.8);
+  mesh(geo.belt, dark, 0, 0.515, 0).scale.set(1, 1, 0.8);
+  mesh(geo.waist, top, 0, 0.58, 0).scale.set(1, 1, 0.78);
+  mesh(geo.chest, top, 0, 0.77, 0).scale.set(1, 1, 0.78);
+  mesh(geo.neck, skin, 0, 0.93, 0);
   if (extra?.apron !== undefined) {
     const apron = mesh(new THREE.BoxGeometry(0.26, 0.34, 0.03), mat(extra.apron), 0, 0.6, 0.13);
     apron.castShadow = false;
@@ -105,15 +127,25 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
     mesh(new THREE.TorusGeometry(0.1, 0.012, 3, 8, Math.PI), mat(0x3a5a4a), 0, 0.8, 0.07).rotation.set(Math.PI * 0.6, 0, Math.PI);
     mesh(new THREE.BoxGeometry(0.06, 0.04, 0.01), mat(0x3a6ea5), 0.09, 0.73, 0.13).castShadow = false;
   }
+  // The head: eyes, a nose, ears.
   mesh(geo.head, skin, 0, 1.0, 0);
-  mesh(geo.eye, dark, -0.06, 1.02, 0.148);
-  mesh(geo.eye, dark, 0.06, 1.02, 0.148);
-  // Arms hang from shoulder pivots.
+  mesh(geo.eye, dark, -0.06, 1.02, 0.152);
+  mesh(geo.eye, dark, 0.06, 1.02, 0.152);
+  mesh(geo.nose, skin, 0, 0.97, 0.16);
+  mesh(geo.ear, skin, -0.165, 0.99, 0);
+  mesh(geo.ear, skin, 0.165, 0.99, 0);
+  // Arms hang from shoulder pivots: the shoulder, an upper arm, the elbow, a forearm, a hand with a thumb (the hand
+  // stays where it was, so weapons still sit in it).
   const armL = pivot(-0.215, 0.8);
   const armR = pivot(0.215, 0.8);
   for (const arm of [armL, armR]) {
-    mesh(geo.arm, top, 0, -0.14, 0, arm);
-    mesh(geo.hand, skin, 0, -0.3, 0, arm);
+    const side = arm === armL ? -1 : 1;
+    mesh(geo.shoulder, top, 0, -0.005, 0, arm);
+    mesh(geo.upperArm, top, 0, -0.085, 0, arm);
+    mesh(geo.elbow, top, 0, -0.165, 0, arm);
+    mesh(geo.forearm, top, 0, -0.235, 0.005, arm);
+    mesh(geo.hand, skin, 0, -0.31, 0.008, arm);
+    mesh(geo.thumb, skin, side * -0.04, -0.295, 0.04, arm);
   }
   // Hair styles.
   switch (look.hair) {
