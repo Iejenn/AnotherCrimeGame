@@ -1,27 +1,20 @@
-// The game itself: status bar (with the gear menu), tabs (Street, Inventory, Skills, Quests, Highscores), toasts.
+// The game itself (v0.44): the street fills the screen; along the bottom an icon bar. Chat, bag and skills swap the
+// bottom panel (tap the open one again to hide it: the street gets the whole screen, the last two log lines stay);
+// worn gear, quests, highscores and settings open a popup over the street. Your health is the heart by the minimap.
 // Every rule runs on the server (useOnlineGame); this screen only shows the game and passes on what you do.
 import { useState } from 'react';
-import type { GameState, Report, Toast } from '../game/types';
+import type { GameState, Report, SkillId, Toast } from '../game/types';
 import type { GameApi } from '../game/api';
-import { gameNow } from '../game/clock';
 import { INVENTORY_SLOTS, slotsUsed } from '../game/engine';
-import { StatusBar } from './StatusBar';
-import { InventoryTab } from './InventoryTab';
+import { BagPanel } from './InventoryTab';
 import { QuestsTab } from './QuestsTab';
-import { SkillsTab } from './SkillsTab';
+import { SkillGuide, SkillsPanel } from './SkillsTab';
 import { StartScreen } from './StartScreen';
 import { StreetView, type WorldLink } from '../street/StreetView';
 import type { ChatLink } from '../net/chat';
 import { HighscoresTab } from './HighscoresTab';
-
-type Tab = 'street' | 'inventory' | 'highscores' | 'quests' | 'skills';
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'street', label: 'Street' },
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'quests', label: 'Quests' },
-  { id: 'highscores', label: 'Highscores' },
-];
+import { IconBar, Popup, SettingsPopup, WornPopup, type Panel, type PopupId } from './Hud';
+import { SKILL_BY_ID } from '../game/data/skills';
 
 export interface GameScreenProps {
   state: GameState;
@@ -37,29 +30,47 @@ export interface GameScreenProps {
 }
 
 export function GameScreen(p: GameScreenProps) {
-  const [tab, setTab] = useState<Tab>('street');
   const { state } = p;
+  // (?panel= / ?popup= in the URL open one at the start: for previews and screenshots.)
+  const q = new URLSearchParams(location.search);
+  const [panel, setPanel] = useState<Panel | null>(() => (q.get('panel') === 'none' ? null : ((q.get('panel') as Panel) ?? 'chat')));
+  const [popup, setPopup] = useState<PopupId | null>(() => q.get('popup') as PopupId | null);
+  const [skill, setSkill] = useState<SkillId | null>(null);
   const bagFull = slotsUsed(state) >= INVENTORY_SLOTS;
+  const close = () => setPopup(null);
+
+  const bar = (
+    <IconBar
+      panel={panel}
+      popup={popup}
+      bagFull={bagFull}
+      onPanel={(id) => setPanel((cur) => (cur === id ? null : id))}
+      onPopup={(id) => setPopup((cur) => (cur === id ? null : id))}
+    />
+  );
+  const content = panel === 'bag' ? <BagPanel s={state} api={p.api} /> : panel === 'skills' ? <SkillsPanel s={state} onOpen={setSkill} /> : null;
+
   return (
-    <div className="app">
-      <StatusBar s={state} now={gameNow()} account={p.account} />
-      <nav className="tabs">
-        {TABS.map((t) => (
-          <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
-            {t.id === 'inventory' && bagFull && <span className="badge">Full</span>}
-          </button>
-        ))}
-      </nav>
-      <main className="content">
-        {tab === 'street' && <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} chat={p.chat} />}
-        {tab === 'inventory' && <InventoryTab s={state} api={p.api} />}
-        {tab === 'highscores' && (
+    <div className="game-app">
+      <StreetView s={state} api={p.api} onReport={p.onReport} world={p.world} chat={p.chat} hud={{ panel, content, bar }} />
+
+      {popup === 'worn' && <WornPopup s={state} api={p.api} onClose={close} />}
+      {popup === 'quests' && (
+        <Popup title="Quests" onClose={close}>
+          <QuestsTab s={state} />
+        </Popup>
+      )}
+      {popup === 'highscores' && (
+        <Popup title="Highscores" onClose={close} wide>
           <HighscoresTab myName={state.name} />
-        )}
-        {tab === 'quests' && <QuestsTab s={state} />}
-        {tab === 'skills' && <SkillsTab s={state} account={p.account} />}
-      </main>
+        </Popup>
+      )}
+      {popup === 'settings' && <SettingsPopup account={p.account} onClose={close} />}
+      {skill && (
+        <Popup title={SKILL_BY_ID[skill].name} onClose={() => setSkill(null)}>
+          <SkillGuide s={state} id={skill} />
+        </Popup>
+      )}
 
       {p.welcome && <StartScreen s={state} onClose={p.dismissWelcome} />}
 

@@ -1,4 +1,5 @@
-// RuneScape-style bag: 30 slots (5 × 6). Cash always sits in the first one, then one item per slot.
+// The bag (the bottom panel's backpack): 30 small slots, 10 across. Tap an item: its buttons show in a strip above the grid.
+// Your worn gear is in its own popup (EquipmentPopup).
 import { useState } from 'react';
 import type { GameState } from '../game/types';
 import { ITEM_BY_ID, buyerOf } from '../game/data/items';
@@ -11,7 +12,7 @@ import { armourBonus, maxHit, myCombatLevel, weaponStats } from '../game/combat'
 import { skillLevel } from '../game/engine';
 import { COMBOS, findCombo } from '../game/data/combos';
 
-export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
+export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
   // Nothing selected at first. The cash slot shows your cash itself, so tapping it opens nothing (no extra panel).
   const [sel, setSel] = useState<string | null>(null);
   // "Use": the item you're using; the next item you tap is the one you use it on.
@@ -38,92 +39,86 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
   const selected = found?.kind === 'loot' ? found : null;
   const now = gameNow();
 
+  const used = slotsUsed(s);
+
   return (
-    <div className="inventory">
-      <div className="section-head">
-        <h2 className="headline">Inventory</h2>
+    <div className="inventory bag-panel">
+      <div className="panel-head">
+        <span className="panel-title">Bag</span>
         <span className="muted mono small">
-          {slotsUsed(s)}/{INVENTORY_SLOTS} slots
+          {used}/{INVENTORY_SLOTS}
+          {used >= INVENTORY_SLOTS ? ' · full' : ''}
         </span>
+        <span className="money mono small">{fmtMoney(s.cash)}</span>
       </div>
-      <Bag s={s} selected={selected ? sel : null} onSelect={pick} />
-      {using && (
-        <p className="use-hint small">
-          Use the {ITEM_BY_ID[using]?.name} on… (tap an item){' '}
+      {/* What you tapped, and what you can do with it (one line, above the grid). */}
+      {using ? (
+        <div className="item-strip">
+          <span className="use-hint small">Use the {ITEM_BY_ID[using]?.name} on… (tap an item)</span>
           <button className="btn tiny" onClick={() => setUsing(null)}>
             Cancel
           </button>
-        </p>
-      )}
-      {useMsg && <p className="muted small">{useMsg}</p>}
-
-      {selected && !using && (
-        <div className="slot-detail">
-          {(() => {
-            const def = ITEM_BY_ID[selected.id];
-            const why = cantEat(s, selected.id, now);
-            return (
-              <>
-                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? (def.gear.slot === 'weapon' ? 'Weapon' : 'Armour') : def.quest ? 'Quest item' : 'Item'}</div>
-                <strong className="detail-name">{def.name}</strong>
-                {def.gear && def.gear.slot !== 'weapon' && (
-                  <p className="muted small">
-                    +{def.gear.defence ?? 0} defence{def.gear.needs && def.gear.needs.level > 1 ? `, needs Defense ${def.gear.needs.level}` : ''}. Never wears out.
-                  </p>
-                )}
-                {def.gear && def.gear.slot === 'weapon' && (
-                  <p className="muted small">
-                    +{(def.gear.damage ?? 1) - 1} damage over your fists, a swing every {((def.gear.speed ?? 3) * 0.5).toFixed(1)}s
-                    {def.gear.needs && def.gear.needs.level > 1 ? `, needs Melee ${def.gear.needs.level}` : ''}. Never wears out.
-                  </p>
-                )}
-                {itemPrice(selected.id) > 0 && (
-                  <p className="muted small">
-                    {buyerOf(selected.id) === 'ray' ? "Ray at Ray's Arms" : 'Eddy at the General Store'} pays {fmtMoney(itemPrice(selected.id))} for it.
-                  </p>
-                )}
-                <div className="save-row">
-                  {def.gear && (
-                    <button className="btn small primary" onClick={() => api.equip(selected.id)}>
-                      {def.gear.slot === 'weapon' ? 'Wield' : 'Wear'}
-                    </button>
-                  )}
-                  {def.heal > 0 && (
-                    <button className="btn small primary" disabled={!!why} title={why ?? ''} onClick={() => api.eat(selected.id)}>
-                      Eat (+{def.heal} HP)
-                    </button>
-                  )}
-                  {COMBOS.some((c) => c.a === selected.id || c.b === selected.id) && (
-                    <button className="btn small primary" onClick={() => setUsing(selected.id)}>
-                      Use
-                    </button>
-                  )}
-                  {!def.quest && (
-                    <button
-                      className="btn small"
-                      onClick={() => {
-                        if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
-                      }}
-                    >
-                      Drop
-                    </button>
-                  )}
-                </div>
-                {why && def.heal > 0 && <p className="muted small">{why}</p>}
-                {def.quest && <p className="muted small">You need this for a quest. It stays in your bag when you die.</p>}
-              </>
-            );
-          })()}
         </div>
+      ) : selected ? (
+        (() => {
+          const def = ITEM_BY_ID[selected.id];
+          const why = cantEat(s, selected.id, now);
+          const info = def.heal
+            ? `+${def.heal} HP`
+            : def.gear
+              ? def.gear.slot === 'weapon'
+                ? `max hit +${(def.gear.damage ?? 1) - 1}, ${((def.gear.speed ?? 3) * 0.5).toFixed(1)}s${def.gear.needs && def.gear.needs.level > 1 ? `, Melee ${def.gear.needs.level}` : ''}`
+                : `+${def.gear.defence ?? 0} defence${def.gear.needs && def.gear.needs.level > 1 ? `, Defense ${def.gear.needs.level}` : ''}`
+              : def.quest
+                ? 'quest item (kept when you die)'
+                : itemPrice(selected.id) > 0
+                  ? `${buyerOf(selected.id) === 'ray' ? 'Ray' : 'Eddy'} pays ${fmtMoney(itemPrice(selected.id))}`
+                  : '';
+          return (
+            <div className="item-strip">
+              <span className="item-strip-name">
+                <strong>{def.name}</strong> {info && <span className="muted small">{info}</span>}
+              </span>
+              <span className="item-strip-btns">
+                {def.gear && (
+                  <button className="btn tiny primary" onClick={() => api.equip(selected.id)}>
+                    {def.gear.slot === 'weapon' ? 'Wield' : 'Wear'}
+                  </button>
+                )}
+                {def.heal > 0 && (
+                  <button className="btn tiny primary" disabled={!!why} title={why ?? ''} onClick={() => api.eat(selected.id)}>
+                    Eat
+                  </button>
+                )}
+                {COMBOS.some((c) => c.a === selected.id || c.b === selected.id) && (
+                  <button className="btn tiny primary" onClick={() => setUsing(selected.id)}>
+                    Use
+                  </button>
+                )}
+                {!def.quest && (
+                  <button
+                    className="btn tiny"
+                    onClick={() => {
+                      if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
+                    }}
+                  >
+                    Drop
+                  </button>
+                )}
+              </span>
+            </div>
+          );
+        })()
+      ) : (
+        <div className="item-strip muted small">{useMsg ?? 'Tap an item to use it.'}</div>
       )}
-      {slotsUsed(s) >= INVENTORY_SLOTS && <p className="warn small">Your inventory is full.</p>}
-      <Equipment s={s} api={api} />
+      <Bag s={s} selected={selected ? sel : null} onSelect={pick} mini />
     </div>
   );
 }
 
 /** What you're wielding and wearing (docs/design.md §12, §14), and what it does for you in a fight. */
-function Equipment({ s, api }: { s: GameState; api: GameApi }) {
+export function Equipment({ s, api }: { s: GameState; api: GameApi }) {
   const w = weaponStats(s);
   const hit = maxHit(w.damage, skillLevel(s, 'melee'));
   const rows: { slot: 'weapon' | 'head' | 'body' | 'legs'; label: string; empty: string; info: (id: string) => string }[] = [

@@ -1,11 +1,11 @@
 // Skills: the five skills (levels 1–30 for now). Tap one for its guide: how to train it and,
 // for Street Crimes, every crime with its level and where to find it.
-import { useState } from 'react';
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
-import { crimeStats, fmtDuration, maxHp, rankFor, skillLevel, totalLevel } from '../game/engine';
-import { MAX_LEVEL, levelProgress } from '../game/xp';
+import { crimeStats, fmtDuration, maxHp, skillLevel, totalLevel } from '../game/engine';
+import { myCombatLevel } from '../game/combat';
+import { levelProgress } from '../game/xp';
 import { Bar, pct } from './ui';
 import { ITEM_BY_ID } from '../game/data/items';
 import type { CrimeDef } from '../game/data/crimes';
@@ -30,47 +30,42 @@ function risk(c: CrimeDef) {
   return `On a fail: ${hurt}`;
 }
 
-export function SkillsTab({ s, account }: { s: GameState; account: { email: string; onSignOut: () => void } }) {
-  const [open, setOpen] = useState<SkillId>('street');
-  const total = totalLevel(s);
-  const rank = rankFor(total);
-  const def = SKILL_BY_ID[open];
-  const lvl = skillLevel(s, open);
-  const lp = levelProgress(s.skills[open].xp);
-  const crimes = crimesForSkill(open);
-
+/** The skills in the bottom panel: a small grid (name and level); tap one for its guide (a popup). */
+export function SkillsPanel({ s, onOpen }: { s: GameState; onOpen: (id: SkillId) => void }) {
   return (
-    <div className="skills">
-      <div className="skills-head">
-        <h2 className="headline">{s.name}</h2>
-        <div className="skills-total">
-          <span className="stamp small">{rank.name}</span>
-          <span className="mono">Total level {total}</span>
-          {rank.next && (
-            <span className="muted small">
-              {rank.next[1]} at {rank.next[0]}
-            </span>
-          )}
-        </div>
+    <div className="skills-panel">
+      <div className="panel-head">
+        <span className="panel-title">Skills</span>
+        <span className="muted mono small">
+          Total {totalLevel(s)} · Combat {myCombatLevel(s)}
+        </span>
       </div>
-
-      <div className="skill-grid">
+      <div className="skill-grid mini">
         {SKILLS.map((sk) => {
           const p = levelProgress(s.skills[sk.id].xp);
           return (
-            <button key={sk.id} className={`skill-cell ${open === sk.id ? 'active' : ''}`} onClick={() => setOpen(sk.id)}>
+            <button key={sk.id} className="skill-cell" onClick={() => onOpen(sk.id)}>
               <span className="code">{sk.code}</span>
               <span className="skill-cell-name">{sk.name}</span>
-              <span className="num">
-                {p.level}
-                <span className="muted">/{MAX_LEVEL}</span>
-              </span>
+              <span className="num">{p.level}</span>
               <Bar pct={p.pct} />
             </button>
           );
         })}
       </div>
+    </div>
+  );
+}
 
+/** One skill's guide (the popup): your level and XP, how to train it, and its crimes or enemies. */
+export function SkillGuide({ s, id }: { s: GameState; id: SkillId }) {
+  const open = id;
+  const def = SKILL_BY_ID[open];
+  const lvl = skillLevel(s, open);
+  const lp = levelProgress(s.skills[open].xp);
+  const crimes = crimesForSkill(open);
+  return (
+    <div className="skills">
       <section className="skill-guide">
         <div className="kicker">Skill {def.code}</div>
         <h2 className="headline">
@@ -113,14 +108,6 @@ export function SkillsTab({ s, account }: { s: GameState; account: { email: stri
             })}
           </ol>
         )}
-      </section>
-
-      <section>
-        <h3 className="rule-head">Account</h3>
-        <p className="muted small">Your character is saved on the server, on every device you sign in on. Signed in as {account.email}.</p>
-        <div className="save-row">
-          <button className="btn small" onClick={account.onSignOut}>Sign out</button>
-        </div>
       </section>
     </div>
   );

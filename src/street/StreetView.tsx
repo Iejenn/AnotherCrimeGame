@@ -2,7 +2,7 @@
 // Tap the ground to walk. Tap a tourist, a gym bag, a shelf… to walk up and try it (one tap = one
 // attempt). NPCs live here too: Eddy in his store, players on the basketball court, and the people
 // who catch you (clerks, the bartender, the guard). Drag to rotate the camera, pinch (or wheel) to zoom.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
 import type { GameState, Look, Report } from '../game/types';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
@@ -163,7 +163,14 @@ function along(from: [number, number], path: [number, number][], dist: number) {
   return { x, z, moving: false, facing };
 }
 
-export function StreetView({ s, api, onReport, world, chat }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void; world?: WorldLink; chat?: ChatLink }) {
+/** The HUD around the street (v0.44): which bottom panel is open (null: hidden), its content, and the icon bar. */
+export interface Hud {
+  panel: 'chat' | 'bag' | 'skills' | null;
+  content: ReactNode;
+  bar: ReactNode;
+}
+
+export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameState; api: GameApi; onReport: (fn: (r: Report) => void) => () => void; world?: WorldLink; chat?: ChatLink; hud?: Hud }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
@@ -2072,11 +2079,23 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   // The game's messages for the chat box: what the Street tells you, and your log.
   const gameLines: Msg[] = [...msgs, ...s.log.slice(0, 40).map((l) => ({ t: l.t, text: l.text }))];
 
-  return (
+  // Your health, as a heart next to the minimap (rounded down, but never 0 while you're alive).
+  const exactHp = hpAt(s, now);
+  const hp = exactHp > 0 ? Math.max(1, Math.floor(exactHp)) : 0;
+  const hpMax = maxHp(s);
+  const chatBox = hud ? null : <ChatBox game={gameLines} chat={chat} myName={s.name} />;
+
+  const street = (
     <div className="street" ref={hostRef}>
       <div className="street-labels" ref={labelsRef} />
       <div className="street-floats" ref={floatsRef} />
       <div className="minimap-wrap">
+        <div className={`hp-heart ${hp <= Math.max(3, hpMax * 0.3) ? 'low' : ''}`} title={`Health ${hp}/${hpMax}. Food heals; it also comes back on its own, 1 per minute.`} aria-label={`Health ${hp} of ${hpMax}`}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 21 C5 15.5 2 12.3 2 8.3 C2 5.4 4.3 3.2 7 3.2 C9 3.2 10.9 4.4 12 6.2 C13.1 4.4 15 3.2 17 3.2 C19.7 3.2 22 5.4 22 8.3 C22 12.3 19 15.5 12 21 Z" />
+          </svg>
+          <span className="mono">{hp}</span>
+        </div>
         <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
         <button className="map-btn" onClick={() => setMapOpen(true)} aria-label="Open the world map" title="World map">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2121,7 +2140,21 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       {bankAt && <BankDialog s={s} api={api} pos={bankAt} onClose={() => setBankAt(null)} />}
       {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}
       <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
-      <ChatBox game={gameLines} chat={chat} myName={s.name} />
+      {chatBox}
+      {/* With the HUD: the last two lines of the log stay in view over the street, unless the full chat is open. */}
+      {hud && hud.panel !== 'chat' && <ChatBox game={gameLines} chat={chat} myName={s.name} strip />}
+    </div>
+  );
+  if (!hud) return street;
+  return (
+    <div className="game-view">
+      {street}
+      {hud.panel && (
+        <div className={`hud-panel panel-${hud.panel}`} onPointerDown={(e) => e.stopPropagation()}>
+          {hud.panel === 'chat' ? <ChatBox game={gameLines} chat={chat} myName={s.name} fixed /> : hud.content}
+        </div>
+      )}
+      {hud.bar}
     </div>
   );
 }

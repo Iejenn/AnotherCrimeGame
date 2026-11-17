@@ -589,3 +589,72 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .quest.active .quest-status { color: #e8c040; }
 .quest.done .quest-status { color: #6ac86a; }
 .use-hint { color: #e8c040; margin: 6px 0; }
+
+/* ---------- v0.44: the full-screen HUD ---------- */
+/* The street fills the screen; under it the bottom panel (chat, bag or skills; can be hidden) and the icon bar. */
+.game-app { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--ink); overflow: hidden; height: 100dvh; }
+.game-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.game-view .street { flex: 1; min-height: 0; height: auto; margin: 0; border: none; }
+/* The usual arrow cursor everywhere in the game (no hands), a text cursor in the chat. */
+.game-app, .game-app * { cursor: default !important; }
+.game-app input, .game-app textarea { cursor: text !important; }
+
+.hud-panel { flex: 0 0 auto; height: min(36vh, 290px); background: rgba(16, 14, 12, 0.98); border-top: 1px solid #6a6258; overflow-y: auto; overscroll-behavior: contain; }
+.hud-panel > * { max-width: 760px; margin: 0 auto; }
+.hud-panel.panel-chat { overflow: hidden; }
+.chat.in-panel { position: static; height: 100%; max-height: none; min-height: 0; border-top: none; background: none; }
+.panel-head { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px 4px; }
+.panel-title { font: 600 0.72rem var(--sans); text-transform: uppercase; letter-spacing: 0.12em; color: var(--paper); }
+.panel-head .money { margin-left: auto; }
+
+.hud-bar { flex: 0 0 auto; display: flex; justify-content: space-around; align-items: center; gap: 2px; padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); background: #12100e; border-top: 1px solid var(--rule-strong); }
+.hud-btn { position: relative; width: 46px; height: 42px; display: grid; place-items: center; background: none; border: none; border-radius: 6px; color: #a69e90; padding: 0; }
+.hud-btn svg { width: 26px; height: 26px; }
+.hud-btn.active { color: var(--paper); background: #2a2622; box-shadow: inset 0 -2px 0 var(--red); }
+.hud-dot { position: absolute; top: 6px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px #12100e; }
+
+/* The last two lines of the log, over the bottom of the street. */
+.chat-strip { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 14px 10px 4px; pointer-events: none; font: 0.78rem/1.35 var(--sans); color: #d6cfc1; background: linear-gradient(to bottom, transparent, rgba(16, 14, 12, 0.85) 45%); }
+.chat-strip .chat-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; }
+.game-view .quick-eat { bottom: 56px; }
+
+/* Health: a red heart with your HP, on the left of the minimap. */
+.hp-heart { position: absolute; left: -46px; bottom: 4px; width: 42px; height: 40px; display: grid; place-items: center; z-index: 1; pointer-events: none; }
+.hp-heart svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #c8322a; stroke: #141210; stroke-width: 1.2; filter: drop-shadow(0 2px 4px #000a); }
+.hp-heart .mono { position: relative; margin-top: -3px; font-weight: 700; font-size: 0.95rem; color: #fff; text-shadow: 0 1px 2px #000; }
+.hp-heart.low svg { animation: hp-pulse 1s ease-in-out infinite; }
+
+/* The bag in the panel: bank-sized slots, 10 across, and one line for what you tapped. */
+.bag-panel { padding-bottom: 6px; }
+.bag-mini { margin: 4px 8px 0; }
+.bank-slot.selected { border-color: var(--paper); box-shadow: inset 0 0 0 1px var(--paper); }
+.item-strip { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 2px 10px; }
+.item-strip-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-strip-btns { display: flex; gap: 4px; flex: 0 0 auto; }
+
+/* Skills in the panel: four across, the level on each. */
+.skills-panel { padding-bottom: 8px; }
+.skill-grid.mini { grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 2px 8px 0; }
+.skill-grid.mini .skill-cell { grid-template-columns: 1fr auto; padding: 6px 7px 5px; }
+.skill-grid.mini .code { display: none; }
+.skill-grid.mini .skill-cell-name { font-size: 0.78rem; }
+
+/* Popups over the street, like the world map. */
+.popup-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(10, 9, 8, 0.72); display: flex; align-items: center; justify-content: center; padding: 10px; }
+.popup { width: 100%; max-width: 560px; max-height: calc(100dvh - 20px); display: flex; flex-direction: column; background: var(--ink); border: 1px solid var(--rule-strong); border-top: 3px solid #d9a441; border-radius: 4px; box-shadow: 0 8px 30px #000c; }
+.popup.wide { max-width: 820px; }
+.popup-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 6px; border-bottom: 1px solid var(--rule); }
+.popup-head .headline { margin: 0; font-size: 1.3rem; }
+.popup-body { overflow-y: auto; overscroll-behavior: contain; padding: 8px 12px 14px; }
+.popup-body .section-head .headline { display: none; }
+.popup-body .skill-guide { margin-top: 0; }
+.settings-btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.changes { padding-left: 18px; margin: 4px 0; }
+.worn .char-preview { height: 230px; margin: 0 auto 4px; max-width: 320px; background: radial-gradient(circle at 50% 60%, #2a2622, #12100e 70%); border-radius: 4px; }
+.worn .equipment { margin-top: 0; }
+/* On wide screens the bag keeps phone-sized slots. */
+.hud-panel .bag-mini { max-width: 520px; }
+.hud-panel .bag-panel .item-strip, .hud-panel .bag-panel .panel-head { max-width: 540px; }
+/* The bag and skills panels are only as tall as what's in them (the street gets the rest); the chat keeps its height. */
+.hud-panel { height: auto; max-height: min(36vh, 290px); }
+.hud-panel.panel-chat { height: min(36vh, 290px); }

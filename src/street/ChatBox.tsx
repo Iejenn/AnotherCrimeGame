@@ -20,7 +20,7 @@ interface Line {
   mine?: boolean;
 }
 
-export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatLink; myName: string }) {
+export function ChatBox({ game, chat, myName, strip = false, fixed = false }: { game: GameLine[]; chat?: ChatLink; myName: string; strip?: boolean; fixed?: boolean }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [open, setOpen] = useState(true);
   const [text, setText] = useState('');
@@ -44,6 +44,19 @@ export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatL
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
 
+  // The thin strip (when the bottom panel shows something else, or nothing): the last two lines, read-only.
+  if (strip)
+    return (
+      <div className="chat-strip" aria-live="polite">
+        {lines.slice(-2).map((l) => (
+          <div key={l.key} className={`chat-line from-${l.kind}`}>
+            {l.name && <span className={`chat-name ${l.mine ? 'mine' : ''}`}>{l.name}: </span>}
+            <span>{l.text}</span>
+          </div>
+        ))}
+      </div>
+    );
+
   const send = async () => {
     const msg = text.trim();
     if (!msg || !chat || sending) return;
@@ -55,7 +68,7 @@ export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatL
   };
 
   return (
-    <div className={`chat ${open ? 'open' : 'folded'}`} onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
+    <div className={`chat ${open || fixed ? 'open' : 'folded'} ${fixed ? 'in-panel' : ''}`} onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
       {open && (
         <>
           <div className="chat-tabs" role="tablist">
@@ -111,9 +124,11 @@ export function ChatBox({ game, chat, myName }: { game: GameLine[]; chat?: ChatL
             Send
           </button>
         )}
-        <button type="button" className="chat-fold" onClick={() => setOpen((o) => !o)} aria-label={open ? 'Fold the chat down' : 'Open the chat'}>
-          {open ? '▾' : '▴'}
-        </button>
+        {!fixed && (
+          <button type="button" className="chat-fold" onClick={() => setOpen((o) => !o)} aria-label={open ? 'Fold the chat down' : 'Open the chat'}>
+            {open ? '▾' : '▴'}
+          </button>
+        )}
       </form>
     </div>
   );
