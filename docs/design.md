@@ -885,7 +885,9 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
   hard edges only where the shape turns sharply (creased normals, ~50°): soft light across a chest or an arm, crisp at
   the fists, shoes and jaw, like old-school RuneScape.
 - **Round things stay angular.** Circles and cylinders get **6–12 sides** (8 for most things), and spheres are
-  **icosahedrons, at most 1 subdivision**. No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
+  **icosahedrons, at most 1 subdivision**. (v0.46: the city's own pieces follow this too: `lam()` in city.ts is
+  flat-shaded by default, and the fountain, pond, bank vault and columns, sewer arch, manholes and wheels were cut to
+  at most 12 sides.) No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
 - **Chunky proportions** (RuneScape): slightly big heads, hands and feet on people, thick limbs. A clear silhouette
   matters more than detail; detail you can't see from the game's camera (about 15 tiles away, looking down) isn't made.
 - **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
@@ -925,8 +927,28 @@ learned from old-school RuneScape, not copied.
   on a neck strap, a skirt to the thighs); bankers a suit (jacket, white shirt, tie); guards a uniform (badge, shoulder
   straps); doctors a long coat over scrubs; thugs a hoodie (the hood up, a front pocket); bikers an open leather vest;
   Splinter an old army jacket. Jackets, coats, hoodies, suits and uniforms have long sleeves.
-- About 1,800 triangles, 2,300 in full armour. Each person's parts are merged per joint and colour when they're built,
-  so the detail costs a handful of draw calls.
+- About 1,800 triangles, 2,300 in full armour. Each person's parts are merged into **one mesh per joint** when they're
+  built (their colours painted on as vertex colours, one shared material): 11 meshes a person (v0.46; was 25), so the
+  detail costs few draw calls.
+
+### Loot on the ground (v0.46)
+Everything you can drop has a look (`buildGroundItem` in streetLife.ts): food from the Kenney Food Kit, cash as a few
+bills, and the rest built in code (`buildLoot` in props.ts), lying flat, about a third of a tile across, in the metal's
+colour: salvage is a small scrap heap (a bent pipe, a strip, a coil, a lump), a sheet two plates askew, and the gear the
+same shapes you wear and wield (knuckles, bat, knife, helmet, plate vest, leg guards). Quest items: the antidote is a
+green vial with a cork, the cooked antidote the ribs with green drops, the sewer key a big old iron key. All 36–188
+triangles (`scripts/preview/loot.html` shows them all with their counts). A new item gets its look here; without one
+it shows as a small brown bundle.
+
+### The whole scene (measured 2026-11-17, v0.46)
+With `scripts/preview/game.html` (dev builds expose the renderer as `window.__street`): about **50,000–61,000
+triangles a frame** (shadows included) in every busy spot, which is fine. **Draw calls:** 150–210 in most places, about
+**400 on the shopping street** (Eddy's, Ray's): most of that is ~290 small loose boxes (window frames, sills, shop
+trims) each drawn on its own. Next step when needed: merge the city's static details per material into a few meshes
+per area. Each other player adds ~22 (11 meshes, and their shadows); a creature ~20–45 (its parts aren't merged yet,
+so they can move).
+- Vehicles and trees, against a 1.2-tall person: a car 332 triangles, 2.8 long and 1.15 tall; the ambulance 440; a
+  street tree 144 and about 2.7 tall, a park tree about 2.2. All within budget; no change needed.
 
 ### Colour and material
 - **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney

@@ -172,7 +172,7 @@ export function buildGrave(): THREE.Group {
   add(g, boxGeo(0.05, 0.26, 0.02), 0x2b2b2e, 0, 0.36, -0.15, false);
   add(g, boxGeo(0.18, 0.05, 0.02), 0x2b2b2e, 0, 0.42, -0.15, false);
   const glow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.6, 16).rotateX(-Math.PI / 2),
+    new THREE.CircleGeometry(0.6, 12).rotateX(-Math.PI / 2),
     new THREE.MeshBasicMaterial({ color: 0xbfd8ff, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   glow.position.y = 0.09;
@@ -655,4 +655,102 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
       add(armour(knee), boxGeo(0.12, 0.14, 0.03), col, 0, -0.14, 0.073); // shin plate
     }
   }
+}
+
+// ---------- loot lying on the ground (v0.46): metal, gear and quest items ----------
+// Each one is a few chunky pieces, faceted, well under the item budget (200 triangles, docs/design.md §18), and about
+// a third of a tile across so it reads from the game's camera. The gear lies flat, the same shapes you wear and wield.
+// (Food uses Kenney's Food Kit, cash its bills: see buildGroundItem in streetLife.ts.)
+export function buildLoot(item: string): THREE.Group | null {
+  const g = new THREE.Group();
+  const [m, piece] = metalPiece(item);
+  const col = METAL_COLORS[m];
+  const dim = (c: number, f: number) => new THREE.Color(c).multiplyScalar(f).getHex();
+  if (col !== undefined) {
+    const dark = dim(col, 0.7);
+    if (piece === 'salvage') {
+      // A small heap of scrap: a bent pipe, a twisted strip, a coil, a crumpled lump.
+      const pipe = add(g, new THREE.CylinderGeometry(0.03, 0.03, 0.3, 6), col, -0.03, 0.04, 0.02);
+      pipe.rotation.set(0.15, 0.4, Math.PI / 2);
+      const elbow = add(g, new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6), dark, 0.13, 0.08, 0.06);
+      elbow.rotation.set(0, 0.4, 0.6);
+      add(g, boxGeo(0.2, 0.012, 0.07), dark, 0.0, 0.03, -0.09).rotation.set(0.3, -0.5, 0.2);
+      add(g, new THREE.TorusGeometry(0.06, 0.014, 4, 8), col, -0.12, 0.03, -0.04).rotation.x = Math.PI / 2 - 0.3;
+      add(g, new THREE.DodecahedronGeometry(0.055, 0), dark, 0.07, 0.04, -0.03);
+      return g;
+    }
+    if (piece === 'sheet') {
+      // Two sheets, one a little askew on the other, with a rolled edge.
+      add(g, boxGeo(0.34, 0.014, 0.24), dark, 0, 0.008, 0);
+      const top = add(g, boxGeo(0.34, 0.014, 0.24), col, 0.02, 0.022, 0.01);
+      top.rotation.y = 0.18;
+      add(g, new THREE.CylinderGeometry(0.012, 0.012, 0.24, 5), col, 0.19, 0.028, 0.04).rotation.set(Math.PI / 2, 0, 0.18);
+      return g;
+    }
+    if (piece === 'knuckles') {
+      for (let i = 0; i < 4; i++) add(g, new THREE.TorusGeometry(0.03, 0.012, 3, 6), col, (i - 1.5) * 0.06, 0.012, 0).rotation.x = Math.PI / 2;
+      add(g, boxGeo(0.25, 0.024, 0.04), col, 0, 0.014, 0.05);
+      return g;
+    }
+    if (piece === 'knife') {
+      add(g, boxGeo(0.13, 0.04, 0.045), 0x3a2a1e, -0.12, 0.02, 0); // handle
+      add(g, boxGeo(0.02, 0.05, 0.085), 0x8a8f96, -0.05, 0.025, 0); // guard
+      add(g, boxGeo(0.24, 0.016, 0.05), col, 0.08, 0.01, 0); // blade
+      add(g, new THREE.ConeGeometry(0.025, 0.06, 4), col, 0.23, 0.01, 0).rotation.set(Math.PI / 4, 0, -Math.PI / 2); // the point
+      return g;
+    }
+    if (piece === 'bat') {
+      const grip = add(g, new THREE.CylinderGeometry(0.024, 0.024, 0.18, 6), 0x2b2b2e, -0.27, 0.025, 0);
+      grip.rotation.z = Math.PI / 2;
+      const barrel = add(g, new THREE.CylinderGeometry(0.05, 0.028, 0.46, 8), col, 0.05, 0.05, 0);
+      barrel.rotation.z = Math.PI / 2 + 0.05;
+      add(g, new THREE.CylinderGeometry(0.034, 0.034, 0.03, 6), col, -0.37, 0.034, 0).rotation.z = Math.PI / 2;
+      return g;
+    }
+    if (piece === 'helmet') {
+      const dome = add(g, new THREE.SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.55), col, 0, 0.0, 0);
+      dome.scale.set(1.05, 0.95, 1.08);
+      add(g, boxGeo(0.26, 0.022, 0.05), col, 0, 0.01, 0.12);
+      add(g, boxGeo(0.02, 0.05, 0.02), 0x4a4e54, 0, 0.125, 0.03, false);
+      dome.rotation.z = 0.12;
+      return g;
+    }
+    if (piece === 'vest') {
+      // The two plates lying on each other with the straps flopped over.
+      add(g, boxGeo(0.33, 0.04, 0.3), dark, 0, 0.02, 0);
+      add(g, boxGeo(0.33, 0.04, 0.3), col, 0.02, 0.06, 0.01).rotation.y = 0.1;
+      for (const x of [-0.12, 0.14]) add(g, boxGeo(0.04, 0.02, 0.36), 0x4a3a2e, x, 0.085, 0.02, false);
+      for (const z of [-0.06, 0.07]) add(g, boxGeo(0.34, 0.012, 0.03), 0x6a6e74, 0.02, 0.083, z, false);
+      return g;
+    }
+    if (piece === 'legs') {
+      // A pair: thigh plate, knee guard, shin plate, side by side.
+      for (const x of [-0.09, 0.09]) {
+        add(g, boxGeo(0.15, 0.03, 0.18), col, x, 0.015, -0.12);
+        add(g, boxGeo(0.13, 0.04, 0.08), dark, x, 0.02, 0.0);
+        add(g, boxGeo(0.12, 0.03, 0.15), col, x, 0.015, 0.12);
+      }
+      return g;
+    }
+  }
+  if (item === 'rat_antidote') {
+    // A little glass vial of green antidote, corked, lying on its side.
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.16, 8), new THREE.MeshLambertMaterial({ color: 0xcfe8e0, transparent: true, opacity: 0.45, flatShading: true }));
+    glass.position.set(0, 0.045, 0);
+    glass.rotation.z = Math.PI / 2;
+    g.add(glass);
+    add(g, new THREE.CylinderGeometry(0.036, 0.036, 0.13, 8), 0x5ac04a, -0.01, 0.042, 0, false).rotation.z = Math.PI / 2;
+    add(g, new THREE.CylinderGeometry(0.03, 0.034, 0.05, 6), 0x8a6a4a, 0.1, 0.045, 0).rotation.z = Math.PI / 2; // the cork
+    return g;
+  }
+  if (item === 'sewer_key') {
+    // A big old iron key: the bow (a ring), the shaft and the bit.
+    const iron = 0x6a6258;
+    add(g, new THREE.TorusGeometry(0.06, 0.016, 4, 8), iron, -0.15, 0.016, 0).rotation.x = Math.PI / 2;
+    add(g, new THREE.CylinderGeometry(0.016, 0.016, 0.26, 6), iron, 0.02, 0.016, 0).rotation.z = Math.PI / 2;
+    add(g, boxGeo(0.07, 0.03, 0.07), iron, 0.12, 0.016, 0.04);
+    add(g, boxGeo(0.025, 0.03, 0.04), iron, 0.08, 0.016, 0.03);
+    return g;
+  }
+  return null;
 }

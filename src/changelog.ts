@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.46.0',
+    date: '2026-11-17',
+    title: 'Loot you can recognise',
+    items: [
+      'Everything dropped on the ground has its own look now: scrap heaps of tin and copper salvage, metal sheets, knuckles, bats, knives, helmets, plate vests and leg guards in their metal\'s colour.',
+      'The Rat Antidote is a little green vial, the Cooked Rat Antidote ribs with green drops, and the Sewer Key a big old iron key.',
+      'The city matches the new art style: the fountain, ponds, bank vault and columns, the sewer tunnel and manholes are faceted like everything else.',
+      'Faster with lots of players around: each person is now drawn in less than half the pieces, with no change in how they look.',
+    ],
+  },
+  {
     version: '0.45.1',
     date: '2026-11-17',
     title: 'Back to size',

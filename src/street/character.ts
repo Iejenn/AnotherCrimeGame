@@ -124,6 +124,8 @@ function mat(color: number) {
 function planes(color: number) {
   return cached(color, 0.3);
 }
+/** The one material every person is drawn with: their colours are painted on the parts (vertex colours). */
+const PAINTED = new THREE.MeshLambertMaterial({ vertexColors: true });
 function cached(color: number, crease: number) {
   const key = `${color}|${crease}`;
   let m = matCache.get(key);
@@ -337,18 +339,31 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   });
   const hand = joint(arms[1][1], 0, BODY.fist);
 
-  // Merge each joint's parts per colour into one mesh, smooth-shaded with hard edges where the shape turns sharply.
-  for (const [parent, byMat] of parts)
+  // Each joint becomes ONE mesh (v0.46: was one per colour, 25 per person, ~50 draw calls with shadows; now 11): every
+  // colour's parts are merged and smooth-shaded with hard edges where the shape turns sharply (its own crease), then
+  // painted in their colour (vertex colours) and all merged together under one shared material.
+  for (const [parent, byMat] of parts) {
+    const painted: THREE.BufferGeometry[] = [];
     for (const [m, list] of byMat) {
       const merged = mergeGeometries(list, false);
       list.forEach((g) => g.dispose());
       if (!merged) continue;
       const smooth = toCreasedNormals(merged, (m.userData.crease as number | undefined) ?? 0.9);
       merged.dispose();
-      const o = new THREE.Mesh(smooth, m);
-      o.castShadow = true;
-      parent.add(o);
+      const { r, g, b } = (m as THREE.MeshLambertMaterial).color;
+      const n = smooth.attributes.position.count;
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) col.set([r, g, b], i * 3);
+      smooth.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      painted.push(smooth);
     }
+    const one = mergeGeometries(painted, false);
+    painted.forEach((g) => g.dispose());
+    if (!one) continue;
+    const o = new THREE.Mesh(one, PAINTED);
+    o.castShadow = true;
+    parent.add(o);
+  }
 
   // A soft round shadow blob under the feet (cheap, reads well even without real shadows).
   const blob = new THREE.Mesh(geo.shadow, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));

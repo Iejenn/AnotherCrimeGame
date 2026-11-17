@@ -8,7 +8,7 @@
 // the north side), so callers only position and rotate it.
 import { withModel } from './models';
 import * as THREE from 'three';
-import { boxGeo, lambert } from './props';
+import { boxGeo, buildLoot, lambert } from './props';
 
 const cyl = (rt: number, rb: number, h: number, seg = 10) => new THREE.CylinderGeometry(rt, rb, h, seg);
 
@@ -121,7 +121,7 @@ export function buildBusStop() {
     c.textBaseline = 'middle';
     c.fillText('BUS', 64, 66);
   });
-  put(g, new THREE.CircleGeometry(0.25, 20), new THREE.MeshBasicMaterial({ map: plate }), -1.5, 2.05, 0.32, false);
+  put(g, new THREE.CircleGeometry(0.25, 12), new THREE.MeshBasicMaterial({ map: plate }), -1.5, 2.05, 0.32, false);
   return g;
 }
 
@@ -135,7 +135,7 @@ export function buildBikeRack() {
   // The bike: two wheels and a frame.
   const bike = new THREE.Group();
   for (const z of [-0.36, 0.36]) {
-    const w = put(bike, new THREE.TorusGeometry(0.2, 0.025, 6, 16), 0x1e1e22, 0, 0.22, z);
+    const w = put(bike, new THREE.TorusGeometry(0.2, 0.025, 6, 10), 0x1e1e22, 0, 0.22, z);
     w.rotation.y = Math.PI / 2;
   }
   put(bike, boxGeo(0.04, 0.04, 0.62), 0xd9473a, 0, 0.42, 0);
@@ -459,7 +459,7 @@ export function buildBigCar(color: number) {
 
 // ---------------- things lying on the ground (loot) ----------------
 
-/** What an item looks like on the ground: meat, a few bills, or (for anything without its own look) a small bundle. */
+/** What an item looks like on the ground: food from the Food Kit, a few bills, metal, gear and quest items. */
 /** Food lying on the ground (loot): which Food Kit model, and its scale (the models are about half a tile). */
 const FOOD_MODELS: Record<string, [string, number]> = {
   raw_bird_meat: ['meat-raw', 0.65], cooked_bird_meat: ['meat-cooked', 0.65],
@@ -475,6 +475,10 @@ export function buildGroundItem(item: string) {
       const b = put(g, boxGeo(0.26, 0.015, 0.13), i % 2 ? 0x4f8455 : 0x6a9e68, (i - 1) * 0.04, 0.015 + i * 0.016, (i - 1) * 0.02, false);
       b.rotation.y = i * 0.5;
     }
+  } else if (item === 'cooked_rat_antidote') {
+    // The cooked rat meat with the green antidote dripped over it.
+    withModel('food/meat-ribs.glb', { scale: 0.84, tone: 'dull' }, g);
+    for (const [x, z] of [[-0.04, 0.02], [0.05, -0.03], [0.0, 0.06]]) put(g, new THREE.OctahedronGeometry(0.03, 0), 0x5ac04a, x, 0.1, z, false).scale.y = 0.5;
   } else if (FOOD_MODELS[item]) {
     // Food on the ground: a model from Kenney's Food Kit (v0.45), toned down to our colours.
     const [file, size] = FOOD_MODELS[item];
@@ -484,6 +488,9 @@ export function buildGroundItem(item: string) {
     put(g, new THREE.SphereGeometry(0.11, 8, 6), raw ? 0xe8a0a0 : 0x8a4a22, 0, 0.07, 0).scale.set(1.3, 0.6, 1);
     put(g, cyl(0.025, 0.02, 0.14, 6).rotateZ(Math.PI / 2.4), raw ? 0xf2e2d0 : 0xd8c8a8, 0.12, 0.08, 0); // the bone
   } else {
+    // Metal, gear and quest items (props.ts); anything newer than its model is still a small bundle.
+    const loot = buildLoot(item);
+    if (loot) return loot;
     put(g, boxGeo(0.22, 0.1, 0.16), 0x8a7a5a, 0, 0.05, 0);
   }
   return g;

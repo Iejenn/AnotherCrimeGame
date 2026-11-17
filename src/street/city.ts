@@ -166,7 +166,7 @@ export function buildCity(scene: THREE.Scene) {
     disposables.push(x);
     return x;
   };
-  const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, ...extra }));
+  const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra }));
   const geoBox = (w: number, h: number, d: number) => own(new THREE.BoxGeometry(w, h, d));
   const rng = mulberry32(2024);
   let ironMat: THREE.Material | null = null;
@@ -623,14 +623,14 @@ export function buildCity(scene: THREE.Scene) {
     for (const r of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, 0.09, P.y0 + r + 0.5, false);
     for (const c of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, P.x0 + c + 0.5, 0.091, cz, false);
     // A gravel square around the fountain, joining the paths.
-    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 24).rotateX(-Math.PI / 2)), gravel);
+    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 12).rotateX(-Math.PI / 2)), gravel);
     ringPath.position.set(cx, 0.092, midZ);
     ringPath.receiveShadow = true;
     scene.add(ringPath);
     // The fountain: a low stone basin with water, a pillar and a top bowl. The water glows a little.
     const stone = lam(0x8e877b, { flatShading: true });
-    add(own(new THREE.CylinderGeometry(1.15, 1.22, 0.3, 14)), stone, cx, 0.22, midZ);
-    add(own(new THREE.CylinderGeometry(1.03, 1.03, 0.05, 14)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), cx, 0.35, midZ, false);
+    add(own(new THREE.CylinderGeometry(1.15, 1.22, 0.3, 10)), stone, cx, 0.22, midZ);
+    add(own(new THREE.CylinderGeometry(1.03, 1.03, 0.05, 10)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), cx, 0.35, midZ, false);
     add(own(new THREE.CylinderGeometry(0.1, 0.14, 0.62, 8)), stone, cx, 0.62, midZ);
     add(own(new THREE.CylinderGeometry(0.34, 0.2, 0.1, 10)), stone, cx, 0.94, midZ);
     add(own(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), cx, 0.99, midZ, false);
@@ -668,8 +668,8 @@ export function buildCity(scene: THREE.Scene) {
       // An oval pond, as wide as its tiles (one column between the path and the hedge).
       const sx = (Math.max(...pond.map((f) => f.x)) - Math.min(...pond.map((f) => f.x)) + 1) / 2;
       const sz = (Math.max(...pond.map((f) => f.y)) - Math.min(...pond.map((f) => f.y)) + 1) / 2;
-      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 16)), stone, px, 0.1, pz).scale.set(sx, 1, sz);
-      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 16)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false).scale.set(sx, 1, sz);
+      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, 0.1, pz).scale.set(sx, 1, sz);
+      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false).scale.set(sx, 1, sz);
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
@@ -705,7 +705,7 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(lw, 0.01, cd), line, cx - cw / 2, 0.095, ccz, false);
     add(geoBox(lw, 0.01, cd), line, cx + cw / 2, 0.095, ccz, false);
     add(geoBox(lw, 0.01, cd), line, cx, 0.095, ccz, false); // half-court line
-    const centre = new THREE.Mesh(own(new THREE.RingGeometry(0.42, 0.47, 20).rotateX(-Math.PI / 2)), line);
+    const centre = new THREE.Mesh(own(new THREE.RingGeometry(0.42, 0.47, 12).rotateX(-Math.PI / 2)), line);
     centre.position.set(cx, 0.096, ccz);
     scene.add(centre);
     // Hoops at the west and east ends: pole, backboard, orange rim.
@@ -713,7 +713,7 @@ export function buildCity(scene: THREE.Scene) {
       const px = side < 0 ? X0 + 0.15 : X1 - 0.15;
       add(geoBox(0.08, 1.3, 0.08), iron2(), px, 0.65, ccz);
       add(geoBox(0.04, 0.38, 0.6), lam(0xe8e2d0), px - side * 0.12, 1.22, ccz);
-      const rim = add(own(new THREE.TorusGeometry(0.14, 0.018, 6, 14)), lam(0xe0782a), px - side * 0.3, 1.1, ccz);
+      const rim = add(own(new THREE.TorusGeometry(0.14, 0.018, 6, 10)), lam(0xe0782a), px - side * 0.3, 1.1, ccz);
       rim.rotation.x = Math.PI / 2;
       const key = add(geoBox(1.1, 0.01, 0.9), lam(0x7a3b2c), px - side * 0.6, 0.094, ccz, false);
       key.receiveShadow = true;
@@ -1063,7 +1063,7 @@ export function buildCity(scene: THREE.Scene) {
     }
     // A neon beer sign on the east wall and a dartboard on the west wall.
     add(geoBox(0.02, 0.22, 0.6), lam(0x5ac8ff, { emissive: 0x5ac8ff, emissiveIntensity: 1.3 }), X1 - t - 0.02, 0.95, Z0 + 2.6, false);
-    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 14)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
+    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 10)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
     add(own(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 10)).rotateZ(Math.PI / 2), lam(0xb8282a), BAR.x0 + t + 0.035, 0.85, Z0 + 3.5, false);
   }
 
@@ -1935,9 +1935,9 @@ export function buildCity(scene: THREE.Scene) {
     const vault = FIXTURES.filter((f) => f.kind === 'vault');
     if (vault.length) {
       const vx = (Math.min(...vault.map((f) => f.x)) + Math.max(...vault.map((f) => f.x)) + 1) / 2;
-      const door = add(own(new THREE.CylinderGeometry(0.85, 0.85, 0.16, 24)), lam(0x8a8f96), vx, 1.1, Z0 + t + 0.08);
+      const door = add(own(new THREE.CylinderGeometry(0.85, 0.85, 0.16, 12)), lam(0x8a8f96), vx, 1.1, Z0 + t + 0.08);
       door.rotation.x = Math.PI / 2;
-      const wheel = add(own(new THREE.TorusGeometry(0.3, 0.04, 6, 16)), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false);
+      const wheel = add(own(new THREE.TorusGeometry(0.3, 0.04, 6, 10)), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false);
       wheel.rotation.x = 0;
       for (let i = 0; i < 3; i++) add(geoBox(0.6, 0.04, 0.04), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false).rotation.z = (i * Math.PI) / 3;
     }
@@ -2029,7 +2029,7 @@ export function buildCity(scene: THREE.Scene) {
     for (const z of [g0, g1]) add(geoBox(0.3, 1.0, 0.3), wallM, Y1 - 0.1, 0.5, z); // pillars either side of the opening
     // Copper coils and loose bits of pipe on the ground, a back door into the store.
     for (let i = 0; i < 5; i++) {
-      const coil = add(own(new THREE.TorusGeometry(0.18, 0.04, 6, 14)), copper, Y0 + 1 + rng() * 3, 0.06, Z0 + 2 + rng() * 6, false);
+      const coil = add(own(new THREE.TorusGeometry(0.18, 0.04, 6, 10)), copper, Y0 + 1 + rng() * 3, 0.06, Z0 + 2 + rng() * 6, false);
       coil.rotation.x = -Math.PI / 2;
     }
     for (let i = 0; i < 8; i++) {
@@ -2307,7 +2307,7 @@ export function buildCity(scene: THREE.Scene) {
         scene.add(bottle);
       } else if (f.kind === 'clubjuke') {
         add(geoBox(0.7, 1.15, 0.5), lam(0x6a2a4a), f.x + 0.5, 0.58, f.y + 0.6);
-        add(own(new THREE.CylinderGeometry(0.33, 0.33, 0.52, 14, 1, false, 0, Math.PI)), lam(0xffb040, { emissive: 0xff7a20, emissiveIntensity: 1.2 }), f.x + 0.5, 1.15, f.y + 0.6, false).rotation.z = Math.PI / 2;
+        add(own(new THREE.CylinderGeometry(0.33, 0.33, 0.52, 8, 1, false, 0, Math.PI)), lam(0xffb040, { emissive: 0xff7a20, emissiveIntensity: 1.2 }), f.x + 0.5, 1.15, f.y + 0.6, false).rotation.z = Math.PI / 2;
       }
     }
     const red = new THREE.PointLight(0xff4040, 4, 8, 1.4);
@@ -2324,7 +2324,7 @@ export function buildCity(scene: THREE.Scene) {
     const black = lam(0x1a1a1e);
     const chrome = lam(0xc8ccd2);
     for (const dz of [-0.38, 0.38]) {
-      const w = new THREE.Mesh(own(new THREE.TorusGeometry(0.2, 0.06, 6, 14)), black);
+      const w = new THREE.Mesh(own(new THREE.TorusGeometry(0.2, 0.06, 6, 10)), black);
       w.rotation.y = Math.PI / 2;
       w.position.set(0, 0.24, dz);
       g.add(w);
@@ -2369,10 +2369,10 @@ export function buildCity(scene: THREE.Scene) {
     const hx = MANHOLE[0] + 0.5;
     const hz = MANHOLE[1] + 0.5;
     const iron = lam(0x2e3034);
-    const black = new THREE.Mesh(own(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 20)), new THREE.MeshBasicMaterial({ color: 0x050505 }));
+    const black = new THREE.Mesh(own(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 12)), new THREE.MeshBasicMaterial({ color: 0x050505 }));
     black.position.set(hx, 0.012, hz);
     hole.add(black);
-    const rim = new THREE.Mesh(own(new THREE.TorusGeometry(0.42, 0.05, 6, 20)), iron);
+    const rim = new THREE.Mesh(own(new THREE.TorusGeometry(0.42, 0.05, 6, 12)), iron);
     rim.rotation.x = -Math.PI / 2;
     rim.position.set(hx, 0.03, hz);
     hole.add(rim);
@@ -2391,7 +2391,7 @@ export function buildCity(scene: THREE.Scene) {
       hole.add(chunk);
     }
     // The cover, pushed aside and tilted against the kerb of the hole.
-    const cover = new THREE.Mesh(own(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 18)), lam(0x45474c));
+    const cover = new THREE.Mesh(own(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 12)), lam(0x45474c));
     cover.position.set(hx + 0.75, 0.08, hz + 0.3);
     cover.rotation.set(0.25, 0, 0.15);
     hole.add(cover);
@@ -2499,11 +2499,11 @@ export function buildCity(scene: THREE.Scene) {
     }
     {
       const ccz = (CH0 + CH1) / 2;
-      const ring = new THREE.Mesh(own(new THREE.TorusGeometry(2.05, 0.28, 8, 24, Math.PI)), lam(0x7a7e72, { flatShading: true }));
+      const ring = new THREE.Mesh(own(new THREE.TorusGeometry(2.05, 0.28, 6, 12, Math.PI)), lam(0x7a7e72, { flatShading: true }));
       ring.rotation.y = -Math.PI / 2;
       ring.position.set(X1 - 0.02, D - 0.55, ccz);
       scene.add(ring);
-      const dark = new THREE.Mesh(own(new THREE.CircleGeometry(1.95, 24, 0, Math.PI)), new THREE.MeshBasicMaterial({ color: 0x030403 }));
+      const dark = new THREE.Mesh(own(new THREE.CircleGeometry(1.95, 12, 0, Math.PI)), new THREE.MeshBasicMaterial({ color: 0x030403 }));
       dark.rotation.y = -Math.PI / 2;
       dark.position.set(X1 - 0.01, D - 0.55, ccz);
       scene.add(dark);
@@ -2699,7 +2699,7 @@ export function buildCity(scene: THREE.Scene) {
       for (const dz of [-0.3, 0.3]) add(geoBox(0.14, 1.1, 0.14), paint, x - 0.15, 0.95, z + dz);
       add(geoBox(0.6, 0.35, 0.8), paint, x - 0.1, 1.55, z);
       add(geoBox(0.32, 0.3, 0.32), dark, x - 0.05, 1.22, z);
-      const wheel = add(own(new THREE.TorusGeometry(0.28, 0.06, 6, 14)), dark, x - 0.1, 1.5, z + 0.45);
+      const wheel = add(own(new THREE.TorusGeometry(0.28, 0.06, 6, 10)), dark, x - 0.1, 1.5, z + 0.45);
       wheel.rotation.y = Math.PI / 2;
       add(geoBox(0.4, 0.03, 0.4), lam(0xb8bcc2), x + 0.05, 0.56, z, false);
       add(geoBox(0.92, 0.06, 0.03), lam(0xe0b830), x, 0.52, z + 0.41, false);
@@ -2721,7 +2721,7 @@ export function buildCity(scene: THREE.Scene) {
       for (const dz of [-0.3, 0, 0.3]) add(geoBox(0.03, 0.22, 0.04), steel, x + 0.27, 1.25, z + dz, false);
       continue;
     }
-    add(own(new THREE.CircleGeometry(1.4, 20).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
+    add(own(new THREE.CircleGeometry(1.4, 12).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
     const brick = lam(0x8a4434, { flatShading: true });
     add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);
     add(geoBox(0.96, 0.06, 0.76), lam(0x6a3428), x, 0.6, z);
