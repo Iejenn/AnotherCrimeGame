@@ -559,3 +559,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .craft-icon { position: relative; width: 36px; height: 36px; }
 .craft-icon .item-icon { inset: 2px; }
 .craft-name { display: flex; flex-direction: column; font-size: 0.85rem; line-height: 1.25; }
+
+/* Desktop: the world map fills the whole screen (not a small window inside the game), the map as big as fits. */
+@media (min-width: 721px) {
+  .worldmap-backdrop { position: fixed; inset: 0; z-index: 60; padding: 0; background: var(--ink); }
+  .worldmap { max-width: none; height: 100%; border: none; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; padding: 14px 20px 16px; }
+  .worldmap-scroll { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+  .worldmap-canvas { flex: none; }
+}
+/* The bank: 50 small slots (10 × 5) where things stack, a count in the corner; the amount toggle; your bag below. */
+.bank-dialog { position: absolute; inset: 8px; z-index: 6; overflow-y: auto; background: rgba(20, 18, 16, 0.97); border: 1px solid var(--rule-strong); border-top: 3px solid #d9a441; padding: 10px 12px 12px; }
+.bank-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin: 8px 0; padding: 5px; background: var(--ink-2); border: 1px solid var(--rule-strong); }
+.bank-slot { position: relative; aspect-ratio: 1; padding: 0; background: var(--ink); border: 1px solid var(--rule); border-radius: 2px; cursor: pointer; min-width: 0; }
+.bank-slot.empty { cursor: default; background: #181614; }
+.bank-slot .item-icon { inset: 8% 8% 18%; }
+.bank-count { position: absolute; left: 2px; top: 1px; font: 700 0.6rem/1 var(--mono); color: #f2e14a; text-shadow: 0 1px 0 #000, 0 0 2px #000; pointer-events: none; }
+.bank-slot.cash .bank-count { color: var(--money); }
+.bank-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bank-amounts { display: flex; gap: 4px; }
+.bank-hint { margin: 6px 0; }
+@media (min-width: 721px) { .bank-dialog { left: 50%; right: auto; width: 560px; transform: translateX(-50%); } }

@@ -95,6 +95,10 @@ export interface GameState {
   /** What you're making at a press or workbench (Tinkering): the craft (its output item), and when the next is done.
    *  You keep making it until you run out of materials or walk away. */
   make?: { craft: string; next: number } | null;
+  /** Your bank (talk to a banker): what's in it, in the order you first put it in (things stack here), and the cash
+   *  you keep there (safe when you die). */
+  bank?: { i: string; n: number }[];
+  bankCash?: number;
   /** Items lying on the ground that you can see: your own drops at once, everyone's after a minute. */
   ground?: GroundItem[];
   stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };

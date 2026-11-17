@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.42.0',
+    date: '2026-11-17',
+    title: 'Money in the bank',
+    items: [
+      'The Financial district opened east of the city, with the Bank in the middle: columns, marble floors, a vault.',
+      'Talk to a banker to open your bank: 50 slots, and things stack in there (a bag full of tin salvage is one slot).',
+      'Tap your bag to put things in, the bank to take them out: one, five, ten or all at once. Deposit all empties your bag in one go.',
+      'Cash can go in the bank too. What\'s in the bank is safe when you pass out: only your bag and pocket cash end up in your grave.',
+      'On desktop the world map now fills the screen.',
+    ],
+  },
+  {
     version: '0.41.1',
     date: '2026-11-17',
     title: 'Fixed roof',
