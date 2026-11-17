@@ -8,6 +8,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.43.0',
+    date: '2026-11-17',
+    title: 'Copper, dogs, bikers and Sewer Problems',
+    items: [
+      'Copper is here: Hotline Plumbing & Heating opened in the Industrial zone (I-008). Dig through the dumpsters in its walled yard for copper salvage (Scrapping 11).',
+      'Press copper sheets and make copper knuckles, bat, knife, helmet, leg guards and plate vest at the Factory (Tinkering 11–18). Copper gear needs Melee or Defense 11.',
+      'The Junkyard (I-007): four guard dogs (level 8) roam among the crushed cars. They drop copper salvage and a bit of cash.',
+      'Iron Saints MC (I-002): a biker bar with a neon sign. Three bikers (level 15) drink inside, and they jump anyone who walks in. Walk out the door to get away.',
+      'The first quest: Sewer Problems. A man called Splinter sits in the sewer, bitten by something big. Help him, and find out what lives behind the locked gate.',
+      'The Rat Nest: three giant rats (level 12) behind a gate in the sewer. They drop raw giant rat meat: cook it (Cooking 10) for the best food yet, +3 HP.',
+      'The hospital\'s doctors have names now: JD and Elliot.',
+      'Quests tab: your quests and what to do next. Inventory: "Use" an item on another. Quest items can\'t be dropped and stay with you when you die.',
+    ],
+  },
+  {
     version: '0.42.0',
     date: '2026-11-17',
     title: 'Money in the bank',

@@ -7,7 +7,7 @@ import { CRIME_BY_ID } from '../game/data/crimes';
 import { ITEM_BY_ID } from '../game/data/items';
 import { canStart, crimeStats, fmtMoney, skillLevel } from '../game/engine';
 import { pct } from '../components/ui';
-import { AREAS, H, NPCS, ROOMS, SEWER, SEWER_AREAS, W, inSewer, type Area, type AreaIcon } from './map';
+import { AREAS, H, NPCS, ROOMS, UNDER, SEWER_AREAS, W, inSewer, type Area, type AreaIcon } from './map';
 import { MAP_EDGE, drawSewer, drawWorld } from './mapArt';
 
 const PX = 8; // canvas pixels per tile
@@ -107,6 +107,37 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <path d="M12 0.5 L16 4 H8 Z" fill="#f2e8d6" />
     </>
   ),
+  dog: (
+    <>
+      {/* a guard dog's head: brown, pointed ears, a spiked collar */}
+      <path d="M6 6 L9 11 L15 11 L18 6 L17 13 Q19 17 15 20 L9 20 Q5 17 7 13 Z" fill="#7a5a3a" stroke="#141210" strokeWidth="0.9" />
+      <ellipse cx="12" cy="17" rx="2.6" ry="1.8" fill="#d8b890" stroke="#141210" strokeWidth="0.6" />
+      <circle cx="12" cy="16" r="0.9" fill="#141210" />
+      <circle cx="9.6" cy="13.2" r="0.8" fill="#141210" />
+      <circle cx="14.4" cy="13.2" r="0.8" fill="#141210" />
+      <rect x="7" y="20" width="10" height="2" fill="#2a2a2e" />
+      {[8.5, 12, 15.5].map((x) => (
+        <path key={x} d={`M${x - 0.8} 22 L${x} 23.5 L${x + 0.8} 22 Z`} fill="#c8ccd2" />
+      ))}
+    </>
+  ),
+  biker: (
+    <>
+      {/* a motorbike: two wheels, a tank, high handlebars */}
+      <circle cx="6" cy="16" r="3.6" fill="none" stroke="#141210" strokeWidth="1.8" />
+      <circle cx="18" cy="16" r="3.6" fill="none" stroke="#141210" strokeWidth="1.8" />
+      <path d="M6 16 L10 11 L15 11 L18 16 M10 11 L8 8 M15 11 L17 6 L19 6" stroke="#141210" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d="M9.5 10 Q12 8 15 10 L14.5 12 L10 12 Z" fill="#d84a3a" stroke="#141210" strokeWidth="0.7" />
+    </>
+  ),
+  quest: (
+    <>
+      {/* a quest: a blue exclamation mark */}
+      <circle cx="12" cy="12" r="9" fill="#2f5aa8" stroke="#141210" strokeWidth="0.9" />
+      <rect x="10.6" y="5.5" width="2.8" height="8.5" rx="1" fill="#f2f0e8" />
+      <circle cx="12" cy="17.3" r="1.6" fill="#f2f0e8" />
+    </>
+  ),
   rat: (
     <>
       {/* a rat: grey body, pink ear and tail, red eye */}
@@ -171,10 +202,10 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
 
   // Positions as percentages of the map, so the icons stay put however big the map is drawn.
   // The sewer's map starts one tile left of and above the sewer.
-  const ox = below ? SEWER.x0 - 1 : -MAP_EDGE;
-  const oy = below ? SEWER.y0 - 1 : -MAP_EDGE;
-  const fullW = below ? SEWER.x1 - SEWER.x0 + 3 : W + MAP_EDGE * 2;
-  const fullH = below ? SEWER.y1 - SEWER.y0 + 3 : H + MAP_EDGE * 2;
+  const ox = below ? UNDER.x0 - 1 : -MAP_EDGE;
+  const oy = below ? UNDER.y0 - 1 : -MAP_EDGE;
+  const fullW = below ? UNDER.x1 - UNDER.x0 + 3 : W + MAP_EDGE * 2;
+  const fullH = below ? UNDER.y1 - UNDER.y0 + 3 : H + MAP_EDGE * 2;
   const areas = below ? SEWER_AREAS : AREAS;
   const at = (x: number, y: number) => ({ left: `${((x - ox) / fullW) * 100}%`, top: `${((y - oy) / fullH) * 100}%` });
   const lvl = skillLevel(s, 'street');

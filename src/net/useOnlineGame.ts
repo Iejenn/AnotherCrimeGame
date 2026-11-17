@@ -44,6 +44,8 @@ export interface ServerAnswer {
     make?: GameState['make'];
     bank?: GameState['bank'];
     bankCash?: number;
+    quests?: Record<string, number>;
+    unlocked?: string[];
   };
   /** Items on the ground you can see (game.ground_json). */
   ground?: GameState['ground'];
@@ -99,7 +101,7 @@ export interface WorldEntry {
 }
 
 /** Server reasons that the game explains itself already (or that need no message). */
-const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far', 'no_cooking', 'no_making']);
+const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far', 'no_cooking', 'no_making', 'no_one', 'not_in_club']);
 /** What the server's "no" means, in words. */
 const SAY: Record<string, string> = {
   enemy_busy: 'Someone else is already fighting that.',
@@ -125,6 +127,9 @@ const SAY: Record<string, string> = {
   not_at_station: 'Stand next to it to work.',
   not_in_bank: 'You need to be in the bank.',
   bank_full: 'Your bank is full.',
+  locked: "It's locked. You need a key.",
+  quest_item: "You can't drop that: you need it for a quest.",
+  nothing_happens: 'Nothing interesting happens.',
   no_materials: "You don't have the materials for that.",
   unknown_craft: "You can't make that here.",
   cant_cook: "You can't cook that.",
@@ -163,6 +168,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     make: p.make ?? null,
     bank: p.bank ?? [],
     bankCash: p.bankCash ?? 0,
+    quests: p.quests ?? {},
+    unlocked: p.unlocked ?? [],
     ground: a.ground ?? [],
     grave: a.grave ?? null,
     stats: p.stats,
@@ -342,6 +349,14 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       bankDeposit: (itemId, n, pos) => void call('bank_deposit', { p_item: itemId, p_n: n, p_x: pos[0], p_y: pos[1] }),
       bankWithdraw: (itemId, n, pos) => void call('bank_withdraw', { p_item: itemId, p_n: n, p_x: pos[0], p_y: pos[1] }),
       bankDepositAll: (pos) => void call('bank_deposit_all', { p_x: pos[0], p_y: pos[1] }),
+      questTalk: (npcId, choice, pos) =>
+        call('quest_talk', { p_npc: npcId, p_choice: choice, p_x: pos[0], p_y: pos[1] }).then((d) => (d?.ok ? d.reason ?? null : null)),
+      useItem: (itemId, onId) => void call('use_item', { p_item: itemId, p_on: onId }),
+      unlockGate: (gateId, pos) => void call('unlock_gate', { p_gate: gateId, p_x: pos[0], p_y: pos[1] }),
+      jumpMe: (pos) => {
+        lastFightStep.current = Date.now();
+        void call('jump_me', { p_x: pos[0], p_y: pos[1] });
+      },
       climb: (linkId, pos) => call('climb', { p_link: linkId, p_x: pos[0], p_y: pos[1] }).then((d) => !!d?.ok),
     }),
     [call],

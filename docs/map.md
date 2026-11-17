@@ -101,8 +101,8 @@ This page and the picture are generated from the game's map: after changing `src
 | I-001-B | Buildings | 12–16 | 7–11 |
 | I-001-C | Buildings | 7–11 | 12–16 |
 | I-001-D | Buildings | 12–16 | 12–16 |
-| I-002-A | Buildings | 24–28 | 7–11 |
-| I-002-B | Buildings | 29–33 | 7–11 |
+| I-002-A | Iron Saints MC | 24–28 | 7–11 |
+| I-002-B | Iron Saints MC | 29–33 | 7–11 |
 | I-002-C | Buildings | 24–28 | 12–16 |
 | I-002-D | Buildings | 29–33 | 12–16 |
 | I-003-A | The Factory | 41–45 | 7–11 |

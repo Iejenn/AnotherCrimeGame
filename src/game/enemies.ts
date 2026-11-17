@@ -4,7 +4,7 @@
 // Enemies are shared by everyone, so where they walk is a FIXED SCHEDULE worked out from the game clock (like the
 // guard, watchers.ts): every phone and the server agree where each Pigeon is. The server has the same function
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
-import { FIXTURES, PARK, SEWER, SEWER_CHANNEL, YARD } from '../street/map';
+import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
 import { minstd } from './watchers';
 
 export interface EnemyKind {
@@ -56,6 +56,36 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
       { item: 'tin_knife', chance: 0.05, min: 1, max: 1 },
     ],
   },
+  // v0.43: three enemies for the copper levels (docs/design.md §12, "the enemy ladder"). Each is made for one stage: a
+  // player there, in that tier's gear, wins about 9 in 10 and loses about half their HP per kill.
+  // The Junkyard's guard dogs (I-007): for the end of tin and the start of copper. Not aggressive.
+  dog: {
+    id: 'dog', name: 'Guard Dog', level: 8, hp: 14, attack: 8, defense: 8, defenceBonus: 0, speed: 3, maxHit: 2, respawn: 30, aggressive: false,
+    where: 'The Junkyard (I-007)',
+    loot: [
+      { item: 'copper_salvage', chance: 0.25, min: 1, max: 1 },
+      { item: 'cash', chance: 0.2, min: 5, max: 15 },
+    ],
+  },
+  // The Rat Nest's giant rats (behind the gate east of the sewer; the quest "Sewer Problems" opens it). Not aggressive.
+  giant_rat: {
+    id: 'giant_rat', name: 'Giant Rat', level: 12, hp: 16, attack: 11, defense: 10, defenceBonus: 0, speed: 3, maxHit: 3, respawn: 40, aggressive: false,
+    where: 'The Rat Nest (east of the sewer, behind a locked gate)',
+    loot: [
+      { item: 'raw_giant_rat_meat', chance: 1, min: 1, max: 1 },
+      { item: 'copper_salvage', chance: 0.125, min: 2, max: 3 },
+    ],
+  },
+  // The bikers in Iron Saints MC (I-002): for the end of copper. AGGRESSIVE: they jump you when you walk in.
+  biker: {
+    id: 'biker', name: 'Biker', level: 15, hp: 22, attack: 14, defense: 13, defenceBonus: 0, speed: 4, maxHit: 4, respawn: 45, aggressive: true,
+    where: 'Iron Saints MC (I-002)',
+    loot: [
+      { item: 'cash', chance: 0.33, min: 20, max: 50 },
+      { item: 'copper_knuckles', chance: 0.04, min: 1, max: 1 },
+      { item: 'copper_knife', chance: 0.025, min: 1, max: 1 },
+    ],
+  },
 };
 
 /** Every enemy on the island: its id, kind, and which one of its kind it is (its schedule). */
@@ -63,6 +93,9 @@ export const ENEMIES = [
   ...[0, 1, 2].map((i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })),
   ...[0, 1, 2].map((i) => ({ id: `thug_${i}`, kind: 'thug', index: i })),
   ...Array.from({ length: 10 }, (_, i) => ({ id: `rat_${i}`, kind: 'rat', index: i })),
+  ...[0, 1, 2, 3].map((i) => ({ id: `dog_${i}`, kind: 'dog', index: i })),
+  ...[0, 1, 2].map((i) => ({ id: `giant_rat_${i}`, kind: 'giant_rat', index: i })),
+  ...[0, 1, 2].map((i) => ({ id: `biker_${i}`, kind: 'biker', index: i })),
 ];
 
 /** Open park tiles a Pigeon may land on (the park minus hedges, trees, the fountain, benches, the pond, flowers). */
@@ -128,7 +161,8 @@ export function thugAt(index: number, t: number) {
 // ---------- the rats: each scurries around its own patch of a walkway in the sewer ----------
 /** Rat i's patch: the walkways are cut into five patches each (north: rats 0–4, south: rats 5–9), its open tiles. */
 export const RAT_ZONES: [number, number][][] = (() => {
-  const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
+  // (Splinter's spot, since v0.43, is solid too.)
+  const solid = new Set([...FIXTURES.map((f) => `${f.x},${f.y}`), `${SPLINTER[0]},${SPLINTER[1]}`]);
   const zones: [number, number][][] = [];
   const cols = [[0, 4], [5, 9], [10, 14], [15, 19], [20, 23]];
   for (const [r0, r1] of [[0, SEWER_CHANNEL.y0 - 1], [SEWER_CHANNEL.y1 + 1, SEWER.y1 - SEWER.y0]])
@@ -162,8 +196,43 @@ export function ratAt(index: number, t: number) {
   return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
 }
 
+// ---------- v0.43: guard dogs, giant rats, bikers: each roams the open tiles of its place ----------
+/** The open tiles of a place (not fixtures, not these tiles). */
+const openTiles = (r: Rect, not: [number, number][] = []): [number, number][] => {
+  const solid = new Set([...FIXTURES.map((f) => `${f.x},${f.y}`), ...not.map(([x, y]) => `${x},${y}`)]);
+  const out: [number, number][] = [];
+  for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
+  return out;
+};
+export interface Roam {
+  tiles: [number, number][];
+  /** A new spot every moveMs, walkMs to get there; each one's schedule is shifted by index × shift ms. */
+  moveMs: number;
+  walkMs: number;
+  shift: number;
+}
+/** The dogs keep off the gate; the bikers off the door. */
+export const ROAMS: Record<string, Roam> = {
+  dog: { tiles: openTiles(JUNKYARD, JUNKYARD_GATE), moveMs: 7000, walkMs: 1500, shift: 2333 },
+  giant_rat: { tiles: openTiles(NEST), moveMs: 10000, walkMs: 2500, shift: 3779 },
+  biker: { tiles: openTiles(CLUB, CLUB_DOOR), moveMs: 14000, walkMs: 3000, shift: 4703 },
+};
+/** Where enemy `index` of a roaming kind is at time t (the same as game.roam_at on the server). */
+export function roamAt(r: Roam, index: number, t: number) {
+  const spot = (k: number) => r.tiles[minstd(((k * 3 + index) % M) + 1) % r.tiles.length];
+  const shifted = t + index * r.shift;
+  const k = Math.floor(shifted / r.moveMs);
+  const into = shifted - k * r.moveMs;
+  const [tx, ty] = spot(k);
+  if (into >= r.walkMs) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
+  const [fx, fy] = spot(k - 1);
+  const f = into / r.walkMs;
+  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+}
+
 /** Where an enemy of this kind is at time t (game.enemy_at on the server). */
 export function enemyAt(kind: string, index: number, t: number) {
+  if (ROAMS[kind]) return roamAt(ROAMS[kind], index, t);
   if (kind === 'thug') return thugAt(index, t);
   if (kind === 'rat') return ratAt(index, t);
   const p = pigeonAt(index, t);

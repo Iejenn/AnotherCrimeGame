@@ -579,3 +579,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .bank-amounts { display: flex; gap: 4px; }
 .bank-hint { margin: 6px 0; }
 @media (min-width: 721px) { .bank-dialog { left: 50%; right: auto; width: 560px; transform: translateX(-50%); } }
+
+/* ---------- quests (v0.43) ---------- */
+.quest-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.quest { border: 1px solid var(--line, #3a3630); border-radius: 8px; padding: 10px 12px; }
+.quest p { margin: 6px 0 0; }
+.quest-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.quest-status { color: #c8c0b0; }
+.quest.active .quest-status { color: #e8c040; }
+.quest.done .quest-status { color: #6ac86a; }
+.use-hint { color: #e8c040; margin: 6px 0; }

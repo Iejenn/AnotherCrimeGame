@@ -257,6 +257,13 @@ export const PATROL: Rect = { x0: STATION.x0 - 1, y0: STATION.y0 - 1, x1: STATIO
 /** Areas that cover what would be road (no road paint). None since the blocks got their own streets. */
 export const NO_ROAD: Rect[] = [];
 
+/** Lots that became special places in v0.43 (the Junkyard, Hotline Plumbing & Heating, the Biker Club). Their old
+ *  sheds are still "rolled" (not built) so every other lot's random buildings come out exactly as before. */
+const NEW_SPECIAL: [string, LotLetter][] = [
+  ['I-007', 'A'], ['I-007', 'B'], ['I-007', 'C'], ['I-007', 'D'], // the Junkyard
+  ['I-008', 'A'], ['I-008', 'B'], ['I-008', 'C'], ['I-008', 'D'], // Hotline Plumbing & Heating and its yard
+  ['I-002', 'A'], ['I-002', 'B'], // the Biker Club
+];
 /** Lots that aren't normal buildings. */
 const SPECIAL: [string, LotLetter][] = [
   ['002', 'C'], ['002', 'D'], // Eddy's, Ray's
@@ -270,7 +277,9 @@ const SPECIAL: [string, LotLetter][] = [
   ['I-003', 'A'], ['I-003', 'B'], ['I-003', 'C'], ['I-003', 'D'], // the Factory
   ['I-006', 'A'], ['I-006', 'B'], ['I-006', 'C'], ['I-006', 'D'], // its parking lot
   ['F-005', 'A'], ['F-005', 'B'], ['F-005', 'C'], ['F-005', 'D'], // the Bank
+  ...NEW_SPECIAL,
 ];
+// (NEW_SPECIAL, the v0.43 places, is defined just above.)
 
 // ---------- the Thrift Store (Scrapping: tin salvage, level 1; docs/design.md §14) ----------
 // East of the park: the store on 009-C (a brick shop with a big sign, you don't go in), and behind a chain-link fence on
@@ -315,6 +324,68 @@ export const FACTORY_LOT_GATE: [number, number][] = [FACTORY_LOT.x0, FACTORY_LOT
   [x, FACTORY_LOT.y0 + 7] as [number, number],
 ]);
 ROOMS.push(FACTORY);
+
+// ---------- Hotline Plumbing & Heating (Scrapping: copper salvage, level 11; v0.43) ----------
+// The whole of I-008. A long brick-and-render workshop on the west half (A + C), its front facing WEST onto the street
+// across from the Junkyard (a sign, a roll-up door for the vans, pipes against the wall; you don't go in). Behind it, on
+// the east half, its yard: a half-high brick wall all round with one opening on the east side, 5 dumpsters full of
+// copper offcuts, stacks of old pipe.
+//   S S S S S | p D . D .     S = the store (front = west), D = a dumpster, p = stacked pipes
+//   S S S S S | . . . . .
+//   S S S S S | . . . . D
+//   S S S S S | . . . . .
+//   S S S S S | . . . . O     O = the opening in the wall (2 wide)
+//   S S S S S | . . . . O
+//   S S S S S | . . . . .
+//   S S S S S | . . . . D
+//   S S S S S | . . . . .
+//   S S S S S | p . D . .
+const HOTLINE_BLOCK = block('I-008');
+export const HOTLINE: Rect = { x0: HOTLINE_BLOCK.x0, y0: HOTLINE_BLOCK.y0, x1: HOTLINE_BLOCK.x0 + LOT_SIZE - 1, y1: HOTLINE_BLOCK.y1 };
+export const HOTLINE_YARD: Rect = { x0: HOTLINE_BLOCK.x0 + LOT_SIZE, y0: HOTLINE_BLOCK.y0, x1: HOTLINE_BLOCK.x1, y1: HOTLINE_BLOCK.y1 };
+export const HOTLINE_GATE: [number, number][] = [[HOTLINE_YARD.x1, HOTLINE_YARD.y0 + 4], [HOTLINE_YARD.x1, HOTLINE_YARD.y0 + 5]];
+export const HOTLINE_DUMPSTERS: [number, number][] = [[1, 0], [3, 0], [4, 2], [4, 7], [2, 9]].map(([dx, dy]) => [HOTLINE_YARD.x0 + dx, HOTLINE_YARD.y0 + dy]);
+
+// ---------- the Junkyard (guard dogs, level 8; v0.43) ----------
+// The whole of I-007, across the street from Hotline: a tall corrugated fence all round with one gate (2 wide) on the
+// east side. Inside: stacks of crushed cars, piles of tyres, an old crane, a dog house. Four guard dogs roam it.
+//   t . w w . . c c . t      w = crushed cars, t = tyres, c = the crane, h = the dog house, G = the gate
+//   . . . . . . c c . .
+//   w . . . . . . . . t
+//   w . . h . . . . . .
+//   . . . . . . . . . G
+//   . . . . . . . . . G
+//   . . . . . w w . . .
+//   . . . . . . . . . .
+//   w . . . . . . . . .
+//   w w . . t . . w w .
+export const JUNKYARD: Rect = block('I-007');
+export const JUNKYARD_GATE: [number, number][] = [[JUNKYARD.x1, JUNKYARD.y0 + 4], [JUNKYARD.x1, JUNKYARD.y0 + 5]];
+const JUNK: [number, number, FixtureKind][] = [
+  ...([[2, 0], [3, 0], [0, 2], [0, 3], [5, 6], [6, 6], [0, 8], [0, 9], [1, 9], [7, 9], [8, 9]] as const).map(([x, y]) => [x, y, 'wreck'] as [number, number, FixtureKind]),
+  ...([[0, 0], [9, 0], [9, 2], [4, 9]] as const).map(([x, y]) => [x, y, 'tyres'] as [number, number, FixtureKind]),
+  ...([[6, 0], [7, 0], [6, 1], [7, 1]] as const).map(([x, y]) => [x, y, 'crane'] as [number, number, FixtureKind]),
+  [3, 3, 'doghouse'],
+];
+
+// ---------- the Biker Club (bikers, level 15, aggressive; v0.43) ----------
+// The north half of I-002 (A + B), facing NORTH onto the street: dark brick, a neon sign, motorbikes parked on the
+// sidewalk in front. Inside (a room: the roof lifts): a bar counter along the back wall, a pool table, a table, a
+// jukebox. Three bikers hang around in it, and they jump anyone who walks in (one at a time).
+//   . . . . D D . . . .   y 7   D = the door (2 wide, north)
+//   . . . . . . . . . .
+//   . P P . . . . . T .         P = the pool table, T = a table
+//   . . . . . . . . . .
+//   K K K K K . . J . T   y 11  K = the bar counter, J = the jukebox
+const CLUB_LOTS = { a: lot('I-002', 'A'), b: lot('I-002', 'B') };
+export const CLUB: Room = {
+  x0: CLUB_LOTS.a.x0, y0: CLUB_LOTS.a.y0, x1: CLUB_LOTS.b.x1, y1: CLUB_LOTS.a.y1,
+  id: 'club', name: 'Iron Saints MC', door: [CLUB_LOTS.a.x0 + 4, CLUB_LOTS.a.y0], shop: false,
+};
+export const CLUB_DOOR: [number, number][] = [[CLUB.x0 + 4, CLUB.y0], [CLUB.x0 + 5, CLUB.y0]];
+/** The motorbikes parked on the sidewalk in front (solid). */
+export const CLUB_BIKES: [number, number][] = [1, 2, 7, 8].map((dx) => [CLUB.x0 + dx, CLUB.y0 - 1]);
+ROOMS.push(CLUB);
 
 // ---------- the Bank (Financial district, F-005; v0.42) ----------
 // A large stone bank filling the middle block of the Financial district, facing south (steps up to two big doors, columns,
@@ -386,6 +457,21 @@ export const SEWER_BRIDGES = [6, 16];
 /** The grid the game walks on: the island, then the sewer below it. */
 export const GW = W;
 export const GH = SEWER.y1 + 3;
+
+// ---------- the Rat Nest (giant rats, level 12; v0.43) ----------
+// East of the sewer: from the end of the north walkway a narrow tunnel runs east to a dark chamber where three giant rats
+// live on a mound of junk. A locked iron gate in the tunnel: Splinter's Sewer Key (the quest "Sewer Problems") opens it,
+// for you only (players.unlocked); for everyone else it stays locked. The server checks it (walk, attack).
+//   sewer … . S | . . G . | N N N N N N N N N N     S = Splinter (sits against the north wall), G = the gate
+//                tunnel (y 65)    the nest (x 46–55, y 63–70)
+export const NEST_TUNNEL: Rect = { x0: SEWER.x1 + 1, y0: SEWER.y0 + 1, x1: SEWER.x1 + 4, y1: SEWER.y0 + 1 };
+export const NEST: Rect = { x0: NEST_TUNNEL.x1 + 1, y0: SEWER.y0 - 1, x1: NEST_TUNNEL.x1 + 10, y1: SEWER.y0 + 6 };
+export const NEST_GATE: [number, number] = [NEST_TUNNEL.x0 + 2, NEST_TUNNEL.y0];
+/** Behind the gate (the gate's tile included): only for players who unlocked it. The server has the same rectangle. */
+export const NEST_LOCKED: Rect = { x0: NEST_GATE[0], y0: NEST.y0, x1: NEST.x1, y1: NEST.y1 };
+export const inNestLocked = (x: number, y: number) => inRect(NEST_LOCKED, x, y) && (inRect(NEST, x, y) || inRect(NEST_TUNNEL, x, y));
+/** Where Splinter sits: against the sewer's north wall, by the tunnel. */
+export const SPLINTER: [number, number] = [SEWER.x0 + 22, SEWER.y0];
 /** The pothole: an open manhole in the middle of the crossing east of the candy shop. */
 export const MANHOLE: [number, number] = [CITY_X + 2 * PITCH + 3, 2 * PITCH + 3];
 /** The ladder on the sewer's north wall. */
@@ -403,12 +489,15 @@ export const LINKS: Link[] = [
   { id: 'sewer_down', at: MANHOLE, to: [SEWER_LADDER[0], SEWER_LADDER[1] + 1], text: 'You climb down into the sewer' },
   { id: 'sewer_up', at: SEWER_LADDER, to: [MANHOLE[0], MANHOLE[1] - 1], text: 'You climb back up to the street' },
 ];
-export const inSewer = (x: number, y: number) => inRect(SEWER, x, y);
+/** The box around everything underground (the sewer's own map shows this). */
+export const UNDER: Rect = { x0: SEWER.x0, y0: NEST.y0, x1: NEST.x1, y1: SEWER.y1 };
+/** Underground: the sewer, the tunnel to the Rat Nest, and the nest. */
+export const inSewer = (x: number, y: number) => inRect(SEWER, x, y) || inRect(NEST_TUNNEL, x, y) || inRect(NEST, x, y);
 /** A sewage tile (not a bridge). */
 export const isSewage = (x: number, y: number) => {
   const dx = x - SEWER.x0;
   const dy = y - SEWER.y0;
-  return inSewer(x, y) && dy >= SEWER_CHANNEL.y0 && dy <= SEWER_CHANNEL.y1 && !SEWER_BRIDGES.some((b) => dx === b || dx === b + 1);
+  return inRect(SEWER, x, y) && dy >= SEWER_CHANNEL.y0 && dy <= SEWER_CHANNEL.y1 && !SEWER_BRIDGES.some((b) => dx === b || dx === b + 1);
 };
 /** A tile you could be on: the island, or the sewer. */
 export const onMap = (x: number, y: number) => (x >= 0 && y >= 0 && x < W && y < H) || inSewer(x, y);
@@ -423,7 +512,7 @@ export interface Enclosure {
   openings: { inside: [number, number]; outside: [number, number] }[];
 }
 export const ENCLOSURES: Enclosure[] = [
-  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory' && r.id !== 'bank').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
+  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory' && r.id !== 'bank' && r.id !== 'club').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
   // The hospital: a wide entrance (3 tiles), and the stairs are the only way between the lobby and the ward.
   {
     id: 'hospital',
@@ -444,6 +533,10 @@ export const ENCLOSURES: Enclosure[] = [
   },
   // The Bank: its two big doors.
   { id: 'bank', rect: BANK, openings: BANK_DOOR.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x, y + 1] as [number, number] })) },
+  // Hotline's yard (a half-high wall, one opening east), the Junkyard (a fence, one gate east), the Biker Club (its door).
+  { id: 'hotline_yard', rect: HOTLINE_YARD, openings: HOTLINE_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
+  { id: 'junkyard', rect: JUNKYARD, openings: JUNKYARD_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
+  { id: 'club', rect: CLUB, openings: CLUB_DOOR.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x, y - 1] as [number, number] })) },
   // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
   { id: 'thrift_yard', rect: THRIFT_YARD, openings: [{ inside: THRIFT_GATE, outside: [THRIFT_GATE[0], THRIFT_GATE[1] + 1] }] },
   { id: 'ward', rect: WARD, openings: STAIRS.map((s) => ({ inside: [s.x, WARD.y1] as [number, number], outside: s.top })) },
@@ -494,14 +587,17 @@ const LAYOUTS: [number, number, number, number][][] = [
 export const BUILDINGS: Building[] = (() => {
   const out: Building[] = [];
   const rng = mulberry32(42);
+  const rerolled = new Set(NEW_SPECIAL.map(([b, l]) => `${b}-${l}`));
   for (const lot of LOTS) {
-    if (lot.kind !== 'buildings') continue;
+    // A lot that became a special place still takes its random numbers (and builds nothing), so the rest don't change.
+    const gone = rerolled.has(lot.name);
+    if (lot.kind !== 'buildings' && !gone) continue;
     const block = blockRect(lot.bx, lot.by);
     const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
     for (const [ox, oy, w, h] of layout) {
       const big = w * h >= 10;
       const y = lot.rect.y0 + oy;
-      out.push({
+      const b: Building = {
         x: lot.rect.x0 + ox,
         y,
         w,
@@ -511,9 +607,12 @@ export const BUILDINGS: Building[] = (() => {
         // The door faces the street: north for buildings along the block's north edge, south otherwise.
         front: y === block.y0 && y + h - 1 !== block.y1 ? 'n' : 's',
         industrial: inZone(lot.rect.x0),
-      });
+      };
+      if (!gone) out.push(b);
     }
   }
+  // Hotline Plumbing & Heating fills the west half of I-008 (drawn in city.ts).
+  out.push({ x: HOTLINE.x0, y: HOTLINE.y0, w: LOT_SIZE, h: BLOCK_SIZE, height: 2.4, color: WALL_COLORS[0], front: 's', custom: true });
   // The Thrift Store fills its lot (drawn in city.ts; it blocks the tiles like any building).
   out.push({ x: THRIFT.x0, y: THRIFT.y0, w: LOT_SIZE, h: LOT_SIZE, height: 2.6, color: WALL_COLORS[3], front: 's', custom: true });
   // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
@@ -544,7 +643,8 @@ export const STATIONS: Station[] = [
 ];
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench' | 'bankcounter' | 'vault' | 'pillar';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench' | 'bankcounter' | 'vault' | 'pillar'
+  | 'pipes' | 'wreck' | 'tyres' | 'crane' | 'doghouse' | 'clubbar' | 'pool' | 'clubtable' | 'clubjuke' | 'motorbike' | 'mound' | 'splinter';
 export interface Fixture {
   x: number;
   y: number;
@@ -655,6 +755,20 @@ export const FIXTURES: Fixture[] = (() => {
   // The columns along the front stand on the step row, either side of the doors.
   for (const dx of [2, 3, 6, 7]) out.push({ x: BANK.x0 + dx, y: BANK.y1 + 1, kind: 'pillar' });
 
+  // Hotline's yard: stacks of old pipe in the corners by the store's back wall.
+  for (const dy of [0, 9]) out.push({ x: HOTLINE_YARD.x0, y: HOTLINE_YARD.y0 + dy, kind: 'pipes' });
+  // The Junkyard.
+  for (const [dx, dy, kind] of JUNK) out.push({ x: JUNKYARD.x0 + dx, y: JUNKYARD.y0 + dy, kind });
+  // The Biker Club: the bar counter, the pool table, a table, the jukebox; the motorbikes out front.
+  for (let dx = 0; dx < 5; dx++) out.push({ x: CLUB.x0 + dx, y: CLUB.y1, kind: 'clubbar' });
+  for (const dx of [1, 2]) out.push({ x: CLUB.x0 + dx, y: CLUB.y0 + 2, kind: 'pool' });
+  out.push({ x: CLUB.x0 + 8, y: CLUB.y0 + 2, kind: 'clubtable' }, { x: CLUB.x1, y: CLUB.y1, kind: 'clubtable' }, { x: CLUB.x0 + 7, y: CLUB.y1, kind: 'clubjuke' });
+  for (const [x, y] of CLUB_BIKES) out.push({ x, y, kind: 'motorbike' });
+  // The Rat Nest: the giant rats' mound of junk in the middle, crates and rubbish bags along the walls; Splinter.
+  for (const dx of [4, 5]) for (const dy of [3, 4]) out.push({ x: NEST.x0 + dx, y: NEST.y0 + dy, kind: 'mound' });
+  out.push({ x: NEST.x0, y: NEST.y0, kind: 'crate' }, { x: NEST.x1, y: NEST.y1, kind: 'crate' }, { x: NEST.x1, y: NEST.y0, kind: 'trash' }, { x: NEST.x0 + 2, y: NEST.y1, kind: 'trash' });
+  out.push({ x: SPLINTER[0], y: SPLINTER[1], kind: 'splinter' });
+
   // The Factory: crates stacked at the back.
   for (const dx of [2, 3, 6, 7]) out.push({ x: FACTORY.x0 + dx, y: FACTORY.y0, kind: 'crate' });
 
@@ -691,6 +805,9 @@ export const NODES: StreetNode[] = (() => {
   [3, 7].forEach((dx, i) => node(`car_${i + 2}`, 'steal_car', PARKING_S.x0 + dx, PARKING_S.y1 - 1, { facing: -Math.PI / 2 }));
   // Five dumpsters in the Thrift Store's yard (Scrapping: tin salvage).
   THRIFT_DUMPSTERS.forEach(([x, y], i) => node(`dumpster_${i}`, 'tin_salvage', x, y, { facing: x === THRIFT_YARD.x0 ? Math.PI / 2 : x === THRIFT_YARD.x1 ? -Math.PI / 2 : 0 }));
+  // Five dumpsters in Hotline's yard (Scrapping: copper salvage), facing into the yard.
+  HOTLINE_DUMPSTERS.forEach(([x, y], i) =>
+    node(`cu_dumpster_${i}`, 'copper_salvage', x, y, { facing: y === HOTLINE_YARD.y0 ? 0 : y === HOTLINE_YARD.y1 ? Math.PI : -Math.PI / 2 }));
   // Four shelves at the gas station, either side of the fridge.
   [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
@@ -718,7 +835,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor' | 'banker' | 'doorman';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor' | 'banker' | 'doorman' | 'splinter';
 export interface Npc {
   id: string;
   name: string;
@@ -763,8 +880,11 @@ export const NPCS: Npc[] = [
   },
   // The hospital: the receptionist behind her desk, and two doctors walking around the ward (between the beds).
   { id: 'receptionist', name: 'Receptionist', role: 'Hospital', kind: 'receptionist', x: LOBBY.x0 + 2, y: LOBBY.y0 + 1, area: { x0: LOBBY.x0 + 2, y0: LOBBY.y0 + 1, x1: LOBBY.x0 + 2, y1: LOBBY.y0 + 1 }, named: true },
-  { id: 'doctor_0', name: 'Doctor', role: 'Hospital', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: false },
-  { id: 'doctor_1', name: 'Doctor', role: 'Hospital', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: false },
+  // (v0.43: the doctors have names, JD and Elliot; Elliot helps with "Sewer Problems".)
+  { id: 'doctor_0', name: 'JD', role: 'Doctor', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
+  { id: 'doctor_1', name: 'Elliot', role: 'Doctor', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
+  // Splinter, sitting against the sewer's north wall by the tunnel (he gives the quest "Sewer Problems").
+  { id: 'splinter', name: 'Splinter', role: 'The sewer', kind: 'splinter', x: SPLINTER[0], y: SPLINTER[1], area: { x0: SPLINTER[0], y0: SPLINTER[1], x1: SPLINTER[0], y1: SPLINTER[1] }, named: true },
   // The Bank: three bankers behind the counter (talk to one to open your bank) and a guard by the door.
   ...[1, 4, 7].map((dx, i) => ({
     id: `banker_${i}`, name: 'Banker', role: 'The Bank', kind: 'banker' as const, x: BANK.x0 + dx, y: BANK.y0 + 1,
@@ -819,6 +939,8 @@ export function buildBlocked(): Uint8Array {
   const g = new Uint8Array(GW * GH);
   // Below the island only the sewer's walkways and bridges are open.
   for (let y = H; y < GH; y++) for (let x = 0; x < GW; x++) if (!inSewer(x, y) || isSewage(x, y)) g[y * W + x] = 1;
+  // The Rat Nest's gate is shut (StreetView opens it for players who unlocked it).
+  g[NEST_GATE[1] * W + NEST_GATE[0]] = 1;
   for (const c of PARKED_CARS) for (const [x, y] of parkedTiles(c)) g[y * W + x] = 1;
   for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
   for (const f of FIXTURES) g[f.y * W + f.x] = 1;
@@ -837,6 +959,14 @@ export const SEWER_AREAS: Area[] = [
     blurb: 'A burning oil drum. Cook your rat meat here without going back up (Cooking).',
   },
   {
+    id: 'splinter', name: 'Splinter', rect: { x0: SPLINTER[0], y0: SPLINTER[1], x1: SPLINTER[0], y1: SPLINTER[1] }, icon: 'quest', crimes: [], npcs: ['splinter'],
+    blurb: 'A man sitting against the wall by the tunnel. He looks like he needs help (quest: Sewer Problems).',
+  },
+  {
+    id: 'nest', name: 'The Rat Nest', rect: NEST, icon: 'rat', crimes: [], npcs: [],
+    blurb: 'Behind a locked gate at the end of the tunnel: three giant rats (level 12) on a mound of junk. They drop giant rat meat.',
+  },
+  {
     id: 'sewer_rats_n', name: 'Rats', rect: { x0: SEWER.x0 + 14, y0: SEWER.y0 + 1, x1: SEWER.x0 + 14, y1: SEWER.y0 + 1 }, icon: 'rat', crimes: [], npcs: [],
     blurb: 'Five rats along the north walkway (level 3, not aggressive). They always drop raw rat meat.',
   },
@@ -847,7 +977,7 @@ export const SEWER_AREAS: Area[] = [
 ];
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat' | 'scrap' | 'factory' | 'bank';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat' | 'scrap' | 'factory' | 'bank' | 'dog' | 'biker' | 'quest';
 export interface Area {
   id: string;
   name: string;
@@ -861,6 +991,18 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'hotline', name: 'Hotline Plumbing & Heating', rect: { x0: HOTLINE.x0, y0: HOTLINE.y0, x1: HOTLINE_YARD.x1, y1: HOTLINE_YARD.y1 }, icon: 'scrap', crimes: ['copper_salvage'], npcs: [],
+    blurb: 'A plumbing and heating company in the Industrial zone. The dumpsters in its walled yard are full of copper offcuts (Scrapping 11).',
+  },
+  {
+    id: 'junkyard', name: 'The Junkyard', rect: JUNKYARD, icon: 'dog', crimes: [], npcs: [],
+    blurb: 'Crushed cars and tyres behind a tall fence, guarded by four dogs (level 8). The gate is on the east side.',
+  },
+  {
+    id: 'club', name: 'Iron Saints MC', rect: CLUB, icon: 'biker', crimes: [], npcs: [],
+    blurb: 'A biker bar with a neon sign. Three bikers (level 15) drink inside, and they jump anyone who walks in.',
+  },
   {
     id: 'bank', name: 'The Bank', rect: BANK, icon: 'bank', crimes: [], npcs: ['banker_0'],
     blurb: 'In the Financial district. Talk to a banker to open your bank: 50 slots where things stack, and your cash is safe there.',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import zoneWestSql from '../../supabase/migrations/0026_zone_west.sql?raw';
-import { ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PARK, PATROL, SPAWN, STAIRS, W, WAKE, WARD, H, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
+import { GH, LINKS, ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PARK, PATROL, SPAWN, STAIRS, W, WAKE, WARD, H, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
 import { GUARD_ROUTE } from '../game/watchers';
@@ -13,14 +13,20 @@ it('every street spot and NPC is reachable from spawn', () => {
   expect(b[SPAWN[1] * W + SPAWN[0]]).toBe(0);
   const bad = NODES.filter((n) => findPath(b, W, H, SPAWN, neighbors(n.x, n.y), canStep) === null).map((n) => n.id);
   expect(bad).toEqual([]);
-  for (const npc of NPCS) expect(findPath(b, W, H, SPAWN, [[npc.x, npc.y]], canStep), npc.id).not.toBeNull();
+  // (Splinter sits on his own spot against the sewer's wall: you walk up next to him from the foot of the ladder.)
+  const ladderFoot = LINKS.find((l) => l.id === 'sewer_down')!.to;
+  for (const npc of NPCS)
+    expect(
+      npc.kind === 'splinter' ? findPath(b, W, GH, ladderFoot, neighbors(npc.x, npc.y), canStep) : findPath(b, W, H, SPAWN, [[npc.x, npc.y]], canStep),
+      npc.id,
+    ).not.toBeNull();
 });
 
 it('every placed crime has spots, and nothing stands on a fixture', () => {
   expect([...new Set(NODES.map((n) => n.crimeId))].sort()).toEqual([...PLACED].sort());
   const fixtures = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
   for (const n of NODES) expect(fixtures.has(`${n.x},${n.y}`), n.id).toBe(false);
-  for (const p of NPCS) expect(fixtures.has(`${p.x},${p.y}`), p.id).toBe(false);
+  for (const p of NPCS) expect(fixtures.has(`${p.x},${p.y}`), p.id).toBe(p.kind === 'splinter');
 });
 
 it('the three tourists stroll inside the park', () => {
@@ -144,9 +150,9 @@ describe('the sewer', () => {
   });
 });
 
-it("the rats' patches are still the ones the server has (0019_sewer.sql)", async () => {
+it("the rats' patches are still the ones the server has (0028: Splinter's spot is solid since v0.43)", async () => {
   const { RAT_ZONES } = await import('../game/enemies');
-  const sewerSql = (await import('../../supabase/migrations/0019_sewer.sql?raw')).default;
+  const sewerSql = (await import('../../supabase/migrations/0028_copper_enemies_quest.sql?raw')).default;
   const tiles = RAT_ZONES.flat();
   expect(sewerSql).toContain(`px int[] := array[${tiles.map((p) => p[0]).join(',')}];`);
   expect(sewerSql).toContain(`py int[] := array[${tiles.map((p) => p[1]).join(',')}];`);

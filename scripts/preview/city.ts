@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { buildCity, updateFades } from '../../src/street/city';
 import { animateCharacter, buildCharacter } from '../../src/street/character';
 import { buildBigCar } from '../../src/street/streetLife';
-import { buildMeter, buildRat } from '../../src/street/props';
+import { buildDog, buildGiantRat, buildMeter, buildRat } from '../../src/street/props';
 import { NODES, NPCS, floorY } from '../../src/street/map';
-import { ratAt, thugAt } from '../../src/game/enemies';
+import { ROAMS, ratAt, roamAt, thugAt } from '../../src/game/enemies';
 import { setGear } from '../../src/street/props';
 
 const q = new URLSearchParams(location.search);
@@ -95,6 +95,29 @@ for (let i = 0; i < 10; i++) {
   g.rotation.y = i * 1.3;
   scene.add(g);
 }
+// v0.43: guard dogs, giant rats, bikers where their schedules put them; Splinter sitting; ?gate=open.
+for (const [kind, n] of [['dog', 4], ['giant_rat', 3], ['biker', 3]] as const)
+  for (let i = 0; i < n; i++) {
+    const p = roamAt(ROAMS[kind], i, Date.now());
+    const g =
+      kind === 'dog'
+        ? buildDog()
+        : kind === 'giant_rat'
+          ? buildGiantRat()
+          : buildCharacter({ skin: i, hair: 3, hairColor: i, top: 3, bottom: 3 }, { apron: 0x2a2220 });
+    if (kind === 'biker') setGear(g, { weapon: 'copper_knuckles' });
+    g.position.set(p.x, floorY(p.x, p.z) + 0.03, p.z);
+    g.rotation.y = i * 1.9;
+    if (kind === 'biker') animateCharacter(g, 'idle', 0);
+    scene.add(g);
+  }
+for (const n of NPCS.filter((n) => n.kind === 'splinter')) {
+  const g = buildCharacter({ skin: 1, hair: 4, hairColor: 1, top: 3, bottom: 3 }, { apron: 0x4a4a32 });
+  g.position.set(n.x + 0.5, floorY(n.x + 0.5, n.y + 0.5) + 0.03 - 0.35, n.y + 0.5);
+  animateCharacter(g, 'sit', 0);
+  scene.add(g);
+}
+city.setGateOpen(q.get('gate') === 'open');
 // ?inside=hospital: as if you're inside that room (its walls faded, the roof off).
 const inside = q.get('inside');
 if (inside) {
