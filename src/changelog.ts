@@ -10,12 +10,15 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.45.0',
     date: '2026-11-17',
-    title: 'New models (pilot)',
+    title: 'New look for creatures and people',
     items: [
       'The Junkyard has two old trucks rusting among the wrecks, with pallets, planks and a broken barrier along the fence.',
       'A truck is parked in the Factory\'s lot, with a stack of pallets in the corner.',
       'Iron Saints MC: bar stools along the counter, round tables with stools, bottles and glasses, an old TV over the bar.',
       'Food lying on the ground looks like food now: raw meat, ribs, a ham, candy bars and sandwiches.',
+      'New rats in the old-school style: crouched, spiky-backed, open-mouthed, with bright red eyes. The giant rats are bigger, darker versions.',
+      'New pigeons (fat, with folded barred wings and the green neck) and new guard dogs (lean, spiked collar, bared teeth).',
+      'Everyone (you, the people in the city, thugs and bikers) is faceted now, with chunkier shoulders and hands.',
     ],
   },
   {

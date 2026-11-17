@@ -1,6 +1,13 @@
+// Dev only: a model before (left, scripts/preview/old/: the v0.44 code) and after (right), in the sewer-ish light, with the
+// new one's triangle count in the page title. ?who=rat|pigeon|dog|giant|human, ?yaw=, ?view=game (the game's camera).
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildPigeon, buildPigeonRings, buildRat, buildRatRings, animatePigeon, animateRat } from '../../src/street/props';
+import * as NEW from '../../src/street/props';
+import * as OLD from './old/props';
+import { animateCharacter, buildCharacter } from '../../src/street/character';
+import { animateCharacter as animateOld, buildCharacter as buildOldCharacter } from './old/character';
+
+const q = new URLSearchParams(location.search);
+const who = q.get('who') ?? 'rat';
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -12,34 +19,53 @@ const sun = new THREE.DirectionalLight(0xffc890, 1.8);
 sun.position.set(-2, 4, 3);
 sun.castShadow = true;
 scene.add(sun);
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshLambertMaterial({ color: 0x6e7468 }));
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 8), new THREE.MeshLambertMaterial({ color: 0x6e7468 }));
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
-const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 50);
-const q = new URLSearchParams(location.search);
-const yaw = Number(q.get('yaw') ?? 0.7);
-// ?view=game: from the game's camera (far and steep) instead of close.
-const far = q.get('view') === 'game';
-cam.position.set(Math.sin(yaw) * (far ? 7 : 2.6), far ? 12 : 1.5, Math.cos(yaw) * (far ? 7 : 2.6));
-cam.lookAt(0, 0.15, 0);
-// ?who=pigeon: the pigeons instead of the rats.
-const pigeon = q.get('who') === 'pigeon';
-const old = pigeon ? buildPigeon() : buildRat();
-old.position.set(pigeon ? -0.35 : -0.55, 0, 0);
-(pigeon ? animatePigeon : animateRat)(old, 'peck', 0);
-scene.add(old);
-const fresh = pigeon ? buildPigeonRings() : buildRatRings();
-fresh.position.set(pigeon ? 0.35 : 0.55, 0, 0);
-(pigeon ? animatePigeon : animateRat)(fresh, 'peck', 0);
-scene.add(fresh);
+
+const LOOK = { skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 };
+const build: Record<string, [() => THREE.Group, () => THREE.Group, number, number]> = {
+  // [old, new, spacing, camera distance]
+  rat: [() => OLD.buildRat(), () => NEW.buildRat(), 0.55, 2.6],
+  pigeon: [() => OLD.buildPigeon(), () => NEW.buildPigeon(), 0.35, 1.7],
+  dog: [() => OLD.buildDog(), () => NEW.buildDog(), 0.6, 3.4],
+  giant: [() => OLD.buildGiantRat(), () => NEW.buildGiantRat(), 1.1, 5.5],
+  human: [() => buildOldCharacter(LOOK), () => buildCharacter(LOOK), 0.45, 3.2],
+};
+const [mkOld, mkNew, gap, dist] = build[who];
+const old = mkOld();
+const fresh = mkNew();
+old.position.x = -gap;
+fresh.position.x = gap;
+if (who === 'human' && q.get('gear')) {
+  NEW.setGear(fresh, { weapon: 'copper_knuckles', head: 'tin_helmet', body: 'copper_vest', legs: 'tin_legs' });
+  OLD.setGear(old, { weapon: 'copper_knuckles', head: 'tin_helmet', body: 'copper_vest', legs: 'tin_legs' });
+  animateOld(old, 'idle', 0);
+  animateCharacter(fresh, 'idle', 0);
+} else if (who === 'human') {
+  animateOld(old, 'idle', 0);
+  animateCharacter(fresh, 'idle', 0);
+} else if (who === 'pigeon') {
+  OLD.animatePigeon(old, 'peck', 0);
+  NEW.animatePigeon(fresh, 'peck', 0);
+} else {
+  OLD.animateRat(old, 'peck', 0);
+  NEW.animateRat(fresh, 'peck', 0);
+}
+for (const g of [old, fresh]) g.traverse((o) => ((o as THREE.Mesh).castShadow = true)), scene.add(g);
 let tris = 0;
 fresh.traverse((o) => {
   const m = o as THREE.Mesh;
   if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
 });
-document.title = `rings ${pigeon ? 'pigeon' : 'rat'}: ${Math.round(tris)} tris`;
-if (pigeon) cam.position.multiplyScalar(0.65), cam.lookAt(0, 0.18, 0);
+document.title = `${who}: ${Math.round(tris)} tris`;
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 80);
+const yaw = Number(q.get('yaw') ?? 0.7);
+const far = q.get('view') === 'game';
+const d = far ? dist * 3 : dist;
+const lookY = who === 'human' ? 0.6 : who === 'giant' ? 0.4 : who === 'dog' ? 0.45 : 0.18;
+cam.position.set(Math.sin(yaw) * d, lookY + (far ? d * 1.4 : dist * 0.5), Math.cos(yaw) * d);
+cam.lookAt(0, lookY, 0);
 renderer.render(scene, cam);
 (window as unknown as { ready: boolean }).ready = true;
-void GLTFLoader;

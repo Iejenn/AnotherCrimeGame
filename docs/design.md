@@ -902,8 +902,10 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
 
 Measured on 2026-11-17 (`scripts/preview/models.html` counts them): the Kenney food is 44–176 and its furniture 60–280;
 the urban kit's props are 4–124 (trucks 48: they use a texture). Our code-built pigeon is 304, rat 632, dog 460.
-**Over budget, to fix:** the code-built people (1,906: their heads and hands are smooth spheres) and the code-built
-rat (632). The first Blender rat (718) was over too: that's why this section exists.
+The first Blender rat (718) was over: that's why this section exists. **v0.45:** the creatures are rebuilt from rings
+(`src/street/loft.ts`: `loft` for bodies, `limb` for legs, `spikes` for fur, claws, ears and teeth) after the OSRS rat
+and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard dog 449; people are faceted (6-sided
+limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
 
 ### Colour and material
 - **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney

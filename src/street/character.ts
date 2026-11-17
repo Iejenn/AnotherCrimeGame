@@ -1,5 +1,6 @@
-// Characters: the look options for the character creator, and the rounded low-poly model
-// (capsule body and limbs, round head) with simple walk / work / stunned animations.
+// Characters: the look options for the character creator, and the low-poly model with simple walk / work / stunned
+// animations. Since v0.45 it's faceted in the old-school RuneScape way (docs/design.md §18): 6-sided limbs, a chunky
+// torso wider at the shoulders, a faceted head, big blocky hands and feet; flat-shaded; well under 1,200 triangles.
 // Everyone on the Street uses this model: you, tourists, the banker, Eddy.
 import * as THREE from 'three';
 import type { Look } from '../game/types';
@@ -21,25 +22,26 @@ export const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 // Shared geometry and materials: built once, reused by every character.
 const geo = {
-  leg: new THREE.CapsuleGeometry(0.07, 0.24, 3, 8),
-  arm: new THREE.CapsuleGeometry(0.052, 0.22, 3, 8),
-  torso: new THREE.CapsuleGeometry(0.16, 0.2, 4, 10),
-  head: new THREE.SphereGeometry(0.165, 14, 10),
-  hand: new THREE.SphereGeometry(0.052, 8, 6),
-  shoe: new THREE.BoxGeometry(0.12, 0.07, 0.19),
-  eye: new THREE.SphereGeometry(0.022, 6, 4),
-  hairCap: new THREE.SphereGeometry(0.178, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
+  leg: new THREE.CylinderGeometry(0.078, 0.066, 0.4, 6),
+  arm: new THREE.CylinderGeometry(0.06, 0.05, 0.3, 6),
+  // Wider at the shoulders than at the waist (a chunky, slightly top-heavy RuneScape torso).
+  torso: new THREE.CylinderGeometry(0.2, 0.155, 0.5, 6),
+  head: new THREE.IcosahedronGeometry(0.17, 1),
+  hand: new THREE.BoxGeometry(0.085, 0.095, 0.085),
+  shoe: new THREE.BoxGeometry(0.13, 0.075, 0.2),
+  eye: new THREE.BoxGeometry(0.035, 0.035, 0.02),
+  hairCap: new THREE.SphereGeometry(0.182, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.5),
   hairBack: new THREE.BoxGeometry(0.3, 0.32, 0.1),
   mohawk: new THREE.BoxGeometry(0.06, 0.13, 0.3),
-  capTop: new THREE.CylinderGeometry(0.175, 0.18, 0.11, 14),
+  capTop: new THREE.CylinderGeometry(0.175, 0.18, 0.11, 8),
   capBrim: new THREE.BoxGeometry(0.26, 0.025, 0.16),
-  shadow: new THREE.CircleGeometry(0.24, 16),
+  shadow: new THREE.CircleGeometry(0.24, 10),
 };
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
 function mat(color: number) {
   let m = matCache.get(color);
   if (!m) {
-    m = new THREE.MeshLambertMaterial({ color });
+    m = new THREE.MeshLambertMaterial({ color, flatShading: true });
     matCache.set(color, m);
   }
   return m;
@@ -100,7 +102,7 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
     // a stethoscope round the neck and a name badge.
     if (scrubs) mesh(new THREE.BoxGeometry(0.1, 0.2, 0.02), scrubs, 0, 0.72, 0.125).castShadow = false;
     mesh(new THREE.BoxGeometry(0.36, 0.26, 0.27), coat, 0, 0.4, 0);
-    mesh(new THREE.TorusGeometry(0.1, 0.012, 4, 12, Math.PI), mat(0x3a5a4a), 0, 0.8, 0.07).rotation.set(Math.PI * 0.6, 0, Math.PI);
+    mesh(new THREE.TorusGeometry(0.1, 0.012, 3, 8, Math.PI), mat(0x3a5a4a), 0, 0.8, 0.07).rotation.set(Math.PI * 0.6, 0, Math.PI);
     mesh(new THREE.BoxGeometry(0.06, 0.04, 0.01), mat(0x3a6ea5), 0.09, 0.73, 0.13).castShadow = false;
   }
   mesh(geo.head, skin, 0, 1.0, 0);
@@ -135,11 +137,11 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   // A hood pulled up over the head (thugs): a dome over the head and down the back of the neck, in its own colour.
   if (extra?.hood !== undefined) {
     const hood = mat(extra.hood);
-    const dome = mesh(new THREE.SphereGeometry(0.185, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), hood, 0, 1.0, -0.015);
+    const dome = mesh(new THREE.SphereGeometry(0.19, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.62), hood, 0, 1.0, -0.015);
     dome.scale.set(1.06, 1.12, 1.08);
     mesh(new THREE.BoxGeometry(0.3, 0.16, 0.12), hood, 0, 0.86, -0.1);
     // The opening's rim around the face.
-    mesh(new THREE.TorusGeometry(0.15, 0.025, 6, 16, Math.PI * 1.2), hood, 0, 1.0, 0.11).rotation.z = -Math.PI * 0.1;
+    mesh(new THREE.TorusGeometry(0.15, 0.025, 4, 8, Math.PI * 1.2), hood, 0, 1.0, 0.11).rotation.z = -Math.PI * 0.1;
   }
   // A soft round shadow blob under the feet (cheap, reads well even without real shadows).
   const blob = new THREE.Mesh(geo.shadow, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));
