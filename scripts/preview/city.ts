@@ -127,10 +127,9 @@ if (q.get('loot'))
   });
 // ?inside=hospital: as if you're inside that room (its walls faded, the roof off).
 const inside = q.get('inside');
-if (inside) {
-  city.rooms.get(inside)!.force = true;
-  for (let i = 0; i < 40; i++) updateFades(city.fadeables, camera, you.position, 0.05);
-}
+if (inside) city.rooms.get(inside)!.force = true;
+// Buildings between the camera and you fade, like in the game.
+for (let i = 0; i < 40; i++) updateFades(city.fadeables, camera, you.position, 0.05);
 // Models load in the background: keep rendering for a moment, then say we're ready.
 const t0 = performance.now();
 const tick = () => {

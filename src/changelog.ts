@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.47.0',
+    date: '2026-11-17',
+    title: 'Real windows',
+    items: [
+      'Every building has real windows now: frames, sills and glazing bars, some lit, some with curtains, on every wall you can see, upstairs too.',
+      'Doors with frames, steps and lamps; shop windows with big panes; awnings with a hanging flap; drainpipes, air-con units, water tanks and aerials on the roofs.',
+      'The Factory has rows of old windows (some smashed), the bank tall lit windows, the Biker Club blacked-out ones, Hotline windows down its sides, the hospital lit windows on both floors.',
+      'The fences are the same everywhere: chain-link with barbed wire at the Thrift Store, a brick wall round Hotline\'s yard, corrugated sheets round the Junkyard.',
+      'Smoother on phones: the city is drawn in about half the pieces it was, with all the extra detail.',
+    ],
+  },
+  {
     version: '0.46.0',
     date: '2026-11-17',
     title: 'Loot you can recognise',

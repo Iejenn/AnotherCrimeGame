@@ -940,13 +940,51 @@ green vial with a cork, the cooked antidote the ribs with green drops, the sewer
 triangles (`scripts/preview/loot.html` shows them all with their counts). A new item gets its look here; without one
 it shows as a small brown bundle.
 
-### The whole scene (measured 2026-11-17, v0.46)
-With `scripts/preview/game.html` (dev builds expose the renderer as `window.__street`): about **50,000–61,000
-triangles a frame** (shadows included) in every busy spot, which is fine. **Draw calls:** 150–210 in most places, about
-**400 on the shopping street** (Eddy's, Ray's): most of that is ~290 small loose boxes (window frames, sills, shop
-trims) each drawn on its own. Next step when needed: merge the city's static details per material into a few meshes
-per area. Each other player adds ~22 (11 meshes, and their shadows); a creature ~20–45 (its parts aren't merged yet,
-so they can move).
+### The building kit (v0.47, `src/street/kit.ts`)
+Buildings are described from parts, not placed box by box, so every building follows these rules and the same part
+looks the same everywhere. **A new building uses the kit**; a part it needs and the kit lacks is added to the kit.
+- **Faces:** a part is placed on one side of a rectangle seen from outside (`face(rect, 'n'|'s'|'e'|'w')`): `u` runs
+  along it from the viewer's left, `y` up, `out` away from the wall. `uOf(face, x or z)` turns a map coordinate into `u`.
+- **Walls:** `walls(rect, height, thickness, material, openings)`: four walls with doorways cut out (per side, from `u0`
+  to `u1`, the wall going on above `top`). Each building keeps its own wall material so it can fade on its own.
+- **Windows:** `window(face, u, y, {style, w, h, lit, frame, behind, sill})`, `windowRow(face, from, to, y, step, …)`.
+  Styles: plain (a cross of glazing bars), office (a transom), shop (big panes with bars), barred, broken, boarded,
+  blacked-out. A frame standing proud of the wall, the glass, a sill; lit ones glow warm; boxes or a curtain behind.
+  Ordinary buildings put one on every floor of every tile of wall that faces open air (not one pressed against a
+  neighbour, unless it rises above the neighbour's roof).
+- **Doors:** `door(face, u, {style, w, h, color, frame, step, light})`: plain, glass, office, double, shutter (a ribbed
+  roll-up door), shutterOpen (rolled up over a real opening), open (a dark doorway), frame (just the frame round a
+  doorway you walk through). A step, a lamp, a bare bulb or a coloured light.
+- **Roofs:** `roof`, `parapet`, and roof clutter: `acUnit`, `tank`, `antenna`, `vent`.
+- **On the wall:** `sign` (text or any texture, on a board), `awning` (striped, with a valance), `drainpipe`,
+  `wallLight`, `meterBox`.
+- **Fences:** `fence(x0, z0, x1, z1, style, {skip})`, one panel per tile, `skip` for gates: chain-link (with or without
+  barbed wire), corrugated sheets (some rusty), a half-high brick wall with a coping, iron railings, wooden planks;
+  `chainPanel` for a gate leaf.
+- **Preview:** `scripts/preview/kit.html` shows every part. **Tests:** `src/street/kit.test.ts`.
+
+### Merging the static city (v0.47)
+Every piece the city adds is static, so at the end of `buildCity` they're merged (`mergeStatic` in kit.ts): plain
+colours into one mesh per 12×12-tile area (their colour painted on as vertex colours, one shared material per glow),
+textured and see-through pieces per material. A building's walls and its props merge on their own and replace the
+originals in its fade lists, so walls still fade and props still hide. Tap targets (stairs, the manhole, the ladder,
+the Rat Nest gate) are separate groups and never merged; the flames are kept as they are (they flicker). So build
+freely, piece by piece: a window costs triangles, not draw calls.
+
+### The whole scene (measured 2026-11-17)
+With `scripts/preview/game.html` (dev builds expose the renderer as `window.__street`):
+
+| Spot | Draw calls v0.46 | v0.47 | Triangles a frame v0.47 |
+|---|---|---|---|
+| Shopping street (Eddy's, Ray's) | 407 | 233 | 74,000 |
+| Park | 213 | 126 | 61,000 |
+| Bank | 154 | 113 | 57,000 |
+| Iron Saints MC | 147 | 110 | 52,000 |
+| Junkyard | 154 | 57 | 51,000 |
+
+The whole city is about 306,000 triangles (175,000 before the real windows), of which a phone draws a sixth to a
+quarter at a time; fine. Each other player adds ~22 draw calls (11 meshes and their shadows); a creature ~20–45 (its
+parts aren't merged, so they can move).
 - Vehicles and trees, against a 1.2-tall person: a car 332 triangles, 2.8 long and 1.15 tall; the ambulance 440; a
   street tree 144 and about 2.7 tall, a park tree about 2.2. All within budget; no change needed.
 
