@@ -18,6 +18,8 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
   // "Use": the item you're using; the next item you tap is the one you use it on.
   const [using, setUsing] = useState<string | null>(null);
   const [useMsg, setUseMsg] = useState<string | null>(null);
+  // Dropping asks first, in the game itself (not the browser's pop-up): the Drop button turns into "Drop it? Yes / No".
+  const [dropAsk, setDropAsk] = useState(false);
   const pick = (k: string) => {
     if (using) {
       const on = bagSlots(s).find((sl) => slotKey(sl) === k);
@@ -32,6 +34,7 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
       return;
     }
     setUseMsg(null);
+    setDropAsk(false);
     setSel(k === sel ? null : k);
   };
   const slots = bagSlots(s);
@@ -95,16 +98,28 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
                     Use
                   </button>
                 )}
-                {!def.quest && (
-                  <button
-                    className="btn tiny"
-                    onClick={() => {
-                      if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
-                    }}
-                  >
-                    Drop
-                  </button>
-                )}
+                {!def.quest &&
+                  (dropAsk ? (
+                    <>
+                      <span className="warn small">Gone for good?</span>
+                      <button
+                        className="btn tiny danger"
+                        onClick={() => {
+                          setDropAsk(false);
+                          api.drop(selected.id);
+                        }}
+                      >
+                        Drop
+                      </button>
+                      <button className="btn tiny" onClick={() => setDropAsk(false)}>
+                        Keep
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn tiny" onClick={() => setDropAsk(true)}>
+                      Drop
+                    </button>
+                  ))}
               </span>
             </div>
           );
