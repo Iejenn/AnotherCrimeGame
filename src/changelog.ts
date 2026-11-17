@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.44.1',
+    date: '2026-11-17',
+    title: 'Heart on the minimap',
+    items: ['Your health heart now sits on the edge of the minimap, like the map button.'],
+  },
+  {
     version: '0.44.0',
     date: '2026-11-17',
     title: 'A new screen',
