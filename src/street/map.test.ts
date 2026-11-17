@@ -22,6 +22,16 @@ it('every street spot and NPC is reachable from spawn', () => {
     ).not.toBeNull();
 });
 
+it('every spot can be worked from its own side of a fence or wall (not reaching through it)', async () => {
+  const { enclosureAt } = await import('./map');
+  const b = buildBlocked();
+  const bad = NODES.filter((n) => {
+    const same = neighbors(n.x, n.y).filter(([x, y]) => enclosureAt(x, y) === enclosureAt(n.x, n.y));
+    return findPath(b, W, H, SPAWN, same, canStep) === null;
+  }).map((n) => n.id);
+  expect(bad).toEqual([]);
+});
+
 it('every placed crime has spots, and nothing stands on a fixture', () => {
   expect([...new Set(NODES.map((n) => n.crimeId))].sort()).toEqual([...PLACED].sort());
   const fixtures = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
