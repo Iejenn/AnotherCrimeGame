@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.44.0',
+    date: '2026-11-17',
+    title: 'A new screen',
+    items: [
+      'The street now fills the whole screen. The bar at the top (name, rank, health, tabs) is gone.',
+      'Your health is the red heart next to the minimap.',
+      'Along the bottom: chat, bag and skills open in the bottom panel (tap again to hide it); the shirt shows your worn gear on your character, plus quests, highscores and settings.',
+      'With the chat hidden, the last two lines of the log stay in view over the street.',
+      'Tap a skill for everything about it. The normal mouse cursor instead of the hand.',
+    ],
+  },
+  {
     version: '0.43.2',
     date: '2026-11-17',
     title: 'Signs fixed',

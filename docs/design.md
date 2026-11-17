@@ -861,3 +861,15 @@ log line.
   the quest, until you've opened the gate). A full bag: they say so, try again.
 - **Giant rat meat:** the giant rats always drop it; cook it (Cooking 10, 15 XP, never burns from 30): heals 3 HP.
 
+
+## 17. The screen (v0.44)
+
+The street fills the screen, in portrait too. No header or tab bar any more (no name, no ranks: your name shows when you
+log in and in chat).
+- **Health:** a red heart with your HP on the left of the minimap (it pulses when you're low).
+- **The icon bar** along the bottom: 💬 chat, 🎒 bag, 📈 skills swap the **bottom panel** (tap the open one again to hide
+  it); 👕 worn gear (your character in 3D wearing it, and what each piece does), ❓ quests, 🏆 highscores, ⚙ settings
+  open a **popup** over the street, like the world map. A skill in the skills panel opens its guide as a popup too.
+- **The log strip:** whenever the full chat isn't open, the last two lines of the log stay over the bottom of the street.
+- **The bag** uses bank-sized slots, 10 across; tap an item and its buttons (Wield, Eat, Use, Drop) show in one line.
+- The normal arrow cursor everywhere (no hand).

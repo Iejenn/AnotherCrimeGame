@@ -19,8 +19,30 @@ export function bagSlots(s: GameState): Slot[] {
 
 export const slotKey = (sl: Slot) => (sl.kind === 'cash' ? 'cash' : `${sl.id}#${sl.n}`);
 
-export function Bag({ s, selected, onSelect, compact = false }: { s: GameState; selected: string | null; onSelect: (key: string) => void; compact?: boolean }) {
+/** "29", "1.2K", "3.4M": short enough for a small slot. */
+const short = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.floor(n / 1e3)}K` : String(n));
+
+export function Bag({ s, selected, onSelect, compact = false, mini = false }: { s: GameState; selected: string | null; onSelect: (key: string) => void; compact?: boolean; mini?: boolean }) {
   const slots = bagSlots(s);
+  // The small bag (the bottom panel): bank-sized slots, 10 across, just the picture (and cash's amount).
+  if (mini)
+    return (
+      <div className="bank-grid bag-mini" role="grid" aria-label="Inventory">
+        {Array.from({ length: INVENTORY_SLOTS }, (_, i) => {
+          const sl = slots[i];
+          if (!sl) return <div key={i} className="bank-slot empty" />;
+          const k = slotKey(sl);
+          const id = sl.kind === 'cash' ? 'cash' : sl.id;
+          const name = sl.kind === 'cash' ? 'Cash' : ITEM_BY_ID[sl.id]?.name ?? sl.id;
+          return (
+            <button key={k} className={`bank-slot ${sl.kind === 'cash' ? 'cash' : ''} ${selected === k ? 'selected' : ''}`} onClick={() => onSelect(k)} title={name} aria-label={name}>
+              <ItemIcon id={id} />
+              {sl.kind === 'cash' && <span className="bank-count">${short(s.cash)}</span>}
+            </button>
+          );
+        })}
+      </div>
+    );
   return (
     <div className={`bag ${compact ? 'compact' : ''}`} role="grid" aria-label="Inventory">
       {Array.from({ length: INVENTORY_SLOTS }, (_, i) => {
