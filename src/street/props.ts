@@ -193,8 +193,8 @@ export function animatePigeon(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 
   else p.head.rotation.x = 0;
 }
 
-// The rats' eyes: bright red, lit by nothing (they glow in the dark sewer).
-const ratEye = new THREE.MeshBasicMaterial({ color: 0xff1808 });
+// The rats' eyes: a dark, beady red (like the old-school RuneScape rat), with only a faint glow.
+const ratEye = new THREE.MeshLambertMaterial({ color: 0x7a1414, emissive: 0x3a0606, flatShading: true });
 
 /** Animate a rat: sniffing around ('peck'), scurrying ('walk'), lunging at you ('attack'), or on its back ('dead'). */
 export function animateRat(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'dead' | 'walk', t: number, phase = 0) {
@@ -300,9 +300,9 @@ export function buildRat(look: { fur?: number; belly?: number; scale?: number } 
     // Pointed ears, swept back: a pink triangle with a fur back.
     const ear = spikes([[V(s * 0.05, 0.06, -0.01), V(s * 0.11, 0.15, -0.07), 0.035]], 0xb88488);
     head.add(ear);
-    // Slanted eyes, bright red (they glow in the dark).
-    const eye = new THREE.Mesh(new THREE.OctahedronGeometry(0.026), ratEye);
-    eye.scale.set(1.25, 0.8, 0.9);
+    // Small slanted eyes, dark red.
+    const eye = new THREE.Mesh(new THREE.OctahedronGeometry(0.02), ratEye);
+    eye.scale.set(1.25, 0.75, 0.9);
     eye.rotation.z = s * 0.4;
     eye.position.set(s * 0.06, 0.03, 0.1);
     head.add(eye);
