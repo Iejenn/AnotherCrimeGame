@@ -1,11 +1,11 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARK, PARKING, PARK_PATHS, ROOMS, SEWER, W, blockRect, isSewage, type Rect } from './map';
+import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARK, PARKING, PARK_PATHS, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
 
-export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#3a5a8a', weapons: '#5a5a62' };
+export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#3a5a8a', weapons: '#5a5a62', club: '#3e3430' };
 
 /**
  * Draw the whole map into a new canvas at `px` canvas pixels per tile. Tile (x, y) starts at
@@ -57,6 +57,17 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   area(THRIFT, '#8a5040');
   area(THRIFT_YARD, '#5a5852');
   for (const [x, y] of THRIFT_DUMPSTERS) tile(x + 0.1, y + 0.15, 0.8, 0.7, '#8a5a3a');
+  // v0.43: Hotline (brick and its walled yard, copper dumpsters), the Junkyard (dirt, wrecks, tyres, the crane).
+  area(HOTLINE, '#8a5a48');
+  area(HOTLINE_YARD, '#5f5c56');
+  for (const [x, y] of HOTLINE_DUMPSTERS) tile(x + 0.1, y + 0.15, 0.8, 0.7, '#c07040');
+  area(JUNKYARD, '#5a4a38');
+  for (const f of FIXTURES) {
+    if (f.kind === 'wreck') tile(f.x + 0.1, f.y + 0.15, 0.8, 0.7, '#7a4a3a');
+    if (f.kind === 'tyres') tile(f.x + 0.2, f.y + 0.2, 0.6, 0.6, '#1a1a1e');
+    if (f.kind === 'crane') tile(f.x, f.y, 1, 1, '#d8a02a');
+    if (f.kind === 'motorbike') tile(f.x + 0.3, f.y + 0.1, 0.4, 0.8, '#1a1a1e');
+  }
   // The hospital: pale walls, a red cross on the ward's roof.
   area(HOSPITAL, '#c9c4b8');
   tile(HOSPITAL.x0 + 2, HOSPITAL.y0 + 1, 1, 3, '#d9473a');
@@ -73,8 +84,8 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   if (withSewer) {
     // The sewer: rock all round, the walkways, the channel and its bridges, the ladder.
     tile(-MAP_EDGE, H + 1, W + MAP_EDGE * 2, GH - H - 1 + MAP_EDGE, '#0c0f0d');
-    for (let y = SEWER.y0; y <= SEWER.y1; y++)
-      for (let x = SEWER.x0; x <= SEWER.x1; x++) tile(x, y, 1, 1, isSewage(x, y) ? '#2f4a2a' : '#6e7468');
+    for (let y = UNDER.y0; y <= UNDER.y1; y++)
+      for (let x = UNDER.x0; x <= UNDER.x1; x++) if (inSewer(x, y)) tile(x, y, 1, 1, isSewage(x, y) ? '#2f4a2a' : '#6e7468');
     for (const f of FIXTURES) if (f.kind === 'crate' || f.kind === 'trash') tile(f.x + 0.15, f.y + 0.15, 0.7, 0.7, f.kind === 'crate' ? '#6a4a2e' : '#1e2022');
     for (const f of FIXTURES) if (f.kind === 'ladder') tile(f.x + 0.2, f.y, 0.6, 0.5, '#c8a46a');
   }
@@ -84,27 +95,30 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
 /** Just the sewer (its map while you're down there), from one tile left of and above it, at `px` per tile. */
 export function drawSewer(px: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
-  const w = SEWER.x1 - SEWER.x0 + 3;
-  const h = SEWER.y1 - SEWER.y0 + 3;
+  const w = UNDER.x1 - UNDER.x0 + 3;
+  const h = UNDER.y1 - UNDER.y0 + 3;
   c.width = w * px;
   c.height = h * px;
   const g = c.getContext('2d')!;
   const tile = (x: number, y: number, tw: number, th: number, col: string) => {
     g.fillStyle = col;
-    g.fillRect((x - SEWER.x0 + 1) * px, (y - SEWER.y0 + 1) * px, tw * px, th * px);
+    g.fillRect((x - UNDER.x0 + 1) * px, (y - UNDER.y0 + 1) * px, tw * px, th * px);
   };
   g.fillStyle = '#0c0f0d';
   g.fillRect(0, 0, c.width, c.height);
-  tile(SEWER.x0 - 1, SEWER.y0 - 1, w, 1, '#5a4a3e'); // the brick back wall
-  for (let y = SEWER.y0; y <= SEWER.y1; y++)
-    for (let x = SEWER.x0; x <= SEWER.x1; x++) {
-      tile(x, y, 1, 1, isSewage(x, y) ? '#2f4a2a' : '#6e7468');
+  tile(SEWER.x0 - 1, SEWER.y0 - 1, SEWER.x1 - SEWER.x0 + 3, 1, '#5a4a3e'); // the brick back wall
+  for (let y = UNDER.y0; y <= UNDER.y1; y++)
+    for (let x = UNDER.x0; x <= UNDER.x1; x++) {
+      if (!inSewer(x, y)) continue;
+      tile(x, y, 1, 1, isSewage(x, y) ? '#2f4a2a' : x >= NEST_GATE[0] ? '#3e4a3a' : '#6e7468');
       if (!isSewage(x, y)) tile(x + 0.04, y + 0.04, 0.92, 0.92, '#767c70');
     }
   for (const f of FIXTURES) {
     if (f.kind === 'crate') tile(f.x + 0.15, f.y + 0.15, 0.7, 0.7, '#6a4a2e');
     if (f.kind === 'trash') tile(f.x + 0.2, f.y + 0.2, 0.6, 0.6, '#1e2022');
+    if (f.kind === 'mound') tile(f.x, f.y, 1, 1, '#3a3428');
   }
+  tile(NEST_GATE[0] + 0.35, NEST_GATE[1], 0.3, 1, '#d8b02a'); // the gate
   return c;
 }
 

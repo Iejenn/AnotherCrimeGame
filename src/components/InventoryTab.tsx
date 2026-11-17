@@ -9,10 +9,30 @@ import { Bag, bagSlots, slotKey } from './Bag';
 import { ItemIcon } from './ItemIcon';
 import { armourBonus, maxHit, myCombatLevel, weaponStats } from '../game/combat';
 import { skillLevel } from '../game/engine';
+import { COMBOS, findCombo } from '../game/data/combos';
 
 export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
   // Nothing selected at first. The cash slot shows your cash itself, so tapping it opens nothing (no extra panel).
   const [sel, setSel] = useState<string | null>(null);
+  // "Use": the item you're using; the next item you tap is the one you use it on.
+  const [using, setUsing] = useState<string | null>(null);
+  const [useMsg, setUseMsg] = useState<string | null>(null);
+  const pick = (k: string) => {
+    if (using) {
+      const on = bagSlots(s).find((sl) => slotKey(sl) === k);
+      const onId = on?.kind === 'loot' ? on.id : null;
+      setUsing(null);
+      setSel(null);
+      if (!onId || onId === using) return;
+      if (findCombo(using, onId)) {
+        setUseMsg(null);
+        api.useItem(using, onId);
+      } else setUseMsg('Nothing interesting happens.');
+      return;
+    }
+    setUseMsg(null);
+    setSel(k === sel ? null : k);
+  };
   const slots = bagSlots(s);
   const found = slots.find((sl) => slotKey(sl) === sel);
   const selected = found?.kind === 'loot' ? found : null;
@@ -26,16 +46,25 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
           {slotsUsed(s)}/{INVENTORY_SLOTS} slots
         </span>
       </div>
-      <Bag s={s} selected={selected ? sel : null} onSelect={(k) => setSel(k === sel ? null : k)} />
+      <Bag s={s} selected={selected ? sel : null} onSelect={pick} />
+      {using && (
+        <p className="use-hint small">
+          Use the {ITEM_BY_ID[using]?.name} on… (tap an item){' '}
+          <button className="btn tiny" onClick={() => setUsing(null)}>
+            Cancel
+          </button>
+        </p>
+      )}
+      {useMsg && <p className="muted small">{useMsg}</p>}
 
-      {selected && (
+      {selected && !using && (
         <div className="slot-detail">
           {(() => {
             const def = ITEM_BY_ID[selected.id];
             const why = cantEat(s, selected.id, now);
             return (
               <>
-                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? (def.gear.slot === 'weapon' ? 'Weapon' : 'Armour') : 'Item'}</div>
+                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? (def.gear.slot === 'weapon' ? 'Weapon' : 'Armour') : def.quest ? 'Quest item' : 'Item'}</div>
                 <strong className="detail-name">{def.name}</strong>
                 {def.gear && def.gear.slot !== 'weapon' && (
                   <p className="muted small">
@@ -64,16 +93,24 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
                       Eat (+{def.heal} HP)
                     </button>
                   )}
-                  <button
-                    className="btn small"
-                    onClick={() => {
-                      if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
-                    }}
-                  >
-                    Drop
-                  </button>
+                  {COMBOS.some((c) => c.a === selected.id || c.b === selected.id) && (
+                    <button className="btn small primary" onClick={() => setUsing(selected.id)}>
+                      Use
+                    </button>
+                  )}
+                  {!def.quest && (
+                    <button
+                      className="btn small"
+                      onClick={() => {
+                        if (confirm(`Drop the ${def.name}? It's gone for good.`)) api.drop(selected.id);
+                      }}
+                    >
+                      Drop
+                    </button>
+                  )}
                 </div>
                 {why && def.heal > 0 && <p className="muted small">{why}</p>}
+                {def.quest && <p className="muted small">You need this for a quest. It stays in your bag when you die.</p>}
               </>
             );
           })()}

@@ -1,7 +1,7 @@
 // The metal ladder (docs/design.md §14): Scrapping gathers a metal's salvage, Tinkering presses it into sheets and makes
 // gear from the sheets at a workbench. Every metal makes the same six items, unlocked one level at a time, with stats,
 // values and XP from a few formulas, so a new tier is one row in METALS (plus a place to scrap it).
-// Only tin is in the game for now; the rest follow as their scrap places are built.
+// Tin and copper are in the game; the rest follow as their scrap places are built.
 import type { GearSlot, ItemDef } from './items';
 
 export interface Metal {
@@ -15,7 +15,11 @@ export interface Metal {
 
 /** The metals in the game (tier 1 = tin, then copper, aluminium, brass, bronze, iron, steel, hardened steel, titanium,
  *  tungsten: added here as they come). */
-export const METALS: Metal[] = [{ id: 'tin', name: 'Tin', tier: 1, level: 1 }];
+export const METALS: Metal[] = [
+  { id: 'tin', name: 'Tin', tier: 1, level: 1 },
+  // v0.43: copper, scrapped behind Hotline Plumbing & Heating (I-008).
+  { id: 'copper', name: 'Copper', tier: 2, level: 11 },
+];
 
 /** One sheet of a metal is worth this much (tin $5, doubling every tier). Salvage is worth the same as a sheet. */
 export const sheetValue = (m: Metal) => 5 * 2 ** (m.tier - 1);

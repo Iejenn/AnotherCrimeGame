@@ -13,10 +13,10 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { BANK_COUNTER_Y, COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
@@ -28,6 +28,7 @@ import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGam
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
+import { QuestDialog, isQuestNpc } from './QuestDialog';
 import { findPath, neighbors } from './pathfind';
 import { BALL_COLOR, Hoops } from './hoops';
 import { ChatBox } from './ChatBox';
@@ -45,10 +46,24 @@ const THUG_LOOKS: Look[] = [
   { skin: 3, hair: 0, hairColor: 0, top: 3, bottom: 3 },
   { skin: 1, hair: 0, hairColor: 0, top: 3, bottom: 1 },
 ];
+/** The bikers (v0.43): leather (black tops), beards, a bandana; copper knuckles. */
+const BIKER_LOOKS: Look[] = [
+  { skin: 1, hair: 3, hairColor: 0, top: 3, bottom: 3 },
+  { skin: 2, hair: 1, hairColor: 1, top: 3, bottom: 0 },
+  { skin: 0, hair: 3, hairColor: 2, top: 3, bottom: 3 },
+];
 let thugCount = 0;
+let bikerCount = 0;
 function buildEnemy(kind: string): THREE.Group {
   if (kind === 'pigeon') return buildPigeon();
   if (kind === 'rat') return buildRat();
+  if (kind === 'giant_rat') return buildGiantRat();
+  if (kind === 'dog') return buildDog();
+  if (kind === 'biker') {
+    const b = buildCharacter(BIKER_LOOKS[bikerCount++ % BIKER_LOOKS.length], { apron: 0x2a2220 });
+    setGear(b, { weapon: 'copper_knuckles' });
+    return b;
+  }
   const g = buildCharacter(THUG_LOOKS[thugCount++ % THUG_LOOKS.length], { hood: 0x4a4d52 });
   setGear(g, { weapon: 'tin_knife' });
   return g;
@@ -56,7 +71,7 @@ function buildEnemy(kind: string): THREE.Group {
 /** Animate an enemy: idle ('peck'), walking, flying (pigeons), attacking, or going down ('dead'). */
 function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly' | 'attack' | 'dead', now: number, phase: number) {
   if (kind === 'pigeon') return animatePigeon(g, mode, now, phase);
-  if (kind === 'rat') return animateRat(g, mode, now, phase);
+  if (kind === 'rat' || kind === 'giant_rat' || kind === 'dog') return animateRat(g, mode, now, phase);
   animateCharacter(g, mode === 'dead' ? 'stunned' : mode === 'attack' ? 'work' : mode === 'walk' ? 'walk' : 'idle', now, phase);
 }
 
@@ -247,6 +262,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const pickables: THREE.Object3D[] = [];
     // The hospital's stairs: tap them to go up (or down).
     pickables.push(...city.stairs);
+    if (city.gate) pickables.push(city.gate);
     // The pothole and the sewer's ladder: tap to climb down or up.
     pickables.push(...city.links);
     const nodeGroups = new Map<string, THREE.Group>();
@@ -332,6 +348,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       banker_2: [{ skin: 0, hair: 4, hairColor: 5, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
       bank_guard: [{ skin: 4, hair: 4, hairColor: 0, top: 4, bottom: 3 }, undefined],
       doctor_1: [{ skin: 2, hair: 1, hairColor: 0, top: 4, bottom: 0 }, { scrubs: 0x7ab0d8, coat: true }], // light blue scrubs, white coat
+      // Splinter: a filthy old army jacket, a cap, a beard (sits against the sewer wall).
+      splinter: [{ skin: 1, hair: 4, hairColor: 1, top: 3, bottom: 3 }, { apron: 0x4a4a32 }],
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
@@ -448,6 +466,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       goalStation: null as string | null,
       /** Walking to the pothole or the ladder, to climb. */
       goalLink: null as string | null,
+      goalGate: false,
       /** Throwing a punch (pose) until this time. */
       punchUntil: 0,
       /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
@@ -577,6 +596,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       }
     });
     let lastFoe: string | null = null;
+    /** The biker club: when you last asked to be jumped, and who jumped you. */
+    let lastJump = 0;
+    let jumpedBy: string | null = null;
 
     // ---------- things on the ground (loot), and cooking stations (docs/design.md §13) ----------
     const groundViews = new Map<number, THREE.Group>();
@@ -613,6 +635,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           setTimeout(() => passOut.classList.remove('quick'), 900);
         }, 300);
       });
+    };
+    /** At the Rat Nest's gate: open it with the key, or it's locked. */
+    const reachGate = () => {
+      me.goalGate = false;
+      me.facing = Math.PI / 2;
+      const st = sRef.current;
+      if (st.unlocked?.includes('rat_nest')) return;
+      if ((st.inventory.sewer_key ?? 0) > 0) apiRef.current.unlockGate('rat_nest', tileOf(me.pos.x, me.pos.z));
+      else say("The gate is locked. There's a sturdy padlock on it.");
     };
     const reachStation = () => {
       const id = me.goalStation;
@@ -659,6 +690,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goalGround = null;
       me.goalStation = null;
       me.goalLink = null;
+      me.goalGate = false;
       setCookAtRef.current(null);
       setTinkerAtRef.current(null);
       setBankAtRef.current(null);
@@ -728,6 +760,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       if (sRef.current.fight) {
         apiRef.current.stopFight();
         say('You walk away from the fight.');
+        lastJump = performance.now();
       }
     };
 
@@ -752,6 +785,17 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             savePos();
             reachLink();
           }
+        }
+        return;
+      }
+      if (hit?.object.userData.gateId) {
+        // The Rat Nest's gate: walk up to it; with the Sewer Key in your bag it unlocks (for you).
+        stopWorking();
+        setTalkingRef.current(null);
+        const before: [number, number] = [NEST_GATE[0] - 1, NEST_GATE[1]];
+        if (walkTo([before], null)) {
+          me.goalGate = true;
+          if (!me.path.length) reachGate();
         }
         return;
       }
@@ -1247,6 +1291,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             savePos();
             reachLink();
           }
+          if (!me.path.length && me.goalGate) {
+            savePos();
+            reachGate();
+          }
           if (!me.path.length) savePos();
           if (!me.path.length && me.goalNpc) {
             const npc = me.goalNpc;
@@ -1275,6 +1323,31 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       if (st.player.caught) {
         const catcher = [...npcWalk.values()].find((w) => w.mode === 'rush' || w.mode === 'hit');
         if (catcher) me.facing = Math.atan2(catcher.pos.x - me.pos.x, catcher.pos.z - me.pos.z);
+      }
+      // The Rat Nest's gate: open (and walkable) only for you, once you unlocked it.
+      const gateOpen = !!st.unlocked?.includes('rat_nest');
+      blocked[NEST_GATE[1] * W + NEST_GATE[0]] = gateOpen ? 0 : 1;
+      city.setGateOpen(gateOpen);
+      // The Biker Club: while you're inside and not fighting, a biker jumps you (the server picks a free one). Walk out
+      // the door and the fight ends: they don't follow you outside.
+      {
+        const tile = tileOf(me.pos.x, me.pos.z);
+        const inClub = inRect(CLUB, ...tile);
+        const fightingBiker = !!st.fight && st.fight.enemy.startsWith('biker_');
+        if (fightingBiker && !inClub) {
+          apiRef.current.stopFight();
+          lastJump = now;
+          say('You get out of the club. The biker lets you go.');
+        } else if (inClub && !st.fight && now - lastJump > 2500 && performance.now() > passOutUntil) {
+          lastJump = now;
+          apiRef.current.jumpMe(tile);
+        }
+        // Jumped while walking in: you stop and face him.
+        if (fightingBiker && inClub && st.fight!.enemy !== jumpedBy) {
+          jumpedBy = st.fight!.enemy;
+          if (!me.goalEnemy) me.path = [];
+        }
+        if (!st.fight) jumpedBy = null;
       }
       // In a fight: face your foe.
       const foe = st.fight?.enemy;
@@ -1422,7 +1495,20 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           }
         }
         g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
-        animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
+        // Splinter sits on the floor against the wall, his back to it (he can't feel his legs).
+        if (npc.kind === 'splinter') {
+          g.position.y -= 0.42;
+          g.position.z -= 0.15;
+          g.rotation.y = 0;
+          g.rotation.x = -0.25; // leaning back against the wall
+          animateCharacter(g, 'sit', now, 1.1);
+          // Not a drunk on a stool: no swaying, no glass, his hands in his lap.
+          const rig = g.userData.rig as { armL: THREE.Object3D; armR: THREE.Object3D; body: THREE.Object3D } | undefined;
+          if (rig) {
+            rig.armL.rotation.x = rig.armR.rotation.x = -0.7;
+            rig.body.rotation.z = 0;
+          }
+        } else animateCharacter(g, w.moving ? 'walk' : 'idle', now, 3.1);
       }
       hoops.update(now / 1000);
       // The thrown ball: an arc from the baller's hands to your head, then it bounces off and drops.
@@ -2023,7 +2109,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           <span className="muted">Tap something to work it</span>
         )}
       </div>
-      {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
+      {talking &&
+        (isQuestNpc(talking) ? (
+          <QuestDialog npc={talking} api={api} pos={herePos.current} onClose={() => setTalking(null)} />
+        ) : (
+          <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />
+        ))}
       {cookAt && <CookDialog s={s} api={api} pos={cookAt} onClose={() => setCookAt(null)} />}
       {bankAt && <BankDialog s={s} api={api} pos={bankAt} onClose={() => setBankAt(null)} />}
       {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}

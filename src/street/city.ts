@@ -11,6 +11,7 @@ import {
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
+  CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
@@ -123,6 +124,9 @@ export function signTexture(text: string, bg = '#2f7a46', fg = '#ffffff') {
       g.strokeRect(8, 8, 496, 80);
       g.fillStyle = fg;
       g.font = 'bold 52px Arial, sans-serif';
+      // Long names get a smaller font so they fit inside the border.
+      const w = g.measureText(text).width;
+      if (w > 470) g.font = `bold ${Math.floor((52 * 470) / w)}px Arial, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText(text, 256, 52);
@@ -1943,12 +1947,336 @@ export function buildCity(scene: THREE.Scene) {
     rooms.set(BANK.id, fade);
   }
 
+
+  // ---------- v0.43: Hotline Plumbing & Heating, the Junkyard, the Biker Club (the Industrial zone) ----------
+  const corrTex = own(
+    canvasTex(32, 32, (g) => {
+      g.fillStyle = '#8a8f96';
+      g.fillRect(0, 0, 32, 32);
+      for (let i = 0; i < 4; i++) {
+        g.fillStyle = '#6a6e74';
+        g.fillRect(i * 8, 0, 3, 32);
+        g.fillStyle = '#a8adb4';
+        g.fillRect(i * 8 + 4, 0, 2, 32);
+      }
+    }),
+  );
+  const brickMat = (across: number, color: number) => {
+    const t = own(brickTex.clone());
+    t.repeat.set(across, 2);
+    t.needsUpdate = true;
+    return lam(color, { map: t });
+  };
+
+  // Hotline: a long two-tone workshop (brick below, cream render above), its front on the WEST side: a big sign, a
+  // roll-up door for the vans, an office door, pipes stacked against the wall. Its yard behind it has a half-high brick
+  // wall with one opening on the east, stacks of old pipe and copper coils lying around (the dumpsters are spots).
+  {
+    const X0 = HOTLINE.x0;
+    const X1 = HOTLINE.x1 + 1;
+    const Z0 = HOTLINE.y0;
+    const Z1 = HOTLINE.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const HT = 2.4;
+    add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
+    const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
+    const mRender = lam(0xd8ceb4);
+    const walls = [add(geoBox(X1 - X0, 1.2, Z1 - Z0), mBrick, cx, 0.6, cz), add(geoBox(X1 - X0, HT - 1.2, Z1 - Z0), mRender, cx, 1.2 + (HT - 1.2) / 2, cz)];
+    const props: THREE.Object3D[] = [add(geoBox(X1 - X0 + 0.2, 0.12, Z1 - Z0 + 0.2), lam(0x3a3d42), cx, HT + 0.06, cz)];
+    props.push(add(geoBox(1.2, 0.5, 0.8), lam(0xb8bcc2), cx + 0.5, HT + 0.35, Z0 + 2)); // a boiler flue box on the roof
+    props.push(add(own(new THREE.CylinderGeometry(0.12, 0.12, 1.0, 10)), lam(0x8a8f96), cx - 1, HT + 0.5, Z1 - 2));
+    const fx = X0 - 0.01;
+    // The sign (facing west).
+    const sign = add(own(new THREE.PlaneGeometry(4.2, 0.7)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('HOTLINE PLUMBING & HEATING', '#1e4a7a', '#f2e8d0')) })), fx - 0.06, 1.95, cz, false);
+    sign.rotation.y = -Math.PI / 2;
+    add(geoBox(0.05, 0.82, 4.35), lam(0x1a2a3e), fx - 0.03, 1.95, cz, false);
+    // The roll-up door (ribbed), an office door with a little window, a flame logo.
+    add(geoBox(0.05, 1.45, 2.0), lam(0xa8adb4, { map: corrTex }), fx - 0.02, 0.73, cz + 2.2, false);
+    add(geoBox(0.06, 1.25, 0.8), lam(0x2e5f8a), fx - 0.02, 0.63, cz - 1.0, false);
+    add(geoBox(0.07, 0.25, 0.35), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 0.8 }), fx - 0.03, 0.95, cz - 1.0, false);
+    add(own(new THREE.ConeGeometry(0.16, 0.42, 6)), lam(0xe8641e, { emissive: 0x8a3010, emissiveIntensity: 0.6 }), fx - 0.1, 1.95, cz - 2.4, false);
+    // Copper pipes stacked against the front wall, and a bare bulb over the office door.
+    const copper = lam(0xc07040);
+    for (let i = 0; i < 6; i++) {
+      const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz - 3.6 + (i % 3) * 0.12, false);
+      pipe.rotation.x = Math.PI / 2;
+    }
+    add(geoBox(0.1, 0.1, 0.1), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), fx - 0.08, 1.45, cz - 1.0, false);
+    const fade: Fadeable = { walls, mats: [mBrick, mRender], props: [...props, sign], opacity: 1 };
+    fadeables.push(fade);
+
+    // The yard: cracked concrete, a half-high brick wall with a coping, one opening on the east.
+    const Y0 = HOTLINE_YARD.x0;
+    const Y1 = HOTLINE_YARD.x1 + 1;
+    const ycx = (Y0 + Y1) / 2;
+    add(geoBox(Y1 - Y0, 0.075, Z1 - Z0), lam(0x5f5c56), ycx, 0.037, cz, false);
+    const wallM = brickMat(4, 0x8a5040);
+    const coping = lam(0xa8a296);
+    const halfWall = (x: number, z: number, w: number, d: number) => {
+      add(geoBox(w, 0.75, d), wallM, x, 0.375, z);
+      add(geoBox(w + 0.04, 0.06, d + 0.06), coping, x, 0.78, z, false);
+    };
+    halfWall(ycx, Z0 + 0.1, Y1 - Y0, 0.2);
+    halfWall(ycx, Z1 - 0.1, Y1 - Y0, 0.2);
+    const g0 = HOTLINE_GATE[0][1];
+    const g1 = HOTLINE_GATE[HOTLINE_GATE.length - 1][1] + 1;
+    halfWall(Y1 - 0.1, (Z0 + 0.2 + g0) / 2, 0.2, g0 - Z0 - 0.2);
+    halfWall(Y1 - 0.1, (g1 + Z1 - 0.2) / 2, 0.2, Z1 - 0.2 - g1);
+    for (const z of [g0, g1]) add(geoBox(0.3, 1.0, 0.3), wallM, Y1 - 0.1, 0.5, z); // pillars either side of the opening
+    // Copper coils and loose bits of pipe on the ground, a back door into the store.
+    for (let i = 0; i < 5; i++) {
+      const coil = add(own(new THREE.TorusGeometry(0.18, 0.04, 6, 14)), copper, Y0 + 1 + rng() * 3, 0.06, Z0 + 2 + rng() * 6, false);
+      coil.rotation.x = -Math.PI / 2;
+    }
+    for (let i = 0; i < 8; i++) {
+      const bit = add(own(new THREE.CylinderGeometry(0.03, 0.03, 0.3 + rng() * 0.4, 6)), copper, Y0 + 0.6 + rng() * 3.8, 0.04, Z0 + 0.6 + rng() * 8.8, false);
+      bit.rotation.z = Math.PI / 2;
+      bit.rotation.y = rng() * 3;
+    }
+    add(geoBox(0.05, 1.2, 0.75), lam(0x2e5f8a), X1 + 0.01, 0.6, cz + 0.5, false);
+  }
+  // Stacks of old pipe (fixtures) in the yard.
+  for (const f of FIXTURES) {
+    if (f.kind !== 'pipes') continue;
+    for (let i = 0; i < 9; i++) {
+      const pipe = add(own(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 8)), lam(i % 3 === 0 ? 0xc07040 : 0x8a8f96), f.x + 0.5, 0.08 + Math.floor(i / 3) * 0.13, f.y + 0.25 + (i % 3) * 0.17, i < 3);
+      pipe.rotation.z = Math.PI / 2;
+    }
+  }
+
+  // The Junkyard: packed dirt with oil stains, a tall corrugated fence with one gate (east), stacks of crushed cars,
+  // piles of tyres, an old crane, a dog house with a chain.
+  {
+    const X0 = JUNKYARD.x0;
+    const X1 = JUNKYARD.x1 + 1;
+    const Z0 = JUNKYARD.y0;
+    const Z1 = JUNKYARD.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    add(geoBox(X1 - X0, 0.07, Z1 - Z0), lam(0x5a4a38), cx, 0.035, cz, false);
+    for (let i = 0; i < 9; i++) {
+      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.072, Z0 + 1 + rng() * 8, false);
+      oil.rotation.x = -Math.PI / 2;
+    }
+    const FH = 1.7;
+    const fenceM = lam(0x9a9a92, { map: corrTex });
+    const rustM = lam(0x7a4a2a, { map: corrTex });
+    const panel = (x: number, z: number, alongX: boolean, i: number) => {
+      const m = add(geoBox(alongX ? 1 : 0.06, FH, alongX ? 0.06 : 1), i % 4 === 1 ? rustM : fenceM, x, FH / 2, z);
+      m.rotation.y = (rng() - 0.5) * 0.04;
+    };
+    let i = 0;
+    for (let x = X0; x < X1; x++) panel(x + 0.5, Z0 + 0.03, true, i++), panel(x + 0.5, Z1 - 0.03, true, i++);
+    for (let z = Z0; z < Z1; z++) {
+      panel(X0 + 0.03, z + 0.5, false, i++);
+      if (!JUNKYARD_GATE.some(([, gz]) => gz === z)) panel(X1 - 0.03, z + 0.5, false, i++);
+    }
+    // The gate: two chain-link leaves swung open into the street, a "BEWARE OF THE DOG" sign.
+    const g0 = JUNKYARD_GATE[0][1];
+    for (const [z, r] of [[g0, -1.1], [g0 + 2, 1.1]] as const) {
+      const leaf = add(geoBox(0.05, 1.5, 1.0), lam(0x6a6e74), X1 + 0.45, 0.75, z + (r < 0 ? 0.4 : -0.4), false);
+      leaf.rotation.y = r;
+    }
+    const beware = add(own(new THREE.PlaneGeometry(1.0, 0.45)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEWARE OF THE DOG', '#e8c040', '#1a1a1a')) })), X1 + 0.04, 1.1, g0 - 0.7, false);
+    beware.rotation.y = Math.PI / 2;
+  }
+  {
+    const carColors = [0x8a2f28, 0x2f4562, 0x9a7a2e, 0x35553a, 0x6a6e74, 0x6a4526];
+    for (const f of FIXTURES) {
+      const x = f.x + 0.5;
+      const z = f.y + 0.5;
+      if (f.kind === 'wreck') {
+        // Two or three crushed cars stacked up, each a flattened slab in a faded colour.
+        const n = 2 + Math.floor(rng() * 2);
+        for (let k = 0; k < n; k++) {
+          const car = add(geoBox(0.92, 0.3, 0.7), lam(carColors[Math.floor(rng() * carColors.length)], { flatShading: true }), x + (rng() - 0.5) * 0.08, 0.16 + k * 0.31, z, k === n - 1);
+          car.rotation.y = (rng() - 0.5) * 0.3;
+          add(geoBox(0.5, 0.08, 0.6), lam(0x1e2226), x, 0.33 + k * 0.31, z, false).rotation.y = car.rotation.y; // squashed windows
+        }
+      } else if (f.kind === 'tyres') {
+        for (let k = 0; k < 4; k++) {
+          const t = add(own(new THREE.TorusGeometry(0.28, 0.11, 6, 12)), lam(0x1a1a1e), x + (k === 3 ? 0.1 : 0), 0.11 + k * 0.2, z + (k === 3 ? -0.1 : 0), k === 3);
+          t.rotation.x = -Math.PI / 2;
+        }
+      } else if (f.kind === 'doghouse') {
+        add(geoBox(0.8, 0.55, 0.7), lam(0x6a4a2e), x, 0.3, z);
+        const roof = add(own(new THREE.ConeGeometry(0.62, 0.4, 4)), lam(0x8a2f28, { flatShading: true }), x, 0.77, z);
+        roof.rotation.y = Math.PI / 4;
+        add(geoBox(0.32, 0.36, 0.02), lam(0x141210), x, 0.2, z + 0.36, false);
+        add(own(new THREE.CylinderGeometry(0.15, 0.13, 0.08, 10)), lam(0x8a8f96), x + 0.6, 0.05, z + 0.4, false); // the food bowl
+      }
+    }
+    // The crane: one model on its four tiles (a cab on tracks, a lattice boom up and over, a hook).
+    const crane = FIXTURES.filter((f) => f.kind === 'crane');
+    if (crane.length) {
+      const x = (Math.min(...crane.map((f) => f.x)) + Math.max(...crane.map((f) => f.x)) + 1) / 2;
+      const z = (Math.min(...crane.map((f) => f.y)) + Math.max(...crane.map((f) => f.y)) + 1) / 2;
+      const yellow = lam(0xd8a02a, { flatShading: true });
+      for (const dz of [-0.6, 0.6]) add(geoBox(1.8, 0.35, 0.4), lam(0x2a2a2e), x, 0.18, z + dz);
+      add(geoBox(1.3, 0.9, 1.1), yellow, x, 0.8, z);
+      add(geoBox(0.5, 0.45, 0.04), lam(0x2a3a46), x + 0.3, 1.0, z + 0.56, false);
+      const boom = add(geoBox(0.22, 3.6, 0.22), yellow, x - 0.6, 2.4, z);
+      boom.rotation.z = 0.55;
+      const tip = new THREE.Vector3(x - 0.6 - Math.sin(0.55) * 1.8, 2.4 + Math.cos(0.55) * 1.8, z);
+      add(geoBox(0.02, 1.6, 0.02), lam(0x1a1a1e), tip.x, tip.y - 0.8, z, false);
+      add(geoBox(0.2, 0.25, 0.08), lam(0x3a3d42), tip.x, tip.y - 1.7, z, false);
+    }
+  }
+
+  // Iron Saints MC: a low dark-brick bar facing NORTH, a red-and-blue neon sign, blacked-out windows, motorbikes on the
+  // sidewalk. Inside (the walls fade): a dark wooden floor, the bar along the back with lit bottles, a pool table with a
+  // green felt, a table, a jukebox glowing in the corner; one red light.
+  const bikes: THREE.Object3D[] = [];
+  {
+    const X0 = CLUB.x0;
+    const X1 = CLUB.x1 + 1;
+    const Z0 = CLUB.y0;
+    const Z1 = CLUB.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const HT = 2.3;
+    const t = 0.2;
+    const mBrick = brickMat(X1 - X0, 0x3e3430);
+    add(geoBox(X1 - X0 + 0.3, 0.06, Z1 - Z0 + 0.3), pavement, cx, 0.03, cz, false);
+    const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.3, Z1 - Z0 - 0.3)), lam(0x3a2a1e));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0.08, cz);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const d0 = CLUB_DOOR[0][0];
+    const d1 = CLUB_DOOR[CLUB_DOOR.length - 1][0] + 1;
+    const walls = [
+      add(geoBox(X1 - X0, HT, t), mBrick, cx, HT / 2, Z1 - t / 2),
+      add(geoBox(t, HT, Z1 - Z0), mBrick, X0 + t / 2, HT / 2, cz),
+      add(geoBox(t, HT, Z1 - Z0), mBrick, X1 - t / 2, HT / 2, cz),
+      add(geoBox(d0 - X0, HT, t), mBrick, (X0 + d0) / 2, HT / 2, Z0 + t / 2),
+      add(geoBox(X1 - d1, HT, t), mBrick, (d1 + X1) / 2, HT / 2, Z0 + t / 2),
+      add(geoBox(d1 - d0, HT - 1.9, t), mBrick, (d0 + d1) / 2, 1.9 + (HT - 1.9) / 2, Z0 + t / 2),
+    ];
+    const props: THREE.Object3D[] = [add(geoBox(X1 - X0 + 0.2, 0.14, Z1 - Z0 + 0.2), lam(0x24262a), cx, HT + 0.07, cz)];
+    // The front (north): the neon sign over the door, two blacked-out windows with neon beer signs, a red door light.
+    const fz = Z0 - 0.02;
+    const neonTex = own(
+      canvasTex(512, 128, (g) => {
+        g.fillStyle = '#0a0a0e';
+        g.fillRect(0, 0, 512, 128);
+        g.font = 'bold 64px sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.shadowColor = '#ff2a4a';
+        g.shadowBlur = 18;
+        g.strokeStyle = '#ff5a7a';
+        g.lineWidth = 5;
+        g.strokeText('IRON SAINTS', 256, 52);
+        g.fillStyle = '#ffd0d8';
+        g.fillText('IRON SAINTS', 256, 52);
+        g.shadowColor = '#3ab0ff';
+        g.font = 'bold 34px sans-serif';
+        g.fillStyle = '#c8ecff';
+        g.fillText('— M C —', 256, 104);
+      }, false),
+    );
+    const neon = add(own(new THREE.PlaneGeometry(4.0, 1.0)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, HT - 0.1, fz - 0.06, false);
+    neon.rotation.y = Math.PI;
+    props.push(neon, add(geoBox(4.15, 1.12, 0.05), lam(0x141418), cx, HT - 0.1, fz - 0.02, false));
+    for (const x of [X0 + 1.6, X1 - 1.6]) {
+      add(geoBox(1.4, 0.8, 0.04), lam(0x101014), x, 1.2, fz - 0.01, false);
+      const beer = add(own(new THREE.PlaneGeometry(0.6, 0.25)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEER', '#101014', '#ffb040')) })), x, 1.25, fz - 0.04, false);
+      beer.rotation.y = Math.PI;
+    }
+    add(geoBox(0.16, 0.12, 0.12), lam(0xff3030, { emissive: 0xff2020, emissiveIntensity: 2 }), cx, 2.0, fz - 0.08, false);
+    // The neon spills red onto the sidewalk.
+    const glow = new THREE.PointLight(0xff3a5a, 5, 6, 1.5);
+    glow.position.set(cx, 1.6, Z0 - 1.2);
+    scene.add(glow);
+    // Inside: the bar along the back with bottles, the pool table, a table, the jukebox; one red light.
+    const wood = lam(0x4a2e1e);
+    const bar = FIXTURES.filter((f) => f.kind === 'clubbar');
+    if (bar.length) {
+      const bx0 = Math.min(...bar.map((f) => f.x));
+      const bx1 = Math.max(...bar.map((f) => f.x)) + 1;
+      add(geoBox(bx1 - bx0, 0.75, 0.55), wood, (bx0 + bx1) / 2, 0.45, bar[0].y + 0.3);
+      add(geoBox(bx1 - bx0 + 0.04, 0.05, 0.6), lam(0x2a1a12), (bx0 + bx1) / 2, 0.84, bar[0].y + 0.3);
+      for (let k = 0; k < 14; k++)
+        add(geoBox(0.07, 0.25, 0.07), lam([0x2a6a3a, 0x8a5a2a, 0xc8c8b8, 0x6a2a2a][k % 4], { emissive: 0x2a1a0a, emissiveIntensity: 0.6 }), bx0 + 0.2 + k * ((bx1 - bx0 - 0.4) / 13), 1.35, Z1 - t - 0.12, false);
+      add(geoBox(bx1 - bx0, 0.04, 0.2), wood, (bx0 + bx1) / 2, 1.2, Z1 - t - 0.1, false);
+    }
+    const pool = FIXTURES.filter((f) => f.kind === 'pool');
+    if (pool.length) {
+      const px = (Math.min(...pool.map((f) => f.x)) + Math.max(...pool.map((f) => f.x)) + 1) / 2;
+      const pz = pool[0].y + 0.5;
+      add(geoBox(1.8, 0.5, 0.95), wood, px, 0.3, pz);
+      add(geoBox(1.6, 0.04, 0.78), lam(0x1e6a3a), px, 0.57, pz, false);
+      for (const [dx, c] of [[-0.3, 0xe8e8e0], [0.2, 0xd83a2a], [0.35, 0xe8c040], [0.27, 0x2a4ad8]] as const)
+        add(own(new THREE.SphereGeometry(0.04, 8, 6)), lam(c), px + dx, 0.62, pz + (dx * 0.7) % 0.3, false);
+      const cue = add(geoBox(1.3, 0.025, 0.025), lam(0xc8a06a), px + 0.1, 0.62, pz + 0.3, false);
+      cue.rotation.y = 0.2;
+    }
+    for (const f of FIXTURES) {
+      if (f.kind === 'clubtable') {
+        add(own(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 12)), wood, f.x + 0.5, 0.72, f.y + 0.5);
+        add(own(new THREE.CylinderGeometry(0.05, 0.08, 0.7, 6)), lam(0x1a1a1e), f.x + 0.5, 0.36, f.y + 0.5);
+        add(own(new THREE.CylinderGeometry(0.04, 0.04, 0.2, 6)), lam(0xc8a04a), f.x + 0.4, 0.84, f.y + 0.45, false);
+      } else if (f.kind === 'clubjuke') {
+        add(geoBox(0.7, 1.15, 0.5), lam(0x6a2a4a), f.x + 0.5, 0.58, f.y + 0.6);
+        add(own(new THREE.CylinderGeometry(0.33, 0.33, 0.52, 14, 1, false, 0, Math.PI)), lam(0xffb040, { emissive: 0xff7a20, emissiveIntensity: 1.2 }), f.x + 0.5, 1.15, f.y + 0.6, false).rotation.z = Math.PI / 2;
+      }
+    }
+    const red = new THREE.PointLight(0xff4040, 4, 8, 1.4);
+    red.position.set(cx, HT - 0.4, cz);
+    scene.add(red);
+    const fade: Fadeable = { walls, mats: [mBrick], props, opacity: 1 };
+    fadeables.push(fade);
+    rooms.set(CLUB.id, fade);
+  }
+  // Motorbikes parked on the sidewalk in front of the club (chrome, black tanks, high bars).
+  for (const f of FIXTURES) {
+    if (f.kind !== 'motorbike') continue;
+    const g = new THREE.Group();
+    const black = lam(0x1a1a1e);
+    const chrome = lam(0xc8ccd2);
+    for (const dz of [-0.38, 0.38]) {
+      const w = new THREE.Mesh(own(new THREE.TorusGeometry(0.2, 0.06, 6, 14)), black);
+      w.rotation.y = Math.PI / 2;
+      w.position.set(0, 0.24, dz);
+      g.add(w);
+    }
+    const body = new THREE.Mesh(geoBox(0.16, 0.18, 0.62), black);
+    body.position.set(0, 0.45, 0);
+    g.add(body);
+    const tank = new THREE.Mesh(geoBox(0.2, 0.14, 0.26), lam([0x8a1a1a, 0x1a1a1e, 0x2a3a6a, 0x5a5a5a][bikes.length % 4]));
+    tank.position.set(0, 0.6, -0.08);
+    g.add(tank);
+    const seat = new THREE.Mesh(geoBox(0.18, 0.06, 0.3), lam(0x3a2a1e));
+    seat.position.set(0, 0.58, 0.2);
+    g.add(seat);
+    const fork = new THREE.Mesh(geoBox(0.04, 0.5, 0.04), chrome);
+    fork.position.set(0, 0.5, -0.38);
+    fork.rotation.x = -0.4;
+    g.add(fork);
+    const bars = new THREE.Mesh(geoBox(0.5, 0.03, 0.03), chrome);
+    bars.position.set(0, 0.82, -0.32);
+    g.add(bars);
+    const pipe = new THREE.Mesh(own(new THREE.CylinderGeometry(0.035, 0.035, 0.6, 6)), chrome);
+    pipe.rotation.x = Math.PI / 2;
+    pipe.position.set(0.12, 0.25, 0.1);
+    g.add(pipe);
+    g.position.set(f.x + 0.5, 0, f.y + 0.5);
+    g.rotation.z = 0.12; // leaning on its stand
+    g.rotation.y = (bikes.length % 2 ? 0.25 : -0.25);
+    g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+    scene.add(g);
+    bikes.push(g);
+  }
+
   // ---------- the pothole and the sewer under the city (rats; docs/design.md §12) ----------
   // On the street: an open manhole in the crossing, broken asphalt round it, the cover lying next to it, two cones.
   // Below (SEWER_DEPTH down, where the camera follows you): a cut-away sewer like a model: grimy brick walls with moss,
   // pipes and two lanterns, a walkway each side of a channel of green sewage, two grate bridges, the ladder up to a
   // shaft of street light, the tunnel's dark arch at the east end, crates and rubbish bags.
   const links: THREE.Object3D[] = [];
+  let gate: THREE.Group | null = null;
   {
     const hole = new THREE.Group();
     const hx = MANHOLE[0] + 0.5;
@@ -2074,7 +2402,14 @@ export function buildCity(scene: THREE.Scene) {
     };
     add(geoBox(X1 - X0 + 0.6, WALL + 1.2, 0.3), brick(X1 - X0), cx, D + WALL / 2 - 0.6, Z0 - 0.15);
     add(geoBox(0.3, WALL + 1.2, Z1 - Z0), brick(Z1 - Z0), X0 - 0.15, D + WALL / 2 - 0.6, (Z0 + Z1) / 2);
-    add(geoBox(0.3, WALL + 1.2, Z1 - Z0), brick(Z1 - Z0), X1 + 0.15, D + WALL / 2 - 0.6, (Z0 + Z1) / 2);
+    // (The east wall has a gap where the tunnel to the Rat Nest leaves the north walkway.)
+    {
+      const t0 = NEST_TUNNEL.y0;
+      const t1 = NEST_TUNNEL.y1 + 1;
+      add(geoBox(0.3, WALL + 1.2, t0 - Z0), brick(t0 - Z0), X1 + 0.15, D + WALL / 2 - 0.6, (Z0 + t0) / 2);
+      add(geoBox(0.3, WALL + 1.2, Z1 - t1), brick(Z1 - t1), X1 + 0.15, D + WALL / 2 - 0.6, (t1 + Z1) / 2);
+      add(geoBox(0.3, WALL - 1.9, t1 - t0), brick(1), X1 + 0.15, D + 1.9 + (WALL - 1.9) / 2 - 0.0, (t0 + t1) / 2);
+    }
     {
       const ccz = (CH0 + CH1) / 2;
       const ring = new THREE.Mesh(own(new THREE.TorusGeometry(2.05, 0.28, 8, 24, Math.PI)), lam(0x7a7e72, { flatShading: true }));
@@ -2158,6 +2493,100 @@ export function buildCity(scene: THREE.Scene) {
         }
       }
     }
+
+    // --- the tunnel and the Rat Nest (v0.43) ---
+    // A low brick tunnel east from the north walkway, an iron gate in it (shut unless you unlocked it), then a dark round
+    // chamber: puddles, bones, a mound of rubbish the giant rats live on, one sick green light.
+    {
+      const tx0 = NEST_TUNNEL.x0;
+      const tx1 = NEST_TUNNEL.x1 + 1;
+      const tz0 = NEST_TUNNEL.y0;
+      const tz1 = NEST_TUNNEL.y1 + 1;
+      const tcx = (tx0 + tx1) / 2;
+
+      const slab = (x0: number, x1: number, z0: number, z1: number) => {
+        const tex = own(slabTex.clone());
+        tex.repeat.set(x1 - x0, z1 - z0);
+        tex.needsUpdate = true;
+        add(geoBox(x1 - x0, 1.2, z1 - z0), lam(0x7a7a70, { map: tex }), (x0 + x1) / 2, D - 0.6, (z0 + z1) / 2);
+      };
+      slab(tx0, tx1, tz0, tz1);
+      const TW = 2.2;
+      add(geoBox(tx1 - tx0, TW, 0.3), brick(tx1 - tx0), tcx, D + TW / 2, tz0 - 0.15);
+      // (The south side is cut away low, like the sewer's model look, so you can see in from the camera.)
+      add(geoBox(tx1 - tx0, 0.5, 0.3), brick(tx1 - tx0), tcx, D + 0.25, tz1 + 0.15);
+      const NX0 = NEST.x0;
+      const NX1 = NEST.x1 + 1;
+      const NZ0 = NEST.y0;
+      const NZ1 = NEST.y1 + 1;
+      const ncx = (NX0 + NX1) / 2;
+      const ncz = (NZ0 + NZ1) / 2;
+      slab(NX0, NX1, NZ0, NZ1);
+      add(geoBox(NX1 - NX0 + 0.6, WALL + 1.2, 0.3), brick(NX1 - NX0), ncx, D + WALL / 2 - 0.6, NZ0 - 0.15);
+      add(geoBox(0.3, WALL + 1.2, NZ1 - NZ0), brick(NZ1 - NZ0), NX1 + 0.15, D + WALL / 2 - 0.6, ncz);
+      add(geoBox(0.3, WALL + 1.2, tz0 - NZ0), brick(tz0 - NZ0), NX0 - 0.15, D + WALL / 2 - 0.6, (NZ0 + tz0) / 2);
+      add(geoBox(0.3, WALL + 1.2, NZ1 - tz1), brick(NZ1 - tz1), NX0 - 0.15, D + WALL / 2 - 0.6, (tz1 + NZ1) / 2);
+      // Puddles, bones and scraps.
+      for (let i = 0; i < 6; i++) {
+        const pud = add(own(new THREE.CircleGeometry(0.3 + rng() * 0.4, 8)), lam(0x2a3a24, { emissive: 0x0a1a08, emissiveIntensity: 0.5 }), NX0 + 0.8 + rng() * 8.4, D + 0.01, NZ0 + 0.8 + rng() * 6.4, false);
+        pud.rotation.x = -Math.PI / 2;
+      }
+      const boneM = lam(0xd8d0b8);
+      for (let i = 0; i < 16; i++) {
+        const b = add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.2 + rng() * 0.15, 5)), boneM, NX0 + 0.5 + rng() * 9, D + 0.03, NZ0 + 0.5 + rng() * 7, false);
+        b.rotation.z = Math.PI / 2;
+        b.rotation.y = rng() * 3;
+      }
+      for (let i = 0; i < 3; i++) add(own(new THREE.SphereGeometry(0.09, 6, 5)), boneM, NX0 + 1 + rng() * 8, D + 0.07, NZ0 + 1 + rng() * 6, false);
+      // The mound: a heap of rubbish bags, rags and broken crates.
+      const mound = FIXTURES.filter((f) => f.kind === 'mound');
+      if (mound.length) {
+        const mx = (Math.min(...mound.map((f) => f.x)) + Math.max(...mound.map((f) => f.x)) + 1) / 2;
+        const mz = (Math.min(...mound.map((f) => f.y)) + Math.max(...mound.map((f) => f.y)) + 1) / 2;
+        const heap = add(own(new THREE.SphereGeometry(1.0, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2)), lam(0x3a3428, { flatShading: true }), mx, D, mz);
+        heap.scale.y = 0.55;
+        for (let i = 0; i < 9; i++) {
+          const a = rng() * Math.PI * 2;
+          const r = rng() * 0.8;
+          add(own(new THREE.IcosahedronGeometry(0.18 + rng() * 0.1, 0)), lam([0x1e2022, 0x4a3a2a, 0x5a4a3a][i % 3], { flatShading: true }), mx + Math.cos(a) * r, D + 0.25 + (0.8 - r) * 0.3, mz + Math.sin(a) * r);
+        }
+        const plank = add(geoBox(0.9, 0.05, 0.14), lam(0x6a4a2e), mx + 0.3, D + 0.45, mz - 0.2, false);
+        plank.rotation.set(0.3, 0.7, 0.4);
+      }
+      const sick = new THREE.PointLight(0x7aff6a, 4, 10, 1.4);
+      sick.position.set(ncx, D + 2.4, ncz);
+      scene.add(sick);
+      add(geoBox(0.2, 0.25, 0.2), lam(0x7aff6a, { emissive: 0x4ac83a, emissiveIntensity: 1.6 }), ncx, D + WALL - 0.4, NZ0 + 0.2, false);
+    }
+    // The gate: iron bars on hinges across the tunnel (tap it to unlock with the key). Swung open for players who have.
+    {
+      const g = new THREE.Group();
+      const iron = lam(0x3a3d42);
+      const tz0 = NEST_TUNNEL.y0;
+      const w = NEST_TUNNEL.y1 + 1 - tz0;
+      for (let k = 0; k <= 5; k++) {
+        const bar = new THREE.Mesh(geoBox(0.05, 1.9, 0.05), iron);
+        bar.position.set(0, 0.95, (k / 5) * w);
+        g.add(bar);
+      }
+      // Thick rails and a yellow-and-black band, so it reads from above too.
+      for (const y of [0.3, 1.0, 1.8]) {
+        const rail = new THREE.Mesh(geoBox(0.16, y === 1.0 ? 0.16 : 0.1, w), y === 1.0 ? lam(0xd8b02a) : iron);
+        rail.position.set(0, y, w / 2);
+        g.add(rail);
+      }
+      const lock = new THREE.Mesh(geoBox(0.2, 0.26, 0.16), lam(0xc8a04a, { emissive: 0x5a4010, emissiveIntensity: 0.6 }));
+      lock.position.set(-0.12, 1.0, w - 0.2);
+      g.add(lock);
+      const tap = new THREE.Mesh(geoBox(0.6, 2, w), new THREE.MeshBasicMaterial({ visible: false }));
+      tap.position.set(0, 1, w / 2);
+      g.add(tap);
+      // Hinged on its north side.
+      g.position.set(NEST_GATE[0] + 0.5, D, tz0);
+      g.traverse((o) => (o.userData.gateId = 'rat_nest'));
+      scene.add(g);
+      gate = g;
+    }
     for (let i = 0; i < 14; i++) {
       const onNorth = i % 2 === 0;
       const z = onNorth ? Z0 + 0.3 + rng() * 0.6 : Z1 - 0.3 - rng() * 0.6;
@@ -2237,6 +2666,11 @@ export function buildCity(scene: THREE.Scene) {
     stairs,
     /** The pothole and the sewer's ladder (tap to climb: userData.linkId). */
     links,
+    /** The Rat Nest's gate (tap it: userData.gateId). Swing it open for players who unlocked it. */
+    gate: gate as THREE.Group | null,
+    setGateOpen(open: boolean) {
+      if (gate) gate.rotation.y = open ? -Math.PI / 2 : 0;
+    },
     /** Call every frame: the barbecue's flames flicker. */
     animate(t: number) {
       flames.forEach((f, i) => {

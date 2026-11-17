@@ -307,6 +307,68 @@ export function animateRat(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'de
   }
 }
 
+/** A giant rat (the Rat Nest, v0.43): a rat twice the size, with darker, mangier fur. Animated like a rat. */
+export function buildGiantRat(): THREE.Group {
+  const g = buildRat();
+  const p = g.userData.parts as { body: THREE.Group };
+  p.body.scale.setScalar(2.5);
+  p.body.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.material === ratFur) m.material = giantFur;
+  });
+  return g;
+}
+const giantFur = new THREE.MeshLambertMaterial({ color: 0x2e2a26, flatShading: true });
+
+/** A guard dog (the Junkyard, v0.43): a big brown mutt with a black muzzle, pointed ears and a spiked collar. It has the
+ *  same parts as a rat (body, head, legs, tail), so it's animated like one. */
+export function buildDog(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const fur = 0x7a5a3a;
+  const dark = 0x2a221c;
+  add(body, boxGeo(0.34, 0.3, 0.72), fur, 0, 0.5, -0.02);
+  add(body, boxGeo(0.3, 0.12, 0.5), 0xa88a62, 0, 0.36, 0, false); // lighter belly
+  const head = new THREE.Group();
+  head.position.set(0, 0.7, 0.42);
+  body.add(head);
+  add(head, boxGeo(0.28, 0.24, 0.26), fur, 0, 0, 0);
+  add(head, boxGeo(0.16, 0.13, 0.2), dark, 0, -0.05, 0.2); // muzzle
+  add(head, boxGeo(0.06, 0.05, 0.04), 0x141210, 0, -0.01, 0.31, false); // nose
+  add(head, boxGeo(0.12, 0.03, 0.12), 0xd85a6a, 0, -0.13, 0.22, false); // tongue
+  for (const side of [-1, 1]) {
+    const ear = add(head, new THREE.ConeGeometry(0.06, 0.16, 4), dark, side * 0.09, 0.18, -0.04);
+    ear.rotation.z = side * -0.2;
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), dogEye);
+    eye.position.set(side * 0.07, 0.04, 0.13);
+    head.add(eye);
+  }
+  // The spiked collar.
+  const collar = add(body, new THREE.TorusGeometry(0.16, 0.035, 6, 12), 0x2a2a2e, 0, 0.62, 0.3, false);
+  collar.rotation.x = Math.PI / 2 - 0.5;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const spike = add(body, new THREE.ConeGeometry(0.02, 0.06, 4), 0xc8ccd2, Math.cos(a) * 0.19, 0.62 + Math.sin(a) * 0.09, 0.3 + Math.sin(a) * 0.05, false);
+    spike.rotation.z = a - Math.PI / 2;
+  }
+  const legs = [-1, 1].flatMap((side) =>
+    [0.26, -0.28].map((z) => {
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.12, 0.4, z);
+      body.add(leg);
+      add(leg, boxGeo(0.09, 0.36, 0.1), fur, 0, -0.18, 0, false);
+      add(leg, boxGeo(0.1, 0.05, 0.13), dark, 0, -0.37, 0.02, false);
+      return leg;
+    }),
+  );
+  const tail = add(body, boxGeo(0.06, 0.06, 0.3), fur, 0, 0.62, -0.48, false);
+  tail.rotation.x = 0.7;
+  g.userData.parts = { body, head, legs, tail };
+  return g;
+}
+const dogEye = new THREE.MeshLambertMaterial({ color: 0xffb030, emissive: 0x8a5010, emissiveIntensity: 0.8 });
+
 /** Each metal's colour (its gear is drawn in it). */
 const METAL_COLORS: Record<string, number> = {
   tin: 0xb8bcc2, copper: 0xc07040, aluminium: 0xd8dde2, brass: 0xd8b04a, bronze: 0xb0703a, iron: 0x6a6e74, steel: 0x9aa4ae,

@@ -41,6 +41,15 @@ export interface GameApi {
   bankDeposit(itemId: string, n: number, pos: [number, number]): void;
   bankWithdraw(itemId: string, n: number, pos: [number, number]): void;
   bankDepositAll(pos: [number, number]): void;
+  /** Talk to a quest's person (Splinter, Elliot), with your answer if they asked you something ('accept' / 'decline').
+   *  Resolves to the id of the line they say (QUEST_LINES), or null. */
+  questTalk(npcId: string, choice: string | null, pos: [number, number]): Promise<string | null>;
+  /** Use one item on another (the Rat Antidote on cooked rat meat). */
+  useItem(itemId: string, onId: string): void;
+  /** Open a gate with its key, standing next to it. */
+  unlockGate(gateId: string, pos: [number, number]): void;
+  /** In the biker club: let a biker jump you if one is free (the game asks every couple of seconds while you're in). */
+  jumpMe(pos: [number, number]): void;
   /** Climb down the pothole into the sewer, or up its ladder (a link in map.ts), standing on tile `pos` next to it.
    *  True when the server moved you. */
   climb(linkId: string, pos: [number, number]): Promise<boolean>;

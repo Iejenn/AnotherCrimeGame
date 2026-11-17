@@ -12,6 +12,8 @@ export interface ItemDef {
   heal: number;
   /** What it's worth, in dollars. Shops buy it back for SELL_SHARE of that (rounded down, but at least $1). */
   value: number;
+  /** Quest items: you can't drop or sell them (or trade them, later), and they stay in your bag when you die. */
+  quest?: boolean;
   /** Gear you can wield or wear (docs/design.md §12). Weapons don't wear out. */
   gear?: {
     slot: GearSlot;
@@ -39,6 +41,13 @@ export const ITEMS: ItemDef[] = [
   // Rats in the sewer drop raw rat meat: cook it at the barbecue.
   { id: 'raw_rat_meat', name: 'Raw Rat Meat', heal: 0, value: 2 },
   { id: 'cooked_rat_meat', name: 'Cooked Rat Meat', heal: 1, value: 4 },
+  // The Rat Nest's giant rats (v0.43) always drop raw giant rat meat: cook it (Cooking 10) for the best food so far.
+  { id: 'raw_giant_rat_meat', name: 'Raw Giant Rat Meat', heal: 0, value: 4 },
+  { id: 'cooked_giant_rat_meat', name: 'Cooked Giant Rat Meat', heal: 3, value: 8 },
+  // The quest "Sewer Problems" (v0.43): Elliot's antidote, the antidote dripped over cooked rat meat, Splinter's key.
+  { id: 'rat_antidote', name: 'Rat Antidote', heal: 0, value: 0, quest: true },
+  { id: 'cooked_rat_antidote', name: 'Cooked Rat Antidote', heal: 0, value: 0, quest: true },
+  { id: 'sewer_key', name: 'Sewer Key', heal: 0, value: 0, quest: true },
   // The metals (docs/design.md §14): every metal's salvage, sheet, three weapons and three pieces of armour, from the
   // formulas in metals.ts. Tin is the first: Ray sells the tin weapons, thugs drop the tin knife, the rest you make.
   // (The old brass knuckles, baseball bat and knife became Tin Knuckles, Tin Bat and Tin Knife in v0.41.)

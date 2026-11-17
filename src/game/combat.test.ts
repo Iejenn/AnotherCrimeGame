@@ -56,6 +56,9 @@ describe('combat maths (design §12)', () => {
     expect(CRAFTS.map((c) => [c.id, c.level, Object.values(c.inputs)[0], c.xp, c.station])).toEqual([
       ['tin_sheet', 1, 1, 1, 'press'], ['tin_knuckles', 2, 1, 3, 'bench'], ['tin_bat', 3, 2, 6, 'bench'], ['tin_knife', 4, 1, 3, 'bench'],
       ['tin_helmet', 6, 1, 3, 'bench'], ['tin_legs', 7, 2, 6, 'bench'], ['tin_vest', 8, 3, 9, 'bench'],
+      // Copper (v0.43): the same ladder from level 11, twice the XP.
+      ['copper_sheet', 11, 1, 2, 'press'], ['copper_knuckles', 12, 1, 6, 'bench'], ['copper_bat', 13, 2, 12, 'bench'], ['copper_knife', 14, 1, 6, 'bench'],
+      ['copper_helmet', 16, 1, 6, 'bench'], ['copper_legs', 17, 2, 12, 'bench'], ['copper_vest', 18, 3, 18, 'bench'],
     ]);
   });
 
@@ -77,7 +80,13 @@ describe('combat maths (design §12)', () => {
     // public.loot on the server (checked there on 2026-11-16): pigeon raw_bird_meat 1; thug cash 0.2 ($5–10), knife 0.05;
     // rat raw_rat_meat 1 (0019_sewer); the knife became the tin knife (0023).
     const rows = Object.values(ENEMY_KINDS).flatMap((k) => k.loot.map((d) => `${k.id}:${d.item}@${d.chance}:${d.min}-${d.max}`));
-    expect(rows.sort()).toEqual(['pigeon:raw_bird_meat@1:1-1', 'rat:raw_rat_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:tin_knife@0.05:1-1']);
+    // v0.43 (0028): the guard dogs, giant rats and bikers.
+    expect(rows.sort()).toEqual([
+      'biker:cash@0.33:20-50', 'biker:copper_knife@0.025:1-1', 'biker:copper_knuckles@0.04:1-1',
+      'dog:cash@0.2:5-15', 'dog:copper_salvage@0.25:1-1',
+      'giant_rat:copper_salvage@0.125:2-3', 'giant_rat:raw_giant_rat_meat@1:1-1',
+      'pigeon:raw_bird_meat@1:1-1', 'rat:raw_rat_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:tin_knife@0.05:1-1',
+    ]);
   });
 
   it('cooking: raw bird meat burns half the time at level 1, never from 15; cooked meat heals 1', async () => {

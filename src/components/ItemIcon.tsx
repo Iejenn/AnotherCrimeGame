@@ -173,7 +173,48 @@ const Vest = ({ t }: { t: Tone }) => (
   </svg>
 );
 
+/** Copper salvage: offcuts of copper pipe and a coil of wire. */
+const CopperSalvage = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <rect x="6" y="20" width="20" height="5" rx="2" fill="#c07040" stroke="#5a2e14" strokeWidth="1" transform="rotate(-20 16 22)" />
+    <rect x="12" y="26" width="18" height="5" rx="2" fill="#d88a50" stroke="#5a2e14" strokeWidth="1" transform="rotate(10 21 28)" />
+    <ellipse cx="28" cy="15" rx="7" ry="5" fill="none" stroke="#c07040" strokeWidth="2.2" />
+    <ellipse cx="28" cy="15" rx="4" ry="2.6" fill="none" stroke="#e8a070" strokeWidth="1.6" />
+    <path d="M8 19 L24 13" stroke="#e8a070" strokeWidth="0.9" />
+  </svg>
+);
+/** A little glass vial of green antidote with a cork. */
+const Antidote = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <rect x="16" y="5" width="8" height="5" rx="1" fill="#a8784a" stroke="#5a3a1a" strokeWidth="1" />
+    <path d="M15 10 H25 V15 Q31 19 31 26 Q31 35 20 35 Q9 35 9 26 Q9 19 15 15 Z" fill="#d8eef2" fillOpacity="0.5" stroke="#4a6a72" strokeWidth="1.2" />
+    <path d="M10.5 25 Q20 22 29.5 25 Q30 34 20 34 Q10 34 10.5 25 Z" fill="#6ad84a" />
+    <circle cx="16" cy="28" r="1.4" fill="#c8ffb8" />
+    <path d="M13 17 Q12 21 12 24" stroke="#ffffff" strokeWidth="1.2" fill="none" opacity="0.7" />
+  </svg>
+);
+/** The sewer key: a big old iron key. */
+const SewerKey = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="11" cy="20" r="6.5" fill="none" stroke="#5a5e64" strokeWidth="3" />
+    <rect x="17" y="18.4" width="17" height="3.2" rx="1" fill="#6a6e74" stroke="#2a2c30" strokeWidth="0.8" />
+    <rect x="28" y="21" width="2.6" height="6" fill="#6a6e74" stroke="#2a2c30" strokeWidth="0.8" />
+    <rect x="32" y="21" width="2.6" height="4" fill="#6a6e74" stroke="#2a2c30" strokeWidth="0.8" />
+    <path d="M7 17 Q9 15 12 15" stroke="#a8acb2" strokeWidth="1" fill="none" />
+  </svg>
+);
+
 const ICONS: Record<string, () => JSX.Element> = {
+  raw_giant_rat_meat: () => <RatMeat cooked={false} />, cooked_giant_rat_meat: () => <RatMeat cooked />,
+  rat_antidote: Antidote, sewer_key: SewerKey,
+  cooked_rat_antidote: () => (
+    <span style={{ position: 'relative', display: 'block', width: '100%', height: '100%' }}>
+      <RatMeat cooked />
+      <svg viewBox="0 0 40 40" aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
+        <path d="M12 15 Q13 19 12 22 M18 14 Q19 18 18 21 M24 15 Q25 18 24 20" stroke="#6ad84a" strokeWidth="2" strokeLinecap="round" fill="none" />
+      </svg>
+    </span>
+  ),
   raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />,
   raw_rat_meat: () => <RatMeat cooked={false} />, cooked_rat_meat: () => <RatMeat cooked />,
   cash: Cash, candy_bar: CandyBar, sandwich: Sandwich,
@@ -181,7 +222,7 @@ const ICONS: Record<string, () => JSX.Element> = {
 // Every metal's items (docs/design.md §14), drawn in the metal's colours. Salvage: tin cans for tin (later metals get
 // their own scrap pictures).
 for (const [metal, t] of Object.entries(TONES)) {
-  ICONS[`${metal}_salvage`] = TinSalvage;
+  ICONS[`${metal}_salvage`] = metal === 'copper' ? CopperSalvage : TinSalvage;
   ICONS[`${metal}_sheet`] = () => <Sheet t={t} />;
   ICONS[`${metal}_knuckles`] = () => <Knuckles t={t} />;
   ICONS[`${metal}_bat`] = () => <Bat t={t} />;

@@ -19,6 +19,8 @@ export interface Recipe {
 export const RECIPES: Recipe[] = [
   { from: 'raw_bird_meat', to: 'cooked_bird_meat', station: 'bbq', level: 1, xp: 5, stopBurn: 15 },
   { from: 'raw_rat_meat', to: 'cooked_rat_meat', station: 'bbq', level: 1, xp: 5, stopBurn: 15 },
+  // v0.43: the giant rats' meat heals 3 HP; you need Cooking 10.
+  { from: 'raw_giant_rat_meat', to: 'cooked_giant_rat_meat', station: 'bbq', level: 10, xp: 15, stopBurn: 30 },
 ];
 export const RECIPE_BY_ITEM: Record<string, Recipe> = Object.fromEntries(RECIPES.map((r) => [r.from, r]));
 

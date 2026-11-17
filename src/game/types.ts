@@ -99,6 +99,10 @@ export interface GameState {
    *  you keep there (safe when you die). */
   bank?: { i: string; n: number }[];
   bankCash?: number;
+  /** Your quests: quest id → the step you're at (docs/design.md §16; 0 or missing = not started). */
+  quests?: Record<string, number>;
+  /** Gates you unlocked (they're open for you only): 'rat_nest'. */
+  unlocked?: string[];
   /** Items lying on the ground that you can see: your own drops at once, everyone's after a minute. */
   ground?: GroundItem[];
   stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };

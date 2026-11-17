@@ -57,7 +57,7 @@ export function GameScreen(p: GameScreenProps) {
         {tab === 'highscores' && (
           <HighscoresTab myName={state.name} />
         )}
-        {tab === 'quests' && <QuestsTab />}
+        {tab === 'quests' && <QuestsTab s={state} />}
         {tab === 'skills' && <SkillsTab s={state} account={p.account} />}
       </main>
 
