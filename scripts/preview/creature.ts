@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildRat, animateRat } from '../../src/street/props';
+import { buildPigeon, buildPigeonRings, buildRat, buildRatRings, animatePigeon, animateRat } from '../../src/street/props';
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -17,17 +17,29 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 50);
-const yaw = Number(new URLSearchParams(location.search).get('yaw') ?? 0.7);
-cam.position.set(Math.sin(yaw) * 2.6, 1.5, Math.cos(yaw) * 2.6);
+const q = new URLSearchParams(location.search);
+const yaw = Number(q.get('yaw') ?? 0.7);
+// ?view=game: from the game's camera (far and steep) instead of close.
+const far = q.get('view') === 'game';
+cam.position.set(Math.sin(yaw) * (far ? 7 : 2.6), far ? 12 : 1.5, Math.cos(yaw) * (far ? 7 : 2.6));
 cam.lookAt(0, 0.15, 0);
-const old = buildRat();
-old.position.set(-0.55, 0, 0);
-animateRat(old, 'peck', 0);
+// ?who=pigeon: the pigeons instead of the rats.
+const pigeon = q.get('who') === 'pigeon';
+const old = pigeon ? buildPigeon() : buildRat();
+old.position.set(pigeon ? -0.35 : -0.55, 0, 0);
+(pigeon ? animatePigeon : animateRat)(old, 'peck', 0);
 scene.add(old);
-new GLTFLoader().load('/models/creatures/rat.glb', (g) => {
-  g.scene.position.set(0.55, 0, 0);
-  g.scene.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-  scene.add(g.scene);
-  renderer.render(scene, cam);
-  (window as unknown as { ready: boolean }).ready = true;
+const fresh = pigeon ? buildPigeonRings() : buildRatRings();
+fresh.position.set(pigeon ? 0.35 : 0.55, 0, 0);
+(pigeon ? animatePigeon : animateRat)(fresh, 'peck', 0);
+scene.add(fresh);
+let tris = 0;
+fresh.traverse((o) => {
+  const m = o as THREE.Mesh;
+  if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
 });
+document.title = `rings ${pigeon ? 'pigeon' : 'rat'}: ${Math.round(tris)} tris`;
+if (pigeon) cam.position.multiplyScalar(0.65), cam.lookAt(0, 0.18, 0);
+renderer.render(scene, cam);
+(window as unknown as { ready: boolean }).ready = true;
+void GLTFLoader;

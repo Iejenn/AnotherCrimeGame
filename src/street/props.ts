@@ -1,5 +1,6 @@
 // Small models: cars, gym bags, shop shelves and parking meters. Chunky low-poly, muted dusk colours.
 import * as THREE from 'three';
+import { limb, loft, spikes } from './loft';
 
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
 export function lambert(color: number) {
@@ -305,6 +306,221 @@ export function animateRat(g: THREE.Group, mode: 'peck' | 'fly' | 'attack' | 'de
     // Sniffing: little quick nods now and then.
     p.head.rotation.x = mode === 'peck' ? (Math.sin(s * 1.3) > 0.6 ? Math.sin(s * 22) * 0.12 : 0) : 0;
   }
+}
+
+/**
+ * The sewer rat, built from rings (docs/design.md §18; a preview for now, v0.45), after the old-school RuneScape rat:
+ * crouched (haunches high, head low), a jagged ridge of fur along the back, a long head with pointed ears and an open
+ * mouth full of teeth, splayed legs with claws, a long thick tail arching up. Grey fur, lighter underneath. Under 400
+ * triangles. The same parts as buildRat (body, head, legs, tail), so animateRat moves it.
+ */
+export function buildRatRings(): THREE.Group {
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const FUR = 0x7e7a72;
+  const BELLY = 0xa29c92;
+  const DARK = 0x3a3634;
+  const TAIL = 0x5e4a4e;
+  const CLAW = 0x2a2624;
+  // The body: low at the chest, rising to big haunches, then a short rump.
+  body.add(
+    loft(
+      [
+        { z: -0.36, w: 0.06, h: 0.06, y: 0.25 }, // rump
+        { z: -0.26, w: 0.17, h: 0.15, y: 0.27 }, // haunches: wide and high
+        { z: -0.08, w: 0.16, h: 0.15, y: 0.25 }, // arched back
+        { z: 0.08, w: 0.13, h: 0.12, y: 0.2 }, // chest, lower
+        { z: 0.18, w: 0.08, h: 0.08, y: 0.17 }, // neck, lower still
+      ],
+      6, FUR, BELLY,
+    ),
+  );
+  // A jagged ridge of fur along the back, and tufts on the haunches (they make the silhouette).
+  body.add(
+    spikes(
+      [
+        [V(0, 0.4, 0.06), V(0, 0.47, -0.02), 0.035],
+        [V(0, 0.42, -0.03), V(0, 0.5, -0.11), 0.04],
+        [V(0, 0.42, -0.12), V(0, 0.5, -0.2), 0.04],
+        [V(0, 0.41, -0.2), V(0, 0.48, -0.29), 0.035],
+        [V(0, 0.37, -0.28), V(0, 0.42, -0.36), 0.03],
+        ...[-1, 1].map((s) => [V(s * 0.15, 0.3, -0.22), V(s * 0.21, 0.36, -0.3), 0.03] as [THREE.Vector3, THREE.Vector3, number]),
+      ],
+      FUR,
+    ),
+  );
+  // The head, low and forward (pivot at the neck): a long skull, a pointed snout, an open lower jaw.
+  const head = new THREE.Group();
+  head.position.set(0, 0.17, 0.18);
+  body.add(head);
+  head.add(
+    loft(
+      [
+        { z: -0.02, w: 0.075, h: 0.075, y: 0.02 },
+        { z: 0.08, w: 0.085, h: 0.065, y: 0 },
+        { z: 0.18, w: 0.045, h: 0.04, y: -0.02 },
+        { z: 0.25, w: 0.012, h: 0.014, y: -0.025 },
+      ],
+      6, FUR, BELLY,
+    ),
+  );
+  // The lower jaw hanging open (a dark wedge, red inside), with teeth top and bottom.
+  head.add(
+    loft(
+      [
+        { z: 0.04, w: 0.05, h: 0.02, y: -0.07 },
+        { z: 0.19, w: 0.025, h: 0.012, y: -0.085 },
+      ],
+      4, DARK, DARK,
+    ),
+  );
+  const mouth = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.12), new THREE.MeshLambertMaterial({ color: 0x8a2a2a, side: THREE.DoubleSide }));
+  mouth.rotation.x = -Math.PI / 2 + 0.25;
+  mouth.position.set(0, -0.055, 0.12);
+  head.add(mouth);
+  head.add(
+    spikes(
+      [
+        ...[-1, 1].map((s) => [V(s * 0.012, -0.035, 0.21), V(s * 0.012, -0.075, 0.215), 0.007] as [THREE.Vector3, THREE.Vector3, number]),
+        ...[-1, 1].map((s) => [V(s * 0.02, -0.075, 0.17), V(s * 0.02, -0.045, 0.17), 0.006] as [THREE.Vector3, THREE.Vector3, number]),
+      ],
+      0xe8dcb0,
+    ),
+  );
+  for (const s of [-1, 1]) {
+    // Pointed ears, swept back: a pink triangle with a fur back.
+    const ear = spikes([[V(s * 0.05, 0.06, -0.01), V(s * 0.11, 0.15, -0.07), 0.035]], 0xb88488);
+    head.add(ear);
+    // Small slanted red eyes that glow.
+    const eye = new THREE.Mesh(new THREE.OctahedronGeometry(0.018), ratEye);
+    eye.scale.set(1.3, 0.7, 1);
+    eye.rotation.z = s * 0.4;
+    eye.position.set(s * 0.06, 0.03, 0.1);
+    head.add(eye);
+  }
+  // Legs, splayed out, each with three dark claws: front legs reach forward, back legs fold under the haunches.
+  const legs = ([[-0.09, 0.1, 1], [0.09, 0.1, 1], [-0.13, -0.22, 0], [0.13, -0.22, 0]] as const).map(([x, z, front]) => {
+    const leg = new THREE.Group();
+    leg.position.set(x, 0.18, z);
+    body.add(leg);
+    const s = Math.sign(x);
+    const knee = front ? V(s * 0.03, -0.09, 0.05) : V(s * 0.05, -0.04, -0.09);
+    const foot = front ? V(s * 0.04, -0.17, 0.09) : V(s * 0.06, -0.17, -0.02);
+    leg.add(limb(V(0, 0, 0), knee, front ? 0.055 : 0.09, 0.045, FUR));
+    leg.add(limb(knee, foot, 0.042, 0.03, FUR));
+    leg.add(
+      spikes(
+        [-1, 0, 1].map((k) => [foot.clone().add(V(k * 0.02, 0, 0)), foot.clone().add(V(k * 0.035 + s * 0.01, -0.012, 0.07)), 0.009] as [THREE.Vector3, THREE.Vector3, number]),
+        CLAW,
+      ),
+    );
+    return leg;
+  });
+  // The tail: thick at the root, arching up and back, then curling down to a thin end.
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.25, -0.35);
+  body.add(tail);
+  tail.add(
+    loft(
+      [
+        { z: 0, w: 0.045, h: 0.045, y: 0 },
+        { z: -0.15, w: 0.036, h: 0.036, y: 0.1 },
+        { z: -0.32, w: 0.026, h: 0.026, y: 0.2, x: 0.03 },
+        { z: -0.5, w: 0.016, h: 0.016, y: 0.24, x: 0.05 },
+        { z: -0.68, w: 0.008, h: 0.008, y: 0.2, x: 0.03 },
+        { z: -0.8, w: 0.002, h: 0.002, y: 0.13, x: 0.01 },
+      ],
+      4, TAIL,
+    ),
+  );
+  g.userData.parts = { body, head, legs, tail };
+  return g;
+}
+
+/**
+ * The city pigeon, built from rings (docs/design.md §18; a preview for now, v0.45), in the old-school RuneScape style of
+ * its seagull: a fat teardrop body with a puffed chest, a small head on a short neck with the green-purple sheen, a dark
+ * beak with a white tip at its base, folded wings with two black bars, a fanned tail with a dark band, pink-red legs.
+ * The same parts as buildPigeon (body, head, wings), so animatePigeon moves it. Under 400 triangles.
+ */
+export function buildPigeonRings(): THREE.Group {
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const GREY = 0x8a909a;
+  const PALE = 0xa8adb4;
+  const DARK = 0x4a4e56;
+  const SHEEN = 0x4f8a7a;
+  const LEG = 0xc0605a;
+  // A fat teardrop: narrow at the tail, widest at the belly, a puffed-out chest.
+  body.add(
+    loft(
+      [
+        { z: -0.2, w: 0.04, h: 0.03, y: 0.22 },
+        { z: -0.11, w: 0.1, h: 0.09, y: 0.21 },
+        { z: 0.0, w: 0.135, h: 0.12, y: 0.2 },
+        { z: 0.09, w: 0.13, h: 0.125, y: 0.23 },
+        { z: 0.16, w: 0.065, h: 0.075, y: 0.28 },
+      ],
+      6, GREY, PALE,
+    ),
+  );
+  // The tail: a flat fan sticking out back, with a dark band at the end.
+  body.add(loft([{ z: -0.17, w: 0.04, h: 0.012, y: 0.23 }, { z: -0.27, w: 0.075, h: 0.01, y: 0.25 }], 4, GREY));
+  body.add(loft([{ z: -0.27, w: 0.075, h: 0.01, y: 0.25 }, { z: -0.31, w: 0.08, h: 0.008, y: 0.255 }], 4, DARK));
+  // Folded wings along the sides (pivot at the shoulder, so they flap), each with two black bars and a dark tip.
+  const wings = [-1, 1].map((sd) => {
+    const w = new THREE.Group();
+    w.position.set(sd * 0.115, 0.25, 0.06);
+    body.add(w);
+    const slab = loft(
+      [
+        { z: 0.02, w: 0.015, h: 0.05, y: 0, x: 0 },
+        { z: -0.1, w: 0.015, h: 0.055, y: -0.005, x: sd * 0.015 },
+        { z: -0.22, w: 0.01, h: 0.025, y: 0.005, x: sd * 0.005 },
+      ],
+      4, GREY,
+    );
+    w.add(slab);
+    for (const z of [-0.06, -0.11]) add(w, boxGeo(0.034, 0.075, 0.018), 0x2a2c30, sd * 0.012, -0.01, z, false);
+    add(w, boxGeo(0.026, 0.035, 0.05), DARK, sd * 0.004, 0.0, -0.2, false);
+    return w;
+  });
+  // The head (pivot at the base of the neck): the shiny green neck, a small round grey head, the beak, orange eyes.
+  const head = new THREE.Group();
+  head.position.set(0, 0.29, 0.13);
+  body.add(head);
+  head.add(loft([{ z: -0.04, w: 0.06, h: 0.06, y: -0.03 }, { z: 0.02, w: 0.05, h: 0.05, y: 0.02 }], 6, SHEEN));
+  head.add(
+    loft(
+      [
+        { z: -0.02, w: 0.045, h: 0.045, y: 0.05 },
+        { z: 0.04, w: 0.058, h: 0.056, y: 0.07 },
+        { z: 0.09, w: 0.04, h: 0.04, y: 0.065 },
+        { z: 0.12, w: 0.016, h: 0.018, y: 0.055 },
+      ],
+      6, GREY, PALE,
+    ),
+  );
+  head.add(spikes([[V(0, 0.055, 0.11), V(0, 0.04, 0.18), 0.013]], 0x3a3634));
+  add(head, boxGeo(0.03, 0.014, 0.02), 0xe8e4dc, 0, 0.07, 0.115, false); // the white cere
+  for (const sd of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.OctahedronGeometry(0.012), new THREE.MeshLambertMaterial({ color: 0xe8801a, emissive: 0x5a2a00 }));
+    eye.position.set(sd * 0.045, 0.075, 0.07);
+    head.add(eye);
+  }
+  // Pink-red legs and three toes each.
+  for (const sd of [-1, 1]) {
+    const hip = V(sd * 0.04, 0.12, 0.03);
+    const foot = V(sd * 0.045, 0.01, 0.045);
+    body.add(limb(hip, foot, 0.016, 0.012, LEG));
+    body.add(spikes([-1, 0, 1].map((k) => [foot, foot.clone().add(V(k * 0.035, -0.008, 0.05)), 0.008] as [THREE.Vector3, THREE.Vector3, number]), LEG));
+  }
+  g.userData.parts = { body, head, wings };
+  return g;
 }
 
 /** A giant rat (the Rat Nest, v0.43): a rat twice the size, with darker, mangier fur. Animated like a rat. */
