@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'You can talk to the doctors now (they were "busy with the patients"): Elliot helps with Sewer Problems.',
       'JD and Elliot had each other\'s names. Elliot is the one with the long hair and green scrubs.',
+      'With no cash on you (all of it in the bank), your bag no longer shows an empty $0 slot.',
     ],
   },
   {
