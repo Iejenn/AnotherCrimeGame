@@ -396,7 +396,11 @@ export function eat(s: GameState, id: string, now: number) {
 }
 
 /** What a shop pays for one: a quarter of what it's worth, rounded down (Ray for weapons, Eddy for the rest). */
-export const itemPrice = (id: string) => Math.floor((ITEM_BY_ID[id]?.value ?? 0) * SELL_SHARE);
+/** What a shop pays for one: SELL_SHARE of its value, rounded down, but never less than $1 (whole dollars only; v0.41). */
+export const itemPrice = (id: string) => {
+  const v = ITEM_BY_ID[id]?.value ?? 0;
+  return v > 0 ? Math.max(1, Math.floor(v * SELL_SHARE)) : 0;
+};
 
 /** Sell one of an item to the store. */
 export function sellItem(s: GameState, id: string) {

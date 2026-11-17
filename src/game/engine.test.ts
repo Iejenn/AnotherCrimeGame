@@ -6,6 +6,7 @@ import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
 import { mulberry32 } from './rng';
 import { BAR_SLOT_MS, GUARD_LOOP_MS, bartenderAt, guardAt, inBeam } from './watchers';
 import { DEFAULT_LOOK } from '../street/character';
+import { CITY_X } from '../street/map';
 
 const T0 = Date.UTC(2026, 0, 1);
 const fresh = (name = 'Tester') => structuredClone(newGame(name, DEFAULT_LOOK, T0));
@@ -29,7 +30,7 @@ describe('street crimes v2 (design §4)', () => {
       const c = CRIME_BY_ID[id];
       return [c.level, c.baseChance, c.duration, c.cashMin, c.cashMax, c.items ?? [], c.failDamage, c.failStun, c.catcher ?? null, c.refill ?? 0];
     };
-    expect(CRIMES.map((c) => c.id)).toEqual(['pick_tourist', 'gym_bags', 'candy_store', 'pick_drunk', 'parking_meter', 'gas_station', 'steal_car']);
+    expect(CRIMES.filter((c) => c.skill === 'street').map((c) => c.id)).toEqual(['pick_tourist', 'gym_bags', 'candy_store', 'pick_drunk', 'parking_meter', 'gas_station', 'steal_car']);
     expect(row('pick_tourist')).toEqual([1, 0.65, 2, 1, 3, [], 1, 2, null, 0]);
     expect(row('gym_bags')).toEqual([5, 0.55, 2, 2, 6, [], 1, 2, null, 0]);
     expect(row('candy_store')).toEqual([10, 0.4, 2, 0, 0, ['candy_bar'], 1, 2, 'clerk', 10]);
@@ -37,6 +38,9 @@ describe('street crimes v2 (design §4)', () => {
     expect(row('parking_meter')).toEqual([20, 1, 3, 15, 30, [], 3, 4, 'guard', 15]);
     expect(row('gas_station')).toEqual([25, 0.4, 2, 0, 0, ['sandwich', 'candy_bar'], 2, 2, 'clerk', 10]);
     expect(row('steal_car')).toEqual([30, 0.35, 3, 30, 60, [], 3, 4, 'guard', 0]);
+    // Scrapping uses the same spots (§14): tin salvage, 2 s, half the time, no damage or stun, 15 s to refill.
+    expect(row('tin_salvage')).toEqual([1, 0.5, 2, 0, 0, ['tin_salvage'], 0, 0, null, 15]);
+    expect(CRIME_BY_ID.tin_salvage.skill).toBe('scrapping');
     expect(TICK_SECONDS).toBe(0.5);
   });
 
@@ -59,10 +63,10 @@ describe('street crimes v2 (design §4)', () => {
 });
 
 describe('a new character', () => {
-  it('has 5 skills at level 1, Health at level 10, and 10 HP', () => {
+  it('has its skills at level 1, Health at level 10, and 10 HP', () => {
     const s = fresh();
-    expect(SKILL_IDS).toEqual(['melee', 'gunfire', 'defense', 'health', 'street', 'cooking']);
-    expect(totalLevel(s)).toBe(15); // 1 + 1 + 1 + 10 + 1 + 1
+    expect(SKILL_IDS).toEqual(['melee', 'gunfire', 'defense', 'health', 'street', 'cooking', 'scrapping', 'tinkering']);
+    expect(totalLevel(s)).toBe(17); // 1 + 1 + 1 + 10 + 1 + 1 + 1 + 1
     expect(maxHp(s)).toBe(10);
   });
 });
@@ -244,24 +248,24 @@ describe('watchers on fixed schedules (design §4, §11)', () => {
   it('prying a meter in the guard\'s beam gets you caught; out of sight it always pays', () => {
     const s = fresh();
     s.skills.street.xp = totalXpForLevel(20);
-    // Find a moment where the guard looks straight at tile (46, 25), in front of meter_0 and one where he's far away.
+    // Find a moment where the guard looks straight at tile (46, 25) (+ CITY_X: the city moved east), in front of meter_0 and one where he's far away.
     let seenT = 0;
     let safeT = 0;
     for (let t = T0; t < T0 + GUARD_LOOP_MS && (!seenT || !safeT); t += 100) {
       const g = guardAt(t);
-      if (!seenT && inBeam(g, 46.5, 25.5)) seenT = t;
+      if (!seenT && inBeam(g, 46.5 + CITY_X, 25.5)) seenT = t;
       let clear = true;
-      for (let x = t; x <= t + 3000; x += 100) if (inBeam(guardAt(x), 46.5, 25.5)) clear = false;
+      for (let x = t; x <= t + 3000; x += 100) if (inBeam(guardAt(x), 46.5 + CITY_X, 25.5)) clear = false;
       if (!safeT && clear) safeT = t;
     }
     const caught = structuredClone(s);
-    startJob(caught, 'parking_meter', seenT, 'meter_0', [46, 25]);
+    startJob(caught, 'parking_meter', seenT, 'meter_0', [46 + CITY_X, 25]);
     const hit = tick(caught, seenT + 3000); // seen at once; his hit (−3 HP) has landed by the end
     expect(hit.state.stats.fails).toBe(1);
     expect(hit.report.damage).toBe(3);
     expect(hit.report.cash).toBe(0);
     const fine = structuredClone(s);
-    startJob(fine, 'parking_meter', safeT, 'meter_0', [46, 25]);
+    startJob(fine, 'parking_meter', safeT, 'meter_0', [46 + CITY_X, 25]);
     const r = tick(fine, safeT + 3000, mulberry32(2));
     expect(r.state.stats.fails).toBe(0);
     expect(r.report.cash).toBeGreaterThanOrEqual(15);

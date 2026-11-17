@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import '../../src/styles.css';
 import { StreetView } from '../../src/street/StreetView';
 import { newGame } from '../../src/game/engine';
+import { totalXpForLevel } from '../../src/game/xp';
 import { emptyReport, type GameState, type Report } from '../../src/game/types';
 import { gameNow } from '../../src/game/clock';
 import type { GameApi } from '../../src/game/api';
@@ -12,7 +13,7 @@ const listeners = new Set<(r: Report) => void>();
 const noop = () => {};
 const api: GameApi = {
   startAttempt: noop, stopAttempt: noop, eat: noop, sell: noop, drop: noop, collectGrave: noop, savePos: noop, attack: noop,
-  stopFight: noop, equip: noop, unequip: noop, buy: noop, pickUp: noop, cook: noop, stopCook: noop, climb: async () => true,
+  stopFight: noop, equip: noop, unequip: noop, buy: noop, pickUp: noop, cook: noop, stopCook: noop, make: noop, stopMake: noop, climb: async () => true,
 };
 const onReport = (fn: (r: Report) => void) => (listeners.add(fn), () => void listeners.delete(fn));
 const w = window as unknown as { passOut: () => void; cook: (on: boolean) => void; ready: boolean };
@@ -24,6 +25,11 @@ function App() {
     // ?food=1: a sandwich and two candy bars in the bag; ?hp=2: hurt.
     if (q.get('food')) g.inventory = { sandwich: 1, candy_bar: 2, cooked_bird_meat: 3 };
     if (q.get('hp')) g.hp = Number(q.get('hp'));
+    // ?tin=1: tin salvage and sheets in the bag, and Tinkering level 5.
+    if (q.get('tin')) {
+      g.inventory = { tin_salvage: 6, tin_sheet: 5 };
+      g.skills.tinkering = { xp: totalXpForLevel(5) };
+    }
     return g;
   });
   useEffect(() => {

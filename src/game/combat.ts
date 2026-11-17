@@ -24,6 +24,15 @@ export function weaponStats(s: GameState) {
   return w?.gear ? { damage: w.gear.damage ?? 0, accuracy: w.gear.accuracy ?? 0, speed: w.gear.speed ?? UNARMED.speed } : UNARMED;
 }
 
+/** The armour you wear: its defence bonuses added up (helmet + plate vest + leg guards; docs/design.md §14). The
+ *  server adds them up the same way (game.armour_bonus) for every swing an enemy takes at you. */
+export function armourBonus(s: GameState) {
+  return (['head', 'body', 'legs'] as const).reduce((sum, slot) => {
+    const id = s.equipment?.[slot];
+    return sum + ((id && ITEM_BY_ID[id]?.gear?.defence) || 0);
+  }, 0);
+}
+
 /** Attack roll = (attack level + 8) × (accuracy bonus + 64). */
 export const attackRoll = (level: number, accuracy: number) => (level + 8) * (accuracy + 64);
 /** Defence roll = (Defense level + 8) × (defence bonus + 64). */

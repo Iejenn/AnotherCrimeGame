@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import hospitalSql from '../../supabase/migrations/0017_hospital.sql?raw';
+import zoneWestSql from '../../supabase/migrations/0026_zone_west.sql?raw';
 import { ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PARK, PATROL, SPAWN, STAIRS, W, WAKE, WARD, H, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
@@ -97,8 +97,9 @@ it('the Yard: you get in through the two gates, and you can reach every spot a t
 });
 
 describe('the hospital', () => {
-  it('you wake up where the server puts you (0017_hospital.sql)', () => {
-    expect(hospitalSql).toContain(`p.pos_x := ${WAKE[0]}; p.pos_y := ${WAKE[1]};`);
+  it('you wake up where the server puts you, and start where it starts you (0017; moved in 0026_zone_west.sql)', () => {
+    expect(zoneWestSql).toContain(`p.pos_x := ${WAKE[0]}; p.pos_y := ${WAKE[1]};`);
+    expect(zoneWestSql).toContain(`coalesce(p.pos_x, ${SPAWN[0]})`);
     expect(isUpstairs(...WAKE)).toBe(true);
   });
   it('the ward is only reachable by the stairs, and from the ward you get back out', () => {
@@ -156,4 +157,14 @@ it('the server has the same cooking stations (0015, 0020)', async () => {
   const sql = (await import('../../supabase/migrations/0020_fire_barrel_and_bigger_bag.sql?raw')).default;
   const barrel = STATIONS.find((s) => s.id === 'barrel_0')!;
   expect(sql).toContain(`('barrel_0', '${barrel.kind}', ${barrel.x}, ${barrel.y})`);
+});
+
+it('every cooking spot, press and workbench can be reached from the spawn (the Factory through its lot)', async () => {
+  const { STATIONS, GW, GH, FACTORY, FACTORY_LOT, inSewer } = await import('./map');
+  const b = buildBlocked();
+  for (const st of STATIONS.filter((x) => !inSewer(x.x, x.y))) expect(findPath(b, GW, GH, SPAWN, neighbors(st.x, st.y), canStep), st.id).not.toBeNull();
+  // The way into the Factory goes through the lot's opening and then the roll-up door.
+  const route = findPath(b, GW, GH, SPAWN, [[FACTORY.x0 + 5, FACTORY.y0 + 5]], canStep)!;
+  const firstLot = route.findIndex(([x, y]) => inRect(FACTORY_LOT, x, y));
+  expect(route[firstLot][0]).toBe(FACTORY_LOT.x0);
 });

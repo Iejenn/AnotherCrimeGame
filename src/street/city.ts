@@ -10,7 +10,8 @@ import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
-  MANHOLE, SEWER, SEWER_BRIDGES, floorY, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
+  MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
+  CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -209,13 +210,15 @@ export function buildCity(scene: THREE.Scene) {
   const dash = new Batch(geoBox(0.07, 0.01, 0.7), lam(C.paint), false);
   const zebra = new Batch(geoBox(0.32, 0.01, 2.6), lam(0xd8d2c4), false);
   const inCrossing = (v: number) => v % PITCH < STREET;
+  /** On the Factory's site (I-003 + I-006 merged, the street between them included): no road paint, lamps or lights. */
+  const onSite = (x: number, z: number) => x >= FACTORY_SITE.x0 - 0.2 && x <= FACTORY_SITE.x1 + 1.2 && z >= FACTORY_SITE.y0 - 0.2 && z <= FACTORY_SITE.y1 + 1.2;
   for (let k = 0; k <= BCOLS; k++) {
     const x = k * PITCH + STREET / 2; // centre of a north–south street
     for (let z = 0; z < H; z += 1.6) if (!inCrossing(Math.floor(z)) && !inCrossing(Math.floor(z + 0.7))) dash.add(x, 0.006, z + 0.35);
   }
   for (let k = 0; k <= BROWS; k++) {
     const z = k * PITCH + STREET / 2;
-    for (let x = 0; x < W; x += 1.6) if (!inCrossing(Math.floor(x)) && !inCrossing(Math.floor(x + 0.7))) dash.add(x + 0.35, 0.006, z, 1, 1, 1, Math.PI / 2);
+    for (let x = 0; x < W; x += 1.6) if (!inCrossing(Math.floor(x)) && !inCrossing(Math.floor(x + 0.7)) && !onSite(x + 0.35, z)) dash.add(x + 0.35, 0.006, z, 1, 1, 1, Math.PI / 2);
   }
   // Zebra crossings: one per street, on the south and east side of each crossing (just outside it, across the
   // road). Two per street, one at each end, was too many: half the map was zebra.
@@ -225,8 +228,8 @@ export function buildCity(scene: THREE.Scene) {
       const iz = j * PITCH + STREET / 2;
       for (let st = 0; st < 6; st++) {
         const off = -1.5 + st * 0.6;
-        if (j < BROWS) zebra.add(ix + off, 0.007, iz + STREET / 2 + 1.4);
-        if (i < BCOLS) zebra.add(ix + STREET / 2 + 1.4, 0.007, iz + off, 1, 1, 1, Math.PI / 2);
+        if (j < BROWS && !onSite(ix + off, iz + STREET / 2 + 1.4)) zebra.add(ix + off, 0.007, iz + STREET / 2 + 1.4);
+        if (i < BCOLS && !onSite(ix + STREET / 2 + 1.4, iz + off)) zebra.add(ix + STREET / 2 + 1.4, 0.007, iz + off, 1, 1, 1, Math.PI / 2);
       }
     }
   dash.build(scene);
@@ -295,7 +298,7 @@ export function buildCity(scene: THREE.Scene) {
   }
   // Street trees in pits along the sidewalks, a few per block side (never in front of a door or a spot).
   const pit = new Batch(geoBox(0.8, 0.02, 0.8), lam(0x3a2a1e), false);
-  for (let bx = 0; bx < BCOLS; bx++)
+  for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) // (no trees in the Industrial zone)
     for (let by = 0; by < BROWS; by++) {
       const b = blockRect(bx, by);
       const spots: [number, number][] = [];
@@ -323,6 +326,7 @@ export function buildCity(scene: THREE.Scene) {
   const greenDot = new Batch(geoBox(0.07, 0.07, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.9 }), false);
   /** A lamp at (x, z) whose arm reaches over the road in direction (dx, dz). */
   const lamp = (x: number, z: number, dx: number, dz: number) => {
+    if (onSite(x, z)) return;
     poles.add(x, 1.15, z);
     const rot = Math.atan2(dx, dz);
     lampHeads.add(x + dx * 0.4, 2.3, z + dz * 0.4, 1, 1, 1, rot);
@@ -341,6 +345,7 @@ export function buildCity(scene: THREE.Scene) {
       }
       // Traffic lights on the block's corners, facing the crossing.
       for (const [cx, cz, i] of [[b.x0 - 1.3, b.y0 - 1.3, 0], [b.x1 + 2.3, b.y0 - 1.3, 1], [b.x0 - 1.3, b.y1 + 2.3, 1], [b.x1 + 2.3, b.y1 + 2.3, 0]] as const) {
+        if (onSite(cx, cz)) continue;
         lightPole.add(cx, 0.95, cz);
         lightBox.add(cx, 1.9, cz);
         (i ? redDot : greenDot).add(cx, 2.0, cz + (cz < b.y0 ? -0.08 : 0.08));
@@ -380,7 +385,7 @@ export function buildCity(scene: THREE.Scene) {
     // Per block side, maybe a hydrant, a bin, a mailbox, newspaper boxes, a bench or a bike rack, on the sidewalk
     // close to the buildings or the curb. Never in front of a door.
     const kinds = [() => L.buildHydrant(), () => L.buildBin(rng() < 0.3), () => L.buildMailbox(), () => L.buildNewsBoxes(), () => L.buildBench(), () => L.buildBikeRack()];
-    for (let bx = 0; bx < BCOLS; bx++)
+    for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) // (city streets only)
       for (let by = 0; by < BROWS; by++) {
         const b = blockRect(bx, by);
         const sides = [
@@ -443,7 +448,54 @@ export function buildCity(scene: THREE.Scene) {
   // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
   // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
   const FLOOR = 1.45;
+  // ---------- the Industrial zone: corrugated-metal sheds and workshops ----------
+  /** Corrugated metal: vertical ribs with streaks of rust. */
+  const corrugated = own(
+    canvasTex(64, 64, (g) => {
+      g.fillStyle = '#c8c8c4';
+      g.fillRect(0, 0, 64, 64);
+      for (let x = 0; x < 64; x += 8) {
+        g.fillStyle = '#9a9a96';
+        g.fillRect(x, 0, 3, 64);
+        g.fillStyle = '#e2e2de';
+        g.fillRect(x + 4, 0, 1, 64);
+      }
+      g.fillStyle = 'rgba(140, 80, 40, 0.35)';
+      for (let i = 0; i < 6; i++) g.fillRect((i * 23) % 60, (i * 17) % 40, 3, 24);
+    }),
+  );
+  const SHED_COLORS = [0x8a8f88, 0x7a6a5a, 0x6a7a80, 0x8a7a5a, 0x5a6268];
+  const industrialShed = (b: (typeof BUILDINGS)[number]) => {
+    const X0 = b.x;
+    const Z0 = b.y;
+    const X1 = b.x + b.w;
+    const Z1 = b.y + b.h;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const h = 1.7 + (b.height % 1) * 0.9;
+    const t = own(corrugated.clone());
+    t.repeat.set(Math.max(b.w, b.h) * 2, 1.5);
+    t.needsUpdate = true;
+    const mWall = lam(SHED_COLORS[(b.x * 7 + b.y) % SHED_COLORS.length], { map: t });
+    const walls = [add(geoBox(X1 - X0, h, Z1 - Z0), mWall, cx, h / 2, cz)];
+    const roof = add(geoBox(X1 - X0 + 0.15, 0.08, Z1 - Z0 + 0.15), lam(0x4a4a48), cx, h + 0.04, cz);
+    // A roll-up door on the street side, a small door next to it, a vent on the roof.
+    const fz = b.front === 'n' ? Z0 - 0.01 : Z1 + 0.01;
+    const doorW = Math.min(1.6, (X1 - X0) * 0.45);
+    const props: THREE.Object3D[] = [roof];
+    props.push(add(geoBox(doorW, 1.2, 0.04), lam(0x8a6a4a), cx - 0.3, 0.6, fz, false));
+    for (let i = 0; i < 6; i++) props.push(add(geoBox(doorW, 0.02, 0.05), lam(0x5a4a3a), cx - 0.3, 0.12 + i * 0.2, fz, false));
+    props.push(add(geoBox(0.5, 0.95, 0.04), lam(0x3a4a5a), cx + doorW / 2 + 0.2, 0.48, fz, false));
+    props.push(add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.35, 10)), lam(0x9aa0a6), cx + (X1 - X0) / 4, h + 0.2, cz));
+    fadeables.push({ walls, mats: [mWall], props, opacity: 1 });
+  };
+
   for (const b of BUILDINGS) {
+    if (b.custom) continue; // drawn by its own section (the Thrift Store)
+    if (b.industrial) {
+      industrialShed(b);
+      continue;
+    }
     const floors = b.height > 1.8 ? 3 : 2;
     const height = floors * FLOOR + 0.12;
     const wall = C.walls[Math.floor(rng() * C.walls.length)];
@@ -1502,6 +1554,280 @@ export function buildCity(scene: THREE.Scene) {
     rooms.set(LOBBY.id, fade);
   }
 
+  // ---------- the Thrift Store and its salvage yard (009; Scrapping) ----------
+  // A two-storey brick shop with a big weathered "THRIFT STORE" sign over a rusty door, barred windows with boxes behind
+  // them, drainpipes and a meter box. East of it, its yard: cracked concrete with weeds, a chain-link fence with barbed
+  // wire and one open gate on the street side, pallets, rubbish bags and cans (the dumpsters are spots, see StreetView).
+  {
+    const X0 = THRIFT.x0;
+    const X1 = THRIFT.x1 + 1;
+    const Z0 = THRIFT.y0;
+    const Z1 = THRIFT.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const HT = 2.7;
+    add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
+    const bt = (across: number) => {
+      const t = own(brickTex.clone());
+      t.repeat.set(across, 2);
+      t.needsUpdate = true;
+      return t;
+    };
+    const mBrick = lam(0x8a5040, { map: bt(X1 - X0) });
+    const walls = [add(geoBox(X1 - X0, HT, Z1 - Z0), mBrick, cx, HT / 2, cz)];
+    const roofParts = [add(geoBox(X1 - X0 - 0.2, 0.06, Z1 - Z0 - 0.2), lam(C.roof), cx, HT + 0.03, cz), ...parapet(cx, cz, X1 - X0 + 0.04, Z1 - Z0 + 0.04, HT + 0.08, lam(0x5a3a2e))];
+    roofParts.push(add(geoBox(0.6, 0.35, 0.5), lam(0xd8d8d8), X0 + 1.2, HT + 0.2, Z1 - 1.2));
+    // The front (south, on the street): the sign, the door, two barred windows with boxes stacked behind them.
+    const fz = Z1 + 0.01;
+    add(geoBox(3.75, 0.74, 0.06), lam(0x3a2a22), cx, 2.05, fz + 0.02, false);
+    add(own(new THREE.PlaneGeometry(3.6, 0.62)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('THRIFT STORE', '#d8cdb8', '#8a2f28')) })), cx, 2.05, fz + 0.06, false);
+    add(geoBox(0.8, 1.25, 0.05), lam(0x7a6a5a), cx, 0.63, fz + 0.02, false); // the door
+    add(geoBox(0.3, 0.22, 0.02), lam(0x2b2b2e), cx, 0.95, fz + 0.05, false); // its little window
+    add(geoBox(0.92, 0.08, 0.1), lam(0x4a3a2e), cx, 1.28, fz + 0.03, false);
+    for (const dx of [-1.5, 1.5]) {
+      add(geoBox(1.0, 0.8, 0.04), lam(0x3a4048, { emissive: 0x2a2010, emissiveIntensity: 0.6 }), cx + dx, 0.95, fz + 0.02, false);
+      add(geoBox(0.4, 0.3, 0.02), lam(0x9a7a52), cx + dx - 0.2, 0.75, fz + 0.03, false); // boxes behind the glass
+      for (let i = -2; i <= 2; i++) add(geoBox(0.025, 0.8, 0.03), lam(0x2a2a2e), cx + dx + i * 0.2, 0.95, fz + 0.05, false); // bars
+    }
+    // Drainpipes down both front corners, a meter box.
+    for (const x of [X0 + 0.15, X1 - 0.15]) add(own(new THREE.CylinderGeometry(0.05, 0.05, HT, 8)), lam(0x5a5f66), x, HT / 2, fz + 0.06);
+    add(geoBox(0.3, 0.4, 0.12), lam(0x6a6e74), X1 - 0.6, 1.1, fz + 0.08);
+    // The back door onto the yard (east wall) with a bare bulb over it.
+    add(geoBox(0.05, 1.2, 0.75), lam(0x6a5a4a), X1 + 0.01, 0.6, THRIFT_YARD.y0 + 2.5, false);
+    add(geoBox(0.1, 0.1, 0.1), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), X1 + 0.08, 1.5, THRIFT_YARD.y0 + 2.5, false);
+    const fade: Fadeable = { walls, mats: [mBrick], props: roofParts, opacity: 1 };
+    fadeables.push(fade);
+
+    // The yard.
+    const Y0 = THRIFT_YARD.x0;
+    const Y1 = THRIFT_YARD.x1 + 1;
+    const ycx = (Y0 + Y1) / 2;
+    add(geoBox(Y1 - Y0, 0.075, Z1 - Z0), lam(0x5a5852), ycx, 0.037, cz, false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 0.8), lam(0x2e2c29), false);
+    for (let i = 0; i < 10; i++) cracks.add(Y0 + 0.4 + rng() * (Y1 - Y0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), 1, 1, 0.5 + rng(), rng() * 6);
+    cracks.build(scene);
+    const weeds = new Batch(own(new THREE.ConeGeometry(0.06, 0.22, 4)), lam(0x4a6a32), false);
+    for (let i = 0; i < 26; i++) {
+      const edge = i % 3;
+      const x = edge === 0 ? Y1 - 0.12 : Y0 + 0.3 + rng() * (Y1 - Y0 - 0.6);
+      const z = edge === 1 ? Z1 - 0.12 : edge === 2 ? Z0 + 0.15 : Z0 + 0.3 + rng() * (Z1 - Z0 - 0.6);
+      weeds.add(x + (rng() - 0.5) * 0.1, 0.18, z, 1, 0.7 + rng() * 0.8, 1, rng() * 3);
+    }
+    weeds.build(scene);
+    // Chain-link fence with barbed wire along the north (but the gate), east and south edges.
+    const linkTex = own(
+      canvasTex(32, 32, (g) => {
+        g.clearRect(0, 0, 32, 32);
+        g.strokeStyle = '#b8bcc2';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+        g.stroke();
+      }),
+    );
+    linkTex.repeat.set(4, 4);
+    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    const postMat = lam(0x8a8f96);
+    const fencePanel = (x: number, z: number, alongX: boolean) => {
+      const m = add(own(new THREE.PlaneGeometry(1, 1.2)), linkMat, x, 0.65, z, false);
+      m.receiveShadow = false;
+      if (!alongX) m.rotation.y = Math.PI / 2;
+      add(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), postMat, alongX ? x - 0.5 : x, 0.7, alongX ? z : z - 0.5);
+      // barbed wire on top
+      add(geoBox(alongX ? 1 : 0.015, 0.015, alongX ? 0.015 : 1), lam(0x6a6e74), x, 1.32, z, false);
+    };
+    for (let x = Y0; x < Y1; x++) {
+      fencePanel(x + 0.5, Z0 + 0.02, true);
+      if (x !== THRIFT_GATE[0]) fencePanel(x + 0.5, Z1 - 0.02, true);
+    }
+    for (let z = Z0; z < Z1; z++) fencePanel(Y1 - 0.02, z + 0.5, false);
+    add(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), postMat, Y1 - 0.02, 0.7, Z1 - 0.02);
+    // The gate, swung open into the street.
+    const gate = add(own(new THREE.PlaneGeometry(1, 1.15)), linkMat, THRIFT_GATE[0] + 1.0, 0.62, Z1 + 0.45, false);
+    gate.rotation.y = Math.PI / 2.4;
+    // Junk: pallets, rubbish bags, cans, an old tyre.
+    const wood = lam(0x8a6a44);
+    for (const [px, pz, r] of [[Y0 + 1.2, Z0 + 0.55, 0.2], [Y1 - 0.45, Z0 + 1.2, 1.5]]) {
+      for (let i = 0; i < 4; i++) add(geoBox(0.9, 0.04, 0.12), wood, px, 0.1, pz - 0.3 + i * 0.2, false).rotation.y = r;
+      add(geoBox(0.9, 0.08, 0.1), wood, px, 0.05, pz, false).rotation.y = r;
+    }
+    for (const [bx, bz] of [[Y0 + 3.4, Z0 + 0.4], [Y0 + 3.8, Z0 + 0.55], [Y1 - 0.4, Z0 + 3.4]]) add(own(new THREE.IcosahedronGeometry(0.2, 0)), lam(0x1e2022, { flatShading: true }), bx, 0.17, bz).scale.y = 0.8;
+    for (let i = 0; i < 12; i++) {
+      const can = add(own(new THREE.CylinderGeometry(0.035, 0.035, 0.11, 6)), lam([0xb8bcc2, 0x9aa0a6, 0xc8a06a][i % 3]), Y0 + 0.4 + rng() * (Y1 - Y0 - 0.8), 0.04, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), false);
+      can.rotation.z = Math.PI / 2;
+      can.rotation.y = rng() * 6;
+    }
+    const tyre = add(own(new THREE.TorusGeometry(0.2, 0.08, 6, 12)), lam(0x1e1e22), Y0 + 1.5, 0.09, Z0 + 3.5);
+    tyre.rotation.x = Math.PI / 2;
+  }
+
+  // ---------- the Factory and its parking lot (Industrial zone, I-003 + I-006; Tinkering) ----------
+  // An abandoned factory: brick walls with broken windows, a corrugated sawtooth roof with skylights, a big rusty roll-up
+  // door (open) to the parking lot. Inside (the walls fade and the roof lifts while you're in): a concrete floor with oil
+  // stains, 3 plate presses along the west wall, 3 workbenches along the east wall, crates at the back, hanging lamps.
+  // The parking lot: cracked asphalt with faded lines, weeds, a chain-link fence with one opening for cars (west).
+  {
+    const X0 = FACTORY.x0;
+    const X1 = FACTORY.x1 + 1;
+    const Z0 = FACTORY.y0;
+    const Z1 = FACTORY.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const HT = 3.4;
+    const t = 0.16;
+    // The two blocks are merged into one site: one sidewalk all round it (covering the old street between them, its
+    // sides included), with a curb along the road, like every block.
+    {
+      const SW = 1.5;
+      const sx0 = FACTORY_SITE.x0 - SW;
+      const sx1 = FACTORY_SITE.x1 + 1 + SW;
+      const sz0 = FACTORY_SITE.y0 - SW;
+      const sz1 = FACTORY_SITE.y1 + 1 + SW;
+      const scx = (sx0 + sx1) / 2;
+      const scz = (sz0 + sz1) / 2;
+      add(geoBox(sx1 - sx0, 0.09, sz1 - sz0), pavement, scx, 0.045, scz, false);
+      const curb = lam(0x8a857c);
+      for (const [w, d, x, z] of [[sx1 - sx0, 0.12, scx, sz0], [sx1 - sx0, 0.12, scx, sz1], [0.12, sz1 - sz0, sx0, scz], [0.12, sz1 - sz0, sx1, scz]] as const)
+        add(geoBox(w, 0.11, d), curb, x, 0.055, z, false);
+    }
+    // Floor.
+    const floorTex = own(
+      canvasTex(128, 128, (g) => {
+        g.fillStyle = '#7a7872';
+        g.fillRect(0, 0, 128, 128);
+        g.strokeStyle = '#5a5852';
+        g.lineWidth = 2;
+        g.strokeRect(1, 1, 126, 126);
+        g.fillStyle = 'rgba(30, 28, 26, 0.35)';
+        g.beginPath();
+        g.ellipse(40, 70, 22, 12, 0.4, 0, Math.PI * 2);
+        g.fill();
+      }),
+    );
+    floorTex.repeat.set((X1 - X0) / 2, (Z1 - Z0) / 2);
+    const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.2, Z1 - Z0 - 0.2)), lam(0xffffff, { map: floorTex }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0.095, cz);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    // Walls: brick, with a row of broken windows high up; the south wall has the roll-up door (2 tiles, open).
+    const bt = own(brickTex.clone());
+    bt.repeat.set(X1 - X0, 3);
+    bt.needsUpdate = true;
+    const mBrick = lam(0x8a5a44, { map: bt });
+    const [d0] = FACTORY_DOOR[0];
+    const d1 = FACTORY_DOOR[FACTORY_DOOR.length - 1][0] + 1;
+    const walls = [
+      add(geoBox(X1 - X0, HT, t), mBrick, cx, HT / 2, Z0 + t / 2),
+      add(geoBox(t, HT, Z1 - Z0), mBrick, X0 + t / 2, HT / 2, cz),
+      add(geoBox(t, HT, Z1 - Z0), mBrick, X1 - t / 2, HT / 2, cz),
+      add(geoBox(d0 - X0, HT, t), mBrick, (X0 + d0) / 2, HT / 2, Z1 - t / 2),
+      add(geoBox(X1 - d1, HT, t), mBrick, (d1 + X1) / 2, HT / 2, Z1 - t / 2),
+      add(geoBox(d1 - d0, HT - 2.0, t), mBrick, (d0 + d1) / 2, 2.0 + (HT - 2.0) / 2, Z1 - t / 2),
+    ];
+    const props: THREE.Object3D[] = [];
+    const glassMat = lam(0x3a4650, { emissive: 0x2a2010, emissiveIntensity: 0.5 });
+    const broken = lam(0x141618);
+    for (let x = X0 + 1; x < X1 - 0.5; x += 1.6) {
+      props.push(add(geoBox(1.0, 0.7, 0.03), (x * 7) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z1 + 0.01, false));
+      props.push(add(geoBox(1.0, 0.7, 0.03), (x * 5) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z0 - 0.01, false));
+    }
+    for (let z = Z0 + 1; z < Z1 - 0.5; z += 1.8) {
+      props.push(add(geoBox(0.03, 0.7, 1.1), (z * 3) % 3 < 1 ? broken : glassMat, X0 - 0.01, HT - 0.9, z + 0.3, false));
+      props.push(add(geoBox(0.03, 0.7, 1.1), (z * 7) % 3 < 1 ? broken : glassMat, X1 + 0.01, HT - 0.9, z + 0.3, false));
+    }
+    // The roll-up door, rolled up into its box over the opening, and rusty frame.
+    props.push(add(geoBox(d1 - d0 + 0.2, 0.35, 0.3), lam(0x7a4a32), (d0 + d1) / 2, 2.1, Z1 + 0.05));
+    for (const x of [d0, d1]) props.push(add(geoBox(0.12, 2.0, 0.2), lam(0x5a4a3a), x, 1.0, Z1 + 0.02));
+    // A painted name over the door.
+    const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.02, false);
+    props.push(sign);
+    // The roof: a corrugated sawtooth, three ridges, with skylights (some broken), on top of the walls.
+    const roofMat = lam(0x6a6a66, { map: corrugated });
+    for (let i = 0; i < 3; i++) {
+      const z0 = Z0 + (i * (Z1 - Z0)) / 3;
+      const depth = (Z1 - Z0) / 3;
+      const slope = add(geoBox(X1 - X0 + 0.3, 0.08, depth * 1.06), roofMat, cx, HT + 0.45, z0 + depth / 2);
+      slope.rotation.x = -0.28;
+      props.push(slope);
+      props.push(add(geoBox(X1 - X0 - 1, 0.04, 0.8), i === 1 ? broken : lam(0x9fb8c8, { emissive: 0x405060, emissiveIntensity: 0.3 }), cx, HT + 0.62, z0 + depth * 0.35, false));
+    }
+    // Inside: the plate presses (west wall) and workbenches (east wall) are the stations (drawn below), crates at the
+    // back, oil drums, and lamps hanging from the roof.
+    const wood = lam(0x7a5a3a);
+    for (const f of FIXTURES.filter((x) => x.kind === 'crate' && inRect(FACTORY, x.x, x.y))) {
+      add(geoBox(0.85, 0.7, 0.85), wood, f.x + 0.5, 0.45, f.y + 0.5).rotation.y = rng() * 0.3;
+      if (rng() < 0.6) add(geoBox(0.7, 0.5, 0.7), wood, f.x + 0.5, 1.05, f.y + 0.5).rotation.y = rng() * 0.6;
+    }
+    for (const [dx, dz] of [[0.4, 11.3], [9.5, 11.3]]) add(own(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 10)), lam(0x2e4a5a), X0 + dx, 0.4, Z0 + dz);
+    const lampMat = lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.6 });
+    for (const z of [Z0 + 3, Z0 + 9]) {
+      add(geoBox(0.02, 1.0, 0.02), lam(0x2b2b2e), cx, HT - 0.5, z, false);
+      add(own(new THREE.ConeGeometry(0.25, 0.2, 10, 1, true)), lam(0x3a3d42), cx, HT - 1.05, z, false);
+      add(geoBox(0.14, 0.06, 0.14), lampMat, cx, HT - 1.15, z, false);
+    }
+    // One light for the whole hall (each light costs phones a little).
+    const hall = new THREE.PointLight(0xffe8c0, 9, 14, 1.2);
+    hall.position.set(cx, HT - 1.2, cz);
+    scene.add(hall);
+    const fade: Fadeable = { walls, mats: [mBrick], props, opacity: 1 };
+    fadeables.push(fade);
+    rooms.set(FACTORY.id, fade);
+
+    // The parking lot: cracked asphalt, faded parking lines, weeds, a fence with one opening on the west side.
+    const L0 = FACTORY_LOT.x0;
+    const L1 = FACTORY_LOT.x1 + 1;
+    const LZ0 = FACTORY_LOT.y0;
+    const LZ1 = FACTORY_LOT.y1 + 1;
+    const lcx = (L0 + L1) / 2;
+    const lcz = (LZ0 + LZ1) / 2;
+    add(geoBox(L1 - L0, 0.02, LZ1 - LZ0), lam(0x3e4046), lcx, 0.1, lcz, false);
+    const lines = new Batch(geoBox(0.06, 0.006, 1.8), lam(0x8a8a82), false);
+    for (let x = L0 + 2; x < L1 - 0.5; x += 1.5) {
+      lines.add(x, 0.113, LZ1 - 1.1);
+      lines.add(x, 0.113, LZ0 + 4.2);
+    }
+    lines.build(scene);
+    const cracks = new Batch(geoBox(0.03, 0.004, 1.1), lam(0x26282c), false);
+    for (let i = 0; i < 24; i++) cracks.add(L0 + 0.5 + rng() * (L1 - L0 - 1), 0.114, LZ0 + 0.5 + rng() * (LZ1 - LZ0 - 1), 1, 1, 0.5 + rng(), rng() * 6);
+    cracks.build(scene);
+    const weeds = new Batch(own(new THREE.ConeGeometry(0.06, 0.22, 4)), lam(0x4a6a32), false);
+    for (let i = 0; i < 40; i++) weeds.add(L0 + 0.3 + rng() * (L1 - L0 - 0.6), 0.2, LZ0 + 0.3 + rng() * (LZ1 - LZ0 - 0.6), 1, 0.6 + rng() * 0.8, 1, rng() * 3);
+    weeds.build(scene);
+    // Chain-link fence round the lot (not along the factory), with the opening for cars on the west side.
+    const linkTex = own(
+      canvasTex(32, 32, (g) => {
+        g.clearRect(0, 0, 32, 32);
+        g.strokeStyle = '#b8bcc2';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+        g.stroke();
+      }),
+    );
+    linkTex.repeat.set(4, 4);
+    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    const post = new Batch(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), lam(0x8a8f96));
+    const panel = (x: number, z: number, alongX: boolean) => {
+      const m = add(own(new THREE.PlaneGeometry(1, 1.2)), linkMat, x, 0.7, z, false);
+      m.receiveShadow = false;
+      if (!alongX) m.rotation.y = Math.PI / 2;
+      post.add(alongX ? x - 0.5 : x, 0.7, alongX ? z : z - 0.5);
+    };
+    const gate = new Set(FACTORY_LOT_GATE.map(([, y]) => y));
+    for (let x = L0; x < L1; x++) panel(x + 0.5, LZ1 - 0.02, true);
+    for (let z = LZ0; z < LZ1; z++) {
+      if (!gate.has(z)) panel(L0 + 0.02, z + 0.5, false);
+      panel(L1 - 0.02, z + 0.5, false);
+    }
+    post.build(scene);
+    // A lamp post in the lot, and a few old tyres and pallets.
+    add(geoBox(0.08, 2.6, 0.08), lam(0x2b2b2e), L1 - 1.2, 1.3, LZ0 + 1.2);
+    add(geoBox(0.3, 0.06, 0.2), lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.6 }), L1 - 1.4, 2.6, LZ0 + 1.2, false);
+    for (const [x, z] of [[L0 + 2, LZ1 - 2.5], [L0 + 2.4, LZ1 - 2.2]]) add(own(new THREE.TorusGeometry(0.2, 0.08, 6, 12)), lam(0x1e1e22), x, 0.18, z).rotation.x = Math.PI / 2;
+    for (let i = 0; i < 4; i++) add(geoBox(0.9, 0.04, 0.12), lam(0x8a6a44), L1 - 2, 0.13, LZ1 - 3 + i * 0.2, false);
+  }
+
   // ---------- the pothole and the sewer under the city (rats; docs/design.md §12) ----------
   // On the street: an open manhole in the crossing, broken asphalt round it, the cover lying next to it, two cones.
   // Below (SEWER_DEPTH down, where the camera follows you): a cut-away sewer like a model: grimy brick walls with moss,
@@ -1731,6 +2057,37 @@ export function buildCity(scene: THREE.Scene) {
     const z = st.y + 0.5;
     if (st.look === 'barrel') {
       burningBarrel(x, floorY(x, z), z);
+      continue;
+    }
+    if (st.kind === 'press') {
+      // A plate press against the west wall: a heavy painted frame, two columns, the ram on top, a flywheel, a tin
+      // sheet on the bed, a yellow-and-black warning stripe.
+      const paint = lam(0x4a6a5a, { flatShading: true });
+      const dark = lam(0x2b2b2e);
+      add(geoBox(0.9, 0.45, 0.8), paint, x, 0.32, z);
+      for (const dz of [-0.3, 0.3]) add(geoBox(0.14, 1.1, 0.14), paint, x - 0.15, 0.95, z + dz);
+      add(geoBox(0.6, 0.35, 0.8), paint, x - 0.1, 1.55, z);
+      add(geoBox(0.32, 0.3, 0.32), dark, x - 0.05, 1.22, z);
+      const wheel = add(own(new THREE.TorusGeometry(0.28, 0.06, 6, 14)), dark, x - 0.1, 1.5, z + 0.45);
+      wheel.rotation.y = Math.PI / 2;
+      add(geoBox(0.4, 0.03, 0.4), lam(0xb8bcc2), x + 0.05, 0.56, z, false);
+      add(geoBox(0.92, 0.06, 0.03), lam(0xe0b830), x, 0.52, z + 0.41, false);
+      continue;
+    }
+    if (st.kind === 'bench') {
+      // A workbench against the east wall: a thick wooden top on steel legs, a vice, a hammer and tin snips, a sheet,
+      // and a pegboard with tools on the wall behind.
+      const top = lam(0x8a6a44);
+      const steel = lam(0x5a5f66);
+      add(geoBox(0.6, 0.08, 0.95), top, x, 0.7, z);
+      for (const [dx, dz] of [[-0.25, -0.42], [-0.25, 0.42], [0.25, -0.42], [0.25, 0.42]]) add(geoBox(0.05, 0.66, 0.05), steel, x + dx, 0.35, z + dz, false);
+      add(geoBox(0.5, 0.04, 0.85), top, x, 0.2, z, false); // the shelf underneath
+      add(geoBox(0.12, 0.12, 0.16), steel, x - 0.15, 0.8, z - 0.32); // the vice
+      add(geoBox(0.3, 0.02, 0.35), lam(0xb8bcc2), x, 0.75, z + 0.15, false); // a sheet of tin
+      add(geoBox(0.04, 0.03, 0.22), lam(0x3a2a1e), x - 0.05, 0.76, z - 0.05, false); // hammer handle
+      add(geoBox(0.06, 0.05, 0.08), steel, x - 0.05, 0.77, z - 0.17, false); // hammer head
+      add(geoBox(0.04, 0.6, 0.95), lam(0x9a8a6a), x + 0.3, 1.2, z, false); // pegboard
+      for (const dz of [-0.3, 0, 0.3]) add(geoBox(0.03, 0.22, 0.04), steel, x + 0.27, 1.25, z + dz, false);
       continue;
     }
     add(own(new THREE.CircleGeometry(1.4, 20).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);

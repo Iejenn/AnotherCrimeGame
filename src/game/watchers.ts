@@ -1,4 +1,5 @@
 // The NPCs who watch you (docs/design.md §4, "Getting caught"): the bartender and the parking lot guard.
+import { CITY_X } from '../street/map';
 // Their routines are FIXED SCHEDULES worked out from the game clock, not random on each phone. So:
 //  - every player sees the same bartender turning his back at the same moment (multiplayer), and
 //  - the game rules (and later the server) can check "was he looking during your attempt?" on their own,
@@ -58,9 +59,11 @@ export const GUARD_STOP_MS = 2500;
  * and back up. Checked in map.test.ts: every step is walkable and inside the patrol area. The server has the same
  * list (game.guard_at; scripts/spots-sql.ts prints it).
  */
-export const GUARD_ROUTE: [number, number][] = [
-  [46, 27], [50, 27], [50, 30], [42, 30], [46, 30],
-];
+export const GUARD_ROUTE: [number, number][] = (
+  [
+    [46, 27], [50, 27], [50, 30], [42, 30], [46, 30],
+  ] as [number, number][]
+).map(([x, y]) => [x + CITY_X, y]); // (the city moved CITY_X tiles east when the Industrial zone came in on its west)
 
 interface Leg {
   from: [number, number];

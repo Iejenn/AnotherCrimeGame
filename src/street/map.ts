@@ -17,8 +17,16 @@ export const BLOCK_SIZE = 2 * LOT_SIZE;
 export const STREET = 7;
 /** From one block to the next. */
 export const PITCH = BLOCK_SIZE + STREET;
-export const BCOLS = 3;
+/** The Industrial zone is 3 × 3 blocks on the west; the city is 3 × 3 east of it (docs/design.md §14). Block columns
+ *  0–2 are the zone, 3–5 the city. */
+export const ZONE_COLS = 3;
+export const CITY_COLS = 3;
+export const BCOLS = ZONE_COLS + CITY_COLS;
 export const BROWS = 3;
+/** The city's first block column. */
+export const CITY_BX = ZONE_COLS;
+/** How far east the city moved when the Industrial zone came in on its west side (v0.41): 3 blocks. */
+export const CITY_X = ZONE_COLS * PITCH;
 export const W = BCOLS * PITCH + STREET;
 export const H = BROWS * PITCH + STREET;
 /** How wide the beach around the city is, in tiles (then it's open ocean). */
@@ -52,14 +60,19 @@ export const lotRect = (bx: number, by: number, lx: number, ly: number): Rect =>
 //   A B
 //   C D
 export type LotLetter = 'A' | 'B' | 'C' | 'D';
-export const blockName = (bx: number, by: number) => String(by * BCOLS + bx + 1).padStart(3, '0');
+/** City blocks are 001–009; the Industrial zone's blocks are I-001–I-009 (numbered the same way, within the zone). */
+export const blockName = (bx: number, by: number) =>
+  bx >= CITY_BX ? String(by * CITY_COLS + (bx - CITY_BX) + 1).padStart(3, '0') : `I-${String(by * ZONE_COLS + bx + 1).padStart(3, '0')}`;
+/** West of the city's first block: the Industrial zone. */
+export const inZone = (x: number) => x < CITY_X;
 export const lotLetter = (lx: number, ly: number): LotLetter => (['A', 'B', 'C', 'D'] as const)[ly * 2 + lx];
 export const lotName = (bx: number, by: number, lx: number, ly: number) => `${blockName(bx, by)}-${lotLetter(lx, ly)}`;
 /** Block "005" → (bx, by). */
 const blockXY = (name: string): [number, number] => {
-  const n = Number(name) - 1;
-  if (!(n >= 0 && n < BCOLS * BROWS)) throw new Error(`no block ${name}`);
-  return [n % BCOLS, Math.floor(n / BCOLS)];
+  const zone = name.startsWith('I-');
+  const n = Number(zone ? name.slice(2) : name) - 1;
+  if (!(n >= 0 && n < 9)) throw new Error(`no block ${name}`);
+  return [(n % 3) + (zone ? 0 : CITY_BX), Math.floor(n / 3)];
 };
 /** Block "005" and lot "C" → [bx, by, lx, ly]. */
 const lotXY = (block: string, letter: LotLetter): [number, number, number, number] => {
@@ -112,6 +125,10 @@ export interface Building {
   front: 'n' | 's';
   /** Run down: the windows are boarded up and the ground floor is bare brick (the Yard's buildings, for graffiti). */
   boarded?: boolean;
+  /** Drawn by its own section in city.ts (the Thrift Store), not as an ordinary building. */
+  custom?: boolean;
+  /** In the Industrial zone: a corrugated-metal shed or workshop instead of an apartment building. */
+  industrial?: boolean;
 }
 
 /** Pocket parks (one lot each). */
@@ -211,6 +228,7 @@ export function floorY(x: number, z: number) {
   return 0;
 }
 export const ROOMS: Room[] = [STORE, CANDY, BAR, GAS, WEAPONS, LOBBY];
+// (The Factory is a room too; it's added to ROOMS below, where it's defined.)
 export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y));
 
 // ---------- the parking lot (Pry Open Parking Meters, level 20; Steal From Cars, level 30) ----------
@@ -239,7 +257,53 @@ const SPECIAL: [string, LotLetter][] = [
   ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
   ['007', 'C'], ['007', 'D'], // the Yard (thugs)
   ['005', 'B'], ['005', 'D'], // the hospital
+  ['009', 'C'], ['009', 'D'], // the Thrift Store and its salvage yard
+  ['I-003', 'A'], ['I-003', 'B'], ['I-003', 'C'], ['I-003', 'D'], // the Factory
+  ['I-006', 'A'], ['I-006', 'B'], ['I-006', 'C'], ['I-006', 'D'], // its parking lot
 ];
+
+// ---------- the Thrift Store (Scrapping: tin salvage, level 1; docs/design.md §14) ----------
+// East of the park: the store on 009-C (a brick shop with a big sign, you don't go in), and behind a chain-link fence on
+// 009-D its yard with 5 rusty dumpsters you dig through for tin. Both face the street on the south (the side the camera
+// looks at); the yard's one gate is there too.
+//   S S S S S | . . D . .      S = the store, G = the gate, D = a dumpster
+//   S S S S S | . . . . .
+//   S S S S S | D . . . D
+//   S S S S S | . . . . .
+//   S S S S S | D . G . D
+//      (sign, door)
+export const THRIFT: Rect = lot('009', 'C');
+export const THRIFT_YARD: Rect = lot('009', 'D');
+export const THRIFT_GATE: [number, number] = [THRIFT_YARD.x0 + 2, THRIFT_YARD.y1];
+// ---------- the Factory (Tinkering; docs/design.md §14) ----------
+// In the Industrial zone, on I-003 and I-006 merged (no street between them). An abandoned factory fills I-003 and
+// reaches into the old street: brick walls, a corrugated roof with broken skylights, a wide roll-up door on the south
+// side. Inside (a room you walk into, the roof lifts): 3 plate presses along the west wall, 3 workbenches along the east
+// wall, crates at the back, lots of room in the middle (it's where players meet to work). In front of it, on I-006, an
+// empty parking lot: cracked asphalt, faded lines, no cars, a chain-link fence with one opening for cars (west side,
+// towards the city).
+//   x 92 ………………………… 101
+//   . . c c . . c c . .   y 7    c = crates
+//   P . . . . . . . . B           P = a plate press, B = a workbench (at y 9, 12, 15)
+//   …                             the factory: y 7–19
+//   . . . . D D . . . .   y 19   D = the roll-up door (2 wide)
+//   ======= parking lot =======   y 20–33, opening on the west side at y 26–27
+const FACTORY_N = block('I-003');
+const FACTORY_S = block('I-006');
+/** The whole site: the factory and its parking lot (the street between the two blocks is part of it). */
+export const FACTORY_SITE: Rect = { x0: FACTORY_N.x0, y0: FACTORY_N.y0, x1: FACTORY_N.x1, y1: FACTORY_S.y1 };
+export const FACTORY: Room = {
+  x0: FACTORY_N.x0, y0: FACTORY_N.y0, x1: FACTORY_N.x1, y1: FACTORY_N.y0 + 12,
+  id: 'factory', name: 'The Factory', door: [FACTORY_N.x0 + 4, FACTORY_N.y0 + 12], shop: false,
+};
+/** The roll-up door: two tiles wide, in the middle of the south wall. */
+export const FACTORY_DOOR: [number, number][] = [[FACTORY.x0 + 4, FACTORY.y1], [FACTORY.x0 + 5, FACTORY.y1]];
+export const FACTORY_LOT: Rect = { x0: FACTORY_SITE.x0, y0: FACTORY.y1 + 1, x1: FACTORY_SITE.x1, y1: FACTORY_SITE.y1 };
+/** The parking lot's opening for cars, on the west side. */
+export const FACTORY_LOT_GATE: [number, number][] = [[FACTORY_LOT.x0, FACTORY_LOT.y0 + 6], [FACTORY_LOT.x0, FACTORY_LOT.y0 + 7]];
+ROOMS.push(FACTORY);
+
+export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0, 4], [4, 4]].map(([dx, dy]) => [THRIFT_YARD.x0 + dx, THRIFT_YARD.y0 + dy]);
 
 // ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
 // The bottom half of block 007: a building down each side, the 007-A/B buildings behind, and a courtyard between them,
@@ -286,7 +350,7 @@ export const SEWER_BRIDGES = [6, 16];
 export const GW = W;
 export const GH = SEWER.y1 + 3;
 /** The pothole: an open manhole in the middle of the crossing east of the candy shop. */
-export const MANHOLE: [number, number] = [2 * PITCH + 3, 2 * PITCH + 3];
+export const MANHOLE: [number, number] = [CITY_X + 2 * PITCH + 3, 2 * PITCH + 3];
 /** The ladder on the sewer's north wall. */
 export const SEWER_LADDER: [number, number] = [SEWER.x0 + 2, SEWER.y0];
 /** Climbing between the street and the sewer: stand at `at` (on it or next to it), climb, and you're at `to`. The
@@ -322,7 +386,7 @@ export interface Enclosure {
   openings: { inside: [number, number]; outside: [number, number] }[];
 }
 export const ENCLOSURES: Enclosure[] = [
-  ...ROOMS.filter((r) => r !== LOBBY).map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
+  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
   // The hospital: a wide entrance (3 tiles), and the stairs are the only way between the lobby and the ward.
   {
     id: 'hospital',
@@ -332,6 +396,17 @@ export const ENCLOSURES: Enclosure[] = [
       ...STAIRS.map((s) => ({ inside: s.top, outside: [s.x, WARD.y1] as [number, number] })),
     ],
   },
+  // The Factory: its roll-up door (2 wide) opens onto the parking lot; the lot's fence has one opening (west).
+  { id: 'factory', rect: FACTORY, openings: FACTORY_DOOR.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x, y + 1] as [number, number] })) },
+  {
+    id: 'factory_lot', rect: FACTORY_LOT,
+    openings: [
+      ...FACTORY_DOOR.map(([x, y]) => ({ inside: [x, y + 1] as [number, number], outside: [x, y] as [number, number] })),
+      ...FACTORY_LOT_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x - 1, y] as [number, number] })),
+    ],
+  },
+  // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
+  { id: 'thrift_yard', rect: THRIFT_YARD, openings: [{ inside: THRIFT_GATE, outside: [THRIFT_GATE[0], THRIFT_GATE[1] + 1] }] },
   { id: 'ward', rect: WARD, openings: STAIRS.map((s) => ({ inside: [s.x, WARD.y1] as [number, number], outside: s.top })) },
   {
     id: 'court',
@@ -348,7 +423,9 @@ export const LOTS: Lot[] = (() => {
   const out: Lot[] = [];
   const special = new Set(SPECIAL.map(([b, l]) => `${b}-${l}`));
   const parks = new Set(PARKS.map(([b, l]) => `${b}-${l}`));
-  for (let bx = 0; bx < BCOLS; bx++)
+  // The city's blocks first, then the zone's: the city's buildings come out exactly as before the zone was added.
+  const cols = [...Array.from({ length: CITY_COLS }, (_, i) => CITY_BX + i), ...Array.from({ length: ZONE_COLS }, (_, i) => i)];
+  for (const bx of cols)
     for (let by = 0; by < BROWS; by++)
       for (let ly = 0; ly < 2; ly++)
         for (let lx = 0; lx < 2; lx++) {
@@ -389,9 +466,12 @@ export const BUILDINGS: Building[] = (() => {
         color: WALL_COLORS[Math.floor(rng() * WALL_COLORS.length)],
         // The door faces the street: north for buildings along the block's north edge, south otherwise.
         front: y === block.y0 && y + h - 1 !== block.y1 ? 'n' : 's',
+        industrial: inZone(lot.rect.x0),
       });
     }
   }
+  // The Thrift Store fills its lot (drawn in city.ts; it blocks the tiles like any building).
+  out.push({ x: THRIFT.x0, y: THRIFT.y0, w: LOT_SIZE, h: LOT_SIZE, height: 2.6, color: WALL_COLORS[3], front: 's', custom: true });
   // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
   for (const b of YARD_SIDES) out.push({ ...b, height: 1.5, color: WALL_COLORS[2], front: 's', boarded: true });
   return out;
@@ -401,8 +481,8 @@ export const BUILDINGS: Building[] = (() => {
 // Where you cook: stand next to one. The server has the same list (public.stations): keep them in step.
 export interface Station {
   id: string;
-  /** What you can cook on it (the recipes' station). */
-  kind: 'bbq';
+  /** What you do at it: cook (bbq), press sheets (press) or make gear (bench). */
+  kind: 'bbq' | 'press' | 'bench';
   x: number;
   y: number;
   /** How it looks: the park's brick barbecue (default), or a burning oil drum (the sewer). */
@@ -414,10 +494,13 @@ export const STATIONS: Station[] = [
   { id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 },
   // In the sewer: a burning oil drum against the north wall, where a crate stood (so the rats' patches stay the same).
   { id: 'barrel_0', kind: 'bbq', x: SEWER.x0 + 11, y: SEWER.y0, look: 'barrel' },
+  // The Factory: 3 plate presses along the west wall, 3 workbenches along the east wall (Tinkering).
+  ...[2, 5, 8].map((dy, i) => ({ id: `press_${i}`, kind: 'press' as const, x: FACTORY.x0, y: FACTORY.y0 + dy })),
+  ...[2, 5, 8].map((dy, i) => ({ id: `bench_${i}`, kind: 'bench' as const, x: FACTORY.x1, y: FACTORY.y0 + dy })),
 ];
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench';
 export interface Fixture {
   x: number;
   y: number;
@@ -522,6 +605,9 @@ export const FIXTURES: Fixture[] = (() => {
   sw(10, 11, 'trash');
   out.push({ x: MANHOLE[0], y: MANHOLE[1], kind: 'manhole' });
 
+  // The Factory: crates stacked at the back.
+  for (const dx of [2, 3, 6, 7]) out.push({ x: FACTORY.x0 + dx, y: FACTORY.y0, kind: 'crate' });
+
   // Cooking stations (the barbecue), so you walk around them.
   for (const st of STATIONS) out.push({ x: st.x, y: st.y, kind: st.kind });
 
@@ -553,6 +639,8 @@ export const NODES: StreetNode[] = (() => {
   // Four parked cars (Steal From Cars): two nose-in at the north bays, two at the south bays.
   [1, 3].forEach((dx, i) => node(`car_${i}`, 'steal_car', PARKING_NE.x0 + dx, PARKING_NE.y0 + 1, { facing: Math.PI / 2 }));
   [3, 7].forEach((dx, i) => node(`car_${i + 2}`, 'steal_car', PARKING_S.x0 + dx, PARKING_S.y1 - 1, { facing: -Math.PI / 2 }));
+  // Five dumpsters in the Thrift Store's yard (Scrapping: tin salvage).
+  THRIFT_DUMPSTERS.forEach(([x, y], i) => node(`dumpster_${i}`, 'tin_salvage', x, y, { facing: x === THRIFT_YARD.x0 ? Math.PI / 2 : x === THRIFT_YARD.x1 ? -Math.PI / 2 : 0 }));
   // Four shelves at the gas station, either side of the fridge.
   [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
@@ -601,7 +689,7 @@ export interface Npc {
 
 export const NPCS: Npc[] = [
   { id: 'eddy', name: 'Eddy', role: 'General store', kind: 'shopkeeper', x: STORE.x0 + 2, y: STORE.y0 + 1, area: STORE, avoid: [STORE.door], named: true },
-  // Ray runs the weapon store: he sells brass knuckles (and more, later).
+  // Ray runs the weapon store: he sells the tin weapons (the starter kit) and buys weapons and armour.
   { id: 'ray', name: 'Ray', role: 'Weapon store', kind: 'shopkeeper', x: WEAPONS.x0 + 3, y: WEAPONS.y0 + 1, area: WEAPONS, avoid: [WEAPONS.door], named: true },
   // The candy store clerk hangs around the register (behind and next to the counter).
   {
@@ -648,7 +736,7 @@ export const PARKED_CARS: ParkedCar[] = (() => {
   // Each street between two crossings is one block long (10 tiles). About half get a car, in the lane next to one
   // of the two sidewalks (lane tiles 2 or 4 of the 7-wide street), never in front of the spawn.
   for (let k = 0; k <= BROWS; k++)
-    for (let bx = 0; bx < BCOLS; bx++) {
+    for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) {
       if (rng() < 0.45) continue;
       const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
       // Between the zebra crossings at both ends (they take the first and last 3 tiles of the street).
@@ -656,7 +744,7 @@ export const PARKED_CARS: ParkedCar[] = (() => {
       if (lane === SPAWN[1] || (SPAWN[0] >= x - 1 && SPAWN[0] <= x + 3 && Math.abs(lane - SPAWN[1]) < 3)) continue;
       out.push({ x, y: lane, along: 'x', color: colors[Math.floor(rng() * colors.length)] });
     }
-  for (let k = 0; k <= BCOLS; k++)
+  for (let k = CITY_BX; k <= CITY_BX + CITY_COLS; k++)
     for (let by = 0; by < BROWS; by++) {
       if (rng() < 0.55) continue;
       const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
@@ -703,7 +791,7 @@ export const SEWER_AREAS: Area[] = [
 ];
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat' | 'scrap' | 'factory';
 export interface Area {
   id: string;
   name: string;
@@ -718,6 +806,14 @@ export interface Area {
 
 export const AREAS: Area[] = [
   {
+    id: 'factory', name: 'The Factory', rect: FACTORY_SITE, icon: 'factory', crimes: [], npcs: [],
+    blurb: 'An abandoned factory in the Industrial zone. Press salvage into sheets and make weapons and armour at the workbenches (Tinkering).',
+  },
+  {
+    id: 'thrift', name: 'Thrift Store', rect: { x0: THRIFT.x0, y0: THRIFT.y0, x1: THRIFT_YARD.x1, y1: THRIFT_YARD.y1 }, icon: 'scrap', crimes: ['tin_salvage'], npcs: [],
+    blurb: 'Behind the store, a fenced yard full of dumpsters. Dig through them for tin salvage (Scrapping).',
+  },
+  {
     id: 'sewer', name: 'The sewer', rect: { x0: MANHOLE[0], y0: MANHOLE[1], x1: MANHOLE[0], y1: MANHOLE[1] }, icon: 'dungeon', crimes: [], npcs: [],
     blurb: 'A pothole in the crossing leads down into the sewer, where ten rats live (level 3). A good place to train, and they drop meat you can cook.',
   },
@@ -727,7 +823,7 @@ export const AREAS: Area[] = [
   },
   {
     id: 'yard', name: 'The Yard', rect: YARD, icon: 'thugs', crimes: [], npcs: [],
-    blurb: 'A rough courtyard where three thugs hang around with knives (level 5). Fight them for cash, and now and then a knife.',
+    blurb: 'A rough courtyard where three thugs hang around with knives (level 5). Fight them for cash, and now and then a tin knife.',
   },
   {
     id: 'bbq', name: 'The barbecue', rect: BBQ_PARK, icon: 'fire', crimes: [], npcs: [],
@@ -743,7 +839,7 @@ export const AREAS: Area[] = [
   },
   {
     id: 'weapons', name: "Ray's Arms", rect: WEAPONS, icon: 'weapons', crimes: [], npcs: ['ray'],
-    blurb: 'The weapon store. Ray sells brass knuckles for $50: your first step up from bare fists.',
+    blurb: 'The weapon store. Ray sells the tin weapons: knuckles $50, a bat $100, a knife $150. He buys weapons and armour.',
   },
   {
     id: 'store', name: "Eddy's General Store", rect: STORE, icon: 'shop', crimes: [], npcs: ['eddy'],

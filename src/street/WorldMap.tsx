@@ -69,6 +69,25 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  factory: (
+    <>
+      {/* a factory: a sawtooth roof and a chimney */}
+      <path d="M3 21 V12 L8 9 V12 L13 9 V12 L18 9 V21 Z" fill="#8a8580" stroke="#141210" strokeWidth="0.9" />
+      <rect x="18" y="4" width="3.5" height="17" fill="#6a4a3a" stroke="#141210" strokeWidth="0.9" />
+      <rect x="6" y="15" width="3" height="3" fill="#f2d27a" />
+      <rect x="12" y="15" width="3" height="3" fill="#f2d27a" />
+      <path d="M19.7 3 Q22 1 21 -1" stroke="#c8c4bc" strokeWidth="1" fill="none" />
+    </>
+  ),
+  scrap: (
+    <>
+      {/* a crushed tin can and a dented one */}
+      <path d="M5 9 L11 8 L12 19 L6 20 Z" fill="#b8bcc2" stroke="#141210" strokeWidth="0.9" />
+      <path d="M5.5 12 L11.3 11.2 M6 16 L11.6 15.3" stroke="#7a7e84" strokeWidth="0.8" />
+      <path d="M13 13 L19 11 Q21 14 19.5 16 L20 19 L14 20 Q12.5 17 13 13 Z" fill="#9aa0a6" stroke="#141210" strokeWidth="0.9" />
+      <path d="M14 15.5 L19.3 14" stroke="#6a6e74" strokeWidth="0.8" />
+    </>
+  ),
   ladder: (
     <>
       {/* a ladder going up */}
@@ -127,6 +146,7 @@ function walkTarget(a: Area): [number, number] {
 
 export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [number, number]; onClose: () => void; onWalk: (x: number, y: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<Area | null>(null);
   // In the sewer the map shows the sewer (with its ladder, fire barrel and rats) instead of the island.
   const below = inSewer(...here);
@@ -147,17 +167,27 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
   const areas = below ? SEWER_AREAS : AREAS;
   const at = (x: number, y: number) => ({ left: `${((x - ox) / fullW) * 100}%`, top: `${((y - oy) / fullH) * 100}%` });
   const lvl = skillLevel(s, 'street');
+  // Open centred on you (when the map is wider than the screen).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = ((here[0] + 0.5 - ox) / fullW) * el.scrollWidth - el.clientWidth / 2;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [below]);
 
   return (
     <div className="worldmap-backdrop" onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-label="World map">
       <div className="worldmap">
         <div className="worldmap-head">
-          <h2 className="headline">{below ? 'The sewer' : 'The island'}</h2>
+          <h2 className="headline">{below ? 'The sewer' : 'The Underworld'}</h2>
           <button className="btn tiny" onClick={onClose} aria-label="Close the map">
             ×
           </button>
         </div>
-        <div className="worldmap-canvas" style={{ aspectRatio: `${fullW} / ${fullH}` }}>
+        {/* The whole map is wide (the Industrial zone and the city): on a phone it scrolls sideways instead of shrinking, and
+            opens centred on you. */}
+        <div className="worldmap-scroll" ref={scrollRef}>
+        <div className={`worldmap-canvas ${below ? '' : 'wide'}`} style={{ aspectRatio: `${fullW} / ${fullH}` }}>
           <canvas ref={canvasRef} />
           {areas.map((a) => {
             const locked = a.crimes.length > 0 && a.crimes.every((id) => canStart(s, id));
@@ -178,6 +208,7 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
           })}
           {s.grave && inSewer(s.grave.x, s.grave.y) === below && <span className="map-marker grave" style={at(s.grave.x + 0.5, s.grave.y + 0.5)} title="Your grave" />}
           <span className="map-marker you" style={at(here[0] + 0.5, here[1] + 0.5)} title="You are here" />
+        </div>
         </div>
 
         {sel ? (

@@ -47,7 +47,7 @@ for (const n of NODES) {
 for (let i = 0; i < 3; i++) {
   const t = thugAt(i, Date.now());
   const g = buildCharacter({ skin: 2 + (i % 2), hair: 0, hairColor: 0, top: 3, bottom: i }, { hood: 0x4a4d52 });
-  setGear(g, { weapon: 'knife' });
+  setGear(g, { weapon: 'tin_knife' });
   g.position.set(t.x, 0.03, t.z);
   g.rotation.y = i * 2.1;
   animateCharacter(g, 'idle', 0);
@@ -65,6 +65,8 @@ for (const n of NPCS.filter((n) => n.kind === 'doctor' || n.kind === 'receptioni
   scene.add(g);
 }
 const you = buildCharacter({ skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 });
+// ?gear=tin: you in full tin armour with the tin bat.
+if (q.get('gear')) setGear(you, { weapon: `${q.get('gear')}_bat`, head: `${q.get('gear')}_helmet`, body: `${q.get('gear')}_vest`, legs: `${q.get('gear')}_legs` });
 you.position.set(x, floorY(x, z) + 0.03, z);
 animateCharacter(you, 'idle', 0);
 scene.add(you);
