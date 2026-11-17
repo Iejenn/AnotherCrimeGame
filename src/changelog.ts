@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.45.0',
+    date: '2026-11-17',
+    title: 'New models (pilot)',
+    items: [
+      'The Junkyard has two old trucks rusting among the wrecks, with pallets, planks and a broken barrier along the fence.',
+      'A truck is parked in the Factory\'s lot, with a stack of pallets in the corner.',
+      'Iron Saints MC: bar stools along the counter, round tables with stools, bottles and glasses, an old TV over the bar.',
+      'Food lying on the ground looks like food now: raw meat, ribs, a ham, candy bars and sandwiches.',
+    ],
+  },
+  {
     version: '0.44.2',
     date: '2026-11-17',
     title: 'Dropping in the game',

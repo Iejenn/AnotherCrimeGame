@@ -15,6 +15,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
+import { withModel } from './models';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -2105,6 +2106,7 @@ export function buildCity(scene: THREE.Scene) {
     for (const f of FIXTURES) {
       const x = f.x + 0.5;
       const z = f.y + 0.5;
+      if (f.kind === 'lottruck' || f.kind === 'pallets') continue; // (models, below)
       if (f.kind === 'wreck') {
         // Two or three crushed cars stacked up, each a flattened slab in a faded colour.
         const n = 2 + Math.floor(rng() * 2);
@@ -2126,6 +2128,29 @@ export function buildCity(scene: THREE.Scene) {
         add(own(new THREE.CylinderGeometry(0.15, 0.13, 0.08, 10)), lam(0x8a8f96), x + 0.6, 0.05, z + 0.4, false); // the food bowl
       }
     }
+    // v0.45: two old trucks among the wrecks (Kenney's Retro Urban Kit): one rusting on its side by the north fence, one
+    // sunk on flat tyres in the middle, each over its two tiles.
+    const pairs = (kind: string) => {
+      const tiles = FIXTURES.filter((f) => f.kind === kind);
+      const out: { x: number; z: number }[] = [];
+      for (const f of tiles) if (!tiles.some((g) => g.x === f.x - 1 && g.y === f.y)) out.push({ x: f.x + 1, z: f.y + 0.5 });
+      return out;
+    };
+    pairs('junktruck').forEach((p, i) => {
+      const t = withModel(i ? 'urban/truck-green.glb' : 'urban/truck-grey.glb', i ? { scale: 1.25, rot: Math.PI / 2 + 0.15, tiltZ: 0.05, tone: 'grimy' } : { scale: 1.25, rot: Math.PI / 2 - 0.1, tiltX: 0.06, tone: 'grimy' });
+      t.position.set(p.x, 0.1, p.z);
+      scene.add(t);
+    });
+    // Pallets, planks, broken barriers and loose bricks lying around (on solid tiles, so nobody walks through them).
+    for (const [file, kind, dx, dz, rot] of [
+      ['urban/pallet.glb', 'tyres', 0.0, -0.35, 0.3], ['urban/planks.glb', 'wreck', 0.1, -0.45, 1.2], ['urban/detail-barrier-strong-damaged.glb', 'wreck', 0.0, -0.5, 0.2],
+    ] as const) {
+      const f = FIXTURES.find((x) => x.kind === kind && inRect(JUNKYARD, x.x, x.y) && x.y === JUNKYARD.y1);
+      if (!f) continue;
+      const m = withModel(file, { scale: 0.8, rot, tone: 'grimy' });
+      m.position.set(f.x + 0.5 + dx, 0.1, f.y + 0.5 + dz);
+      scene.add(m);
+    }
     // The crane: one model on its four tiles (a cab on tracks, a lattice boom up and over, a hook).
     const crane = FIXTURES.filter((f) => f.kind === 'crane');
     if (crane.length) {
@@ -2141,6 +2166,23 @@ export function buildCity(scene: THREE.Scene) {
       add(geoBox(0.02, 1.6, 0.02), lam(0x1a1a1e), tip.x, tip.y - 0.8, z, false);
       add(geoBox(0.2, 0.25, 0.08), lam(0x3a3d42), tip.x, tip.y - 1.7, z, false);
     }
+  }
+
+  // The Factory's parking lot (v0.45): a cargo truck parked by the hall, and a stack of pallets in the far corner.
+  {
+    const lt = FIXTURES.filter((f) => f.kind === 'lottruck');
+    if (lt.length) {
+      const t = withModel('urban/truck-grey.glb', { scale: 1.3, rot: -Math.PI / 2, tone: 'grimy' });
+      t.position.set((Math.min(...lt.map((f) => f.x)) + Math.max(...lt.map((f) => f.x)) + 1) / 2, 0.04, lt[0].y + 0.5);
+      scene.add(t);
+    }
+    FIXTURES.filter((f) => f.kind === 'pallets').forEach((f, i) => {
+      for (let k = 0; k < 3 - i; k++) {
+        const m = withModel('urban/pallet.glb', { scale: 0.85, y: k * 0.13, rot: k * 0.15, tone: 'grimy' });
+        m.position.set(f.x + 0.5, 0.04, f.y + 0.5);
+        scene.add(m);
+      }
+    });
   }
 
   // Iron Saints MC: a low dark-brick bar facing NORTH, a red-and-blue neon sign, blacked-out windows, motorbikes on the
@@ -2222,6 +2264,21 @@ export function buildCity(scene: THREE.Scene) {
       for (let k = 0; k < 14; k++)
         add(geoBox(0.07, 0.25, 0.07), lam([0x2a6a3a, 0x8a5a2a, 0xc8c8b8, 0x6a2a2a][k % 4], { emissive: 0x2a1a0a, emissiveIntensity: 0.6 }), bx0 + 0.2 + k * ((bx1 - bx0 - 0.4) / 13), 1.35, Z1 - t - 0.12, false);
       add(geoBox(bx1 - bx0, 0.04, 0.2), wood, (bx0 + bx1) / 2, 1.2, Z1 - t - 0.1, false);
+      // v0.45: bar stools along the counter, bottles and glasses on it, an old TV over the bar.
+      for (let x = bx0 + 0.5; x < bx1; x += 1.25) {
+        const st = withModel('furniture/stoolBar.glb', { tone: 'dark', scale: 1.5, x: -0.2, z: 0.17 });
+        st.position.set(x, 0.08, bar[0].y - 0.3);
+        scene.add(st);
+      }
+      [['food/soda-bottle.glb', 0.6], ['food/wine-white.glb', 1.9], ['food/glass.glb', 2.6], ['food/wine-red.glb', 3.7]].forEach(([file, dx]) => {
+        const m = withModel(file as string, { tone: 'dull', scale: 0.4 });
+        m.position.set(bx0 + (dx as number), 0.87, bar[0].y + 0.3);
+        scene.add(m);
+      });
+      const tv = withModel('furniture/televisionVintage.glb', { tone: 'dull', scale: 1.4, rot: Math.PI, x: 0.29 });
+      tv.position.set((bx0 + bx1) / 2, 1.27, Z1 - t - 0.04);
+      props.push(tv);
+      scene.add(tv);
     }
     const pool = FIXTURES.filter((f) => f.kind === 'pool');
     if (pool.length) {
@@ -2236,9 +2293,18 @@ export function buildCity(scene: THREE.Scene) {
     }
     for (const f of FIXTURES) {
       if (f.kind === 'clubtable') {
-        add(own(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 12)), wood, f.x + 0.5, 0.72, f.y + 0.5);
-        add(own(new THREE.CylinderGeometry(0.05, 0.08, 0.7, 6)), lam(0x1a1a1e), f.x + 0.5, 0.36, f.y + 0.5);
-        add(own(new THREE.CylinderGeometry(0.04, 0.04, 0.2, 6)), lam(0xc8a04a), f.x + 0.4, 0.84, f.y + 0.45, false);
+        // v0.45: a round table with two bar stools (Kenney's Furniture Kit, darkened), a bottle and a glass on it.
+        const tb = withModel('furniture/tableRound.glb', { tone: 'dark', scale: 1.4, x: -0.48, y: 0.38, z: 0.56 });
+        tb.position.set(f.x + 0.5, 0.08, f.y + 0.5);
+        scene.add(tb);
+        for (const [dx, dz] of [[-0.45, 0.35], [0.4, -0.4]]) {
+          const st = withModel('furniture/stoolBar.glb', { tone: 'dark', scale: 1.5, x: -0.2, z: 0.17 });
+          st.position.set(f.x + 0.5 + dx, 0.08, f.y + 0.5 + dz);
+          scene.add(st);
+        }
+        const bottle = withModel('food/wine-red.glb', { tone: 'dull', scale: 0.4 });
+        bottle.position.set(f.x + 0.45, 0.6, f.y + 0.45);
+        scene.add(bottle);
       } else if (f.kind === 'clubjuke') {
         add(geoBox(0.7, 1.15, 0.5), lam(0x6a2a4a), f.x + 0.5, 0.58, f.y + 0.6);
         add(own(new THREE.CylinderGeometry(0.33, 0.33, 0.52, 14, 1, false, 0, Math.PI)), lam(0xffb040, { emissive: 0xff7a20, emissiveIntensity: 1.2 }), f.x + 0.5, 1.15, f.y + 0.6, false).rotation.z = Math.PI / 2;

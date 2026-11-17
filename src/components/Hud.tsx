@@ -193,6 +193,7 @@ export function SettingsPopup({ account, onClose }: { account: { email: string; 
           In Safari, tap <strong>Share</strong> (the square with an arrow), then <strong>Add to Home Screen</strong>.
         </p>
       )}
+      <p className="muted small">Some 3D models: Kenney (kenney.nl), CC0.</p>
       <h3 className="rule-head">
         What's new · v{latest.version}
       </h3>
