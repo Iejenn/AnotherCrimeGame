@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.43.2',
+    date: '2026-11-17',
+    title: 'Signs fixed',
+    items: ['The FACTORY sign over the door is readable again (windows were drawn over it).', 'The Iron Saints neon sign sits above the door now, and the red door light no longer covers it.', 'The Junkyard: no more flickering floor, and its gate is open chain-link against the fence instead of grey slabs in the street.'],
+  },
+  {
     version: '0.43.1',
     date: '2026-11-17',
     title: 'Doctors fixed',

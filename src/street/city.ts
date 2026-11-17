@@ -1732,8 +1732,10 @@ export function buildCity(scene: THREE.Scene) {
     const props: THREE.Object3D[] = [];
     const glassMat = lam(0x3a4650, { emissive: 0x2a2010, emissiveIntensity: 0.5 });
     const broken = lam(0x141618);
+    const signX = (FACTORY_DOOR[0][0] + FACTORY_DOOR[FACTORY_DOOR.length - 1][0] + 1) / 2;
     for (let x = X0 + 1; x < X1 - 0.5; x += 1.6) {
-      props.push(add(geoBox(1.0, 0.7, 0.03), (x * 7) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z1 + 0.01, false));
+      // (No windows behind the name over the door: they covered the sign.)
+      if (Math.abs(x + 0.2 - signX) > 2.3) props.push(add(geoBox(1.0, 0.7, 0.03), (x * 7) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z1 + 0.01, false));
       props.push(add(geoBox(1.0, 0.7, 0.03), (x * 5) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z0 - 0.01, false));
     }
     for (let z = Z0 + 1; z < Z1 - 0.5; z += 1.8) {
@@ -1744,7 +1746,7 @@ export function buildCity(scene: THREE.Scene) {
     props.push(add(geoBox(d1 - d0 + 0.2, 0.35, 0.3), lam(0x7a4a32), (d0 + d1) / 2, 2.1, Z1 + 0.05));
     for (const x of [d0, d1]) props.push(add(geoBox(0.12, 2.0, 0.2), lam(0x5a4a3a), x, 1.0, Z1 + 0.02));
     // A painted name over the door.
-    const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.02, false);
+    const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.05, false);
     props.push(sign);
     // The roof: a closed slab on top of the walls, and on it a corrugated sawtooth: three ridges, each rising towards
     // the north with a steep glazed face there, and a skylight lying on each slope (the middle one broken). Closed shapes,
@@ -2010,7 +2012,7 @@ export function buildCity(scene: THREE.Scene) {
     const Y0 = HOTLINE_YARD.x0;
     const Y1 = HOTLINE_YARD.x1 + 1;
     const ycx = (Y0 + Y1) / 2;
-    add(geoBox(Y1 - Y0, 0.075, Z1 - Z0), lam(0x5f5c56), ycx, 0.037, cz, false);
+    add(geoBox(Y1 - Y0, 0.12, Z1 - Z0), lam(0x5f5c56), ycx, 0.06, cz, false);
     const wallM = brickMat(4, 0x8a5040);
     const coping = lam(0xa8a296);
     const halfWall = (x: number, z: number, w: number, d: number) => {
@@ -2054,9 +2056,10 @@ export function buildCity(scene: THREE.Scene) {
     const Z1 = JUNKYARD.y1 + 1;
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
-    add(geoBox(X1 - X0, 0.07, Z1 - Z0), lam(0x5a4a38), cx, 0.035, cz, false);
+    // (A bit higher than the block's pavement, so the two don't flicker through each other.)
+    add(geoBox(X1 - X0, 0.12, Z1 - Z0), lam(0x5a4a38), cx, 0.06, cz, false);
     for (let i = 0; i < 9; i++) {
-      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.072, Z0 + 1 + rng() * 8, false);
+      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
       oil.rotation.x = -Math.PI / 2;
     }
     const FH = 1.7;
@@ -2072,13 +2075,29 @@ export function buildCity(scene: THREE.Scene) {
       panel(X0 + 0.03, z + 0.5, false, i++);
       if (!JUNKYARD_GATE.some(([, gz]) => gz === z)) panel(X1 - 0.03, z + 0.5, false, i++);
     }
-    // The gate: two chain-link leaves swung open into the street, a "BEWARE OF THE DOG" sign.
+    // The gate: two chain-link leaves swung all the way open, flat against the fence outside, and a "BEWARE OF THE DOG"
+    // sign on the fence next to it.
     const g0 = JUNKYARD_GATE[0][1];
-    for (const [z, r] of [[g0, -1.1], [g0 + 2, 1.1]] as const) {
-      const leaf = add(geoBox(0.05, 1.5, 1.0), lam(0x6a6e74), X1 + 0.45, 0.75, z + (r < 0 ? 0.4 : -0.4), false);
-      leaf.rotation.y = r;
+    const g1 = JUNKYARD_GATE[JUNKYARD_GATE.length - 1][1] + 1;
+    const link = own(
+      canvasTex(32, 32, (g) => {
+        g.clearRect(0, 0, 32, 32);
+        g.strokeStyle = '#b8bcc2';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+        g.stroke();
+      }),
+    );
+    link.repeat.set(4, 6);
+    const linkM = own(new THREE.MeshBasicMaterial({ map: link, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    for (const z of [g0 - 0.5, g1 + 0.5]) {
+      const leaf = add(own(new THREE.PlaneGeometry(1.0, 1.5)), linkM, X1 + 0.12, 0.78, z, false);
+      leaf.rotation.y = Math.PI / 2;
+      for (const dz of [-0.5, 0.5]) add(geoBox(0.05, 1.55, 0.05), lam(0x6a6e74), X1 + 0.12, 0.78, z + dz, false); // its frame
     }
-    const beware = add(own(new THREE.PlaneGeometry(1.0, 0.45)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEWARE OF THE DOG', '#e8c040', '#1a1a1a')) })), X1 + 0.04, 1.1, g0 - 0.7, false);
+    for (const z of [g0, g1]) add(geoBox(0.12, 1.9, 0.12), lam(0x4a4e54), X1 - 0.03, 0.95, z); // the gate posts
+    const beware = add(own(new THREE.PlaneGeometry(1.0, 0.45)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEWARE OF THE DOG', '#e8c040', '#1a1a1a')) })), X1 + 0.04, 1.2, g0 - 1.7, false);
     beware.rotation.y = Math.PI / 2;
   }
   {
@@ -2177,15 +2196,17 @@ export function buildCity(scene: THREE.Scene) {
         g.fillText('— M C —', 256, 104);
       }, false),
     );
-    const neon = add(own(new THREE.PlaneGeometry(4.0, 1.0)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, HT - 0.1, fz - 0.06, false);
+    // The sign sits above the door (it reaches a little over the roof line), clear of the door and its light.
+    const neon = add(own(new THREE.PlaneGeometry(3.6, 0.9)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, 2.4, fz - 0.2, false);
     neon.rotation.y = Math.PI;
-    props.push(neon, add(geoBox(4.15, 1.12, 0.05), lam(0x141418), cx, HT - 0.1, fz - 0.02, false));
+    // (In front of the roof's overhang, which cut across the letters.)
+    props.push(neon, add(geoBox(3.75, 1.02, 0.05), lam(0x141418), cx, 2.4, fz - 0.16, false));
     for (const x of [X0 + 1.6, X1 - 1.6]) {
       add(geoBox(1.4, 0.8, 0.04), lam(0x101014), x, 1.2, fz - 0.01, false);
       const beer = add(own(new THREE.PlaneGeometry(0.6, 0.25)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEER', '#101014', '#ffb040')) })), x, 1.25, fz - 0.04, false);
       beer.rotation.y = Math.PI;
     }
-    add(geoBox(0.16, 0.12, 0.12), lam(0xff3030, { emissive: 0xff2020, emissiveIntensity: 2 }), cx, 2.0, fz - 0.08, false);
+    add(geoBox(0.12, 0.16, 0.12), lam(0xff3030, { emissive: 0xff2020, emissiveIntensity: 2 }), d1 + 0.3, 1.6, fz - 0.08, false); // a red light beside the door
     // The neon spills red onto the sidewalk.
     const glow = new THREE.PointLight(0xff3a5a, 5, 6, 1.5);
     glow.position.set(cx, 1.6, Z0 - 1.2);
