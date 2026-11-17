@@ -2197,9 +2197,10 @@ export function buildCity(scene: THREE.Scene) {
       }, false),
     );
     // The sign sits above the door (it reaches a little over the roof line), clear of the door and its light.
-    const neon = add(own(new THREE.PlaneGeometry(3.6, 0.9)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, 2.4, fz - 0.08, false);
+    const neon = add(own(new THREE.PlaneGeometry(3.6, 0.9)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, 2.4, fz - 0.2, false);
     neon.rotation.y = Math.PI;
-    props.push(neon, add(geoBox(3.75, 1.02, 0.05), lam(0x141418), cx, 2.4, fz - 0.03, false));
+    // (In front of the roof's overhang, which cut across the letters.)
+    props.push(neon, add(geoBox(3.75, 1.02, 0.05), lam(0x141418), cx, 2.4, fz - 0.16, false));
     for (const x of [X0 + 1.6, X1 - 1.6]) {
       add(geoBox(1.4, 0.8, 0.04), lam(0x101014), x, 1.2, fz - 0.01, false);
       const beer = add(own(new THREE.PlaneGeometry(0.6, 0.25)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEER', '#101014', '#ffb040')) })), x, 1.25, fz - 0.04, false);
