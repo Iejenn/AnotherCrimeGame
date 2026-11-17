@@ -896,7 +896,7 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
 | Prop / furniture | pallet, stool, table, dumpster, barrier, TV | 300 |
 | Small creature | rat, pigeon | 400 |
 | Medium creature | guard dog, giant rat | 600 |
-| Person | you, NPCs, thugs, bikers (with gear; spend it on structure: joints, a face, hands) | 1,200 |
+| Person | you, NPCs, thugs, bikers: the asset you look at most. Spend it on detail and structure (joints, a face, hands, clothes), not smooth curves; human shaped, not blocky | 2,300 (+ up to 500 for worn gear) |
 | Vehicle | car, truck, motorbike | 800 |
 | Building | one building, all its parts | 1,500 |
 
@@ -906,9 +906,14 @@ The first Blender rat (718) was over: that's why this section exists. **v0.45:**
 (`src/street/loft.ts`: `loft` for bodies, `limb` for legs, `spikes` for fur, claws, ears and teeth) after the OSRS rat
 and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard dog 449; people are faceted (6-sided
 limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
-**People get structure, not curves** (they're who you look at and talk to): arms in an upper arm, an elbow and a forearm;
-legs in a thigh, a knee and a shin; shoulders, a chest, waist, belt and hips; a neck; a face with a nose and ears; a
-thumb; shoes with a toe cap: 686, about 1,150 in full armour. Detail and body structure beat smooth curves.
+**People are the most important asset** (you see them all the time), so they get the biggest budget, spent on detail and
+structure rather than smooth curves: a shaped head (chin, jaw, cheeks, brow) with eye whites and pupils, eyebrows, a nose,
+a mouth and ears; hair with a choppy fringe and sideburns; a neck and collar; a shirt with a placket, buttons and a chest
+pocket; a belt with a buckle; trouser pockets and cuffs; arms in a shoulder, an upper arm, an elbow, a forearm and a cuff;
+hands with four fingers and a thumb; legs in a thigh, a knee cap and a calf; shoes with a sole, a heel, a toe cap and
+laces: 2,240, about 2,700 in full armour. Human shaped, not blocky: limbs 8-sided and tapering (a bicep, a calf, a
+slim wrist and ankle), a real waist, sloping shoulders, rounded joints, shaped hands and shoes. Each person's parts are merged per limb and colour when they're built, so
+the detail costs only a handful of draw calls.
 
 ### Colour and material
 - **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney
