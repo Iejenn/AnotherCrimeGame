@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.47.1',
+    date: '2026-11-17',
+    title: 'Steady lights',
+    items: ['The pools of lamplight and the darker grass in the park no longer flicker when you turn the camera; nor do the oil stains, cracks and painted lines on the lots and yards.'],
+  },
+  {
     version: '0.47.0',
     date: '2026-11-17',
     title: 'Real windows',

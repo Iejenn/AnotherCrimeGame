@@ -211,6 +211,9 @@ export function buildCity(scene: THREE.Scene) {
   };
   const pavement = lam(C.pavement);
   const grassMat = lam(C.grass);
+  /** Marks lying flat on the ground (stains, cracks, painted lines): pulled towards the camera so they never flicker
+   *  against the ground they lie on. */
+  const DECAL = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
   const busy = new Set<string>(); // tiles with spots/NPCs or in front of doors: keep trees and props off them
   for (const n of NODES) busy.add(`${n.x},${n.y}`);
   for (const p of NPCS) busy.add(`${p.x},${p.y}`);
@@ -258,7 +261,9 @@ export function buildCity(scene: THREE.Scene) {
   const poles = new Batch(poleGeo, lam(0x2b2b2e));
   const lampHeads = new Batch(geoBox(0.26, 0.08, 0.6), lam(0x2b2b2e));
   const lampGlow = new Batch(geoBox(0.2, 0.03, 0.24), lam(C.lamp, { emissive: C.lamp, emissiveIntensity: 1.8 }), false);
-  const poolMat = own(new THREE.MeshBasicMaterial({ map: own(lightPoolTex()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  // (Pulled towards the camera, polygonOffset: the pools lie on grass, pavement and asphalt and must never fight with them
+  // for the same depth, which flickers as the camera moves.)
+  const poolMat = own(new THREE.MeshBasicMaterial({ map: own(lightPoolTex()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   const pools = new Batch(own(new THREE.PlaneGeometry(3.2, 3.2).rotateX(-Math.PI / 2)), poolMat, false);
   const lightPole = new Batch(own(new THREE.CylinderGeometry(0.035, 0.04, 1.9, 6)), lam(0x5a5f66));
   const lightBox = new Batch(geoBox(0.14, 0.4, 0.14), lam(0x2b2b2e));
@@ -271,7 +276,7 @@ export function buildCity(scene: THREE.Scene) {
     const rot = Math.atan2(dx, dz);
     lampHeads.add(x + dx * 0.4, 2.3, z + dz * 0.4, 1, 1, 1, rot);
     lampGlow.add(x + dx * 0.45, 2.25, z + dz * 0.45, 1, 1, 1, rot);
-    pools.add(x + dx * 0.7, 0.08, z + dz * 0.7);
+    pools.add(x + dx * 0.7, 0.085, z + dz * 0.7);
   };
   for (let bx = 0; bx < BCOLS; bx++)
     for (let by = 0; by < BROWS; by++) {
@@ -529,8 +534,9 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
     add(geoBox(X1 - X0, 0.08, Z1 - Z0), grassMat, cx, 0.04, cz, false);
     // Darker grass patches so the lawn isn't one flat colour.
-    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31), false);
-    for (let i = 0; i < 60; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), 0.082 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
+    // (A little above the lawn and pulled forward, polygonOffset, so they don't flicker against it.)
+    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false);
+    for (let i = 0; i < 60; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), 0.084 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
     patch.build(scene);
     // Paths in a # shape, through the gaps in the hedges (PARK_PATHS), out to the sidewalks.
     const gravel = lam(0x8a8070);
@@ -980,7 +986,7 @@ export function buildCity(scene: THREE.Scene) {
       const X1 = r.x1 + 1;
       const Z1 = r.y1 + 1;
       add(geoBox(X1 - X0, 0.03, Z1 - Z0), lam(0x2c2e33), (X0 + X1) / 2, 0.07, (Z0 + Z1) / 2, false);
-      const stains = new Batch(own(new THREE.CircleGeometry(0.22, 7).rotateX(-Math.PI / 2)), lam(0x1f2023), false);
+      const stains = new Batch(own(new THREE.CircleGeometry(0.22, 7).rotateX(-Math.PI / 2)), lam(0x1f2023, DECAL), false);
       for (let i = 0; i < 8; i++) stains.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.087, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), 0.6 + rng(), 1, 0.4 + rng() * 0.6, rng() * 6);
       stains.build(scene);
     }
@@ -1141,7 +1147,7 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
     add(geoBox(X1 - X0, 0.075, Z1 - Z0), lam(0x55524d), cx, 0.037, cz, false);
-    const cracks = new Batch(geoBox(0.03, 0.004, 0.9), lam(0x2e2c29), false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 0.9), lam(0x2e2c29, DECAL), false);
     for (let i = 0; i < 14; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
     cracks.build(scene);
     // Graffiti: tags on the side walls (facing in) and the back wall.
@@ -1495,7 +1501,7 @@ export function buildCity(scene: THREE.Scene) {
     const Y1 = THRIFT_YARD.x1 + 1;
     const ycx = (Y0 + Y1) / 2;
     add(geoBox(Y1 - Y0, 0.075, Z1 - Z0), lam(0x5a5852), ycx, 0.037, cz, false);
-    const cracks = new Batch(geoBox(0.03, 0.004, 0.8), lam(0x2e2c29), false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 0.8), lam(0x2e2c29, DECAL), false);
     for (let i = 0; i < 10; i++) cracks.add(Y0 + 0.4 + rng() * (Y1 - Y0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), 1, 1, 0.5 + rng(), rng() * 6);
     cracks.build(scene);
     const weeds = new Batch(own(new THREE.ConeGeometry(0.06, 0.22, 4)), lam(0x4a6a32), false);
@@ -1664,13 +1670,13 @@ export function buildCity(scene: THREE.Scene) {
     const lcx = (L0 + L1) / 2;
     const lcz = (LZ0 + LZ1) / 2;
     add(geoBox(L1 - L0, 0.02, LZ1 - LZ0), lam(0x3e4046), lcx, 0.1, lcz, false);
-    const lines = new Batch(geoBox(0.06, 0.006, 1.8), lam(0x8a8a82), false);
+    const lines = new Batch(geoBox(0.06, 0.006, 1.8), lam(0x8a8a82, DECAL), false);
     for (let x = L0 + 2; x < L1 - 0.5; x += 1.5) {
       lines.add(x, 0.113, LZ1 - 1.1);
       lines.add(x, 0.113, LZ0 + 4.2);
     }
     lines.build(scene);
-    const cracks = new Batch(geoBox(0.03, 0.004, 1.1), lam(0x26282c), false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 1.1), lam(0x26282c, DECAL), false);
     for (let i = 0; i < 24; i++) cracks.add(L0 + 0.5 + rng() * (L1 - L0 - 1), 0.114, LZ0 + 0.5 + rng() * (LZ1 - LZ0 - 1), 1, 1, 0.5 + rng(), rng() * 6);
     cracks.build(scene);
     const weeds = new Batch(own(new THREE.ConeGeometry(0.06, 0.22, 4)), lam(0x4a6a32), false);
