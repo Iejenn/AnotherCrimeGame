@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.48.1',
+    date: '2026-11-17',
+    title: 'One bag at the barbecue',
+    items: ['Cooking uses your bag at the bottom of the screen (it opens by itself), like selling and the bank: no second bag in the barbecue window.'],
+  },
+  {
     version: '0.48.0',
     date: '2026-11-17',
     title: 'Health you can trust',

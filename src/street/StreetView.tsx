@@ -236,7 +236,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     host.prepend(renderer.domElement);
     const scene = new THREE.Scene();
     // (Dev only: the previews read the triangle and draw-call counts from here.)
-    if (import.meta.env.DEV) Object.assign(window, { __street: { renderer, scene } });
+    if (import.meta.env.DEV) Object.assign(window, { __street: { renderer, scene, openCook: (x: number, y: number) => setCookAtRef.current([x, y]) } });
     const SKY = 0x1c2230;
     scene.background = new THREE.Color(SKY);
     scene.fog = new THREE.Fog(SKY, 22, 60);
