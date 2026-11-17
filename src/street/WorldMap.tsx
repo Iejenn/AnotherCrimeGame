@@ -146,6 +146,7 @@ function walkTarget(a: Area): [number, number] {
 
 export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [number, number]; onClose: () => void; onWalk: (x: number, y: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<Area | null>(null);
   // In the sewer the map shows the sewer (with its ladder, fire barrel and rats) instead of the island.
   const below = inSewer(...here);
@@ -166,17 +167,27 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
   const areas = below ? SEWER_AREAS : AREAS;
   const at = (x: number, y: number) => ({ left: `${((x - ox) / fullW) * 100}%`, top: `${((y - oy) / fullH) * 100}%` });
   const lvl = skillLevel(s, 'street');
+  // Open centred on you (when the map is wider than the screen).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = ((here[0] + 0.5 - ox) / fullW) * el.scrollWidth - el.clientWidth / 2;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [below]);
 
   return (
     <div className="worldmap-backdrop" onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-label="World map">
       <div className="worldmap">
         <div className="worldmap-head">
-          <h2 className="headline">{below ? 'The sewer' : 'The island'}</h2>
+          <h2 className="headline">{below ? 'The sewer' : 'The Underworld'}</h2>
           <button className="btn tiny" onClick={onClose} aria-label="Close the map">
             ×
           </button>
         </div>
-        <div className="worldmap-canvas" style={{ aspectRatio: `${fullW} / ${fullH}` }}>
+        {/* The whole map is wide (the Industrial zone and the city): on a phone it scrolls sideways instead of shrinking, and
+            opens centred on you. */}
+        <div className="worldmap-scroll" ref={scrollRef}>
+        <div className={`worldmap-canvas ${below ? '' : 'wide'}`} style={{ aspectRatio: `${fullW} / ${fullH}` }}>
           <canvas ref={canvasRef} />
           {areas.map((a) => {
             const locked = a.crimes.length > 0 && a.crimes.every((id) => canStart(s, id));
@@ -197,6 +208,7 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
           })}
           {s.grave && inSewer(s.grave.x, s.grave.y) === below && <span className="map-marker grave" style={at(s.grave.x + 0.5, s.grave.y + 0.5)} title="Your grave" />}
           <span className="map-marker you" style={at(here[0] + 0.5, here[1] + 0.5)} title="You are here" />
+        </div>
         </div>
 
         {sel ? (

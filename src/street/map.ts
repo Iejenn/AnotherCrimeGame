@@ -17,11 +17,16 @@ export const BLOCK_SIZE = 2 * LOT_SIZE;
 export const STREET = 7;
 /** From one block to the next. */
 export const PITCH = BLOCK_SIZE + STREET;
-/** The city is 3 × 3 blocks; east of it the Industrial zone is another 3 × 3 (docs/design.md §14). */
-export const CITY_COLS = 3;
+/** The Industrial zone is 3 × 3 blocks on the west; the city is 3 × 3 east of it (docs/design.md §14). Block columns
+ *  0–2 are the zone, 3–5 the city. */
 export const ZONE_COLS = 3;
-export const BCOLS = CITY_COLS + ZONE_COLS;
+export const CITY_COLS = 3;
+export const BCOLS = ZONE_COLS + CITY_COLS;
 export const BROWS = 3;
+/** The city's first block column. */
+export const CITY_BX = ZONE_COLS;
+/** How far east the city moved when the Industrial zone came in on its west side (v0.41): 3 blocks. */
+export const CITY_X = ZONE_COLS * PITCH;
 export const W = BCOLS * PITCH + STREET;
 export const H = BROWS * PITCH + STREET;
 /** How wide the beach around the city is, in tiles (then it's open ocean). */
@@ -57,8 +62,9 @@ export const lotRect = (bx: number, by: number, lx: number, ly: number): Rect =>
 export type LotLetter = 'A' | 'B' | 'C' | 'D';
 /** City blocks are 001–009; the Industrial zone's blocks are I-001–I-009 (numbered the same way, within the zone). */
 export const blockName = (bx: number, by: number) =>
-  bx < CITY_COLS ? String(by * CITY_COLS + bx + 1).padStart(3, '0') : `I-${String(by * ZONE_COLS + (bx - CITY_COLS) + 1).padStart(3, '0')}`;
-export const inZone = (x: number) => x >= CITY_COLS * PITCH + STREET;
+  bx >= CITY_BX ? String(by * CITY_COLS + (bx - CITY_BX) + 1).padStart(3, '0') : `I-${String(by * ZONE_COLS + bx + 1).padStart(3, '0')}`;
+/** West of the city's first block: the Industrial zone. */
+export const inZone = (x: number) => x < CITY_X;
 export const lotLetter = (lx: number, ly: number): LotLetter => (['A', 'B', 'C', 'D'] as const)[ly * 2 + lx];
 export const lotName = (bx: number, by: number, lx: number, ly: number) => `${blockName(bx, by)}-${lotLetter(lx, ly)}`;
 /** Block "005" → (bx, by). */
@@ -66,7 +72,7 @@ const blockXY = (name: string): [number, number] => {
   const zone = name.startsWith('I-');
   const n = Number(zone ? name.slice(2) : name) - 1;
   if (!(n >= 0 && n < 9)) throw new Error(`no block ${name}`);
-  return [(n % 3) + (zone ? CITY_COLS : 0), Math.floor(n / 3)];
+  return [(n % 3) + (zone ? 0 : CITY_BX), Math.floor(n / 3)];
 };
 /** Block "005" and lot "C" → [bx, by, lx, ly]. */
 const lotXY = (block: string, letter: LotLetter): [number, number, number, number] => {
@@ -344,7 +350,7 @@ export const SEWER_BRIDGES = [6, 16];
 export const GW = W;
 export const GH = SEWER.y1 + 3;
 /** The pothole: an open manhole in the middle of the crossing east of the candy shop. */
-export const MANHOLE: [number, number] = [2 * PITCH + 3, 2 * PITCH + 3];
+export const MANHOLE: [number, number] = [CITY_X + 2 * PITCH + 3, 2 * PITCH + 3];
 /** The ladder on the sewer's north wall. */
 export const SEWER_LADDER: [number, number] = [SEWER.x0 + 2, SEWER.y0];
 /** Climbing between the street and the sewer: stand at `at` (on it or next to it), climb, and you're at `to`. The
@@ -417,7 +423,9 @@ export const LOTS: Lot[] = (() => {
   const out: Lot[] = [];
   const special = new Set(SPECIAL.map(([b, l]) => `${b}-${l}`));
   const parks = new Set(PARKS.map(([b, l]) => `${b}-${l}`));
-  for (let bx = 0; bx < BCOLS; bx++)
+  // The city's blocks first, then the zone's: the city's buildings come out exactly as before the zone was added.
+  const cols = [...Array.from({ length: CITY_COLS }, (_, i) => CITY_BX + i), ...Array.from({ length: ZONE_COLS }, (_, i) => i)];
+  for (const bx of cols)
     for (let by = 0; by < BROWS; by++)
       for (let ly = 0; ly < 2; ly++)
         for (let lx = 0; lx < 2; lx++) {
@@ -728,7 +736,7 @@ export const PARKED_CARS: ParkedCar[] = (() => {
   // Each street between two crossings is one block long (10 tiles). About half get a car, in the lane next to one
   // of the two sidewalks (lane tiles 2 or 4 of the 7-wide street), never in front of the spawn.
   for (let k = 0; k <= BROWS; k++)
-    for (let bx = 0; bx < CITY_COLS; bx++) {
+    for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) {
       if (rng() < 0.45) continue;
       const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
       // Between the zebra crossings at both ends (they take the first and last 3 tiles of the street).
@@ -736,7 +744,7 @@ export const PARKED_CARS: ParkedCar[] = (() => {
       if (lane === SPAWN[1] || (SPAWN[0] >= x - 1 && SPAWN[0] <= x + 3 && Math.abs(lane - SPAWN[1]) < 3)) continue;
       out.push({ x, y: lane, along: 'x', color: colors[Math.floor(rng() * colors.length)] });
     }
-  for (let k = 0; k <= CITY_COLS; k++)
+  for (let k = CITY_BX; k <= CITY_BX + CITY_COLS; k++)
     for (let by = 0; by < BROWS; by++) {
       if (rng() < 0.55) continue;
       const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);

@@ -731,10 +731,10 @@ Changes for owners: all tin gear is wearable at level 1 (the bat needed Melee 3,
 hit becomes 1 (was 2), in line with the other two; and they're worth less when sold (the bat $250 → $10, the knife
 $250 → $5, the knuckles $50 → $5).
 
-### Map: the Industrial zone (to scope in detail before building)
+### Map: the Industrial zone
 
 - A new part of the map, the **Industrial zone**: its own 3×3 grid of blocks, like the city (its blocks numbered
-  001–009 within the zone), east of the city.
+  001–009 within the zone), west of the city.
 - **The Factory** takes **003 and 006 merged** (no street between them): a large abandoned factory building (corrugated
   roof with broken skylights, brick walls, big rusty roll-up doors) with an **empty parking lot** beside it (cracked
   asphalt, faded lines, no cars or meters, a chain-link fence with one opening for cars). It's large on purpose: the
@@ -744,9 +744,11 @@ $250 → $5, the knuckles $50 → $5).
 
 ### Built: the Industrial zone, the Factory, Tinkering and the tin tier (v0.41)
 
-- **The map** is 6 blocks wide now (109 tiles): the city (001–009) and east of it the Industrial zone (I-001–I-009),
-  corrugated-metal sheds and workshops, no trees, parked cars or street furniture. The city's own layout didn't change.
-- **The Factory** on I-003 + I-006 (the street between them is part of it): a brick hall with a sawtooth roof and a
+- **The map** is 6 blocks wide now (109 tiles): the Industrial zone (I-001–I-009) on the **west**, corrugated-metal sheds
+  and workshops, no trees, parked cars or street furniture; the city (001–009) east of it. The city's own layout didn't
+  change, but in tile coordinates it moved 51 tiles east (`CITY_X`): migration 0026 moved everything the server keeps
+  (positions, spots, stations, the pothole, the spawn, the hospital, the shops' areas, the guard, Pigeons and thugs).
+- **The Factory** on I-003 + I-006 (merged: one sidewalk all round, the street between them is part of the site): a brick hall with a sawtooth roof and a
   2-tile roll-up door, 3 plate presses (west wall) and 3 workbenches (east wall); its parking lot is fenced with one
   opening on the west side. Inside it's a room (walls fade, roof lifts).
 - **Tinkering** (8th skill): `CRAFTS` in `metals.ts` = `public.crafts`. Press: 1 salvage → 1 sheet, 2 ticks, 1 XP (tin).

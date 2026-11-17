@@ -11,7 +11,7 @@ import {
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
-  CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
+  CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -298,7 +298,7 @@ export function buildCity(scene: THREE.Scene) {
   }
   // Street trees in pits along the sidewalks, a few per block side (never in front of a door or a spot).
   const pit = new Batch(geoBox(0.8, 0.02, 0.8), lam(0x3a2a1e), false);
-  for (let bx = 0; bx < CITY_COLS; bx++) // (no trees in the Industrial zone)
+  for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) // (no trees in the Industrial zone)
     for (let by = 0; by < BROWS; by++) {
       const b = blockRect(bx, by);
       const spots: [number, number][] = [];
@@ -385,7 +385,7 @@ export function buildCity(scene: THREE.Scene) {
     // Per block side, maybe a hydrant, a bin, a mailbox, newspaper boxes, a bench or a bike rack, on the sidewalk
     // close to the buildings or the curb. Never in front of a door.
     const kinds = [() => L.buildHydrant(), () => L.buildBin(rng() < 0.3), () => L.buildMailbox(), () => L.buildNewsBoxes(), () => L.buildBench(), () => L.buildBikeRack()];
-    for (let bx = 0; bx < CITY_COLS; bx++) // (city streets only)
+    for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) // (city streets only)
       for (let by = 0; by < BROWS; by++) {
         const b = blockRect(bx, by);
         const sides = [
@@ -1675,8 +1675,21 @@ export function buildCity(scene: THREE.Scene) {
     const cz = (Z0 + Z1) / 2;
     const HT = 3.4;
     const t = 0.16;
-    // The whole site's ground first (it covers the old street between the two blocks).
-    add(geoBox(FACTORY_SITE.x1 + 1 - FACTORY_SITE.x0 + 0.6, 0.09, FACTORY_SITE.y1 + 1 - FACTORY_SITE.y0 + 0.6), pavement, cx, 0.045, (FACTORY_SITE.y0 + FACTORY_SITE.y1 + 1) / 2, false);
+    // The two blocks are merged into one site: one sidewalk all round it (covering the old street between them, its
+    // sides included), with a curb along the road, like every block.
+    {
+      const SW = 1.5;
+      const sx0 = FACTORY_SITE.x0 - SW;
+      const sx1 = FACTORY_SITE.x1 + 1 + SW;
+      const sz0 = FACTORY_SITE.y0 - SW;
+      const sz1 = FACTORY_SITE.y1 + 1 + SW;
+      const scx = (sx0 + sx1) / 2;
+      const scz = (sz0 + sz1) / 2;
+      add(geoBox(sx1 - sx0, 0.09, sz1 - sz0), pavement, scx, 0.045, scz, false);
+      const curb = lam(0x8a857c);
+      for (const [w, d, x, z] of [[sx1 - sx0, 0.12, scx, sz0], [sx1 - sx0, 0.12, scx, sz1], [0.12, sz1 - sz0, sx0, scz], [0.12, sz1 - sz0, sx1, scz]] as const)
+        add(geoBox(w, 0.11, d), curb, x, 0.055, z, false);
+    }
     // Floor.
     const floorTex = own(
       canvasTex(128, 128, (g) => {

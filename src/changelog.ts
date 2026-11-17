@@ -12,7 +12,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-17',
     title: 'Made of tin',
     items: [
-      'The Industrial zone opened east of the city. In it, the Factory: a huge abandoned hall with an empty parking lot in front. Get in through the gap in the fence.',
+      'The Industrial zone opened west of the city. In it, the Factory: a huge abandoned hall with an empty parking lot in front. Get in through the gap in the fence.',
+      'The world map is called The Underworld now. On a phone it opens centred on you and you can scroll it sideways.',
       'New skill: Tinkering. Press tin salvage into sheets at the plate presses, then make weapons and armour at the workbenches. A new piece unlocks every level.',
       'Armour: wear a helmet, a plate vest and leg guards. Your armour makes enemies miss you more, and it shows on your character.',
       'The old weapons are now tin: Brass Knuckles became Tin Knuckles, the Baseball Bat the Tin Bat, the Knife the Tin Knife. You keep yours, and you can use all three from level 1.',
