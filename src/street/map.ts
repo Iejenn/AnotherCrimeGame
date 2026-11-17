@@ -280,8 +280,8 @@ export const THRIFT_GATE: [number, number] = [THRIFT_YARD.x0 + 2, THRIFT_YARD.y1
 // reaches into the old street: brick walls, a corrugated roof with broken skylights, a wide roll-up door on the south
 // side. Inside (a room you walk into, the roof lifts): 3 plate presses along the west wall, 3 workbenches along the east
 // wall, crates at the back, lots of room in the middle (it's where players meet to work). In front of it, on I-006, an
-// empty parking lot: cracked asphalt, faded lines, no cars, a chain-link fence with one opening for cars (west side,
-// towards the city).
+// empty parking lot: cracked asphalt, faded lines, no cars, a chain-link fence with an opening for cars on the west and
+// on the east side.
 //   x 92 ………………………… 101
 //   . . c c . . c c . .   y 7    c = crates
 //   P . . . . . . . . B           P = a plate press, B = a workbench (at y 9, 12, 15)
@@ -299,8 +299,11 @@ export const FACTORY: Room = {
 /** The roll-up door: two tiles wide, in the middle of the south wall. */
 export const FACTORY_DOOR: [number, number][] = [[FACTORY.x0 + 4, FACTORY.y1], [FACTORY.x0 + 5, FACTORY.y1]];
 export const FACTORY_LOT: Rect = { x0: FACTORY_SITE.x0, y0: FACTORY.y1 + 1, x1: FACTORY_SITE.x1, y1: FACTORY_SITE.y1 };
-/** The parking lot's opening for cars, on the west side. */
-export const FACTORY_LOT_GATE: [number, number][] = [[FACTORY_LOT.x0, FACTORY_LOT.y0 + 6], [FACTORY_LOT.x0, FACTORY_LOT.y0 + 7]];
+/** The parking lot's openings for cars: one on the west side and one on the east side, opposite each other. */
+export const FACTORY_LOT_GATE: [number, number][] = [FACTORY_LOT.x0, FACTORY_LOT.x1].flatMap((x) => [
+  [x, FACTORY_LOT.y0 + 6] as [number, number],
+  [x, FACTORY_LOT.y0 + 7] as [number, number],
+]);
 ROOMS.push(FACTORY);
 
 export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0, 4], [4, 4]].map(([dx, dy]) => [THRIFT_YARD.x0 + dx, THRIFT_YARD.y0 + dy]);
@@ -402,7 +405,7 @@ export const ENCLOSURES: Enclosure[] = [
     id: 'factory_lot', rect: FACTORY_LOT,
     openings: [
       ...FACTORY_DOOR.map(([x, y]) => ({ inside: [x, y + 1] as [number, number], outside: [x, y] as [number, number] })),
-      ...FACTORY_LOT_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x - 1, y] as [number, number] })),
+      ...FACTORY_LOT_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x === FACTORY_LOT.x0 ? x - 1 : x + 1, y] as [number, number] })),
     ],
   },
   // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
