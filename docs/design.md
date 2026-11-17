@@ -731,16 +731,16 @@ Changes for owners: all tin gear is wearable at level 1 (the bat needed Melee 3,
 hit becomes 1 (was 2), in line with the other two; and they're worth less when sold (the bat $250 → $10, the knife
 $250 → $5, the knuckles $50 → $5).
 
-### Map: the industrial area
+### Map: the Industrial zone (to scope in detail before building)
 
-- **East side:** the island grows one column of blocks to the east. New blocks are numbered **010–012** so the
-  existing numbers stay (001 002 003 010 / 004 005 006 011 / 007 008 009 012).
-- **011, the Factory:** a large factory in the middle of the block with an empty parking lot around it (cracked
-  asphalt, faded lines, a few lamps, a fence). Inside: **presses** along one wall, **workbenches** along the other.
-- **009, the Warehouse:** the block's buildings are replaced by one large warehouse with the 5 copper crates.
-- 010 and 012: industrial buildings for now, kept free for later tiers (e.g. the scrapyard).
-- The later tiers' places (scrapyard, docks, monument square, construction site, airfield, quarry) come as the level cap
-  goes up, each as a new area.
+- A new part of the map, the **Industrial zone**: its own 3×3 grid of blocks, like the city (its blocks numbered
+  001–009 within the zone), east of the city.
+- **The Factory** takes **003 and 006 merged** (no street between them): a large abandoned factory building (corrugated
+  roof with broken skylights, brick walls, big rusty roll-up doors) with an **empty parking lot** beside it (cracked
+  asphalt, faded lines, no cars or meters, a chain-link fence with one opening for cars). It's large on purpose: the
+  place where players meet to work. Inside: **3 plate presses** and **3 workbenches** (if they fit).
+- The rest of the zone: industrial buildings for now, for later tiers.
+- **Tin comes first** (the Thrift Store, built in v0.40); the copper Warehouse is skipped for now.
 
 ### Systems to build once (so each tier after is just data)
 
