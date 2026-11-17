@@ -655,3 +655,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* On wide screens the bag keeps phone-sized slots. */
 .hud-panel .bag-mini { max-width: 520px; }
 .hud-panel .bag-panel .item-strip, .hud-panel .bag-panel .panel-head { max-width: 540px; }
+/* The bag and skills panels are only as tall as what's in them (the street gets the rest); the chat keeps its height. */
+.hud-panel { height: auto; max-height: min(36vh, 290px); }
+.hud-panel.panel-chat { height: min(36vh, 290px); }
