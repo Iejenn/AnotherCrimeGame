@@ -10,8 +10,8 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.43.2',
     date: '2026-11-17',
-    title: 'Factory sign',
-    items: ['The FACTORY sign over the door is readable again (windows were drawn over it).'],
+    title: 'Signs fixed',
+    items: ['The FACTORY sign over the door is readable again (windows were drawn over it).', 'The Iron Saints neon sign sits above the door now, and the red door light no longer covers it.'],
   },
   {
     version: '0.43.1',

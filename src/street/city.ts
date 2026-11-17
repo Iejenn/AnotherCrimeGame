@@ -2179,15 +2179,16 @@ export function buildCity(scene: THREE.Scene) {
         g.fillText('— M C —', 256, 104);
       }, false),
     );
-    const neon = add(own(new THREE.PlaneGeometry(4.0, 1.0)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, HT - 0.1, fz - 0.06, false);
+    // The sign sits above the door (it reaches a little over the roof line), clear of the door and its light.
+    const neon = add(own(new THREE.PlaneGeometry(3.6, 0.9)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, 2.4, fz - 0.08, false);
     neon.rotation.y = Math.PI;
-    props.push(neon, add(geoBox(4.15, 1.12, 0.05), lam(0x141418), cx, HT - 0.1, fz - 0.02, false));
+    props.push(neon, add(geoBox(3.75, 1.02, 0.05), lam(0x141418), cx, 2.4, fz - 0.03, false));
     for (const x of [X0 + 1.6, X1 - 1.6]) {
       add(geoBox(1.4, 0.8, 0.04), lam(0x101014), x, 1.2, fz - 0.01, false);
       const beer = add(own(new THREE.PlaneGeometry(0.6, 0.25)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEER', '#101014', '#ffb040')) })), x, 1.25, fz - 0.04, false);
       beer.rotation.y = Math.PI;
     }
-    add(geoBox(0.16, 0.12, 0.12), lam(0xff3030, { emissive: 0xff2020, emissiveIntensity: 2 }), cx, 2.0, fz - 0.08, false);
+    add(geoBox(0.12, 0.16, 0.12), lam(0xff3030, { emissive: 0xff2020, emissiveIntensity: 2 }), d1 + 0.3, 1.6, fz - 0.08, false); // a red light beside the door
     // The neon spills red onto the sidewalk.
     const glow = new THREE.PointLight(0xff3a5a, 5, 6, 1.5);
     glow.position.set(cx, 1.6, Z0 - 1.2);
