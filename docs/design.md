@@ -599,3 +599,124 @@ Outside fights eating still takes half a second.
   total level.
 - Everything is data: a new drop is a row in `loot`, a new recipe a row in `recipes` (+ the item), a new cooking spot a
   row in `stations` (+ `STATIONS`).
+
+## 14. Metals, Scrapping, Tinkering and gear (the long-term plan, agreed 2026-11-17)
+
+The master plan for gear, so every tier slots in as **data** later and nothing early has to be rebuilt. Not built yet:
+this section is the reference for building it. Numbers marked *(tunable)* can change; the structure shouldn't.
+
+### The ladder: 10 metal tiers, one every 10 levels
+
+The XP curve is built for levels 1–100 (§3; the cap is 30 for now, so tiers 1–4 are reachable at first). One tier
+level gates everything for that metal: the **Scrapping** level to gather it, the **Tinkering** level to make gear from
+it, the **Melee** level to wield its weapons and the **Defense** level to wear its armour (like OSRS rune = 40 everything).
+
+| Tier | Metal | Level | Scrap it from *(ideas; each tier is a new place on the map)* |
+|---|---|---|---|
+| 1 | Tin | 1 | cans in bins and dumpsters, all over the city |
+| 2 | Copper | 10 | AC units and wiring: the **Warehouse** (block 009, 5 crates) |
+| 3 | Aluminium | 20 | car parts and rims: a scrapyard (east side) |
+| 4 | Brass | 30 | old plumbing, taps: the sewer, old apartments |
+| 5 | Bronze | 40 | statues, plaques: a monument square |
+| 6 | Iron | 50 | railings, grates, pipes: the docks |
+| 7 | Steel | 60 | car wrecks, beams: a construction site |
+| 8 | Hardened steel | 70 | machinery: the Factory's back halls |
+| 9 | Titanium | 80 | bike frames, aircraft parts: an airfield or hangar |
+| 10 | Tungsten | 90 | drill bits: a quarry or mine |
+
+**Decided:**
+- **We salvage, we don't smelt.** No alloys and no furnaces: every metal is scrapped as it is (bronze and brass too).
+- **No tools yet.** Only your level gates scrapping. Tools (pliers → bolt cutters → angle grinder, faster scrapping)
+  can come later as an extra.
+- **Selling:** gear and materials sell only to Ray (weapons/armour) and Eddy (the rest), at 25% of their value, as
+  now. **Player trading comes later** and will make Tinkering worth more.
+
+### The loop
+
+1. **Scrapping** (gathering skill): tap a scrap spot, work it a few ticks, get **scrap** of that metal + XP. The spot
+   is empty for a while, then refills (the same machinery as the street-crime spots, see "Systems" below). The
+   Warehouse's copper crates: **4 ticks** of work, then empty for **10 s**; 5 crates to rotate between.
+2. **Tinkering** (making skill), in the **Factory** (a new industrial area east of the city, see "Map"):
+   - the **press** flattens scrap into **sheets**: 1 scrap → 1 sheet, a little Tinkering XP, "press all" like cooking;
+   - the **workbench** turns sheets into gear: you pick the item; it costs sheets of that metal.
+3. **Combat:** the gear makes Melee and Defense pay off. Extras are sold to Ray.
+
+### Every tier makes the same six items
+
+Three weapons and three pieces of armour per metal (10 tiers = 60 items). Names: "Tin Knuckles", "Copper Knife",
+"Steel Bat", "Iron Helmet"…
+
+| Item | Slot | Speed | Sheets | Tinkering level |
+|---|---|---|---|---|
+| Knuckles (regular) | weapon | every 3 ticks (1.5 s) | 2 | tier + 1 |
+| Knife (fast) | weapon | every 2 ticks (1 s) | 2 | tier + 3 |
+| Bat (slow) | weapon | every 6 ticks (3 s) | 3 | tier + 5 |
+| Helmet | head | | 2 | tier |
+| Leg guards | legs | | 3 | tier + 2 |
+| Vest | body | | 4 | tier + 4 |
+
+(Tier 1 starts at level 1, so tin's items are made at 1–5; copper's at 10–15, and so on.)
+
+**Stats come from one formula per item type** *(tunable)*, so balancing the ladder means changing a few numbers, not
+60 items. With B = tier + 1 (tin 2 … tungsten 11):
+- **Knuckles:** max hit B.
+- **Bat:** max hit 2B + 1 (it swings half as often; on average the same damage per second as knuckles).
+- **Knife:** max hit round(2(B + 1)/3 − 1), at least 1 (it swings 1.5× as often; the same damage per second).
+- **Armour defence bonus:** helmet 2 × tier, leg guards 3 × tier, vest 4 × tier (a full set: 9 × tier; tin +9,
+  tungsten +90). It counts in the defence roll: (Defense level + 8) × (64 + bonus) (§12; today the bonus is fixed at 0).
+
+| Tier | Knuckles | Knife | Bat | Full armour |
+|---|---|---|---|---|
+| Tin | 2 | 1 | 5 | +9 |
+| Copper | 3 | 2 | 7 | +18 |
+| Aluminium | 4 | 2 | 9 | +27 |
+| Brass | 5 | 3 | 11 | +36 |
+| Bronze | 6 | 4 | 13 | +45 |
+| Iron | 7 | 4 | 15 | +54 |
+| Steel | 8 | 5 | 17 | +63 |
+| Hardened steel | 9 | 6 | 19 | +72 |
+| Titanium | 10 | 6 | 21 | +81 |
+| Tungsten | 11 | 7 | 23 | +90 |
+
+(Melee still adds +1 max hit per 8 levels on top, §12.)
+
+### The existing weapons become the tin tier
+
+Ray's brass knuckles, the baseball bat and the thugs' knife are converted to **Tin Knuckles**, **Tin Bat** and **Tin
+Knife** (one migration renames them in everyone's bag, equipment, grave and on the ground; nobody loses anything).
+Ray sells the tin weapons (and later tin armour) as the starter kit; thugs drop the tin knife. **Every higher tier is
+player-made** (scrapped and tinkered), which gives Tinkering its market.
+Changes for owners: all tin gear is wearable at level 1 (the bat needed Melee 3, the knife Melee 5), and the knife's
+max hit becomes 1 (was 2), which brings it in line with the other two.
+
+### Map: the industrial area
+
+- **East side:** the island grows one column of blocks to the east. New blocks are numbered **010–012** so the
+  existing numbers stay (001 002 003 010 / 004 005 006 011 / 007 008 009 012).
+- **011, the Factory:** a large factory in the middle of the block with an empty parking lot around it (cracked
+  asphalt, faded lines, a few lamps, a fence). Inside: **presses** along one wall, **workbenches** along the other.
+- **009, the Warehouse:** the block's buildings are replaced by one large warehouse with the 5 copper crates.
+- 010 and 012: industrial buildings for now, kept free for later tiers (e.g. the scrapyard).
+- The later tiers' places (scrapyard, docks, monument square, construction site, airfield, quarry) come as the level cap
+  goes up, each as a new area.
+
+### Systems to build once (so each tier after is just data)
+
+1. **One recipe system** for everything you make: inputs (any items × count) → output, at a station kind, for a
+   skill, with a level and XP. Cooking moves into it; the press and the workbench are rows in it.
+2. **One gathering system:** spots get a **skill** (street crimes and scrapping use the same spots, timers, emptying
+   and refilling; `finish_attempt` gives the spot's skill its XP).
+3. **Items generated from one source:** a script writes the server's items table from `items.ts` (with the tier
+   formulas), so the game and the server never disagree. Needed with 60+ items.
+4. **Equipment slots:** weapon, **head, body, legs**. The storage (a JSON object) takes more slots later (gloves,
+   boots, off-hand) without a rebuild. Armour shows on your character.
+5. **Combat:** the armour's defence bonus counts in the enemy's hit roll; weapon damage and speed as now.
+6. **New skills:** Scrapping and Tinkering, after Cooking on the Skills and Highscores tabs, each with its own XP.
+
+### Build order
+
+1. **Foundations + tin:** the recipe and gathering systems, items generated from data, armour slots and defence in
+   fights, the tin conversion, Ray's tin kit. Tin scrap from bins around the city; a first press and workbench.
+2. **East side + the Factory + the Warehouse:** the map grows; Tinkering moves to the Factory; copper crates.
+3. **Each next tier** (aluminium, brass…): a new scrap place, and the tier's items and recipes as data. Tiers 5–10
+   wait until the level cap goes above 30.
