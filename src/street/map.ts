@@ -880,9 +880,9 @@ export const NPCS: Npc[] = [
   },
   // The hospital: the receptionist behind her desk, and two doctors walking around the ward (between the beds).
   { id: 'receptionist', name: 'Receptionist', role: 'Hospital', kind: 'receptionist', x: LOBBY.x0 + 2, y: LOBBY.y0 + 1, area: { x0: LOBBY.x0 + 2, y0: LOBBY.y0 + 1, x1: LOBBY.x0 + 2, y1: LOBBY.y0 + 1 }, named: true },
-  // (v0.43: the doctors have names, JD and Elliot; Elliot helps with "Sewer Problems".)
-  { id: 'doctor_0', name: 'JD', role: 'Doctor', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
-  { id: 'doctor_1', name: 'Elliot', role: 'Doctor', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
+  // (v0.43: the doctors have names: Elliot (long hair, green scrubs) and JD (short hair, light blue); Elliot helps with "Sewer Problems".)
+  { id: 'doctor_0', name: 'Elliot', role: 'Doctor', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
+  { id: 'doctor_1', name: 'JD', role: 'Doctor', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
   // Splinter, sitting against the sewer's north wall by the tunnel (he gives the quest "Sewer Problems").
   { id: 'splinter', name: 'Splinter', role: 'The sewer', kind: 'splinter', x: SPLINTER[0], y: SPLINTER[1], area: { x0: SPLINTER[0], y0: SPLINTER[1], x1: SPLINTER[0], y1: SPLINTER[1] }, named: true },
   // The Bank: three bankers behind the counter (talk to one to open your bank) and a guard by the door.

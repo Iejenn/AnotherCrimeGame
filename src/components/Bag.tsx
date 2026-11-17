@@ -13,7 +13,8 @@ export function bagSlots(s: GameState): Slot[] {
     .filter(([id]) => ITEM_BY_ID[id])
     .sort((a, b) => ITEM_BY_ID[b[0]].value - ITEM_BY_ID[a[0]].value)
     .flatMap(([id, count]) => Array.from({ length: count }, (_, n) => ({ kind: 'loot' as const, id, n, count: 1 })));
-  return [{ kind: 'cash' }, ...items];
+  // No cash, no cash slot (after banking it all, say): the items move up. (A slot stays kept for cash: 29 items max.)
+  return s.cash > 0 ? [{ kind: 'cash' }, ...items] : items;
 }
 
 export const slotKey = (sl: Slot) => (sl.kind === 'cash' ? 'cash' : `${sl.id}#${sl.n}`);

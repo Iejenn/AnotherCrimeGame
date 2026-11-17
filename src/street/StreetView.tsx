@@ -13,7 +13,7 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
@@ -550,7 +550,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       if (e.fighter && e.fighter !== w.myId) return say(`Someone else is fighting that ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'thing'}.`);
       const at = enemyAt(e);
       const [ex, ey] = tileOf(at.x, at.z);
-      if (walkTo(neighbors(ex, ey), null)) {
+      if (walkTo(beside(ex, ey), null)) {
         me.goalEnemy = id;
         if (!me.path.length) reachEnemy();
       }
@@ -675,6 +675,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     const said = new Map<string, { text: string; until: number }>();
     let lastSaid = Math.max(0, ...(chatRef.current?.messages ?? []).map((m) => m.id));
 
+    /** The tiles next to (x, y) on the same side of a wall or fence: you work a dumpster in a fenced yard from inside
+     *  the yard, not from the street reaching through the fence. */
+    const beside = (x: number, y: number) => neighbors(x, y).filter(([nx, ny]) => enclosureAt(nx, ny) === enclosureAt(x, y));
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
       const path = findPath(blocked, W, GH, tileOf(me.pos.x, me.pos.z), goals, canStep);
       if (!path) {
@@ -827,7 +830,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (!st) return;
         stopWorking();
         setTalkingRef.current(null);
-        if (walkTo(neighbors(st.x, st.y), null)) {
+        if (walkTo(beside(st.x, st.y), null)) {
           me.goalStation = st.id;
           if (!me.path.length) reachStation();
         }
@@ -868,13 +871,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (npc.kind === 'bartender') return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
         if (npc.kind === 'guard') return say('The guard patrols the lot with his flashlight. Stay out of the light.');
         if (npc.kind === 'receptionist') return say('"You\'re all patched up, hon. Try not to come back too soon."');
-        if (npc.kind === 'doctor') return say('The doctor is busy with the patients.');
         if (npc.kind === 'doorman') return say('The guard nods at you. "Keep it civil in here."');
         stopWorking();
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
         // A banker stands behind the counter: you talk to them from the row in front of it.
-        const goals: [number, number][] = npc.kind === 'banker' ? [[ex, BANK_COUNTER_Y + 1], [ex - 1, BANK_COUNTER_Y + 1], [ex + 1, BANK_COUNTER_Y + 1]] : neighbors(ex, ey);
+        const goals: [number, number][] = npc.kind === 'banker' ? [[ex, BANK_COUNTER_Y + 1], [ex - 1, BANK_COUNTER_Y + 1], [ex + 1, BANK_COUNTER_Y + 1]] : beside(ex, ey);
         if (walkTo(goals, null, npc)) {
           ring.position.set(ex + 0.5, 0.08, ey + 0.5);
           (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
@@ -889,7 +891,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (me.attached?.id === n.id && st.player.job?.crimeId === n.crimeId) return; // mid-attempt: ignore extra taps
         stopWorking();
         const [nx, ny] = nodeTile(n);
-        if (walkTo(neighbors(nx, ny), n)) {
+        if (walkTo(beside(nx, ny), n)) {
           ring.position.set(nx + 0.5, 0.08, ny + 0.5);
           (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
           (ring.material as THREE.MeshBasicMaterial).color.set(0xd9a441);

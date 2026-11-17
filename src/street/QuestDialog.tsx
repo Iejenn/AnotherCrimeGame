@@ -7,7 +7,7 @@ import type { Npc } from './map';
 import { QUEST_LINES } from '../game/data/quests';
 
 /** Which quest person an NPC is (for quest_talk). */
-const TALK_ID: Record<string, string> = { splinter: 'splinter', doctor_1: 'elliot' };
+const TALK_ID: Record<string, string> = { splinter: 'splinter', doctor_0: 'elliot' };
 export const isQuestNpc = (npc: Npc) => npc.id === 'splinter' || npc.kind === 'doctor';
 
 export function QuestDialog({ npc, api, pos, onClose }: { npc: Npc; api: GameApi; pos: [number, number]; onClose: () => void }) {
