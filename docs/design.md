@@ -873,3 +873,54 @@ log in and in chat).
 - **The log strip:** whenever the full chat isn't open, the last two lines of the log stay over the bottom of the street.
 - **The bag** uses bank-sized slots, 10 across; tap an item and its buttons (Wield, Eat, Use, Drop) show in one line.
 - The normal arrow cursor everywhere (no hand).
+
+## 18. The look: rules for every 3D model (the art red line)
+
+Every model in the game follows these rules, whoever makes it: built in code, made in Blender (by script or by hand),
+or taken from an asset pack (then adapted). Goal: an old-school RuneScape feel. Chunky, faceted, readable from the
+game's camera, in our gritty dusk colours. Nothing smooth or detailed next to something blocky.
+
+### Shape
+- **Low-poly and faceted.** Flat shading (no smooth normals) everywhere. You see the facets.
+- **Round things stay angular.** Circles and cylinders get **6–12 sides** (8 for most things), and spheres are
+  **icosahedrons, at most 1 subdivision**. No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
+- **Chunky proportions** (RuneScape): slightly big heads, hands and feet on people, thick limbs. A clear silhouette
+  matters more than detail; detail you can't see from the game's camera (about 15 tiles away, looking down) isn't made.
+- **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
+  Models stand on the floor at their origin.
+
+### Triangle budgets (the maximum; less is better)
+| Kind | Examples | Max triangles |
+|---|---|---|
+| Small item | food, loot, bottles, cans, a key | 200 |
+| Prop / furniture | pallet, stool, table, dumpster, barrier, TV | 300 |
+| Small creature | rat, pigeon | 400 |
+| Medium creature | guard dog, giant rat | 600 |
+| Person | you, NPCs, thugs, bikers (with gear) | 1,200 |
+| Vehicle | car, truck, motorbike | 800 |
+| Building | one building, all its parts | 1,500 |
+
+Measured on 2026-11-17 (`scripts/preview/models.html` counts them): the Kenney food is 44–176 and its furniture 60–280;
+the urban kit's props are 4–124 (trucks 48: they use a texture). Our code-built pigeon is 304, rat 632, dog 460.
+**Over budget, to fix:** the code-built people (1,906: their heads and hands are smooth spheres) and the code-built
+rat (632). The first Blender rat (718) was over too: that's why this section exists.
+
+### Colour and material
+- **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney
+  packs' small palette or colormap textures, and the Retro Urban Kit's textures, which are dimmed (`tone: 'grimy'`).
+- **Matte:** roughness 1, metalness 0. Nothing shiny.
+- **Our palette:** the dusk colours in `city.ts` (`C`): brick, grimy concrete, soot, muted trims. Bright pack colours
+  are toned down when they load (`models.ts`: `dull`, `dark`, `grimy`). Strong colour is kept for what must catch
+  the eye: neon signs, lamps, eyes, hazard stripes, the metals of gear.
+- **Glow** (emissive) only for lights, screens, neon and creatures' eyes.
+
+### Files and parts
+- **.glb**, at most **100 KB** each, in `public/models/<pack or kind>/`. Only models the game uses are copied in.
+- **Parts that move are separate objects**, pivoted where they bend, named like the code-built ones: `body`, `head`,
+  `leg_0`…`leg_3`, `tail`, `wing_l`/`wing_r`, so the game's animations work on them. People keep the rig names in
+  `character.ts` (arms, legs, body), so gear attaches.
+- **Sources:** Kenney (CC0) packs, adapted to these rules; our own models from Blender scripts in `scripts/blender/`
+  (Blender's Python package, `bpy`), which can be opened and tweaked by hand. Paid packs only after checking their
+  licence (Synty: not in a public repo, and not with AI-generated models; §17 history).
+- **Check before it goes in:** its triangle count and size (`scripts/preview/models.html`), and a screenshot next to
+  the models around it.
