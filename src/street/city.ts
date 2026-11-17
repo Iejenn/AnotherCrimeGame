@@ -1732,8 +1732,10 @@ export function buildCity(scene: THREE.Scene) {
     const props: THREE.Object3D[] = [];
     const glassMat = lam(0x3a4650, { emissive: 0x2a2010, emissiveIntensity: 0.5 });
     const broken = lam(0x141618);
+    const signX = (FACTORY_DOOR[0][0] + FACTORY_DOOR[FACTORY_DOOR.length - 1][0] + 1) / 2;
     for (let x = X0 + 1; x < X1 - 0.5; x += 1.6) {
-      props.push(add(geoBox(1.0, 0.7, 0.03), (x * 7) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z1 + 0.01, false));
+      // (No windows behind the name over the door: they covered the sign.)
+      if (Math.abs(x + 0.2 - signX) > 2.3) props.push(add(geoBox(1.0, 0.7, 0.03), (x * 7) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z1 + 0.01, false));
       props.push(add(geoBox(1.0, 0.7, 0.03), (x * 5) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z0 - 0.01, false));
     }
     for (let z = Z0 + 1; z < Z1 - 0.5; z += 1.8) {
@@ -1744,7 +1746,7 @@ export function buildCity(scene: THREE.Scene) {
     props.push(add(geoBox(d1 - d0 + 0.2, 0.35, 0.3), lam(0x7a4a32), (d0 + d1) / 2, 2.1, Z1 + 0.05));
     for (const x of [d0, d1]) props.push(add(geoBox(0.12, 2.0, 0.2), lam(0x5a4a3a), x, 1.0, Z1 + 0.02));
     // A painted name over the door.
-    const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.02, false);
+    const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.05, false);
     props.push(sign);
     // The roof: a closed slab on top of the walls, and on it a corrugated sawtooth: three ridges, each rising towards
     // the north with a steep glazed face there, and a skylight lying on each slope (the middle one broken). Closed shapes,

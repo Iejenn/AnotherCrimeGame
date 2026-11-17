@@ -8,6 +8,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.43.2',
+    date: '2026-11-17',
+    title: 'Factory sign',
+    items: ['The FACTORY sign over the door is readable again (windows were drawn over it).'],
+  },
+  {
     version: '0.43.1',
     date: '2026-11-17',
     title: 'Doctors fixed',
