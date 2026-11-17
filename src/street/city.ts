@@ -2012,7 +2012,7 @@ export function buildCity(scene: THREE.Scene) {
     const Y0 = HOTLINE_YARD.x0;
     const Y1 = HOTLINE_YARD.x1 + 1;
     const ycx = (Y0 + Y1) / 2;
-    add(geoBox(Y1 - Y0, 0.075, Z1 - Z0), lam(0x5f5c56), ycx, 0.037, cz, false);
+    add(geoBox(Y1 - Y0, 0.12, Z1 - Z0), lam(0x5f5c56), ycx, 0.06, cz, false);
     const wallM = brickMat(4, 0x8a5040);
     const coping = lam(0xa8a296);
     const halfWall = (x: number, z: number, w: number, d: number) => {
@@ -2056,9 +2056,10 @@ export function buildCity(scene: THREE.Scene) {
     const Z1 = JUNKYARD.y1 + 1;
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
-    add(geoBox(X1 - X0, 0.07, Z1 - Z0), lam(0x5a4a38), cx, 0.035, cz, false);
+    // (A bit higher than the block's pavement, so the two don't flicker through each other.)
+    add(geoBox(X1 - X0, 0.12, Z1 - Z0), lam(0x5a4a38), cx, 0.06, cz, false);
     for (let i = 0; i < 9; i++) {
-      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.072, Z0 + 1 + rng() * 8, false);
+      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
       oil.rotation.x = -Math.PI / 2;
     }
     const FH = 1.7;
@@ -2074,13 +2075,29 @@ export function buildCity(scene: THREE.Scene) {
       panel(X0 + 0.03, z + 0.5, false, i++);
       if (!JUNKYARD_GATE.some(([, gz]) => gz === z)) panel(X1 - 0.03, z + 0.5, false, i++);
     }
-    // The gate: two chain-link leaves swung open into the street, a "BEWARE OF THE DOG" sign.
+    // The gate: two chain-link leaves swung all the way open, flat against the fence outside, and a "BEWARE OF THE DOG"
+    // sign on the fence next to it.
     const g0 = JUNKYARD_GATE[0][1];
-    for (const [z, r] of [[g0, -1.1], [g0 + 2, 1.1]] as const) {
-      const leaf = add(geoBox(0.05, 1.5, 1.0), lam(0x6a6e74), X1 + 0.45, 0.75, z + (r < 0 ? 0.4 : -0.4), false);
-      leaf.rotation.y = r;
+    const g1 = JUNKYARD_GATE[JUNKYARD_GATE.length - 1][1] + 1;
+    const link = own(
+      canvasTex(32, 32, (g) => {
+        g.clearRect(0, 0, 32, 32);
+        g.strokeStyle = '#b8bcc2';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+        g.stroke();
+      }),
+    );
+    link.repeat.set(4, 6);
+    const linkM = own(new THREE.MeshBasicMaterial({ map: link, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    for (const z of [g0 - 0.5, g1 + 0.5]) {
+      const leaf = add(own(new THREE.PlaneGeometry(1.0, 1.5)), linkM, X1 + 0.12, 0.78, z, false);
+      leaf.rotation.y = Math.PI / 2;
+      for (const dz of [-0.5, 0.5]) add(geoBox(0.05, 1.55, 0.05), lam(0x6a6e74), X1 + 0.12, 0.78, z + dz, false); // its frame
     }
-    const beware = add(own(new THREE.PlaneGeometry(1.0, 0.45)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEWARE OF THE DOG', '#e8c040', '#1a1a1a')) })), X1 + 0.04, 1.1, g0 - 0.7, false);
+    for (const z of [g0, g1]) add(geoBox(0.12, 1.9, 0.12), lam(0x4a4e54), X1 - 0.03, 0.95, z); // the gate posts
+    const beware = add(own(new THREE.PlaneGeometry(1.0, 0.45)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEWARE OF THE DOG', '#e8c040', '#1a1a1a')) })), X1 + 0.04, 1.2, g0 - 1.7, false);
     beware.rotation.y = Math.PI / 2;
   }
   {
