@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.50.0',
+    date: '2026-11-17',
+    title: 'Total highscores',
+    items: [
+      'Highscores open on a new Total list: everyone ranked by their total level (all skills added up), then by total XP.',
+      "Ray's shelf shows each weapon once: tap it to see its name, price and stats.",
+    ],
+  },
+  {
     version: '0.49.0',
     date: '2026-11-17',
     title: 'A walk, not a jog',

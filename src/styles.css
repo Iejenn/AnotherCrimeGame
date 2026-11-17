@@ -575,9 +575,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .bank-slot .item-icon { inset: 8% 8% 18%; }
 .bank-count { position: absolute; left: 2px; top: 1px; font: 700 0.6rem/1 var(--mono); color: #f2e14a; text-shadow: 0 1px 0 #000, 0 0 2px #000; pointer-events: none; }
 .bank-slot.cash .bank-count { color: var(--money); }
-/* Ray's shelf (v0.49): bank-sized slots, the price along the bottom. */
+/* Ray's shelf (v0.49): bank-sized slots. */
 .store-grid .bank-slot.selected { border-color: #f2e14a; box-shadow: 0 0 0 1px #f2e14a inset; }
-.store-price { position: absolute; left: 0; right: 0; bottom: 1px; text-align: center; font: 700 0.52rem/1 var(--mono); color: var(--money); text-shadow: 0 1px 0 #000, 0 0 2px #000; pointer-events: none; }
 .bank-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bank-amounts { display: flex; gap: 4px; }
 .bank-hint { margin: 6px 0; }

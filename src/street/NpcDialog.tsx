@@ -130,7 +130,7 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
       {mode === 'buy' && (
         <>
           <p className="npc-line">{stock.length ? buyLine : "Shelves are bare, I'm afraid. A delivery's on its way. Check back soon."}</p>
-          {/* (v0.49: small slots like the bank's, a whole row; the name and stats when you tap one, the price under it.) */}
+          {/* (v0.49: small slots like the bank's, a whole row; the name, price and stats in the line above when you tap one.) */}
           <div className="bank-grid store-grid" aria-label={`${npc.name}'s stock`}>
             {Array.from({ length: Math.max(10, Math.ceil(stock.length / 10) * 10) }, (_, i) => {
               const st = stock[i];
@@ -144,7 +144,6 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
                   aria-label={`${ITEM_BY_ID[st.item].name}, ${fmtMoney(st.price)}`}
                 >
                   <ItemIcon id={st.item} />
-                  <span className="store-price">{fmtMoney(st.price)}</span>
                 </button>
               );
             })}
