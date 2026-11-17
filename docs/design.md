@@ -607,22 +607,27 @@ this section is the reference for building it. Numbers marked *(tunable)* can ch
 
 ### The ladder: 10 metal tiers, one every 10 levels
 
-The XP curve is built for levels 1–100 (§3; the cap is 30 for now, so tiers 1–4 are reachable at first). One tier
-level gates everything for that metal: the **Scrapping** level to gather it, the **Tinkering** level to make gear from
-it, the **Melee** level to wield its weapons and the **Defense** level to wear its armour (like OSRS rune = 40 everything).
+The XP curve is built for levels 1–100 (§3). One tier level gates everything for that metal: the **Scrapping** level to
+gather it, the **Tinkering** level to press its sheets, the **Melee** level to wield its weapons and the **Defense**
+level to wear its armour (like OSRS rune = 40 everything). Tiers start at **1, 11, 21, 31…** so every tier has the same
+10 levels, with two free at the end.
 
-| Tier | Metal | Level | Scrap it from *(ideas; each tier is a new place on the map)* |
-|---|---|---|---|
-| 1 | Tin | 1 | cans in bins and dumpsters, all over the city |
-| 2 | Copper | 10 | AC units and wiring: the **Warehouse** (block 009, 5 crates) |
-| 3 | Aluminium | 20 | car parts and rims: a scrapyard (east side) |
-| 4 | Brass | 30 | old plumbing, taps: the sewer, old apartments |
-| 5 | Bronze | 40 | statues, plaques: a monument square |
-| 6 | Iron | 50 | railings, grates, pipes: the docks |
-| 7 | Steel | 60 | car wrecks, beams: a construction site |
-| 8 | Hardened steel | 70 | machinery: the Factory's back halls |
-| 9 | Titanium | 80 | bike frames, aircraft parts: an airfield or hangar |
-| 10 | Tungsten | 90 | drill bits: a quarry or mine |
+**Members:** at release the game goes to level **30** for everyone. Everything above 30 (skill levels, and every
+recipe, weapon and armour that needs more than 30) is for **members** (later). So free players get tin, copper and
+aluminium complete; brass and up are members-only, brass sheets included.
+
+| Tier | Metal | Starts at | | Scrap it from *(ideas; each tier is a new place on the map)* |
+|---|---|---|---|---|
+| 1 | Tin | 1 | free | cans in bins and dumpsters, all over the city |
+| 2 | Copper | 11 | free | AC units and wiring: the **Warehouse** (block 009, 5 crates) |
+| 3 | Aluminium | 21 | free | car parts and rims: a scrapyard (east side) |
+| 4 | Brass | 31 | members | old plumbing, taps: the sewer, old apartments |
+| 5 | Bronze | 41 | members | statues, plaques: a monument square |
+| 6 | Iron | 51 | members | railings, grates, pipes: the docks |
+| 7 | Steel | 61 | members | car wrecks, beams: a construction site |
+| 8 | Hardened steel | 71 | members | machinery: the Factory's back halls |
+| 9 | Titanium | 81 | members | bike frames, aircraft parts: an airfield or hangar |
+| 10 | Tungsten | 91 | members | drill bits: a quarry or mine |
 
 **Decided:**
 - **We salvage, we don't smelt.** No alloys and no furnaces: every metal is scrapped as it is (bronze and brass too).
@@ -635,27 +640,32 @@ it, the **Melee** level to wield its weapons and the **Defense** level to wear i
 
 1. **Scrapping** (gathering skill): tap a scrap spot, work it a few ticks, get **scrap** of that metal + XP. The spot
    is empty for a while, then refills (the same machinery as the street-crime spots, see "Systems" below). The
-   Warehouse's copper crates: **4 ticks** of work, then empty for **10 s**; 5 crates to rotate between.
+   Warehouse's copper crates (Scrapping 11): **4 ticks** of work, then empty for **10 s**; 5 crates to rotate between.
 2. **Tinkering** (making skill), in the **Factory** (a new industrial area east of the city, see "Map"):
    - the **press** flattens scrap into **sheets**: 1 scrap → 1 sheet, a little Tinkering XP, "press all" like cooking;
    - the **workbench** turns sheets into gear: you pick the item; it costs sheets of that metal.
 3. **Combat:** the gear makes Melee and Defense pay off. Extras are sold to Ray.
 
-### Every tier makes the same six items
+### Every tier makes the same items, unlocked one per level
 
 Three weapons and three pieces of armour per metal (10 tiers = 60 items). Names: "Tin Knuckles", "Copper Knife",
-"Steel Bat", "Iron Helmet"…
+"Steel Bat", "Iron Helmet"… Within a tier, the Tinkering recipes unlock one level at a time, always in this order:
 
-| Item | Slot | Speed | Sheets | Tinkering level |
-|---|---|---|---|---|
-| Knuckles (regular) | weapon | every 3 ticks (1.5 s) | 2 | tier + 1 |
-| Knife (fast) | weapon | every 2 ticks (1 s) | 2 | tier + 3 |
-| Bat (slow) | weapon | every 6 ticks (3 s) | 3 | tier + 5 |
-| Helmet | head | | 2 | tier |
-| Leg guards | legs | | 3 | tier + 2 |
-| Vest | body | | 4 | tier + 4 |
+| Tinkering level | Recipe | Costs | Slot, speed | Tin | Copper | Aluminium | Brass *(members)* |
+|---|---|---|---|---|---|---|---|
+| start | Sheet (press) | 1 salvage | | 1 | 11 | 21 | 31 |
+| +1 | Knuckles (regular) | 1 sheet | weapon, every 3 ticks (1.5 s) | 2 | 12 | 22 | 32 |
+| +2 | Bat (slow) | 2 sheets | weapon, every 6 ticks (3 s) | 3 | 13 | 23 | 33 |
+| +3 | Knife (fast) | 1 sheet | weapon, every 2 ticks (1 s) | 4 | 14 | 24 | 34 |
+| +4 | *Bullet casings (later, with Gunfire)* | | | 5 | 15 | 25 | 35 |
+| +5 | Helmet | 1 sheet | head | 6 | 16 | 26 | 36 |
+| +6 | Leg guards | 2 sheets | legs | 7 | 17 | 27 | 37 |
+| +7 | Plate vest | 3 sheets | body | 8 | 18 | 28 | 38 |
+| +8, +9 | *free, for later* | | | 9, 10 | 19, 20 | 29, 30 | 39, 40 |
 
-(Tier 1 starts at level 1, so tin's items are made at 1–5; copper's at 10–15, and so on.)
+A full set (three weapons, three armour pieces) is 10 sheets = 10 salvage. **XP follows the sheets** (a bat, 2 sheets,
+gives twice the XP of knuckles), so no recipe is the only one worth making; pressing a sheet gives a little XP. The XP
+numbers per tier are worked out against the curve (§3) when the tier is built.
 
 **Stats come from one formula per item type** *(tunable)*, so balancing the ladder means changing a few numbers, not
 60 items. With B = tier + 1 (tin 2 … tungsten 11):
@@ -680,14 +690,36 @@ Three weapons and three pieces of armour per metal (10 tiers = 60 items). Names:
 
 (Melee still adds +1 max hit per 8 levels on top, §12.)
 
+### Values and prices
+
+- **Value follows the sheets:** a salvage, a sheet and every 1-sheet item are worth the same; a 2-sheet item twice
+  that, the vest three times. Pressing and crafting add XP, never money (so nobody can farm cash by processing).
+- **Per sheet:** tin **$5**, doubling every tier: copper $10, aluminium $20, brass $40 (… tungsten $2,560). Checked
+  against the crimes: scrapping and selling earns about what the crimes at the same level do (tin ≈ pickpocketing,
+  about $2,300/h; brass ≈ stealing from cars, about $19,000/h). ($50 per tin salvage would have made level-1 scrapping
+  out-earn every crime in the game.)
+
+| Tier | Salvage, sheet, knuckles, knife, helmet | Bat, leg guards | Plate vest |
+|---|---|---|---|
+| Tin | $5 | $10 | $15 |
+| Copper | $10 | $20 | $30 |
+| Aluminium | $20 | $40 | $60 |
+| Brass | $40 | $80 | $120 |
+
+- **Selling** pays 25% of the value, **rounded down, but never less than $1** (whole dollars only). So a tin sheet
+  sells for $1, a tin vest for $3. This also applies to the items there are today (raw meat now sells for $1, not $0).
+- **Ray's shop** sells the tin weapons for more than they're worth (the starter kit costs real money; making it
+  yourself is the cheap way): **Tin Knuckles $50, Tin Bat $100, Tin Knife $150**.
+
 ### The existing weapons become the tin tier
 
 Ray's brass knuckles, the baseball bat and the thugs' knife are converted to **Tin Knuckles**, **Tin Bat** and **Tin
 Knife** (one migration renames them in everyone's bag, equipment, grave and on the ground; nobody loses anything).
-Ray sells the tin weapons (and later tin armour) as the starter kit; thugs drop the tin knife. **Every higher tier is
+Ray sells all three tin weapons as the starter kit; thugs still drop the tin knife. **Every higher tier is
 player-made** (scrapped and tinkered), which gives Tinkering its market.
-Changes for owners: all tin gear is wearable at level 1 (the bat needed Melee 3, the knife Melee 5), and the knife's
-max hit becomes 1 (was 2), which brings it in line with the other two.
+Changes for owners: all tin gear is wearable at level 1 (the bat needed Melee 3, the knife Melee 5); the knife's max
+hit becomes 1 (was 2), in line with the other two; and they're worth less when sold (the bat $250 → $10, the knife
+$250 → $5, the knuckles $50 → $5).
 
 ### Map: the industrial area
 
@@ -718,5 +750,5 @@ max hit becomes 1 (was 2), which brings it in line with the other two.
 1. **Foundations + tin:** the recipe and gathering systems, items generated from data, armour slots and defence in
    fights, the tin conversion, Ray's tin kit. Tin scrap from bins around the city; a first press and workbench.
 2. **East side + the Factory + the Warehouse:** the map grows; Tinkering moves to the Factory; copper crates.
-3. **Each next tier** (aluminium, brass…): a new scrap place, and the tier's items and recipes as data. Tiers 5–10
-   wait until the level cap goes above 30.
+3. **Aluminium** (the last free tier): a new scrap place, and its items and recipes as data.
+4. **Members** (later): levels above 30, and brass to tungsten, one tier at a time.
