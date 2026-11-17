@@ -885,7 +885,9 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
   hard edges only where the shape turns sharply (creased normals, ~50°): soft light across a chest or an arm, crisp at
   the fists, shoes and jaw, like old-school RuneScape.
 - **Round things stay angular.** Circles and cylinders get **6–12 sides** (8 for most things), and spheres are
-  **icosahedrons, at most 1 subdivision**. No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
+  **icosahedrons, at most 1 subdivision**. (v0.46: the city's own pieces follow this too: `lam()` in city.ts is
+  flat-shaded by default, and the fountain, pond, bank vault and columns, sewer arch, manholes and wheels were cut to
+  at most 12 sides.) No subdivision surfaces, no sculpted detail, no bevels finer than a facet.
 - **Chunky proportions** (RuneScape): slightly big heads, hands and feet on people, thick limbs. A clear silhouette
   matters more than detail; detail you can't see from the game's camera (about 15 tiles away, looking down) isn't made.
 - **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
@@ -910,7 +912,8 @@ and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard
 limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
 **People are the most important asset** (you see them all the time). The human base model (v0.45, `character.ts`):
 learned from old-school RuneScape, not copied.
-- **Proportions:** about 1.32 tall (`BODY` in character.ts holds every joint's height). The head is about 1/6 of the
+- **Proportions:** the model is about 1.32 tall (`BODY` in character.ts holds every joint's height), drawn at 90%
+  (`PERSON_SCALE`), so on screen a person is about 1.19 tall and fits the shops and doors. The head is about 1/6 of the
   height, the legs about half, broad shoulders taper to the waist, the arms are long (the fists at mid-thigh).
 - **Joints:** hips, knees, shoulders, elbows, the head, and a point in the right fist where weapons go
   (`userData.rig`: legL/R, kneeL/R, armL/R, elbowL/R, head, hand, body). Walking bends the knees, sitting bends them 90°,
@@ -924,8 +927,66 @@ learned from old-school RuneScape, not copied.
   on a neck strap, a skirt to the thighs); bankers a suit (jacket, white shirt, tie); guards a uniform (badge, shoulder
   straps); doctors a long coat over scrubs; thugs a hoodie (the hood up, a front pocket); bikers an open leather vest;
   Splinter an old army jacket. Jackets, coats, hoodies, suits and uniforms have long sleeves.
-- About 1,800 triangles, 2,300 in full armour. Each person's parts are merged per joint and colour when they're built,
-  so the detail costs a handful of draw calls.
+- About 1,800 triangles, 2,300 in full armour. Each person's parts are merged into **one mesh per joint** when they're
+  built (their colours painted on as vertex colours, one shared material): 11 meshes a person (v0.46; was 25), so the
+  detail costs few draw calls.
+
+### Loot on the ground (v0.46)
+Everything you can drop has a look (`buildGroundItem` in streetLife.ts): food from the Kenney Food Kit, cash as a few
+bills, and the rest built in code (`buildLoot` in props.ts), lying flat, about a third of a tile across, in the metal's
+colour: salvage is a small scrap heap (a bent pipe, a strip, a coil, a lump), a sheet two plates askew, and the gear the
+same shapes you wear and wield (knuckles, bat, knife, helmet, plate vest, leg guards). Quest items: the antidote is a
+green vial with a cork, the cooked antidote the ribs with green drops, the sewer key a big old iron key. All 36–188
+triangles (`scripts/preview/loot.html` shows them all with their counts). A new item gets its look here; without one
+it shows as a small brown bundle.
+
+### The building kit (v0.47, `src/street/kit.ts`)
+Buildings are described from parts, not placed box by box, so every building follows these rules and the same part
+looks the same everywhere. **A new building uses the kit**; a part it needs and the kit lacks is added to the kit.
+- **Faces:** a part is placed on one side of a rectangle seen from outside (`face(rect, 'n'|'s'|'e'|'w')`): `u` runs
+  along it from the viewer's left, `y` up, `out` away from the wall. `uOf(face, x or z)` turns a map coordinate into `u`.
+- **Walls:** `walls(rect, height, thickness, material, openings)`: four walls with doorways cut out (per side, from `u0`
+  to `u1`, the wall going on above `top`). Each building keeps its own wall material so it can fade on its own.
+- **Windows:** `window(face, u, y, {style, w, h, lit, frame, behind, sill})`, `windowRow(face, from, to, y, step, …)`.
+  Styles: plain (a cross of glazing bars), office (a transom), shop (big panes with bars), barred, broken, boarded,
+  blacked-out. A frame standing proud of the wall, the glass, a sill; lit ones glow warm; boxes or a curtain behind.
+  Ordinary buildings put one on every floor of every tile of wall that faces open air (not one pressed against a
+  neighbour, unless it rises above the neighbour's roof).
+- **Doors:** `door(face, u, {style, w, h, color, frame, step, light})`: plain, glass, office, double, shutter (a ribbed
+  roll-up door), shutterOpen (rolled up over a real opening), open (a dark doorway), frame (just the frame round a
+  doorway you walk through). A step, a lamp, a bare bulb or a coloured light.
+- **Roofs:** `roof`, `parapet`, and roof clutter: `acUnit`, `tank`, `antenna`, `vent`.
+- **On the wall:** `sign` (text or any texture, on a board), `awning` (striped, with a valance), `drainpipe`,
+  `wallLight`, `meterBox`.
+- **Fences:** `fence(x0, z0, x1, z1, style, {skip})`, one panel per tile, `skip` for gates: chain-link (with or without
+  barbed wire), corrugated sheets (some rusty), a half-high brick wall with a coping, iron railings, wooden planks;
+  `chainPanel` for a gate leaf.
+- **Preview:** `scripts/preview/kit.html` shows every part. **Tests:** `src/street/kit.test.ts`.
+
+### Merging the static city (v0.47)
+Every piece the city adds is static, so at the end of `buildCity` they're merged (`mergeStatic` in kit.ts): plain
+colours into one mesh per 12×12-tile area (their colour painted on as vertex colours, one shared material per glow),
+textured and see-through pieces per material. A building's walls and its props merge on their own and replace the
+originals in its fade lists, so walls still fade and props still hide. Tap targets (stairs, the manhole, the ladder,
+the Rat Nest gate) are separate groups and never merged; the flames are kept as they are (they flicker). So build
+freely, piece by piece: a window costs triangles, not draw calls.
+
+### The whole scene (measured 2026-11-17)
+With `scripts/preview/game.html` (dev builds expose the renderer as `window.__street`):
+
+| Spot | Draw calls v0.46 | v0.47 | Triangles a frame v0.47 |
+|---|---|---|---|
+| Shopping street (Eddy's, Ray's) | 407 | 233 | 74,000 |
+| Park | 213 | 126 | 61,000 |
+| Bank | 154 | 113 | 57,000 |
+| Iron Saints MC | 147 | 110 | 52,000 |
+| Junkyard | 154 | 57 | 51,000 |
+
+The whole city is about 306,000 triangles (175,000 before the real windows), of which a phone draws a sixth to a
+quarter at a time; fine. Each other player adds ~22 draw calls (11 meshes and their shadows); a creature ~20–45 (its
+parts aren't merged, so they can move).
+- Vehicles and trees, against a 1.2-tall person: a car 332 triangles, 2.8 long and 1.15 tall; the ambulance 440; a
+  street tree 144 and about 2.7 tall, a park tree about 2.2. All within budget; no change needed.
 
 ### Colour and material
 - **Solid colours,** one per part (material or vertex colour). **No image textures**, with one exception: the Kenney

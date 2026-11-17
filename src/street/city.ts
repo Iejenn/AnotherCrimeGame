@@ -16,6 +16,7 @@ import {
 } from './map';
 import * as L from './streetLife';
 import { withModel } from './models';
+import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
@@ -49,47 +50,6 @@ export interface Fadeable {
   force?: boolean;
 }
 
-// ---------- canvas textures ----------
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat = true) {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  draw(c.getContext('2d')!);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 4;
-  return t;
-}
-
-/**
- * A 4×4 block of windows (one per tile): the wall is white (tinted by the wall colour), most panes
- * are dark glass, some are lit. The matching glow map makes only the lit panes shine at dusk.
- */
-function windowAtlas(seed: number) {
-  const r = mulberry32(seed);
-  const lit: boolean[] = Array.from({ length: 16 }, () => r() < 0.3);
-  const pane = (g: CanvasRenderingContext2D, i: number, x: number, y: number, glowOnly: boolean) => {
-    if (glowOnly) {
-      g.fillStyle = lit[i] ? '#ffffff' : '#000000';
-      g.fillRect(x + 14, y + 14, 36, 34);
-      return;
-    }
-    g.fillStyle = lit[i] ? '#ffd9a0' : '#1d2630';
-    g.fillRect(x + 14, y + 14, 36, 34);
-    g.fillStyle = lit[i] ? '#ffe7c2' : '#2c3a46';
-    g.fillRect(x + 14, y + 14, 36, 8);
-    g.fillStyle = '#9a958c';
-    g.fillRect(x + 12, y + 48, 40, 4);
-  };
-  const draw = (glowOnly: boolean) => (g: CanvasRenderingContext2D) => {
-    g.fillStyle = glowOnly ? '#000000' : '#ffffff';
-    g.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 16; i++) pane(g, i, (i % 4) * 64, Math.floor(i / 4) * 64, glowOnly);
-  };
-  return { map: canvasTex(256, 256, draw(false)), glow: canvasTex(256, 256, draw(true)) };
-}
-
 /** A soft orange circle for the light pool under each street lamp. */
 const lightPoolTex = () =>
   canvasTex(
@@ -104,37 +64,6 @@ const lightPoolTex = () =>
     },
     false,
   );
-
-const stripeTex = (color: string, light = '#ffffff') =>
-  canvasTex(64, 16, (g) => {
-    for (let i = 0; i < 8; i++) {
-      g.fillStyle = i % 2 ? light : color;
-      g.fillRect(i * 8, 0, 8, 16);
-    }
-  });
-
-export function signTexture(text: string, bg = '#2f7a46', fg = '#ffffff') {
-  return canvasTex(
-    512,
-    96,
-    (g) => {
-      g.fillStyle = bg;
-      g.fillRect(0, 0, 512, 96);
-      g.strokeStyle = fg;
-      g.lineWidth = 6;
-      g.strokeRect(8, 8, 496, 80);
-      g.fillStyle = fg;
-      g.font = 'bold 52px Arial, sans-serif';
-      // Long names get a smaller font so they fit inside the border.
-      const w = g.measureText(text).width;
-      if (w > 470) g.font = `bold ${Math.floor((52 * 470) / w)}px Arial, sans-serif`;
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(text, 256, 52);
-    },
-    false,
-  );
-}
 
 // ---------- instancing helper ----------
 class Batch {
@@ -166,19 +95,25 @@ export function buildCity(scene: THREE.Scene) {
     disposables.push(x);
     return x;
   };
-  const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, ...extra }));
+  const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra }));
   const geoBox = (w: number, h: number, d: number) => own(new THREE.BoxGeometry(w, h, d));
   const rng = mulberry32(2024);
   let ironMat: THREE.Material | null = null;
   const iron2 = () => (ironMat ??= lam(0x3a3d42));
+  // Every piece added here is static: at the end it's merged with its neighbours (kit.ts, mergeStatic) unless it's in
+  // `keep` (animated). So build freely, piece by piece; it costs triangles, not draw calls.
+  const statics: THREE.Mesh[] = [];
+  const keep = new Set<THREE.Object3D>();
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], x: number, y: number, z: number, shadow = true) => {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
     m.castShadow = shadow;
     m.receiveShadow = true;
     scene.add(m);
+    statics.push(m);
     return m;
   };
+  const kit = new Kit(add, own);
 
   // ---------- the island: open ocean all around, shallow water, a sandy beach with rocks ----------
   const plane = (w: number, h: number, color: number, y: number, cx = W / 2, cz = H / 2) => {
@@ -419,21 +354,7 @@ export function buildCity(scene: THREE.Scene) {
     scene.add(stop);
   }
 
-  /** A coloured band around the roof edge (a parapet), leaving the grey roof visible in the middle. */
-  const parapet = (cx: number, cz: number, w: number, d: number, top: number, m: THREE.Material) => {
-    const t = 0.1;
-    const h = 0.16;
-    return [
-      add(geoBox(w, h, t), m, cx, top, cz - d / 2 + t / 2),
-      add(geoBox(w, h, t), m, cx, top, cz + d / 2 - t / 2),
-      add(geoBox(t, h, d - 2 * t), m, cx - w / 2 + t / 2, top, cz),
-      add(geoBox(t, h, d - 2 * t), m, cx + w / 2 - t / 2, top, cz),
-    ];
-  };
-
   // ---------- buildings ----------
-  const atlases = [1, 2, 3, 4].map((seed) => windowAtlas(seed * 977));
-  for (const a of atlases) own(a.map), own(a.glow);
   const fadeables: Fadeable[] = [];
   /** Bare brick (one floor high, one tile wide per repeat) for boarded-up buildings. */
   const brickTex = own(
@@ -469,6 +390,30 @@ export function buildCity(scene: THREE.Scene) {
       for (let i = 0; i < 6; i++) g.fillRect((i * 23) % 60, (i * 17) % 40, 3, 24);
     }),
   );
+  // v0.47: every building is made from the kit (kit.ts): real windows with frames and sills on every wall that faces
+  // open air (a street, an alley, a yard: not one pressed against its neighbour), a door with a step and a lamp, shop
+  // windows and awnings, a parapet, roof clutter. Their own random numbers, so they don't shift the rest of the city.
+  const brng = mulberry32(4711);
+  // How many floors stand on each tile (a wall above a lower neighbour's roof is open air too).
+  const floorsOf = (b: (typeof BUILDINGS)[number]) => (b.industrial ? 1 : b.height > 1.8 ? 3 : 2);
+  const solid = new Map<string, number>();
+  for (const b of BUILDINGS) for (let x = b.x; x < b.x + b.w; x++) for (let y = b.y; y < b.y + b.h; y++) solid.set(`${x},${y}`, floorsOf(b));
+  /** The tiles along one side of a building, each with how many floors of the neighbour cover it (0: open air). */
+  const sideTiles = (b: (typeof BUILDINGS)[number], side: 'n' | 's' | 'e' | 'w') => {
+    const out: { x: number; z: number; covered: number }[] = [];
+    if (side === 'n' || side === 's')
+      for (let x = b.x; x < b.x + b.w; x++) {
+        const y = side === 'n' ? b.y - 1 : b.y + b.h;
+        out.push({ x: x + 0.5, z: side === 'n' ? b.y : b.y + b.h, covered: solid.get(`${x},${y}`) ?? 0 });
+      }
+    else
+      for (let y = b.y; y < b.y + b.h; y++) {
+        const x = side === 'w' ? b.x - 1 : b.x + b.w;
+        out.push({ x: side === 'w' ? b.x : b.x + b.w, z: y + 0.5, covered: solid.get(`${x},${y}`) ?? 0 });
+      }
+    return out;
+  };
+  const CURTAINS = [0x8a2f28, 0x2f4562, 0x8a6a2a, 0x4a5a3a, 0x6a4a5a];
   const SHED_COLORS = [0x8a8f88, 0x7a6a5a, 0x6a7a80, 0x8a7a5a, 0x5a6268];
   const industrialShed = (b: (typeof BUILDINGS)[number]) => {
     const X0 = b.x;
@@ -483,15 +428,16 @@ export function buildCity(scene: THREE.Scene) {
     t.needsUpdate = true;
     const mWall = lam(SHED_COLORS[(b.x * 7 + b.y) % SHED_COLORS.length], { map: t });
     const walls = [add(geoBox(X1 - X0, h, Z1 - Z0), mWall, cx, h / 2, cz)];
-    const roof = add(geoBox(X1 - X0 + 0.15, 0.08, Z1 - Z0 + 0.15), lam(0x4a4a48), cx, h + 0.04, cz);
-    // A roll-up door on the street side, a small door next to it, a vent on the roof.
-    const fz = b.front === 'n' ? Z0 - 0.01 : Z1 + 0.01;
+    const r = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const props: THREE.Object3D[] = [kit.roof(r, h, 0x4a4a48, 0.075), ...kit.vent(cx + (X1 - X0) / 4, h + 0.08, cz)];
+    // A roll-up door on the street side, a small door next to it with a bulb, a row of small high windows.
+    const f = face(r, b.front === 'n' ? 'n' : 's');
     const doorW = Math.min(1.6, (X1 - X0) * 0.45);
-    const props: THREE.Object3D[] = [roof];
-    props.push(add(geoBox(doorW, 1.2, 0.04), lam(0x8a6a4a), cx - 0.3, 0.6, fz, false));
-    for (let i = 0; i < 6; i++) props.push(add(geoBox(doorW, 0.02, 0.05), lam(0x5a4a3a), cx - 0.3, 0.12 + i * 0.2, fz, false));
-    props.push(add(geoBox(0.5, 0.95, 0.04), lam(0x3a4a5a), cx + doorW / 2 + 0.2, 0.48, fz, false));
-    props.push(add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.35, 10)), lam(0x9aa0a6), cx + (X1 - X0) / 4, h + 0.2, cz));
+    const du = uOf(f, cx - 0.3);
+    props.push(...kit.door(f, du, { style: 'shutter', w: doorW, h: 1.2, color: 0x8a6a4a }));
+    const ou = uOf(f, cx + doorW / 2 + 0.2);
+    props.push(...kit.door(f, ou, { style: 'office', w: 0.5, h: 0.95, color: 0x3a4a5a, light: 'bulb' }));
+    if (f.len >= 3) props.push(...kit.windowRow(f, 0.4, f.len - 0.4, h - 0.55, 1.1, { style: 'office', w: 0.5, h: 0.3, sill: false, skip: (u) => Math.abs(u - du) < doorW / 2 + 0.3 || Math.abs(u - ou) < 0.5, litChance: 0.3, rng: brng }));
     fadeables.push({ walls, mats: [mWall], props, opacity: 1 });
   };
 
@@ -501,30 +447,20 @@ export function buildCity(scene: THREE.Scene) {
       industrialShed(b);
       continue;
     }
-    const floors = b.height > 1.8 ? 3 : 2;
+    const floors = floorsOf(b);
     const height = floors * FLOOR + 0.12;
-    const wall = C.walls[Math.floor(rng() * C.walls.length)];
-    const trim = C.trims[Math.floor(rng() * C.trims.length)];
-    // Window textures: 4×4 windows per texture, so repeat = size / 4. Each building picks one of a
-    // few lit-window patterns, so the city doesn't look copy-pasted.
-    const atlas = atlases[Math.floor(rng() * atlases.length)];
-    const tex = (src: THREE.Texture, across: number) => {
-      const t = own(src.clone());
-      t.repeat.set(across / 4, floors / 4);
-      t.offset.set(Math.floor(rng() * 4) / 4, 0);
-      t.needsUpdate = true;
-      return t;
-    };
+    const wall = C.walls[Math.floor(brng() * C.walls.length)];
+    const trim = C.trims[Math.floor(brng() * C.trims.length)];
     // Each building gets its own materials so it can fade on its own.
-    // Boarded-up buildings (the Yard's) are bare brick: their windows get planks below, and the walls take graffiti.
+    // Boarded-up buildings (the Yard's) are bare brick: their windows are boarded up, and the walls take graffiti.
     const brick = (across: number) => {
       const t = own(brickTex.clone());
       t.repeat.set(across, floors);
       t.needsUpdate = true;
       return t;
     };
-    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : lam(wall, { map: tex(atlas.map, b.w), emissiveMap: tex(atlas.glow, b.w), emissive: C.litWindow, emissiveIntensity: 1 });
-    const mZ = b.boarded ? lam(wall, { map: brick(b.h) }) : lam(wall, { map: tex(atlas.map, b.h), emissiveMap: tex(atlas.glow, b.h), emissive: C.litWindow, emissiveIntensity: 1 });
+    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : lam(wall);
+    const mZ = b.boarded ? lam(wall, { map: brick(b.h) }) : mX;
     const mRoof = lam(C.roof);
     const mTrim = lam(trim);
     const bw = b.w - 0.1;
@@ -532,71 +468,50 @@ export function buildCity(scene: THREE.Scene) {
     const cx = b.x + b.w / 2;
     const cz = b.y + b.h / 2;
     const walls = add(geoBox(bw, height, bd), [mZ, mZ, mRoof, mRoof, mX, mX], cx, height / 2, cz);
-    const trimBand = parapet(cx, cz, bw + 0.06, bd + 0.06, height + 0.02, mTrim);
+    const r = { x0: b.x + 0.05, z0: b.y + 0.05, x1: b.x + b.w - 0.05, z1: b.y + b.h - 0.05 };
+    const trimBand = kit.parapet({ x0: r.x0 - 0.03, z0: r.z0 - 0.03, x1: r.x1 + 0.03, z1: r.z1 + 0.03 }, height + 0.02, mTrim);
     const props: THREE.Object3D[] = [];
-    // Rooftop props: air-con units, sometimes a water tank or an antenna.
-    const nAc = 1 + Math.floor(rng() * 3);
-    for (let i = 0; i < nAc; i++) {
-      const ac = add(geoBox(0.3, 0.18, 0.24), lam(0xe8e8e8), b.x + 0.4 + rng() * (b.w - 0.8), height + 0.09, b.y + 0.4 + rng() * (b.h - 0.8));
-      props.push(ac);
-    }
-    if (rng() < 0.3) {
-      const tank = add(own(new THREE.CylinderGeometry(0.18, 0.18, 0.32, 10)), lam(0xb8bcc2), b.x + 0.5, height + 0.16, b.y + 0.5);
-      props.push(tank);
-    }
-    if (rng() < 0.2) {
-      const ant = add(own(new THREE.CylinderGeometry(0.015, 0.015, 0.7, 4)), lam(0x6a6f76), b.x + b.w - 0.4, height + 0.35, b.y + 0.4);
-      props.push(ant);
-    }
-    // Every building has a front door at person size (on its street side), with a step and a lamp: so you can
-    // tell how big it is, and that people live there.
-    if (b.boarded) {
-      // Windows on the upper floors, nailed shut: a dark hole with three rough planks across it, on every side.
-      const faces = [
-        { n: b.w, at: (i: number) => [b.x + 0.5 + i, b.y + 0.02] as const, rot: 0 },
-        { n: b.w, at: (i: number) => [b.x + 0.5 + i, b.y + b.h - 0.02] as const, rot: 0 },
-        { n: b.h, at: (i: number) => [b.x + 0.02, b.y + 0.5 + i] as const, rot: Math.PI / 2 },
-        { n: b.h, at: (i: number) => [b.x + b.w - 0.02, b.y + 0.5 + i] as const, rot: Math.PI / 2 },
-      ];
-      for (const f of faces)
-        for (let i = 0; i < f.n; i++)
-          for (let fl = 1; fl < floors; fl++) {
-            const [x, z] = f.at(i);
-            const y = fl * FLOOR + 0.8;
-            const hole = add(geoBox(0.5, 0.7, 0.03), lam(0x141210), x, y, z, false);
-            hole.rotation.y = f.rot;
-            props.push(hole);
-            for (const dy of [-0.22, 0.02, 0.24]) {
-              const plank = add(geoBox(0.62, 0.11, 0.04), lam(0x7a5a3a, { flatShading: true }), x, y + dy + (rng() - 0.5) * 0.04, z, false);
-              plank.rotation.set(0, f.rot, (rng() - 0.5) * 0.25);
-              props.push(plank);
-            }
-          }
-    }
-    // The front faces the street: south for most, north for buildings along a block's north edge (s = which way
-    // "out" is along z).
-    const sgn = b.front === 'n' ? -1 : 1;
-    const front = b.front === 'n' ? b.y + 0.05 : b.y + b.h - 0.05;
-    const doorX = b.x + 0.5 + Math.floor(rng() * Math.max(1, b.w - 1));
-    props.push(
-      add(geoBox(0.62, 1.12, 0.06), lam(trim), doorX, 0.56, front + sgn * 0.02, false), // frame
-      add(geoBox(0.5, 1.02, 0.07), lam(0x3a2a20), doorX, 0.53, front + sgn * 0.03, false), // door
-      add(geoBox(0.8, 0.08, 0.3), lam(0x8a857c), doorX, 0.08, front + sgn * 0.15, false), // step
-      add(geoBox(0.12, 0.12, 0.08), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.2 }), doorX + 0.42, 1.0, front + sgn * 0.06, false), // lamp
-    );
-    // Some ground floors on a street are shops: a shop window at person height + an awning.
+    // Rooftop clutter: air-con units, sometimes a water tank or an antenna.
+    const nAc = 1 + Math.floor(brng() * 3);
+    for (let i = 0; i < nAc; i++) props.push(...kit.acUnit(b.x + 0.4 + brng() * (b.w - 0.8), height, b.y + 0.4 + brng() * (b.h - 0.8)));
+    if (brng() < 0.3) props.push(...kit.tank(b.x + 0.5, height, b.y + 0.5));
+    if (brng() < 0.2) props.push(...kit.antenna(b.x + b.w - 0.4, height, b.y + 0.4));
+    // The front faces the street: south for most, north for buildings along a block's north edge.
+    const frontSide = b.front === 'n' ? 'n' : 's';
+    const front = face(r, frontSide);
+    const doorX = b.x + 0.5 + Math.floor(brng() * Math.max(1, b.w - 1));
+    // Some ground floors on a street are shops: a shop window at person height and an awning.
     const block = blockRect(Math.floor(b.x / PITCH), Math.floor(b.y / PITCH));
     const onStreet = b.front === 'n' ? b.y === block.y0 : b.y + b.h - 1 === block.y1;
-    if (onStreet && b.w >= 2 && rng() < 0.55) {
-      const gw = Math.max(0.6, bw - 1.1);
-      const gx = doorX < cx ? cx + 0.3 : cx - 0.3;
-      const glass = add(geoBox(gw, 0.8, 0.05), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 0.7 }), gx, 0.55, front + sgn * 0.01, false);
-      const stripe = own(stripeTex(`#${C.trims[Math.floor(rng() * C.trims.length)].toString(16).padStart(6, '0')}`, '#b8b0a0'));
-      stripe.repeat.set(Math.max(1, Math.round(bw)), 1);
-      const awning = add(geoBox(Math.max(0.7, bw - 0.3), 0.04, 0.42), lam(0xffffff, { map: stripe }), cx, 1.3, front + sgn * 0.19);
-      awning.rotation.x = sgn * 0.35;
-      props.push(glass, awning);
+    const shop = !b.boarded && onStreet && b.w >= 2 && brng() < 0.55;
+    const gw = Math.max(0.6, bw - 1.1);
+    const gx = doorX < cx ? cx + 0.3 : cx - 0.3;
+    // Windows on every side, every floor, where the wall faces open air. Upstairs some are lit, some have curtains.
+    for (const side of ['n', 's', 'e', 'w'] as const) {
+      const f = face(r, side);
+      for (const tile of sideTiles(b, side)) {
+        const u = uOf(f, side === 'n' || side === 's' ? tile.x : tile.z);
+        for (let fl = tile.covered; fl < floors; fl++) {
+          const y = fl * FLOOR + 0.42;
+          if (b.boarded) {
+            if (fl > 0) props.push(...kit.window(f, u, y, { style: 'boarded', w: 0.5, h: 0.7 }));
+            continue;
+          }
+          if (fl === 0 && side === frontSide && (Math.abs(tile.x - doorX) < 0.6 || (shop && Math.abs(tile.x - gx) < gw / 2 + 0.3))) continue;
+          const lit = brng() < 0.3;
+          props.push(...kit.window(f, u, y, { lit, frame: fl === 0 ? trim : 0x3a3430, behind: lit && brng() < 0.35 ? CURTAINS[Math.floor(brng() * CURTAINS.length)] : undefined }));
+        }
+      }
     }
+    // Every building has a front door at person size, with a step and a lamp: so you can tell how big it is, and that
+    // people live there.
+    props.push(...kit.door(front, uOf(front, doorX), { color: 0x3a2a20, frame: trim, step: true, light: 'lamp' }));
+    if (shop) {
+      props.push(...kit.window(front, uOf(front, gx), 0.15, { style: 'shop', w: gw, h: 0.8, frame: trim }));
+      const stripe = `#${C.trims[Math.floor(brng() * C.trims.length)].toString(16).padStart(6, '0')}`;
+      props.push(...kit.awning(front, uOf(front, cx), 1.42, Math.max(0.7, bw - 0.3), { color: stripe, light: '#b8b0a0', depth: 0.45 }));
+    }
+    if (brng() < 0.5) props.push(...kit.drainpipe(front, brng() < 0.5 ? 0.08 : front.len - 0.08, height));
     fadeables.push({ walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1 });
   }
 
@@ -623,14 +538,14 @@ export function buildCity(scene: THREE.Scene) {
     for (const r of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, 0.09, P.y0 + r + 0.5, false);
     for (const c of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, P.x0 + c + 0.5, 0.091, cz, false);
     // A gravel square around the fountain, joining the paths.
-    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 24).rotateX(-Math.PI / 2)), gravel);
+    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 12).rotateX(-Math.PI / 2)), gravel);
     ringPath.position.set(cx, 0.092, midZ);
     ringPath.receiveShadow = true;
     scene.add(ringPath);
     // The fountain: a low stone basin with water, a pillar and a top bowl. The water glows a little.
     const stone = lam(0x8e877b, { flatShading: true });
-    add(own(new THREE.CylinderGeometry(1.15, 1.22, 0.3, 14)), stone, cx, 0.22, midZ);
-    add(own(new THREE.CylinderGeometry(1.03, 1.03, 0.05, 14)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), cx, 0.35, midZ, false);
+    add(own(new THREE.CylinderGeometry(1.15, 1.22, 0.3, 10)), stone, cx, 0.22, midZ);
+    add(own(new THREE.CylinderGeometry(1.03, 1.03, 0.05, 10)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), cx, 0.35, midZ, false);
     add(own(new THREE.CylinderGeometry(0.1, 0.14, 0.62, 8)), stone, cx, 0.62, midZ);
     add(own(new THREE.CylinderGeometry(0.34, 0.2, 0.1, 10)), stone, cx, 0.94, midZ);
     add(own(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), cx, 0.99, midZ, false);
@@ -668,8 +583,8 @@ export function buildCity(scene: THREE.Scene) {
       // An oval pond, as wide as its tiles (one column between the path and the hedge).
       const sx = (Math.max(...pond.map((f) => f.x)) - Math.min(...pond.map((f) => f.x)) + 1) / 2;
       const sz = (Math.max(...pond.map((f) => f.y)) - Math.min(...pond.map((f) => f.y)) + 1) / 2;
-      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 16)), stone, px, 0.1, pz).scale.set(sx, 1, sz);
-      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 16)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false).scale.set(sx, 1, sz);
+      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, 0.1, pz).scale.set(sx, 1, sz);
+      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false).scale.set(sx, 1, sz);
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
@@ -705,7 +620,7 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(lw, 0.01, cd), line, cx - cw / 2, 0.095, ccz, false);
     add(geoBox(lw, 0.01, cd), line, cx + cw / 2, 0.095, ccz, false);
     add(geoBox(lw, 0.01, cd), line, cx, 0.095, ccz, false); // half-court line
-    const centre = new THREE.Mesh(own(new THREE.RingGeometry(0.42, 0.47, 20).rotateX(-Math.PI / 2)), line);
+    const centre = new THREE.Mesh(own(new THREE.RingGeometry(0.42, 0.47, 12).rotateX(-Math.PI / 2)), line);
     centre.position.set(cx, 0.096, ccz);
     scene.add(centre);
     // Hoops at the west and east ends: pole, backboard, orange rim.
@@ -713,7 +628,7 @@ export function buildCity(scene: THREE.Scene) {
       const px = side < 0 ? X0 + 0.15 : X1 - 0.15;
       add(geoBox(0.08, 1.3, 0.08), iron2(), px, 0.65, ccz);
       add(geoBox(0.04, 0.38, 0.6), lam(0xe8e2d0), px - side * 0.12, 1.22, ccz);
-      const rim = add(own(new THREE.TorusGeometry(0.14, 0.018, 6, 14)), lam(0xe0782a), px - side * 0.3, 1.1, ccz);
+      const rim = add(own(new THREE.TorusGeometry(0.14, 0.018, 6, 10)), lam(0xe0782a), px - side * 0.3, 1.1, ccz);
       rim.rotation.x = Math.PI / 2;
       const key = add(geoBox(1.1, 0.01, 0.9), lam(0x7a3b2c), px - side * 0.6, 0.094, ccz, false);
       key.receiveShadow = true;
@@ -806,30 +721,22 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
     const mWall = lam(st.wall);
     const mTrim = lam(st.trim);
-    const mRoof = lam(C.roof);
-    const walls = [
-      add(geoBox(X1 - X0, sh, t), mWall, cx, sh / 2, Z0 + t / 2), // back
-      add(geoBox(t, sh, Z1 - Z0), mWall, X0 + t / 2, sh / 2, cz), // west
-      add(geoBox(t, sh, Z1 - Z0), mWall, X1 - t / 2, sh / 2, cz), // east
-      add(geoBox(doorX - X0, sh, t), mWall, (X0 + doorX) / 2, sh / 2, Z1 - t / 2), // front, left of the door
-      add(geoBox(X1 - doorX - 1, sh, t), mWall, (doorX + 1 + X1) / 2, sh / 2, Z1 - t / 2), // front, right of the door
-      add(geoBox(1, sh - DOOR, t), mWall, doorX + 0.5, DOOR + (sh - DOOR) / 2, Z1 - t / 2), // above the door
+    // Kit parts (v0.47): walls with the doorway cut out, the roof and its parapet, shop windows either side of the
+    // door (lit from inside), the door frame, a striped awning, the sign on its board, air-con units, a drainpipe.
+    const box = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const fs = face(box, 's');
+    const walls = kit.walls(box, sh, t, mWall, { s: [{ u0: doorX - X0, u1: doorX + 1 - X0, top: DOOR }] });
+    const roof = kit.roof(box, sh, C.roof);
+    const trimBand = kit.parapet({ x0: X0 - 0.03, z0: Z0 - 0.03, x1: X1 + 0.03, z1: Z1 + 0.03 }, sh + 0.06, mTrim);
+    const front = [
+      ...kit.window(fs, 1, 0.255, { style: 'shop', w: 1.3, h: 0.85, frame: st.trim }),
+      ...kit.window(fs, X1 - X0 - 1, 0.255, { style: 'shop', w: 1.3, h: 0.85, frame: st.trim }),
+      ...kit.door(fs, doorX + 0.5 - X0, { style: 'frame', w: 1, h: DOOR, frame: st.trim }),
+      ...kit.awning(fs, (X1 - X0) / 2, DOOR + 0.3, X1 - X0 - 0.8, { color: st.stripe[0], light: st.stripe[1] }),
+      ...kit.sign(fs, (X1 - X0) / 2, sh + 0.42, { text: st.sign, bg: st.signBg, fg: st.signFg, w: 3.2, h: 0.6, board: st.trim }),
+      ...kit.drainpipe(fs, X1 - X0 - 0.08, sh),
+      ...[0, 1].flatMap((i) => kit.acUnit(cx - 1.5 + i * 2.4, sh, Z0 + 1.3)),
     ];
-    const roof = add(geoBox(X1 - X0, 0.08, Z1 - Z0), mRoof, cx, sh + 0.04, cz);
-    const trimBand = parapet(cx, cz, X1 - X0 + 0.06, Z1 - Z0 + 0.06, sh + 0.06, mTrim);
-    // Shop windows either side of the door, lit from inside.
-    const glassMat = lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.1 });
-    const winL = add(geoBox(1.3, 0.85, 0.04), glassMat, X0 + 1, 0.68, Z1 + 0.005, false);
-    const winR = add(geoBox(1.3, 0.85, 0.04), glassMat, X1 - 1, 0.68, Z1 + 0.005, false);
-    const doorFrame = add(geoBox(1.04, 0.06, 0.14), mTrim, doorX + 0.5, DOOR + 0.01, Z1 - t / 2, false);
-    const stripe = own(stripeTex(st.stripe[0], st.stripe[1]));
-    stripe.repeat.set(5, 1);
-    const awning = add(geoBox(X1 - X0 - 0.8, 0.05, 0.6), lam(0xffffff, { map: stripe }), cx, DOOR + 0.18, Z1 + 0.22);
-    awning.rotation.x = 0.4;
-    const signMat = own(new THREE.MeshBasicMaterial({ map: own(signTexture(st.sign, st.signBg, st.signFg)) }));
-    const sign = add(own(new THREE.PlaneGeometry(3.2, 0.6)), signMat, cx, sh + 0.42, Z1 + 0.03, false);
-    const signBack = add(geoBox(3.3, 0.68, 0.06), mTrim, cx, sh + 0.42, Z1 - 0.02);
-    const roofAc = [0, 1].map((i) => add(geoBox(0.3, 0.18, 0.24), lam(0xe8e8e8), cx - 1.5 + i * 2.4, sh + 0.17, Z0 + 1.3));
     // Floor tiles.
     const checker = own(
       canvasTex(64, 64, (g) => {
@@ -852,12 +759,7 @@ export function buildCity(scene: THREE.Scene) {
     const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
     lamp.position.set(cx, sh - 0.2, cz);
     scene.add(lamp);
-    const fade: Fadeable = {
-      walls: [...walls, ...trimBand],
-      mats: [mWall, mTrim],
-      props: [roof, winL, winR, doorFrame, awning, sign, signBack, ...roofAc],
-      opacity: 1,
-    };
+    const fade: Fadeable = { walls: [...walls, ...trimBand], mats: [mWall, mTrim], props: [roof, ...front], opacity: 1 };
     fadeables.push(fade);
     rooms.set(r.id, fade);
     return { X0, Z0, X1, Z1, cx, cz, t, doorX, sh };
@@ -1063,7 +965,7 @@ export function buildCity(scene: THREE.Scene) {
     }
     // A neon beer sign on the east wall and a dartboard on the west wall.
     add(geoBox(0.02, 0.22, 0.6), lam(0x5ac8ff, { emissive: 0x5ac8ff, emissiveIntensity: 1.3 }), X1 - t - 0.02, 0.95, Z0 + 2.6, false);
-    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 14)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
+    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 10)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
     add(own(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 10)).rotateZ(Math.PI / 2), lam(0xb8282a), BAR.x0 + t + 0.035, 0.85, Z0 + 3.5, false);
   }
 
@@ -1102,8 +1004,11 @@ export function buildCity(scene: THREE.Scene) {
     const booth = FIXTURES.find((f) => f.kind === 'booth')!;
     add(geoBox(0.85, 1.35, 0.85), lam(0x8a8478), booth.x + 0.5, 0.7, booth.y + 0.5);
     add(geoBox(0.95, 0.06, 0.95), lam(0x2f4562), booth.x + 0.5, 1.4, booth.y + 0.5);
-    add(geoBox(0.5, 0.4, 0.02), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.5, 0.95, booth.y + 0.06, false);
-    add(geoBox(0.02, 0.4, 0.4), lam(0x6a5032, { emissive: C.litWindow, emissiveIntensity: 1.2 }), booth.x + 0.94, 0.95, booth.y + 0.5, false);
+    {
+      const bb = { x0: booth.x + 0.075, z0: booth.y + 0.075, x1: booth.x + 0.925, z1: booth.y + 0.925 };
+      for (const side of ['n', 'e'] as const) kit.window(face(bb, side), 0.425, 0.75, { style: 'office', w: 0.5, h: 0.4, lit: true, sill: false, frame: 0x2f4562 });
+      kit.door(face(bb, 'w'), 0.425, { w: 0.45, h: 1.0, color: 0x5a5f66, frame: 0x2f4562 });
+    }
     // Tall sodium lamps.
     lamp(PARKING_NE.x1 + 0.8, PARKING_NE.y0 + 2.5, -1, 0);
     lamp(PARKING_S.x0 + 5, PARKING_S.y1 + 0.8, 0, -1);
@@ -1343,24 +1248,8 @@ export function buildCity(scene: THREE.Scene) {
     }
     // The burning barrel: a rusty drum with flames and a flickering orange light.
     for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) burningBarrel(b.x + 0.5, 0, b.y + 0.5);
-    // Chain-link fence along the street: posts and a see-through mesh panel on every fence tile.
-    const post = new Batch(own(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6)), lam(0x8a8f96));
-    const linkTex = own(canvasTex(32, 32, (g) => {
-      g.clearRect(0, 0, 32, 32);
-      g.strokeStyle = '#b8bcc2';
-      g.lineWidth = 2;
-      g.beginPath();
-      g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
-      g.stroke();
-    }));
-    linkTex.repeat.set(4, 4);
-    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-    for (const f of FIXTURES.filter((x) => x.kind === 'fence')) {
-      add(own(new THREE.PlaneGeometry(1, 1.1)), linkMat, f.x + 0.5, 0.6, f.y + 0.5, false).receiveShadow = false;
-      post.add(f.x, 0.6, f.y + 0.5);
-      post.add(f.x + 1, 0.6, f.y + 0.5);
-    }
-    post.build(scene);
+    // Chain-link fence along the street (kit): a see-through panel and posts on every fence tile.
+    for (const f of FIXTURES.filter((x) => x.kind === 'fence')) kit.fence(f.x, f.y + 0.5, f.x + 1, f.y + 0.5, 'chain', { high: 1.1 });
     // A bare bulb on the back wall.
     add(geoBox(0.12, 0.12, 0.12), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), cx + 1.5, 1.6, Z0 + 0.1, false);
     const bulb = new THREE.PointLight(0xffd9a0, 3, 5, 1.6);
@@ -1419,18 +1308,21 @@ export function buildCity(scene: THREE.Scene) {
       add(geoBox(0.5, 0.16, 0.06), crossMat, X1 - 0.7, F + 0.55, ZS + 0.03, false),
       add(geoBox(0.16, 0.5, 0.06), crossMat, X1 - 0.7, F + 0.55, ZS + 0.03, false),
     ];
-    // Windows: a lit strip on the front's upper floor, and windows down the brick sides on both floors.
-    const winMat = lam(0x6a5032, { emissive: 0xfff0d0, emissiveIntensity: 0.9 });
-    const windows = [add(geoBox(X1 - X0 - 0.6, 0.35, 0.03), winMat, cx, TOP - 0.45, ZS + 0.01, false)];
-    for (const side of [X0 - 0.01, X1 + 0.01])
+    // Windows (kit): a row along the front's upper floor, and windows down the brick sides on both floors, all lit.
+    const hr = { x0: X0, z0: ZN, x1: X1, z1: ZS };
+    const windows: THREE.Object3D[] = kit.windowRow(face(hr, 's'), 0.6, X1 - X0 - 0.6, TOP - 0.62, 1.0, { style: 'office', w: 0.8, h: 0.35, lit: true, glow: 0xfff0d0, frame: 0x2f3236, sill: false });
+    for (const side of ['w', 'e'] as const) {
+      const f = face(hr, side);
       for (let z = ZN + 1; z < ZS - 0.5; z += 2)
-        for (const y of z < ZM ? [0.9, F + 0.85] : [F + 0.85]) windows.push(add(geoBox(0.03, 0.6, 0.8), winMat, side, y, z + 0.5, false));
+        for (const y of z < ZM ? [0.6, F + 0.55] : [F + 0.55]) windows.push(...kit.window(f, uOf(f, z + 0.5), y, { style: 'office', w: 0.8, h: 0.6, lit: true, glow: 0xfff0d0, frame: 0xd8d4cc }));
+    }
     // The roof, its edge, two air conditioners and a red cross for the helicopters (and the minimap).
-    const roof = add(geoBox(X1 - X0, 0.1, ZS - ZN), lam(C.roof), cx, TOP + 0.05, (ZN + ZS) / 2);
-    const rim = parapet(cx, (ZN + ZS) / 2, X1 - X0 + 0.06, ZS - ZN + 0.06, TOP + 0.08, mWhite);
+    const roof = kit.roof(hr, TOP, C.roof, 0, 0.1);
+    const rim = kit.parapet({ x0: X0 - 0.03, z0: ZN - 0.03, x1: X1 + 0.03, z1: ZS + 0.03 }, TOP + 0.08, mWhite);
     const roofProps = [
-      add(geoBox(0.6, 0.3, 0.5), lam(0xd8d8d8), X0 + 1, TOP + 0.25, ZN + 1),
-      add(geoBox(0.6, 0.3, 0.5), lam(0xd8d8d8), X0 + 1, TOP + 0.25, ZN + 2),
+      ...kit.acUnit(X0 + 1, TOP + 0.1, ZN + 1, true),
+      ...kit.acUnit(X0 + 1, TOP + 0.1, ZN + 2, true),
+      ...kit.vent(X1 - 1, TOP + 0.1, ZN + 1.5),
       add(geoBox(1.4, 0.02, 0.4), mRed, cx, TOP + 0.11, ZM + 2, false),
       add(geoBox(0.4, 0.02, 1.4), mRed, cx, TOP + 0.11, ZM + 2, false),
     ];
@@ -1580,26 +1472,21 @@ export function buildCity(scene: THREE.Scene) {
     };
     const mBrick = lam(0x8a5040, { map: bt(X1 - X0) });
     const walls = [add(geoBox(X1 - X0, HT, Z1 - Z0), mBrick, cx, HT / 2, cz)];
-    const roofParts = [add(geoBox(X1 - X0 - 0.2, 0.06, Z1 - Z0 - 0.2), lam(C.roof), cx, HT + 0.03, cz), ...parapet(cx, cz, X1 - X0 + 0.04, Z1 - Z0 + 0.04, HT + 0.08, lam(0x5a3a2e))];
-    roofParts.push(add(geoBox(0.6, 0.35, 0.5), lam(0xd8d8d8), X0 + 1.2, HT + 0.2, Z1 - 1.2));
-    // The front (south, on the street): the sign, the door, two barred windows with boxes stacked behind them.
-    const fz = Z1 + 0.01;
-    add(geoBox(3.75, 0.74, 0.06), lam(0x3a2a22), cx, 2.05, fz + 0.02, false);
-    add(own(new THREE.PlaneGeometry(3.6, 0.62)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('THRIFT STORE', '#d8cdb8', '#8a2f28')) })), cx, 2.05, fz + 0.06, false);
-    add(geoBox(0.8, 1.25, 0.05), lam(0x7a6a5a), cx, 0.63, fz + 0.02, false); // the door
-    add(geoBox(0.3, 0.22, 0.02), lam(0x2b2b2e), cx, 0.95, fz + 0.05, false); // its little window
-    add(geoBox(0.92, 0.08, 0.1), lam(0x4a3a2e), cx, 1.28, fz + 0.03, false);
-    for (const dx of [-1.5, 1.5]) {
-      add(geoBox(1.0, 0.8, 0.04), lam(0x3a4048, { emissive: 0x2a2010, emissiveIntensity: 0.6 }), cx + dx, 0.95, fz + 0.02, false);
-      add(geoBox(0.4, 0.3, 0.02), lam(0x9a7a52), cx + dx - 0.2, 0.75, fz + 0.03, false); // boxes behind the glass
-      for (let i = -2; i <= 2; i++) add(geoBox(0.025, 0.8, 0.03), lam(0x2a2a2e), cx + dx + i * 0.2, 0.95, fz + 0.05, false); // bars
-    }
-    // Drainpipes down both front corners, a meter box.
-    for (const x of [X0 + 0.15, X1 - 0.15]) add(own(new THREE.CylinderGeometry(0.05, 0.05, HT, 8)), lam(0x5a5f66), x, HT / 2, fz + 0.06);
-    add(geoBox(0.3, 0.4, 0.12), lam(0x6a6e74), X1 - 0.6, 1.1, fz + 0.08);
+    const r = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const roofParts = [kit.roof({ x0: X0 + 0.1, z0: Z0 + 0.1, x1: X1 - 0.1, z1: Z1 - 0.1 }, HT, C.roof, 0, 0.06), ...kit.parapet({ x0: X0 - 0.02, z0: Z0 - 0.02, x1: X1 + 0.02, z1: Z1 + 0.02 }, HT + 0.08, 0x5a3a2e), ...kit.acUnit(X0 + 1.2, HT + 0.05, Z1 - 1.2, true)];
+    // The front (south, on the street): the sign, the door, two barred windows with boxes stacked behind them,
+    // drainpipes down both corners, a meter box. Upstairs windows down the sides.
+    const f = face(r, 's');
+    const u = (x: number) => uOf(f, x);
+    kit.sign(f, u(cx), 2.05, { text: 'THRIFT STORE', bg: '#d8cdb8', fg: '#8a2f28', w: 3.6, h: 0.62, board: 0x3a2a22 });
+    kit.door(f, u(cx), { style: 'office', w: 0.8, h: 1.25, color: 0x7a6a5a, frame: 0x4a3a2e, step: true });
+    for (const dx of [-1.5, 1.5]) kit.window(f, u(cx + dx), 0.55, { style: 'barred', w: 1.0, h: 0.8, behind: 'boxes' });
+    for (const x of [X0 + 0.15, X1 - 0.15]) kit.drainpipe(f, u(x), HT);
+    kit.meterBox(f, u(X1 - 0.6), 0.9);
+    for (const side of ['w', 'e'] as const) kit.windowRow(face(r, side), 0.6, Z1 - Z0 - 0.6, 1.55, 1.3, { litChance: 0.4, rng });
     // The back door onto the yard (east wall) with a bare bulb over it.
-    add(geoBox(0.05, 1.2, 0.75), lam(0x6a5a4a), X1 + 0.01, 0.6, THRIFT_YARD.y0 + 2.5, false);
-    add(geoBox(0.1, 0.1, 0.1), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), X1 + 0.08, 1.5, THRIFT_YARD.y0 + 2.5, false);
+    const fe = face(r, 'e');
+    kit.door(fe, uOf(fe, THRIFT_YARD.y0 + 2.5), { w: 0.75, h: 1.2, color: 0x6a5a4a, light: 'bulb' });
     const fade: Fadeable = { walls, mats: [mBrick], props: roofParts, opacity: 1 };
     fadeables.push(fade);
 
@@ -1619,37 +1506,12 @@ export function buildCity(scene: THREE.Scene) {
       weeds.add(x + (rng() - 0.5) * 0.1, 0.18, z, 1, 0.7 + rng() * 0.8, 1, rng() * 3);
     }
     weeds.build(scene);
-    // Chain-link fence with barbed wire along the north (but the gate), east and south edges.
-    const linkTex = own(
-      canvasTex(32, 32, (g) => {
-        g.clearRect(0, 0, 32, 32);
-        g.strokeStyle = '#b8bcc2';
-        g.lineWidth = 2;
-        g.beginPath();
-        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
-        g.stroke();
-      }),
-    );
-    linkTex.repeat.set(4, 4);
-    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-    const postMat = lam(0x8a8f96);
-    const fencePanel = (x: number, z: number, alongX: boolean) => {
-      const m = add(own(new THREE.PlaneGeometry(1, 1.2)), linkMat, x, 0.65, z, false);
-      m.receiveShadow = false;
-      if (!alongX) m.rotation.y = Math.PI / 2;
-      add(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), postMat, alongX ? x - 0.5 : x, 0.7, alongX ? z : z - 0.5);
-      // barbed wire on top
-      add(geoBox(alongX ? 1 : 0.015, 0.015, alongX ? 0.015 : 1), lam(0x6a6e74), x, 1.32, z, false);
-    };
-    for (let x = Y0; x < Y1; x++) {
-      fencePanel(x + 0.5, Z0 + 0.02, true);
-      if (x !== THRIFT_GATE[0]) fencePanel(x + 0.5, Z1 - 0.02, true);
-    }
-    for (let z = Z0; z < Z1; z++) fencePanel(Y1 - 0.02, z + 0.5, false);
-    add(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), postMat, Y1 - 0.02, 0.7, Z1 - 0.02);
-    // The gate, swung open into the street.
-    const gate = add(own(new THREE.PlaneGeometry(1, 1.15)), linkMat, THRIFT_GATE[0] + 1.0, 0.62, Z1 + 0.45, false);
-    gate.rotation.y = Math.PI / 2.4;
+    // Chain-link fence with barbed wire along the north, east and south edges (but the gate), and the gate itself,
+    // swung open into the street.
+    kit.fence(Y0, Z0 + 0.02, Y1, Z0 + 0.02, 'chainBarbed');
+    kit.fence(Y0, Z1 - 0.02, Y1, Z1 - 0.02, 'chainBarbed', { skip: (i) => Y0 + i === THRIFT_GATE[0] });
+    kit.fence(Y1 - 0.02, Z0, Y1 - 0.02, Z1, 'chainBarbed');
+    kit.chainPanel(THRIFT_GATE[0] + 1.0, Z1 + 0.45, false, 1.15).rotation.y = Math.PI / 2.4;
     // Junk: pallets, rubbish bags, cans, an old tyre.
     const wood = lam(0x8a6a44);
     for (const [px, pz, r] of [[Y0 + 1.2, Z0 + 0.55, 0.2], [Y1 - 0.45, Z0 + 1.2, 1.5]]) {
@@ -1722,33 +1584,31 @@ export function buildCity(scene: THREE.Scene) {
     const mBrick = lam(0x8a5a44, { map: bt });
     const [d0] = FACTORY_DOOR[0];
     const d1 = FACTORY_DOOR[FACTORY_DOOR.length - 1][0] + 1;
-    const walls = [
-      add(geoBox(X1 - X0, HT, t), mBrick, cx, HT / 2, Z0 + t / 2),
-      add(geoBox(t, HT, Z1 - Z0), mBrick, X0 + t / 2, HT / 2, cz),
-      add(geoBox(t, HT, Z1 - Z0), mBrick, X1 - t / 2, HT / 2, cz),
-      add(geoBox(d0 - X0, HT, t), mBrick, (X0 + d0) / 2, HT / 2, Z1 - t / 2),
-      add(geoBox(X1 - d1, HT, t), mBrick, (d1 + X1) / 2, HT / 2, Z1 - t / 2),
-      add(geoBox(d1 - d0, HT - 2.0, t), mBrick, (d0 + d1) / 2, 2.0 + (HT - 2.0) / 2, Z1 - t / 2),
-    ];
+    const fr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const walls = kit.walls(fr, HT, t, mBrick, { s: [{ u0: d0 - X0, u1: d1 - X0, top: 2.0 }] });
     const props: THREE.Object3D[] = [];
     const glassMat = lam(0x3a4650, { emissive: 0x2a2010, emissiveIntensity: 0.5 });
     const broken = lam(0x141618);
-    const signX = (FACTORY_DOOR[0][0] + FACTORY_DOOR[FACTORY_DOOR.length - 1][0] + 1) / 2;
-    for (let x = X0 + 1; x < X1 - 0.5; x += 1.6) {
-      // (No windows behind the name over the door: they covered the sign.)
-      if (Math.abs(x + 0.2 - signX) > 2.3) props.push(add(geoBox(1.0, 0.7, 0.03), (x * 7) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z1 + 0.01, false));
-      props.push(add(geoBox(1.0, 0.7, 0.03), (x * 5) % 3 < 1 ? broken : glassMat, x + 0.2, HT - 0.9, Z0 - 0.01, false));
+    // A row of old factory windows high up on every wall, about one in three smashed (kit). None behind the name
+    // over the door: they covered the sign.
+    const signU = (d0 + d1) / 2 - X0;
+    for (const side of ['n', 's', 'e', 'w'] as const) {
+      const f = face(fr, side);
+      const ns = side === 'n' || side === 's';
+      const step = ns ? 1.6 : 1.8;
+      const n = Math.floor((f.len - 1) / step) + 1;
+      const start = (f.len - (n - 1) * step) / 2;
+      for (let i = 0; i < n; i++) {
+        const u = start + i * step;
+        if (side === 's' && Math.abs(u - signU) < 2.3) continue;
+        props.push(...kit.window(f, u, HT - 1.25, { style: (i * 7 + side.charCodeAt(0)) % 3 === 0 ? 'broken' : 'office', w: ns ? 1.0 : 1.1, h: 0.7, frame: 0x3a3632 }));
+      }
     }
-    for (let z = Z0 + 1; z < Z1 - 0.5; z += 1.8) {
-      props.push(add(geoBox(0.03, 0.7, 1.1), (z * 3) % 3 < 1 ? broken : glassMat, X0 - 0.01, HT - 0.9, z + 0.3, false));
-      props.push(add(geoBox(0.03, 0.7, 1.1), (z * 7) % 3 < 1 ? broken : glassMat, X1 + 0.01, HT - 0.9, z + 0.3, false));
-    }
-    // The roll-up door, rolled up into its box over the opening, and rusty frame.
-    props.push(add(geoBox(d1 - d0 + 0.2, 0.35, 0.3), lam(0x7a4a32), (d0 + d1) / 2, 2.1, Z1 + 0.05));
-    for (const x of [d0, d1]) props.push(add(geoBox(0.12, 2.0, 0.2), lam(0x5a4a3a), x, 1.0, Z1 + 0.02));
-    // A painted name over the door.
-    const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.05, false);
-    props.push(sign);
+    // The roll-up door, rolled up into its box over the opening, in a rusty frame; the painted name over it.
+    const fs = face(fr, 's');
+    props.push(...kit.door(fs, signU, { style: 'shutterOpen', w: d1 - d0, h: 2.0, frame: 0x5a4a3a }));
+    props.push(...kit.sign(fs, signU, 2.75, { text: 'FACTORY', bg: '#3a3632', fg: '#c8b89a', w: 3.4, h: 0.55, out: -0.01 }));
+    props.push(...kit.drainpipe(fs, 0.1, HT), ...kit.drainpipe(fs, X1 - X0 - 0.1, HT));
     // The roof: a closed slab on top of the walls, and on it a corrugated sawtooth: three ridges, each rising towards
     // the north with a steep glazed face there, and a skylight lying on each slope (the middle one broken). Closed shapes,
     // so nothing shows through from outside; all of it lifts off while you're inside.
@@ -1816,34 +1676,12 @@ export function buildCity(scene: THREE.Scene) {
     const weeds = new Batch(own(new THREE.ConeGeometry(0.06, 0.22, 4)), lam(0x4a6a32), false);
     for (let i = 0; i < 40; i++) weeds.add(L0 + 0.3 + rng() * (L1 - L0 - 0.6), 0.2, LZ0 + 0.3 + rng() * (LZ1 - LZ0 - 0.6), 1, 0.6 + rng() * 0.8, 1, rng() * 3);
     weeds.build(scene);
-    // Chain-link fence round the lot (not along the factory), with the opening for cars on the west side.
-    const linkTex = own(
-      canvasTex(32, 32, (g) => {
-        g.clearRect(0, 0, 32, 32);
-        g.strokeStyle = '#b8bcc2';
-        g.lineWidth = 2;
-        g.beginPath();
-        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
-        g.stroke();
-      }),
-    );
-    linkTex.repeat.set(4, 4);
-    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-    const post = new Batch(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), lam(0x8a8f96));
-    const panel = (x: number, z: number, alongX: boolean) => {
-      const m = add(own(new THREE.PlaneGeometry(1, 1.2)), linkMat, x, 0.7, z, false);
-      m.receiveShadow = false;
-      if (!alongX) m.rotation.y = Math.PI / 2;
-      post.add(alongX ? x - 0.5 : x, 0.7, alongX ? z : z - 0.5);
-    };
+    // Chain-link fence round the lot (not along the factory), with the opening for cars on the west side (kit).
     const gateW = new Set(FACTORY_LOT_GATE.filter(([x]) => x === FACTORY_LOT.x0).map(([, y]) => y));
     const gateE = new Set(FACTORY_LOT_GATE.filter(([x]) => x === FACTORY_LOT.x1).map(([, y]) => y));
-    for (let x = L0; x < L1; x++) panel(x + 0.5, LZ1 - 0.02, true);
-    for (let z = LZ0; z < LZ1; z++) {
-      if (!gateW.has(z)) panel(L0 + 0.02, z + 0.5, false);
-      if (!gateE.has(z)) panel(L1 - 0.02, z + 0.5, false);
-    }
-    post.build(scene);
+    kit.fence(L0, LZ1 - 0.02, L1, LZ1 - 0.02, 'chain');
+    kit.fence(L0 + 0.02, LZ0, L0 + 0.02, LZ1, 'chain', { skip: (i) => gateW.has(LZ0 + i) });
+    kit.fence(L1 - 0.02, LZ0, L1 - 0.02, LZ1, 'chain', { skip: (i) => gateE.has(LZ0 + i) });
     // A lamp post in the lot, and a few old tyres and pallets.
     add(geoBox(0.08, 2.6, 0.08), lam(0x2b2b2e), L1 - 1.2, 1.3, LZ0 + 1.2);
     add(geoBox(0.3, 0.06, 0.2), lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.6 }), L1 - 1.4, 2.6, LZ0 + 1.2, false);
@@ -1885,18 +1723,14 @@ export function buildCity(scene: THREE.Scene) {
     scene.add(floor);
     const [d0] = BANK_DOOR[0];
     const d1 = BANK_DOOR[BANK_DOOR.length - 1][0] + 1;
-    const walls = [
-      add(geoBox(X1 - X0, HT, t), stone, cx, HT / 2, Z0 + t / 2),
-      add(geoBox(t, HT, Z1 - Z0), stone, X0 + t / 2, HT / 2, cz),
-      add(geoBox(t, HT, Z1 - Z0), stone, X1 - t / 2, HT / 2, cz),
-      add(geoBox(d0 - X0, HT, t), stone, (X0 + d0) / 2, HT / 2, Z1 - t / 2),
-      add(geoBox(X1 - d1, HT, t), stone, (d1 + X1) / 2, HT / 2, Z1 - t / 2),
-      add(geoBox(d1 - d0, HT - 2.1, t), stone, (d0 + d1) / 2, 2.1 + (HT - 2.1) / 2, Z1 - t / 2),
-    ];
+    const br = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const walls = kit.walls(br, HT, t, stone, { s: [{ u0: d0 - X0, u1: d1 - X0, top: 2.1 }] });
     const props: THREE.Object3D[] = [];
-    // Tall windows along the sides.
-    const winMat = lam(0x3a4650, { emissive: 0xffe2b0, emissiveIntensity: 0.5 });
-    for (let z = Z0 + 1.2; z < Z1 - 1; z += 2) for (const x of [X0 - 0.01, X1 + 0.01]) props.push(add(geoBox(0.03, 1.4, 0.7), winMat, x, 1.4, z, false));
+    // Tall windows along the sides and the back (kit), warm light inside.
+    for (const side of ['e', 'w', 'n'] as const) {
+      const f = face(br, side);
+      props.push(...kit.windowRow(f, 0.8, f.len - 0.8, 0.7, 2, { style: 'office', w: 0.7, h: 1.4, lit: true, glow: 0xffe2b0, frame: 0xb0a898 }));
+    }
     // Roof, cornice, the pediment over the entrance with BANK on it, columns, steps.
     props.push(add(geoBox(X1 - X0 + 0.3, 0.2, Z1 - Z0 + 0.3), stoneDark, cx, HT + 0.1, cz));
     const ped = new THREE.Shape();
@@ -1935,9 +1769,9 @@ export function buildCity(scene: THREE.Scene) {
     const vault = FIXTURES.filter((f) => f.kind === 'vault');
     if (vault.length) {
       const vx = (Math.min(...vault.map((f) => f.x)) + Math.max(...vault.map((f) => f.x)) + 1) / 2;
-      const door = add(own(new THREE.CylinderGeometry(0.85, 0.85, 0.16, 24)), lam(0x8a8f96), vx, 1.1, Z0 + t + 0.08);
+      const door = add(own(new THREE.CylinderGeometry(0.85, 0.85, 0.16, 12)), lam(0x8a8f96), vx, 1.1, Z0 + t + 0.08);
       door.rotation.x = Math.PI / 2;
-      const wheel = add(own(new THREE.TorusGeometry(0.3, 0.04, 6, 16)), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false);
+      const wheel = add(own(new THREE.TorusGeometry(0.3, 0.04, 6, 10)), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false);
       wheel.rotation.x = 0;
       for (let i = 0; i < 3; i++) add(geoBox(0.6, 0.04, 0.04), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false).rotation.z = (i * Math.PI) / 3;
     }
@@ -1952,18 +1786,6 @@ export function buildCity(scene: THREE.Scene) {
 
 
   // ---------- v0.43: Hotline Plumbing & Heating, the Junkyard, the Biker Club (the Industrial zone) ----------
-  const corrTex = own(
-    canvasTex(32, 32, (g) => {
-      g.fillStyle = '#8a8f96';
-      g.fillRect(0, 0, 32, 32);
-      for (let i = 0; i < 4; i++) {
-        g.fillStyle = '#6a6e74';
-        g.fillRect(i * 8, 0, 3, 32);
-        g.fillStyle = '#a8adb4';
-        g.fillRect(i * 8 + 4, 0, 2, 32);
-      }
-    }),
-  );
   const brickMat = (across: number, color: number) => {
     const t = own(brickTex.clone());
     t.repeat.set(across, 2);
@@ -1986,18 +1808,18 @@ export function buildCity(scene: THREE.Scene) {
     const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
     const mRender = lam(0xd8ceb4);
     const walls = [add(geoBox(X1 - X0, 1.2, Z1 - Z0), mBrick, cx, 0.6, cz), add(geoBox(X1 - X0, HT - 1.2, Z1 - Z0), mRender, cx, 1.2 + (HT - 1.2) / 2, cz)];
-    const props: THREE.Object3D[] = [add(geoBox(X1 - X0 + 0.2, 0.12, Z1 - Z0 + 0.2), lam(0x3a3d42), cx, HT + 0.06, cz)];
+    const hr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const props: THREE.Object3D[] = [kit.roof(hr, HT, 0x3a3d42, 0.1, 0.12)];
     props.push(add(geoBox(1.2, 0.5, 0.8), lam(0xb8bcc2), cx + 0.5, HT + 0.35, Z0 + 2)); // a boiler flue box on the roof
-    props.push(add(own(new THREE.CylinderGeometry(0.12, 0.12, 1.0, 10)), lam(0x8a8f96), cx - 1, HT + 0.5, Z1 - 2));
+    props.push(...kit.vent(cx - 1, HT + 0.12, Z1 - 2, 0.12, 1.0, 0x8a8f96));
+    // The front faces WEST (kit): the sign on its board, the roll-up door for the vans, an office door with a bulb,
+    // windows in the cream upper half down both long sides.
+    const fw = face(hr, 'w');
     const fx = X0 - 0.01;
-    // The sign (facing west).
-    const sign = add(own(new THREE.PlaneGeometry(4.2, 0.7)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('HOTLINE PLUMBING & HEATING', '#1e4a7a', '#f2e8d0')) })), fx - 0.06, 1.95, cz, false);
-    sign.rotation.y = -Math.PI / 2;
-    add(geoBox(0.05, 0.82, 4.35), lam(0x1a2a3e), fx - 0.03, 1.95, cz, false);
-    // The roll-up door (ribbed), an office door with a little window, a flame logo.
-    add(geoBox(0.05, 1.45, 2.0), lam(0xa8adb4, { map: corrTex }), fx - 0.02, 0.73, cz + 2.2, false);
-    add(geoBox(0.06, 1.25, 0.8), lam(0x2e5f8a), fx - 0.02, 0.63, cz - 1.0, false);
-    add(geoBox(0.07, 0.25, 0.35), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 0.8 }), fx - 0.03, 0.95, cz - 1.0, false);
+    const sign = kit.sign(fw, uOf(fw, cz), 1.95, { text: 'HOTLINE PLUMBING & HEATING', bg: '#1e4a7a', fg: '#f2e8d0', w: 4.2, h: 0.7, board: 0x1a2a3e });
+    kit.door(fw, uOf(fw, cz + 2.2), { style: 'shutter', w: 2.0, h: 1.45, color: 0xa8adb4 });
+    kit.door(fw, uOf(fw, cz - 1.0), { style: 'office', w: 0.8, h: 1.25, color: 0x2e5f8a, light: 'bulb' });
+    for (const side of ['n', 's'] as const) props.push(...kit.windowRow(face(hr, side), 0.6, X1 - X0 - 0.6, 1.3, 1.5, { style: 'office', w: 0.7, h: 0.5, frame: 0x6a6a62, litChance: 0.5, rng: brng }));
     add(own(new THREE.ConeGeometry(0.16, 0.42, 6)), lam(0xe8641e, { emissive: 0x8a3010, emissiveIntensity: 0.6 }), fx - 0.1, 1.95, cz - 2.4, false);
     // Copper pipes stacked against the front wall, and a bare bulb over the office door.
     const copper = lam(0xc07040);
@@ -2005,8 +1827,7 @@ export function buildCity(scene: THREE.Scene) {
       const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz - 3.6 + (i % 3) * 0.12, false);
       pipe.rotation.x = Math.PI / 2;
     }
-    add(geoBox(0.1, 0.1, 0.1), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), fx - 0.08, 1.45, cz - 1.0, false);
-    const fade: Fadeable = { walls, mats: [mBrick, mRender], props: [...props, sign], opacity: 1 };
+    const fade: Fadeable = { walls, mats: [mBrick, mRender], props: [...props, ...sign], opacity: 1 };
     fadeables.push(fade);
 
     // The yard: cracked concrete, a half-high brick wall with a coping, one opening on the east.
@@ -2014,22 +1835,15 @@ export function buildCity(scene: THREE.Scene) {
     const Y1 = HOTLINE_YARD.x1 + 1;
     const ycx = (Y0 + Y1) / 2;
     add(geoBox(Y1 - Y0, 0.12, Z1 - Z0), lam(0x5f5c56), ycx, 0.06, cz, false);
-    const wallM = brickMat(4, 0x8a5040);
-    const coping = lam(0xa8a296);
-    const halfWall = (x: number, z: number, w: number, d: number) => {
-      add(geoBox(w, 0.75, d), wallM, x, 0.375, z);
-      add(geoBox(w + 0.04, 0.06, d + 0.06), coping, x, 0.78, z, false);
-    };
-    halfWall(ycx, Z0 + 0.1, Y1 - Y0, 0.2);
-    halfWall(ycx, Z1 - 0.1, Y1 - Y0, 0.2);
+    // A half-high brick wall with a coping round the yard (kit), one opening on the east.
     const g0 = HOTLINE_GATE[0][1];
     const g1 = HOTLINE_GATE[HOTLINE_GATE.length - 1][1] + 1;
-    halfWall(Y1 - 0.1, (Z0 + 0.2 + g0) / 2, 0.2, g0 - Z0 - 0.2);
-    halfWall(Y1 - 0.1, (g1 + Z1 - 0.2) / 2, 0.2, Z1 - 0.2 - g1);
-    for (const z of [g0, g1]) add(geoBox(0.3, 1.0, 0.3), wallM, Y1 - 0.1, 0.5, z); // pillars either side of the opening
+    kit.fence(Y0, Z0 + 0.1, Y1, Z0 + 0.1, 'halfBrick');
+    kit.fence(Y0, Z1 - 0.1, Y1, Z1 - 0.1, 'halfBrick');
+    kit.fence(Y1 - 0.1, Z0, Y1 - 0.1, Z1, 'halfBrick', { skip: (i) => Z0 + i >= g0 && Z0 + i < g1 });
     // Copper coils and loose bits of pipe on the ground, a back door into the store.
     for (let i = 0; i < 5; i++) {
-      const coil = add(own(new THREE.TorusGeometry(0.18, 0.04, 6, 14)), copper, Y0 + 1 + rng() * 3, 0.06, Z0 + 2 + rng() * 6, false);
+      const coil = add(own(new THREE.TorusGeometry(0.18, 0.04, 6, 10)), copper, Y0 + 1 + rng() * 3, 0.06, Z0 + 2 + rng() * 6, false);
       coil.rotation.x = -Math.PI / 2;
     }
     for (let i = 0; i < 8; i++) {
@@ -2037,7 +1851,8 @@ export function buildCity(scene: THREE.Scene) {
       bit.rotation.z = Math.PI / 2;
       bit.rotation.y = rng() * 3;
     }
-    add(geoBox(0.05, 1.2, 0.75), lam(0x2e5f8a), X1 + 0.01, 0.6, cz + 0.5, false);
+    const fe = face(hr, 'e');
+    kit.door(fe, uOf(fe, cz + 0.5), { w: 0.75, h: 1.2, color: 0x2e5f8a, light: 'bulb' });
   }
   // Stacks of old pipe (fixtures) in the yard.
   for (const f of FIXTURES) {
@@ -2063,19 +1878,11 @@ export function buildCity(scene: THREE.Scene) {
       const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
       oil.rotation.x = -Math.PI / 2;
     }
-    const FH = 1.7;
-    const fenceM = lam(0x9a9a92, { map: corrTex });
-    const rustM = lam(0x7a4a2a, { map: corrTex });
-    const panel = (x: number, z: number, alongX: boolean, i: number) => {
-      const m = add(geoBox(alongX ? 1 : 0.06, FH, alongX ? 0.06 : 1), i % 4 === 1 ? rustM : fenceM, x, FH / 2, z);
-      m.rotation.y = (rng() - 0.5) * 0.04;
-    };
-    let i = 0;
-    for (let x = X0; x < X1; x++) panel(x + 0.5, Z0 + 0.03, true, i++), panel(x + 0.5, Z1 - 0.03, true, i++);
-    for (let z = Z0; z < Z1; z++) {
-      panel(X0 + 0.03, z + 0.5, false, i++);
-      if (!JUNKYARD_GATE.some(([, gz]) => gz === z)) panel(X1 - 0.03, z + 0.5, false, i++);
-    }
+    // A tall corrugated fence all round (kit; every fourth sheet rusty), with the gate on the east.
+    kit.fence(X0, Z0 + 0.03, X1, Z0 + 0.03, 'corrugated', { rng });
+    kit.fence(X0, Z1 - 0.03, X1, Z1 - 0.03, 'corrugated', { rng });
+    kit.fence(X0 + 0.03, Z0, X0 + 0.03, Z1, 'corrugated', { rng });
+    kit.fence(X1 - 0.03, Z0, X1 - 0.03, Z1, 'corrugated', { rng, skip: (i) => JUNKYARD_GATE.some(([, gz]) => gz === Z0 + i) });
     // The gate: two chain-link leaves swung all the way open, flat against the fence outside, and a "BEWARE OF THE DOG"
     // sign on the fence next to it.
     const g0 = JUNKYARD_GATE[0][1];
@@ -2207,15 +2014,10 @@ export function buildCity(scene: THREE.Scene) {
     scene.add(floor);
     const d0 = CLUB_DOOR[0][0];
     const d1 = CLUB_DOOR[CLUB_DOOR.length - 1][0] + 1;
-    const walls = [
-      add(geoBox(X1 - X0, HT, t), mBrick, cx, HT / 2, Z1 - t / 2),
-      add(geoBox(t, HT, Z1 - Z0), mBrick, X0 + t / 2, HT / 2, cz),
-      add(geoBox(t, HT, Z1 - Z0), mBrick, X1 - t / 2, HT / 2, cz),
-      add(geoBox(d0 - X0, HT, t), mBrick, (X0 + d0) / 2, HT / 2, Z0 + t / 2),
-      add(geoBox(X1 - d1, HT, t), mBrick, (d1 + X1) / 2, HT / 2, Z0 + t / 2),
-      add(geoBox(d1 - d0, HT - 1.9, t), mBrick, (d0 + d1) / 2, 1.9 + (HT - 1.9) / 2, Z0 + t / 2),
-    ];
-    const props: THREE.Object3D[] = [add(geoBox(X1 - X0 + 0.2, 0.14, Z1 - Z0 + 0.2), lam(0x24262a), cx, HT + 0.07, cz)];
+    const cr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const fn = face(cr, 'n');
+    const walls = kit.walls(cr, HT, t, mBrick, { n: [{ u0: X1 - d1, u1: X1 - d0, top: 1.9 }] });
+    const props: THREE.Object3D[] = [kit.roof(cr, HT, 0x24262a, 0.1, 0.14)];
     // The front (north): the neon sign over the door, two blacked-out windows with neon beer signs, a red door light.
     const fz = Z0 - 0.02;
     const neonTex = own(
@@ -2238,17 +2040,16 @@ export function buildCity(scene: THREE.Scene) {
         g.fillText('— M C —', 256, 104);
       }, false),
     );
-    // The sign sits above the door (it reaches a little over the roof line), clear of the door and its light.
-    const neon = add(own(new THREE.PlaneGeometry(3.6, 0.9)), own(new THREE.MeshBasicMaterial({ map: neonTex })), cx, 2.4, fz - 0.2, false);
-    neon.rotation.y = Math.PI;
-    // (In front of the roof's overhang, which cut across the letters.)
-    props.push(neon, add(geoBox(3.75, 1.02, 0.05), lam(0x141418), cx, 2.4, fz - 0.16, false));
+    // The sign sits above the door (it reaches a little over the roof line, in front of the roof's overhang which cut
+    // across the letters), clear of the door and its light.
+    props.push(...kit.sign(fn, uOf(fn, cx), 2.4, { tex: neonTex, w: 3.6, h: 0.9, board: 0x141418, out: 0.13 }));
     for (const x of [X0 + 1.6, X1 - 1.6]) {
-      add(geoBox(1.4, 0.8, 0.04), lam(0x101014), x, 1.2, fz - 0.01, false);
+      kit.window(fn, uOf(fn, x), 0.8, { style: 'blacked', w: 1.4, h: 0.8, frame: 0x141418, sill: false });
       const beer = add(own(new THREE.PlaneGeometry(0.6, 0.25)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BEER', '#101014', '#ffb040')) })), x, 1.25, fz - 0.04, false);
       beer.rotation.y = Math.PI;
     }
-    add(geoBox(0.12, 0.16, 0.12), lam(0xff3030, { emissive: 0xff2020, emissiveIntensity: 2 }), d1 + 0.3, 1.6, fz - 0.08, false); // a red light beside the door
+    kit.wallLight(fn, uOf(fn, d1 + 0.3), 1.6, 0xff3030); // a red light beside the door
+    kit.door(fn, uOf(fn, (d0 + d1) / 2), { style: 'frame', w: d1 - d0, h: 1.9, frame: 0x141418 });
     // The neon spills red onto the sidewalk.
     const glow = new THREE.PointLight(0xff3a5a, 5, 6, 1.5);
     glow.position.set(cx, 1.6, Z0 - 1.2);
@@ -2307,7 +2108,7 @@ export function buildCity(scene: THREE.Scene) {
         scene.add(bottle);
       } else if (f.kind === 'clubjuke') {
         add(geoBox(0.7, 1.15, 0.5), lam(0x6a2a4a), f.x + 0.5, 0.58, f.y + 0.6);
-        add(own(new THREE.CylinderGeometry(0.33, 0.33, 0.52, 14, 1, false, 0, Math.PI)), lam(0xffb040, { emissive: 0xff7a20, emissiveIntensity: 1.2 }), f.x + 0.5, 1.15, f.y + 0.6, false).rotation.z = Math.PI / 2;
+        add(own(new THREE.CylinderGeometry(0.33, 0.33, 0.52, 8, 1, false, 0, Math.PI)), lam(0xffb040, { emissive: 0xff7a20, emissiveIntensity: 1.2 }), f.x + 0.5, 1.15, f.y + 0.6, false).rotation.z = Math.PI / 2;
       }
     }
     const red = new THREE.PointLight(0xff4040, 4, 8, 1.4);
@@ -2324,7 +2125,7 @@ export function buildCity(scene: THREE.Scene) {
     const black = lam(0x1a1a1e);
     const chrome = lam(0xc8ccd2);
     for (const dz of [-0.38, 0.38]) {
-      const w = new THREE.Mesh(own(new THREE.TorusGeometry(0.2, 0.06, 6, 14)), black);
+      const w = new THREE.Mesh(own(new THREE.TorusGeometry(0.2, 0.06, 6, 10)), black);
       w.rotation.y = Math.PI / 2;
       w.position.set(0, 0.24, dz);
       g.add(w);
@@ -2369,10 +2170,10 @@ export function buildCity(scene: THREE.Scene) {
     const hx = MANHOLE[0] + 0.5;
     const hz = MANHOLE[1] + 0.5;
     const iron = lam(0x2e3034);
-    const black = new THREE.Mesh(own(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 20)), new THREE.MeshBasicMaterial({ color: 0x050505 }));
+    const black = new THREE.Mesh(own(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 12)), new THREE.MeshBasicMaterial({ color: 0x050505 }));
     black.position.set(hx, 0.012, hz);
     hole.add(black);
-    const rim = new THREE.Mesh(own(new THREE.TorusGeometry(0.42, 0.05, 6, 20)), iron);
+    const rim = new THREE.Mesh(own(new THREE.TorusGeometry(0.42, 0.05, 6, 12)), iron);
     rim.rotation.x = -Math.PI / 2;
     rim.position.set(hx, 0.03, hz);
     hole.add(rim);
@@ -2391,7 +2192,7 @@ export function buildCity(scene: THREE.Scene) {
       hole.add(chunk);
     }
     // The cover, pushed aside and tilted against the kerb of the hole.
-    const cover = new THREE.Mesh(own(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 18)), lam(0x45474c));
+    const cover = new THREE.Mesh(own(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 12)), lam(0x45474c));
     cover.position.set(hx + 0.75, 0.08, hz + 0.3);
     cover.rotation.set(0.25, 0, 0.15);
     hole.add(cover);
@@ -2499,11 +2300,11 @@ export function buildCity(scene: THREE.Scene) {
     }
     {
       const ccz = (CH0 + CH1) / 2;
-      const ring = new THREE.Mesh(own(new THREE.TorusGeometry(2.05, 0.28, 8, 24, Math.PI)), lam(0x7a7e72, { flatShading: true }));
+      const ring = new THREE.Mesh(own(new THREE.TorusGeometry(2.05, 0.28, 6, 12, Math.PI)), lam(0x7a7e72, { flatShading: true }));
       ring.rotation.y = -Math.PI / 2;
       ring.position.set(X1 - 0.02, D - 0.55, ccz);
       scene.add(ring);
-      const dark = new THREE.Mesh(own(new THREE.CircleGeometry(1.95, 24, 0, Math.PI)), new THREE.MeshBasicMaterial({ color: 0x030403 }));
+      const dark = new THREE.Mesh(own(new THREE.CircleGeometry(1.95, 12, 0, Math.PI)), new THREE.MeshBasicMaterial({ color: 0x030403 }));
       dark.rotation.y = -Math.PI / 2;
       dark.position.set(X1 - 0.01, D - 0.55, ccz);
       scene.add(dark);
@@ -2699,7 +2500,7 @@ export function buildCity(scene: THREE.Scene) {
       for (const dz of [-0.3, 0.3]) add(geoBox(0.14, 1.1, 0.14), paint, x - 0.15, 0.95, z + dz);
       add(geoBox(0.6, 0.35, 0.8), paint, x - 0.1, 1.55, z);
       add(geoBox(0.32, 0.3, 0.32), dark, x - 0.05, 1.22, z);
-      const wheel = add(own(new THREE.TorusGeometry(0.28, 0.06, 6, 14)), dark, x - 0.1, 1.5, z + 0.45);
+      const wheel = add(own(new THREE.TorusGeometry(0.28, 0.06, 6, 10)), dark, x - 0.1, 1.5, z + 0.45);
       wheel.rotation.y = Math.PI / 2;
       add(geoBox(0.4, 0.03, 0.4), lam(0xb8bcc2), x + 0.05, 0.56, z, false);
       add(geoBox(0.92, 0.06, 0.03), lam(0xe0b830), x, 0.52, z + 0.41, false);
@@ -2721,7 +2522,7 @@ export function buildCity(scene: THREE.Scene) {
       for (const dz of [-0.3, 0, 0.3]) add(geoBox(0.03, 0.22, 0.04), steel, x + 0.27, 1.25, z + dz, false);
       continue;
     }
-    add(own(new THREE.CircleGeometry(1.4, 20).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
+    add(own(new THREE.CircleGeometry(1.4, 12).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
     const brick = lam(0x8a4434, { flatShading: true });
     add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);
     add(geoBox(0.96, 0.06, 0.76), lam(0x6a3428), x, 0.6, z);
@@ -2746,6 +2547,10 @@ export function buildCity(scene: THREE.Scene) {
   for (const b of [poles, lampHeads, lampGlow, lightBox, redDot, greenDot]) b.build(scene);
   trunks.build(scene);
   crowns.forEach((b) => b.build(scene));
+
+  // Merge everything static into a few meshes per area and colour (and per building, for the ones that fade).
+  flames.forEach((f) => keep.add(f)); // (they flicker)
+  mergeStatic(scene, statics, fadeables, keep, own);
 
   return {
     fadeables,

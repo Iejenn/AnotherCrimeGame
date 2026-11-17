@@ -8,6 +8,38 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.47.0',
+    date: '2026-11-17',
+    title: 'Real windows',
+    items: [
+      'Every building has real windows now: frames, sills and glazing bars, some lit, some with curtains, on every wall you can see, upstairs too.',
+      'Doors with frames, steps and lamps; shop windows with big panes; awnings with a hanging flap; drainpipes, air-con units, water tanks and aerials on the roofs.',
+      'The Factory has rows of old windows (some smashed), the bank tall lit windows, the Biker Club blacked-out ones, Hotline windows down its sides, the hospital lit windows on both floors.',
+      'The fences are the same everywhere: chain-link with barbed wire at the Thrift Store, a brick wall round Hotline\'s yard, corrugated sheets round the Junkyard.',
+      'Smoother on phones: the city is drawn in about half the pieces it was, with all the extra detail.',
+    ],
+  },
+  {
+    version: '0.46.0',
+    date: '2026-11-17',
+    title: 'Loot you can recognise',
+    items: [
+      'Everything dropped on the ground has its own look now: scrap heaps of tin and copper salvage, metal sheets, knuckles, bats, knives, helmets, plate vests and leg guards in their metal\'s colour.',
+      'The Rat Antidote is a little green vial, the Cooked Rat Antidote ribs with green drops, and the Sewer Key a big old iron key.',
+      'The city matches the new art style: the fountain, ponds, bank vault and columns, the sewer tunnel and manholes are faceted like everything else.',
+      'Faster with lots of players around: each person is now drawn in less than half the pieces, with no change in how they look.',
+    ],
+  },
+  {
+    version: '0.45.1',
+    date: '2026-11-17',
+    title: 'Back to size',
+    items: [
+      'People are a little smaller again (90%), so they fit the shops and doors better.',
+      "Eddy's fruit and vegetable stand has real apples, oranges, tomatoes and carrots.",
+    ],
+  },
+  {
     version: '0.45.0',
     date: '2026-11-17',
     title: 'New look for creatures and people',
