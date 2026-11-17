@@ -662,3 +662,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hp-heart { left: -14px; top: 50%; bottom: auto; transform: translateY(-50%); margin-top: -7px; width: 40px; height: 40px; border-radius: 50%; border: 2px solid #8a8276; background: #2a2622; box-shadow: 0 2px 6px #000a; }
 .hp-heart svg { inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); filter: none; }
 .hp-heart .mono { font-size: 0.8rem; margin-top: -2px; }
+/* Just a red disc with your HP in it (no heart shape inside). */
+.hp-heart { background: #c8322a; }
+.hp-heart svg { display: none; }
+.hp-heart .mono { margin-top: 0; font-size: 0.9rem; }
+.hp-heart.low { animation: hp-pulse 1s ease-in-out infinite; }
