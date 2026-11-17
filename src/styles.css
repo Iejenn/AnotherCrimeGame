@@ -499,8 +499,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @keyframes hitsplat { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%); } }
 /* Equipment (Inventory tab): the weapon slot and what it does. */
 .equipment { margin-top: 14px; border-top: 1px solid var(--rule-strong); padding-top: 8px; }
-.equip-row { display: flex; gap: 10px; align-items: center; }
-.equip-row > .slot { width: 56px; flex: none; align-items: center; justify-content: center; cursor: default; }
+.equip-row { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.equip-row > .slot { width: 48px; height: 48px; flex: none; align-items: center; justify-content: center; cursor: default; }
 .equip-info { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 /* "Install app" in the gear menu. */
 .gear-menu .btn + .btn, .gear-menu .install-help + .btn { margin-top: 8px; }
@@ -549,3 +549,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* Climbing in or out of the sewer: the same black screen, quicker. */
 .passout.quick, .passout.quick.on { transition-duration: 0.45s; }
 .passout.quick.on span { transition: opacity 0.3s; }
+/* Tinkering (the Factory's presses and workbenches): one row per thing you can make. */
+.craft-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.craft-row { width: 100%; display: grid; grid-template-columns: 36px 1fr auto; gap: 8px; align-items: center; text-align: left; padding: 4px 6px; background: var(--ink); border: 1px solid var(--rule); border-radius: 2px; color: var(--paper); cursor: pointer; }
+.craft-row:disabled { cursor: default; opacity: 0.55; }
+.craft-row.locked .craft-name { color: var(--muted); }
+.craft-icon { position: relative; width: 36px; height: 36px; }
+.craft-icon .item-icon { inset: 2px; }
+.craft-name { display: flex; flex-direction: column; font-size: 0.85rem; line-height: 1.25; }

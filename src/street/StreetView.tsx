@@ -20,6 +20,8 @@ import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
+import { TinkerDialog } from './TinkerDialog';
+import { CRAFT_BY_ID } from '../game/data/metals';
 import { QuickEat } from './QuickEat';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
@@ -47,7 +49,7 @@ function buildEnemy(kind: string): THREE.Group {
   if (kind === 'pigeon') return buildPigeon();
   if (kind === 'rat') return buildRat();
   const g = buildCharacter(THUG_LOOKS[thugCount++ % THUG_LOOKS.length], { hood: 0x4a4d52 });
-  setGear(g, { weapon: 'knife' });
+  setGear(g, { weapon: 'tin_knife' });
   return g;
 }
 /** Animate an enemy: idle ('peck'), walking, flying (pigeons), attacking, or going down ('dead'). */
@@ -174,6 +176,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   const setTalkingRef = useRef(setTalking);
   // The cooking screen (opened when you reach the barbecue): where you stand, or null when closed.
   const [cookAt, setCookAt] = useState<[number, number] | null>(null);
+  // The Tinkering screen (a press or a workbench in the Factory): where you stand and which kind, or null when closed.
+  const [tinkerAt, setTinkerAt] = useState<{ pos: [number, number]; kind: 'press' | 'bench' } | null>(null);
+  const setTinkerAtRef = useRef(setTinkerAt);
   const setCookAtRef = useRef(setCookAt);
   const talkingIdRef = useRef<string | null>(null);
   talkingIdRef.current = talking?.id ?? null;
@@ -606,7 +611,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const st = STATIONS.find((x) => x.id === id);
       if (!st) return;
       me.facing = Math.atan2(st.x + 0.5 - me.pos.x, st.y + 0.5 - me.pos.z);
-      setCookAtRef.current(tileOf(me.pos.x, me.pos.z));
+      if (st.kind === 'bbq') setCookAtRef.current(tileOf(me.pos.x, me.pos.z));
+      else setTinkerAtRef.current({ pos: tileOf(me.pos.x, me.pos.z), kind: st.kind });
     };
     // The barbecue is tappable: an invisible box over it.
     for (const st of STATIONS) {
@@ -645,6 +651,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goalStation = null;
       me.goalLink = null;
       setCookAtRef.current(null);
+      setTinkerAtRef.current(null);
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
@@ -698,6 +705,10 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       if (sRef.current.cook) {
         apiRef.current.stopCook();
         say('You stop cooking.');
+      }
+      if (sRef.current.make) {
+        apiRef.current.stopMake();
+        say('You stop working.');
       }
       if (sRef.current.fight) {
         apiRef.current.stopFight();
@@ -1253,7 +1264,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       player.position.set(me.pos.x, floorY(me.pos.x, me.pos.z) + 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
       // Cooking: face the barbecue and work it.
-      const cooking = !!st.cook && !me.path.length;
+      const cooking = (!!st.cook || !!st.make) && !me.path.length;
       if (cooking) {
         const near = STATIONS.find((x) => Math.abs(x.x + 0.5 - me.pos.x) < 2 && Math.abs(x.y + 0.5 - me.pos.z) < 2);
         if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
@@ -1882,14 +1893,18 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       {
         // Cooking: a bar that fills from dark brown to clay while the current piece cooks (one every COOK_TICKS ticks).
         // Also while you dig through a dumpster (Scrapping): the attempt's progress.
+        // And while you make something at the Factory (Tinkering): the current one.
         const ck = st.cook;
+        const mk = st.make;
         const dig = job && CRIME_BY_ID[job.crimeId]?.skill === 'scrapping' ? job : null;
-        const show = (!!ck || !!dig) && !me.path.length;
+        const show = (!!ck || !!mk || !!dig) && !me.path.length;
         cookBar.style.display = show ? 'block' : 'none';
         if (show) {
           const p = dig
             ? Math.max(0, Math.min(1, (gameNow() - dig.startedAt) / Math.max(1, dig.endsAt - dig.startedAt)))
-            : Math.max(0, Math.min(1, 1 - (ck!.next - gameNow()) / (COOK_TICKS * 500)));
+            : mk
+              ? Math.max(0, Math.min(1, 1 - (mk.next - gameNow()) / ((CRAFT_BY_ID[mk.craft]?.ticks ?? 4) * 500)))
+              : Math.max(0, Math.min(1, 1 - (ck!.next - gameNow()) / (COOK_TICKS * 500)));
           const hpShown = hpBar.style.display === 'block';
           const [bx, by, depth] = project(lift(me.pos, 1.72));
           cookBar.style.transform = `translate(${bx}px, ${by - (hpShown ? 10 : 0)}px) translate(-50%, -100%)`;
@@ -1989,6 +2004,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       </div>
       {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
       {cookAt && <CookDialog s={s} api={api} pos={cookAt} onClose={() => setCookAt(null)} />}
+      {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}
       <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
       <ChatBox game={gameLines} chat={chat} myName={s.name} />
     </div>

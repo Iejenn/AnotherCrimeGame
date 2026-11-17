@@ -19,20 +19,44 @@ describe('combat maths (design §12)', () => {
     expect(hitChance(attackRoll(30, 0), d)).toBeGreaterThan(hitChance(attackRoll(11, 0), d));
   });
 
-  it('max hit: fists 1 at level 1, 2 at 9, 4 at 30; brass knuckles +1', () => {
+  it('max hit: fists 1 at level 1, 2 at 9, 4 at 30; the tin weapons (§14)', () => {
     expect([maxHit(1, 1), maxHit(1, 8), maxHit(1, 9), maxHit(1, 17), maxHit(1, 30)]).toEqual([1, 1, 2, 3, 4]);
-    const k = ITEM_BY_ID.brass_knuckles.gear!;
-    expect(maxHit(k.damage!, 1)).toBe(2);
+    const k = ITEM_BY_ID.tin_knuckles.gear!;
+    expect([k.damage, k.speed, k.needs?.level]).toEqual([2, 3, 1]);
     expect(k.speed).toBe(UNARMED.speed);
     expect(k.defence ?? 0).toBe(0);
-    expect(SHOPS.weapons).toEqual([{ item: 'brass_knuckles', price: 50 }, { item: 'baseball_bat', price: 250 }]);
-    // The bat: +4 damage (max hit 5 at Melee 3), a swing every 3 s, needs Melee 3. Selling gives a quarter back.
-    const bat = ITEM_BY_ID.baseball_bat.gear!;
-    expect([bat.damage, bat.speed, bat.needs?.level]).toEqual([5, 6, 3]);
-    expect(maxHit(bat.damage!, 3)).toBe(5);
-    expect(itemPrice('baseball_bat')).toBe(62);
-    expect(itemPrice('candy_bar')).toBe(1);
-    expect(itemPrice('sandwich')).toBe(2);
+    expect(SHOPS.weapons).toEqual([{ item: 'tin_knuckles', price: 50 }, { item: 'tin_bat', price: 100 }, { item: 'tin_knife', price: 150 }]);
+    // The bat: max hit 5, a swing every 3 s; the knife: max hit 1, every 1 s. All tin at level 1.
+    const bat = ITEM_BY_ID.tin_bat.gear!;
+    expect([bat.damage, bat.speed, bat.needs?.level, bat.anim]).toEqual([5, 6, 1, 'swing']);
+    const knife = ITEM_BY_ID.tin_knife.gear!;
+    expect([knife.damage, knife.speed, knife.needs?.level, knife.anim]).toEqual([1, 2, 1, 'stab']);
+    // Values follow the sheets ($5 a tin sheet); selling pays a quarter, rounded down, at least $1.
+    expect([ITEM_BY_ID.tin_knuckles.value, ITEM_BY_ID.tin_bat.value, ITEM_BY_ID.tin_vest.value]).toEqual([5, 10, 15]);
+    expect([itemPrice('tin_salvage'), itemPrice('tin_bat'), itemPrice('tin_vest')]).toEqual([1, 2, 3]);
+    expect([itemPrice('candy_bar'), itemPrice('sandwich'), itemPrice('raw_bird_meat')]).toEqual([1, 2, 1]);
+  });
+
+  it('tin armour: +2 helmet, +3 leg guards, +4 vest, Defense 1; it adds up in your defence roll', async () => {
+    const { armourBonus } = await import('./combat');
+    expect(['tin_helmet', 'tin_legs', 'tin_vest'].map((id) => [ITEM_BY_ID[id].gear!.slot, ITEM_BY_ID[id].gear!.defence, ITEM_BY_ID[id].gear!.needs?.skill])).toEqual([
+      ['head', 2, 'defense'], ['legs', 3, 'defense'], ['body', 4, 'defense'],
+    ]);
+    const s = newGame('T', DEFAULT_LOOK, 0);
+    expect(armourBonus(s)).toBe(0);
+    s.equipment = { head: 'tin_helmet', body: 'tin_vest', legs: 'tin_legs', weapon: 'tin_bat' };
+    expect(armourBonus(s)).toBe(9);
+    // A thug hits a Defense-1 player in full tin less often than without it.
+    const t = ENEMY_KINDS.thug;
+    expect(hitChance(attackRoll(t.attack, 0), defenceRoll(1, 9))).toBeLessThan(hitChance(attackRoll(t.attack, 0), defenceRoll(1, 0)));
+  });
+
+  it('tinkering recipes unlock one per level: sheet 1, knuckles 2, bat 3, knife 4, helmet 6, legs 7, vest 8', async () => {
+    const { CRAFTS } = await import('./data/metals');
+    expect(CRAFTS.map((c) => [c.id, c.level, Object.values(c.inputs)[0], c.xp, c.station])).toEqual([
+      ['tin_sheet', 1, 1, 1, 'press'], ['tin_knuckles', 2, 1, 3, 'bench'], ['tin_bat', 3, 2, 6, 'bench'], ['tin_knife', 4, 1, 3, 'bench'],
+      ['tin_helmet', 6, 1, 3, 'bench'], ['tin_legs', 7, 2, 6, 'bench'], ['tin_vest', 8, 3, 9, 'bench'],
+    ]);
   });
 
   it('thugs: level 5, 10 HP, a stab every 1 s; they stroll around the Yard; the knife: Melee 5, +1 damage, fast', async () => {
@@ -46,16 +70,14 @@ describe('combat maths (design §12)', () => {
         expect(inRect(YARD, Math.floor(p.x), Math.floor(p.z))).toBe(true);
       }
     expect(THUG_TILES.length).toBe(21);
-    const k = ITEM_BY_ID.knife.gear!;
-    expect([k.damage, k.speed, k.needs?.level, k.anim]).toEqual([2, 2, 5, 'stab']);
-    expect(itemPrice('knife')).toBe(62);
+    expect(ENEMY_KINDS.thug.loot.find((d) => d.item === 'tin_knife')?.chance).toBe(0.05);
   });
 
   it("the game's copy of the loot tables (shown in the Skills tab) matches the server's public.loot", () => {
     // public.loot on the server (checked there on 2026-11-16): pigeon raw_bird_meat 1; thug cash 0.2 ($5–10), knife 0.05;
-    // rat raw_rat_meat 1 (0019_sewer).
+    // rat raw_rat_meat 1 (0019_sewer); the knife became the tin knife (0023).
     const rows = Object.values(ENEMY_KINDS).flatMap((k) => k.loot.map((d) => `${k.id}:${d.item}@${d.chance}:${d.min}-${d.max}`));
-    expect(rows.sort()).toEqual(['pigeon:raw_bird_meat@1:1-1', 'rat:raw_rat_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:knife@0.05:1-1']);
+    expect(rows.sort()).toEqual(['pigeon:raw_bird_meat@1:1-1', 'rat:raw_rat_meat@1:1-1', 'thug:cash@0.2:5-10', 'thug:tin_knife@0.05:1-1']);
   });
 
   it('cooking: raw bird meat burns half the time at level 1, never from 15; cooked meat heals 1', async () => {
@@ -77,7 +99,7 @@ describe('combat maths (design §12)', () => {
     const s = newGame('T', DEFAULT_LOOK, 0);
     expect(maxHp(s)).toBe(10);
     expect(weaponStats(s)).toEqual(UNARMED);
-    s.equipment = { weapon: 'brass_knuckles' };
+    s.equipment = { weapon: 'tin_knuckles' };
     expect(weaponStats(s).damage).toBe(2);
   });
 });

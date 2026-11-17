@@ -8,6 +8,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.41.0',
+    date: '2026-11-17',
+    title: 'Made of tin',
+    items: [
+      'The Industrial zone opened east of the city. In it, the Factory: a huge abandoned hall with an empty parking lot in front. Get in through the gap in the fence.',
+      'New skill: Tinkering. Press tin salvage into sheets at the plate presses, then make weapons and armour at the workbenches. A new piece unlocks every level.',
+      'Armour: wear a helmet, a plate vest and leg guards. Your armour makes enemies miss you more, and it shows on your character.',
+      'The old weapons are now tin: Brass Knuckles became Tin Knuckles, the Baseball Bat the Tin Bat, the Knife the Tin Knife. You keep yours, and you can use all three from level 1.',
+      'Ray sells Tin Knuckles ($50), the Tin Bat ($100) and the Tin Knife ($150). He buys weapons and armour; Eddy buys the rest.',
+      'Selling always pays at least $1, so raw meat and other cheap things are worth something now.',
+    ],
+  },
+  {
     version: '0.40.0',
     date: '2026-11-17',
     title: 'One man\'s trash',

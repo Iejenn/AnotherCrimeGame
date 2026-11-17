@@ -61,3 +61,39 @@ This page and the picture are generated from the game's map: after changing `src
 | 009-B | Buildings | 46–50 | 41–45 |
 | 009-C | Buildings | 41–45 | 46–50 |
 | 009-D | Buildings | 46–50 | 46–50 |
+| I-001-A | Buildings | 58–62 | 7–11 |
+| I-001-B | Buildings | 63–67 | 7–11 |
+| I-001-C | Buildings | 58–62 | 12–16 |
+| I-001-D | Buildings | 63–67 | 12–16 |
+| I-002-A | Buildings | 75–79 | 7–11 |
+| I-002-B | Buildings | 80–84 | 7–11 |
+| I-002-C | Buildings | 75–79 | 12–16 |
+| I-002-D | Buildings | 80–84 | 12–16 |
+| I-003-A | The Factory | 92–96 | 7–11 |
+| I-003-B | The Factory | 97–101 | 7–11 |
+| I-003-C | The Factory | 92–96 | 12–16 |
+| I-003-D | The Factory | 97–101 | 12–16 |
+| I-004-A | Buildings | 58–62 | 24–28 |
+| I-004-B | Buildings | 63–67 | 24–28 |
+| I-004-C | Buildings | 58–62 | 29–33 |
+| I-004-D | Buildings | 63–67 | 29–33 |
+| I-005-A | Buildings | 75–79 | 24–28 |
+| I-005-B | Buildings | 80–84 | 24–28 |
+| I-005-C | Buildings | 75–79 | 29–33 |
+| I-005-D | Buildings | 80–84 | 29–33 |
+| I-006-A | Buildings | 92–96 | 24–28 |
+| I-006-B | Buildings | 97–101 | 24–28 |
+| I-006-C | Buildings | 92–96 | 29–33 |
+| I-006-D | Buildings | 97–101 | 29–33 |
+| I-007-A | Buildings | 58–62 | 41–45 |
+| I-007-B | Buildings | 63–67 | 41–45 |
+| I-007-C | Buildings | 58–62 | 46–50 |
+| I-007-D | Buildings | 63–67 | 46–50 |
+| I-008-A | Buildings | 75–79 | 41–45 |
+| I-008-B | Buildings | 80–84 | 41–45 |
+| I-008-C | Buildings | 75–79 | 46–50 |
+| I-008-D | Buildings | 80–84 | 46–50 |
+| I-009-A | Buildings | 92–96 | 41–45 |
+| I-009-B | Buildings | 97–101 | 41–45 |
+| I-009-C | Buildings | 92–96 | 46–50 |
+| I-009-D | Buildings | 97–101 | 46–50 |

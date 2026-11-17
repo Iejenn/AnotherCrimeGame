@@ -1,4 +1,4 @@
-export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street' | 'cooking' | 'scrapping';
+export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -92,6 +92,9 @@ export interface GameState {
   fight?: { enemy: string } | null;
   /** What you're cooking right now (one after another, until it runs out or you walk away), and when the next is done. */
   cook?: { item: string; next: number } | null;
+  /** What you're making at a press or workbench (Tinkering): the craft (its output item), and when the next is done.
+   *  You keep making it until you run out of materials or walk away. */
+  make?: { craft: string; next: number } | null;
   /** Items lying on the ground that you can see: your own drops at once, everyone's after a minute. */
   ground?: GroundItem[];
   stats: { jobs: number; bigScores: number; earned: number; fails: number; deaths?: number };

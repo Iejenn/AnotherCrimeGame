@@ -47,13 +47,13 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
     id: 'rat', name: 'Rat', level: 3, hp: 6, attack: 3, defense: 2, defenceBonus: 0, speed: 3, maxHit: 1, respawn: 20, aggressive: false,
     where: 'The sewer (pothole by 005)', loot: [{ item: 'raw_rat_meat', chance: 1, min: 1, max: 1 }],
   },
-  // The Yard's thugs (007): hooded, with a knife. Not aggressive (for now). Drop $5–10 (1 in 5) and a knife (1 in 20).
+  // The Yard's thugs (007): hooded, with a knife. Not aggressive (for now). Drop $5–10 (1 in 5) and a tin knife (1 in 20).
   thug: {
     id: 'thug', name: 'Thug', level: 5, hp: 10, attack: 5, defense: 5, defenceBonus: 0, speed: 2, maxHit: 2, respawn: 30, aggressive: false,
     where: 'The Yard (007)',
     loot: [
       { item: 'cash', chance: 0.2, min: 5, max: 10 },
-      { item: 'knife', chance: 0.05, min: 1, max: 1 },
+      { item: 'tin_knife', chance: 0.05, min: 1, max: 1 },
     ],
   },
 };

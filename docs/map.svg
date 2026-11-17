@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="872" height="902" viewBox="0 0 872 902" font-family="Arial, Helvetica, sans-serif">
-<rect width="872" height="902" fill="#15303f"/>
-<rect x="30" y="30" width="812" height="812" fill="#3a3d44"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1586" height="902" viewBox="0 0 1586 902" font-family="Arial, Helvetica, sans-serif">
+<rect width="1586" height="902" fill="#15303f"/>
+<rect x="30" y="30" width="1526" height="812" fill="#3a3d44"/>
 <rect x="107" y="107" width="182" height="182" fill="#6d6962"/>
 <rect x="107" y="345" width="182" height="182" fill="#6d6962"/>
 <rect x="107" y="583" width="182" height="182" fill="#6d6962"/>
@@ -10,6 +10,15 @@
 <rect x="583" y="107" width="182" height="182" fill="#6d6962"/>
 <rect x="583" y="345" width="182" height="182" fill="#6d6962"/>
 <rect x="583" y="583" width="182" height="182" fill="#6d6962"/>
+<rect x="821" y="107" width="182" height="182" fill="#6d6962"/>
+<rect x="821" y="345" width="182" height="182" fill="#6d6962"/>
+<rect x="821" y="583" width="182" height="182" fill="#6d6962"/>
+<rect x="1059" y="107" width="182" height="182" fill="#6d6962"/>
+<rect x="1059" y="345" width="182" height="182" fill="#6d6962"/>
+<rect x="1059" y="583" width="182" height="182" fill="#6d6962"/>
+<rect x="1297" y="107" width="182" height="182" fill="#6d6962"/>
+<rect x="1297" y="345" width="182" height="182" fill="#6d6962"/>
+<rect x="1297" y="583" width="182" height="182" fill="#6d6962"/>
 <rect x="128" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="198" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="128" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
@@ -46,6 +55,42 @@
 <rect x="674" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="604" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <rect x="674" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="842" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="912" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="842" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="912" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="842" y="366" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="912" y="366" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="842" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="912" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="842" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="912" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="842" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="912" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1080" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1150" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1080" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1150" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1080" y="366" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1150" y="366" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1080" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1150" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1080" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1150" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1080" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1150" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1318" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1388" y="128" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1318" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1388" y="198" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1318" y="366" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1388" y="366" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1318" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1388" y="436" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1318" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1388" y="604" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1318" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
+<rect x="1388" y="674" width="70" height="70" fill="#8a7f70" stroke="#1d1b19" stroke-width="1.5"/>
 <text x="132" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">A</text>
 <text x="163" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <text x="202" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">B</text>
@@ -134,6 +179,82 @@
 <text x="639" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <text x="678" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">D</text>
 <text x="709" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="846" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">1-A</text>
+<text x="877" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="916" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">1-B</text>
+<text x="947" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="846" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">1-C</text>
+<text x="877" y="237" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="916" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">1-D</text>
+<text x="947" y="237" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="846" y="379" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">4-A</text>
+<text x="877" y="405" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="916" y="379" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">4-B</text>
+<text x="947" y="405" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="846" y="449" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">4-C</text>
+<text x="877" y="475" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="916" y="449" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">4-D</text>
+<text x="947" y="475" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="846" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">7-A</text>
+<text x="877" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="916" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">7-B</text>
+<text x="947" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="846" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">7-C</text>
+<text x="877" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="916" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">7-D</text>
+<text x="947" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1084" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">2-A</text>
+<text x="1115" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1154" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">2-B</text>
+<text x="1185" y="167" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1084" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">2-C</text>
+<text x="1115" y="237" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1154" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">2-D</text>
+<text x="1185" y="237" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1084" y="379" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">5-A</text>
+<text x="1115" y="405" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1154" y="379" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">5-B</text>
+<text x="1185" y="405" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1084" y="449" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">5-C</text>
+<text x="1115" y="475" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1154" y="449" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">5-D</text>
+<text x="1185" y="475" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1084" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">8-A</text>
+<text x="1115" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1154" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">8-B</text>
+<text x="1185" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1084" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">8-C</text>
+<text x="1115" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1154" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">8-D</text>
+<text x="1185" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1322" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">3-A</text>
+<text x="1353" y="161" font-size="10" text-anchor="middle" fill="#ffffff">The</text>
+<text x="1353" y="173" font-size="10" text-anchor="middle" fill="#ffffff">Factory</text>
+<text x="1392" y="141" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">3-B</text>
+<text x="1423" y="161" font-size="10" text-anchor="middle" fill="#ffffff">The</text>
+<text x="1423" y="173" font-size="10" text-anchor="middle" fill="#ffffff">Factory</text>
+<text x="1322" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">3-C</text>
+<text x="1353" y="231" font-size="10" text-anchor="middle" fill="#ffffff">The</text>
+<text x="1353" y="243" font-size="10" text-anchor="middle" fill="#ffffff">Factory</text>
+<text x="1392" y="211" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">3-D</text>
+<text x="1423" y="231" font-size="10" text-anchor="middle" fill="#ffffff">The</text>
+<text x="1423" y="243" font-size="10" text-anchor="middle" fill="#ffffff">Factory</text>
+<text x="1322" y="379" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">6-A</text>
+<text x="1353" y="405" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1392" y="379" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">6-B</text>
+<text x="1423" y="405" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1322" y="449" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">6-C</text>
+<text x="1353" y="475" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1392" y="449" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">6-D</text>
+<text x="1423" y="475" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1322" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">9-A</text>
+<text x="1353" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1392" y="617" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">9-B</text>
+<text x="1423" y="643" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1322" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">9-C</text>
+<text x="1353" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
+<text x="1392" y="687" font-size="12" font-weight="700" fill="#ffffff" opacity="0.9">9-D</text>
+<text x="1423" y="713" font-size="10" text-anchor="middle" fill="#ffffff">Buildings</text>
 <rect x="174" y="100" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
 <text x="198" y="113" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">001</text>
 <rect x="174" y="338" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
@@ -152,8 +273,26 @@
 <text x="674" y="351" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">006</text>
 <rect x="650" y="576" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
 <text x="674" y="589" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">009</text>
+<rect x="888" y="100" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="912" y="113" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-001</text>
+<rect x="888" y="338" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="912" y="351" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-004</text>
+<rect x="888" y="576" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="912" y="589" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-007</text>
+<rect x="1126" y="100" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="1150" y="113" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-002</text>
+<rect x="1126" y="338" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="1150" y="351" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-005</text>
+<rect x="1126" y="576" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="1150" y="589" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-008</text>
+<rect x="1364" y="100" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="1388" y="113" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-003</text>
+<rect x="1364" y="338" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="1388" y="351" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-006</text>
+<rect x="1364" y="576" width="48" height="17" rx="3" fill="#141210" stroke="#f2d27a"/>
+<text x="1388" y="589" font-size="13" font-weight="700" text-anchor="middle" fill="#f2d27a">I-009</text>
 <circle cx="429" cy="639" r="6" fill="#d9473a" stroke="#ffffff" stroke-width="2"/>
 <text x="438" y="643" font-size="11" font-weight="700" fill="#ffffff">Start</text>
-<text x="854" y="20" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff">N ↑</text>
-<text x="30" y="890" font-size="12" fill="#c8c4bc">Underworld: blocks 001–009 (row by row from the north-west), lots A B / C D. 58×58 tiles. Generated by scripts/map-doc.ts.</text>
+<text x="1568" y="20" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff">N ↑</text>
+<text x="30" y="890" font-size="12" fill="#c8c4bc">Underworld: blocks 001–009 (row by row from the north-west), lots A B / C D. 109×58 tiles. Generated by scripts/map-doc.ts.</text>
 </svg>

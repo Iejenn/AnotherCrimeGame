@@ -69,6 +69,16 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  factory: (
+    <>
+      {/* a factory: a sawtooth roof and a chimney */}
+      <path d="M3 21 V12 L8 9 V12 L13 9 V12 L18 9 V21 Z" fill="#8a8580" stroke="#141210" strokeWidth="0.9" />
+      <rect x="18" y="4" width="3.5" height="17" fill="#6a4a3a" stroke="#141210" strokeWidth="0.9" />
+      <rect x="6" y="15" width="3" height="3" fill="#f2d27a" />
+      <rect x="12" y="15" width="3" height="3" fill="#f2d27a" />
+      <path d="M19.7 3 Q22 1 21 -1" stroke="#c8c4bc" strokeWidth="1" fill="none" />
+    </>
+  ),
   scrap: (
     <>
       {/* a crushed tin can and a dented one */}

@@ -41,6 +41,7 @@ export interface ServerAnswer {
     equipment?: GameState['equipment'];
     fight?: GameState['fight'];
     cook?: GameState['cook'];
+    make?: GameState['make'];
   };
   /** Items on the ground you can see (game.ground_json). */
   ground?: GameState['ground'];
@@ -96,7 +97,7 @@ export interface WorldEntry {
 }
 
 /** Server reasons that the game explains itself already (or that need no message). */
-const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far', 'no_cooking']);
+const QUIET = new Set(['not_yet', 'no_attempt', 'no_fight', 'fight_over', 'too_far', 'no_cooking', 'no_making']);
 /** What the server's "no" means, in words. */
 const SAY: Record<string, string> = {
   enemy_busy: 'Someone else is already fighting that.',
@@ -119,6 +120,9 @@ const SAY: Record<string, string> = {
   gone: "It's gone: someone else got there first, or it rotted away.",
   not_at_link: 'You need to stand right next to it to climb.',
   not_near_station: 'You need to stand next to a fire to cook.',
+  not_at_station: 'Stand next to it to work.',
+  no_materials: "You don't have the materials for that.",
+  unknown_craft: "You can't make that here.",
   cant_cook: "You can't cook that.",
   nothing_to_cook: "You don't have any of that to cook.",
   busy: "You're busy. Finish what you're doing first.",
@@ -152,6 +156,7 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     equipment: p.equipment ?? {},
     fight: p.fight ?? null,
     cook: p.cook ?? null,
+    make: p.make ?? null,
     ground: a.ground ?? [],
     grave: a.grave ?? null,
     stats: p.stats,
@@ -249,7 +254,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
 
   /** Ask the server to finish the attempt / bring things up to date, once at a time. */
   const settle = useCallback(
-    async (fn: 'finish_attempt' | 'game_state' | 'fight_step' | 'cook_step') => {
+    async (fn: 'finish_attempt' | 'game_state' | 'fight_step' | 'cook_step' | 'make_step') => {
       busy.current = true;
       const a = await call(fn);
       busy.current = false;
@@ -275,6 +280,9 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
         } else if (s.cook && now >= s.cook.next) {
           // Cooking: the next one is done, ask the server how it came out (it times and rolls every one).
           settle('cook_step');
+        } else if (s.make && now >= s.make.next) {
+          // Tinkering: the next sheet or piece is done.
+          settle('make_step');
         } else if (j) {
           const w = CRIME_BY_ID[j.crimeId]?.catcher;
           const seen = w === 'bartender' || w === 'guard' ? firstSeen(w, j.pos, j.startedAt, Math.min(now, j.endsAt)) : null;
@@ -323,6 +331,8 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       pickUp: (groundId, pos) => void call('pick_up', { p_id: groundId, p_x: pos[0], p_y: pos[1] }),
       cook: (item, pos) => void call('start_cook', { p_item: item, p_x: pos[0], p_y: pos[1] }),
       stopCook: () => void call('stop_cook'),
+      make: (craftId, pos) => void call('start_make', { p_craft: craftId, p_x: pos[0], p_y: pos[1] }),
+      stopMake: () => void call('stop_make'),
       climb: (linkId, pos) => call('climb', { p_link: linkId, p_x: pos[0], p_y: pos[1] }).then((d) => !!d?.ok),
     }),
     [call],

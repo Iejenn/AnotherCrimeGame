@@ -1,6 +1,8 @@
 // Items (docs/design.md §6). Skills don't drop random loot: the only items so far are food from
 // shoplifting, and food heals. Combat enemies will get loot tables later.
 
+import { METAL_ITEMS } from './metals';
+
 export type GearSlot = 'weapon' | 'head' | 'body' | 'legs' | 'feet';
 
 export interface ItemDef {
@@ -8,7 +10,7 @@ export interface ItemDef {
   name: string;
   /** Health restored when eaten (0 = not food). */
   heal: number;
-  /** What it's worth, in dollars. Shops buy it back for SELL_SHARE of that (rounded down; 0 = nobody buys it). */
+  /** What it's worth, in dollars. Shops buy it back for SELL_SHARE of that (rounded down, but at least $1). */
   value: number;
   /** Gear you can wield or wear (docs/design.md §12). Weapons don't wear out. */
   gear?: {
@@ -37,26 +39,24 @@ export const ITEMS: ItemDef[] = [
   // Rats in the sewer drop raw rat meat: cook it at the barbecue.
   { id: 'raw_rat_meat', name: 'Raw Rat Meat', heal: 0, value: 2 },
   { id: 'cooked_rat_meat', name: 'Cooked Rat Meat', heal: 1, value: 4 },
-  // Scrapping (docs/design.md §14): tin salvage from the Thrift Store's dumpsters. $5 (sells for $1).
-  { id: 'tin_salvage', name: 'Tin Salvage', heal: 0, value: 5 },
-  // The first weapon: Ray's weapon store sells them for $50. +1 damage over bare fists, same speed, no defence.
-  { id: 'brass_knuckles', name: 'Brass Knuckles', heal: 0, value: 50, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 3, needs: { skill: 'melee', level: 1 } } },
-  // The thugs' knife (a 1-in-20 drop in the Yard, not sold): Melee 5, +1 damage over fists, but fast: a stab every 1 s.
-  { id: 'knife', name: 'Knife', heal: 0, value: 250, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 2, needs: { skill: 'melee', level: 5 }, anim: 'stab' } },
-  // Ray's second weapon ($250, Melee 3): hits hard (+4 damage over fists) but slowly (a swing every 3 s).
-  { id: 'baseball_bat', name: 'Baseball Bat', heal: 0, value: 250, gear: { slot: 'weapon', damage: 5, accuracy: 0, speed: 6, needs: { skill: 'melee', level: 3 }, anim: 'swing' } },
+  // The metals (docs/design.md §14): every metal's salvage, sheet, three weapons and three pieces of armour, from the
+  // formulas in metals.ts. Tin is the first: Ray sells the tin weapons, thugs drop the tin knife, the rest you make.
+  // (The old brass knuckles, baseball bat and knife became Tin Knuckles, Tin Bat and Tin Knife in v0.41.)
+  ...METAL_ITEMS,
 ];
 
 /** What the shops sell (item id → price in dollars). */
 export const SHOPS: Record<string, { item: string; price: number }[]> = {
   weapons: [
-    { item: 'brass_knuckles', price: 50 },
-    { item: 'baseball_bat', price: 250 },
+    // Ray's tin starter kit costs more than it's worth: making it yourself (Tinkering) is the cheap way.
+    { item: 'tin_knuckles', price: 50 },
+    { item: 'tin_bat', price: 100 },
+    { item: 'tin_knife', price: 150 },
   ],
 };
 /** Shops buy things back for this share of what they're worth (decided: 25%, for every item). */
 export const SELL_SHARE = 0.25;
-/** Who buys what: Ray buys weapons, Eddy everything else. */
+/** Who buys what: Ray buys weapons and armour, Eddy everything else. */
 export const buyerOf = (id: string): 'ray' | 'eddy' => (ITEM_BY_ID[id]?.gear ? 'ray' : 'eddy');
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 

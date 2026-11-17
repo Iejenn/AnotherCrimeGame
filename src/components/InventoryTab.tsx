@@ -7,7 +7,7 @@ import { gameNow } from '../game/clock';
 import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from './Bag';
 import { ItemIcon } from './ItemIcon';
-import { maxHit, myCombatLevel, weaponStats } from '../game/combat';
+import { armourBonus, maxHit, myCombatLevel, weaponStats } from '../game/combat';
 import { skillLevel } from '../game/engine';
 
 export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
@@ -35,9 +35,14 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
             const why = cantEat(s, selected.id, now);
             return (
               <>
-                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? 'Weapon' : 'Item'}</div>
+                <div className="kicker">{def.heal ? `Food · +${def.heal} HP` : def.gear ? (def.gear.slot === 'weapon' ? 'Weapon' : 'Armour') : 'Item'}</div>
                 <strong className="detail-name">{def.name}</strong>
-                {def.gear && (
+                {def.gear && def.gear.slot !== 'weapon' && (
+                  <p className="muted small">
+                    +{def.gear.defence ?? 0} defence{def.gear.needs && def.gear.needs.level > 1 ? `, needs Defense ${def.gear.needs.level}` : ''}. Never wears out.
+                  </p>
+                )}
+                {def.gear && def.gear.slot === 'weapon' && (
                   <p className="muted small">
                     +{(def.gear.damage ?? 1) - 1} damage over your fists, a swing every {((def.gear.speed ?? 3) * 0.5).toFixed(1)}s
                     {def.gear.needs && def.gear.needs.level > 1 ? `, needs Melee ${def.gear.needs.level}` : ''}. Never wears out.
@@ -51,7 +56,7 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
                 <div className="save-row">
                   {def.gear && (
                     <button className="btn small primary" onClick={() => api.equip(selected.id)}>
-                      Wield
+                      {def.gear.slot === 'weapon' ? 'Wield' : 'Wear'}
                     </button>
                   )}
                   {def.heal > 0 && (
@@ -80,33 +85,43 @@ export function InventoryTab({ s, api }: { s: GameState; api: GameApi }) {
   );
 }
 
-/** What you're wielding (docs/design.md §12), and what it does for you in a fight. Only a weapon slot for now. */
+/** What you're wielding and wearing (docs/design.md §12, §14), and what it does for you in a fight. */
 function Equipment({ s, api }: { s: GameState; api: GameApi }) {
-  const weapon = s.equipment?.weapon;
   const w = weaponStats(s);
   const hit = maxHit(w.damage, skillLevel(s, 'melee'));
+  const rows: { slot: 'weapon' | 'head' | 'body' | 'legs'; label: string; empty: string; info: (id: string) => string }[] = [
+    { slot: 'weapon', label: 'Weapon', empty: 'Bare fists', info: () => `Max hit ${hit} · a swing every ${(w.speed * 0.5).toFixed(1)}s` },
+    { slot: 'head', label: 'Head', empty: 'Nothing', info: (id) => `+${ITEM_BY_ID[id]?.gear?.defence ?? 0} defence` },
+    { slot: 'body', label: 'Body', empty: 'Nothing', info: (id) => `+${ITEM_BY_ID[id]?.gear?.defence ?? 0} defence` },
+    { slot: 'legs', label: 'Legs', empty: 'Nothing', info: (id) => `+${ITEM_BY_ID[id]?.gear?.defence ?? 0} defence` },
+  ];
   return (
     <section className="equipment">
       <div className="section-head">
         <h3 className="rule-head">Equipment</h3>
-        <span className="muted mono small">Combat level {myCombatLevel(s)}</span>
+        <span className="muted mono small">
+          Combat level {myCombatLevel(s)} · defence +{armourBonus(s)}
+        </span>
       </div>
-      <div className="equip-row">
-        <div className={`slot ${weapon ? '' : 'empty'}`} title={weapon ? ITEM_BY_ID[weapon]?.name : 'Weapon slot (empty)'}>
-          {weapon ? <ItemIcon id={weapon} /> : <span className="muted small">Weapon</span>}
-        </div>
-        <div className="equip-info small">
-          <strong>{weapon ? ITEM_BY_ID[weapon]?.name : 'Bare fists'}</strong>
-          <div className="muted">
-            Max hit {hit} · a swing every {(w.speed * 0.5).toFixed(1)}s · accuracy +{w.accuracy}
+      {rows.map((r) => {
+        const id = s.equipment?.[r.slot];
+        return (
+          <div className="equip-row" key={r.slot}>
+            <div className={`slot ${id ? '' : 'empty'}`} title={id ? ITEM_BY_ID[id]?.name : `${r.label} (empty)`}>
+              {id ? <ItemIcon id={id} /> : <span className="muted small">{r.label}</span>}
+            </div>
+            <div className="equip-info small">
+              <strong>{id ? ITEM_BY_ID[id]?.name : r.empty}</strong>
+              {(id || r.slot === 'weapon') && <div className="muted">{r.info(id ?? '')}</div>}
+              {id && (
+                <button className="btn tiny" onClick={() => api.unequip(r.slot)}>
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
-          {weapon && (
-            <button className="btn tiny" onClick={() => api.unequip('weapon')}>
-              Remove
-            </button>
-          )}
-        </div>
-      </div>
+        );
+      })}
     </section>
   );
 }
