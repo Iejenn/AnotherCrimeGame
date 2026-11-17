@@ -391,12 +391,19 @@ export function buildCrates() {
   const g = new THREE.Group();
   put(g, boxGeo(1.5, 0.08, 0.6), 0x6b4a2e, 0, 0.55, 0);
   for (const x of [-0.7, 0.7]) put(g, boxGeo(0.06, 0.55, 0.6), 0x5a3d26, x, 0.27, 0);
-  const fruit = [0xd9473a, 0xf0b13c, 0x5bd06a, 0xe07b39];
-  for (let i = 0; i < 4; i++) {
+  // Four crates of produce from Kenney's Food Kit (v0.45): apples, oranges, tomatoes, carrots lying in a heap.
+  const produce: [string, number, [number, number, number]][] = [
+    ['food/apple.glb', 0.7, [0, 0, 0]], ['food/orange.glb', 0.8, [0, 0, 0]], ['food/tomato.glb', 0.85, [0, 0, 0]], ['food/carrot.glb', 0.38, [0, 0, Math.PI / 2]],
+  ];
+  produce.forEach(([file, scale, [rx, , rz]], i) => {
     const x = -0.55 + i * 0.37;
     put(g, boxGeo(0.33, 0.14, 0.5), 0x9a7a52, x, 0.66, 0);
-    for (let j = 0; j < 4; j++) put(g, new THREE.SphereGeometry(0.06, 6, 5), fruit[i], x - 0.08 + (j % 2) * 0.16, 0.76, -0.12 + Math.floor(j / 2) * 0.24, false);
-  }
+    for (let j = 0; j < 6; j++) {
+      const m = withModel(file, { scale, tone: 'muted', tiltX: rx, tiltZ: rz, rot: j * 1.3 });
+      m.position.set(x - 0.08 + (j % 2) * 0.16, rz ? 0.74 + (j % 3) * 0.02 : 0.72, -0.16 + Math.floor(j / 2) * 0.16);
+      g.add(m);
+    }
+  });
   return g;
 }
 

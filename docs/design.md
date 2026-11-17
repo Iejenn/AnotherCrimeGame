@@ -910,7 +910,8 @@ and seagull: rat 393 (the giant rat is the same rat at 2.2×), pigeon 365, guard
 limbs, a torso wider at the shoulders, a faceted head, blocky hands): 338 (was 1,906), about 930 in full armour.
 **People are the most important asset** (you see them all the time). The human base model (v0.45, `character.ts`):
 learned from old-school RuneScape, not copied.
-- **Proportions:** about 1.32 tall (`BODY` in character.ts holds every joint's height). The head is about 1/6 of the
+- **Proportions:** the model is about 1.32 tall (`BODY` in character.ts holds every joint's height), drawn at 90%
+  (`PERSON_SCALE`), so on screen a person is about 1.19 tall and fits the shops and doors. The head is about 1/6 of the
   height, the legs about half, broad shoulders taper to the waist, the arms are long (the fists at mid-thigh).
 - **Joints:** hips, knees, shoulders, elbows, the head, and a point in the right fist where weapons go
   (`userData.rig`: legL/R, kneeL/R, armL/R, elbowL/R, head, hand, body). Walking bends the knees, sitting bends them 90°,

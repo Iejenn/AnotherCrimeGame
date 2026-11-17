@@ -276,13 +276,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     // People on the street use the same model as your character, with a random (but fixed) look.
     const lookRng = mulberry32(99);
     // People are small and move, so each gets a bigger invisible tap area (easier on phones).
-    const hitGeo = new THREE.CylinderGeometry(0.42, 0.42, 2.1, 8); // up to just under their name label
+    const hitGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.9, 8); // up to just under their name label
     const hitMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
     geoms.push(hitGeo);
     disposables.push(hitMat);
     const addHitArea = (g: THREE.Group) => {
       const hit = new THREE.Mesh(hitGeo, hitMat);
-      hit.position.y = 1.05;
+      hit.position.y = 1.05 / 0.9; // (inside the person's 90% scale: about 1.05 up)
       g.add(hit);
     };
     const people = new Map<string, THREE.Group>();
@@ -1721,7 +1721,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
             e.hpBar.style.display = show ? 'block' : 'none';
             if (show) {
               // Above their name label (which sits at 1.55), not on top of it.
-              const [bx, by, depth] = project(lift(e.pos, 1.7));
+              const [bx, by, depth] = project(lift(e.pos, 1.55));
               e.hpBar.style.transform = `translate(${bx}px, ${by - 20}px) translate(-50%, -100%)`;
               e.hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
               (e.hpBar.firstChild as HTMLElement).style.width = `${Math.max(0, Math.min(1, hpNow / os.maxHp)) * 100}%`;
@@ -1819,7 +1819,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const v = enemyViews.get(e.id);
         const k = ENEMY_KINDS[e.kind];
         if (!v || !v.g.visible || !k || flat(v.g.position) > LABEL_RANGE + 2) continue;
-        const [x, y, depth] = project(lift(v.g.position, e.kind === 'pigeon' ? 0.75 : 1.7));
+        const [x, y, depth] = project(lift(v.g.position, e.kind === 'pigeon' ? 0.75 : 1.6));
         if (depth > 1) continue;
         let el = labelEls.get(`enemy:${e.id}`);
         if (!el) {
@@ -1844,7 +1844,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       for (const [id, e] of others) {
         const o = list.find((x) => x.id === id);
         if (!o || flat(e.g.position) > NPC_LABEL_RANGE * 1.5) continue;
-        const [x, y, depth] = project(lift(e.g.position, 1.7));
+        const [x, y, depth] = project(lift(e.g.position, 1.55));
         if (depth > 1) continue;
         let el = labelEls.get(`player:${id}`);
         if (!el) {
@@ -1892,7 +1892,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           }
           const pos = pid === ch.myId ? me.pos : others.get(pid)?.g.position;
           if (!pos) continue;
-          const [x, y, depth] = project(lift(pos, 2.1));
+          const [x, y, depth] = project(lift(pos, 1.95));
           if (depth > 1) continue;
           let el = labelEls.get(`say:${pid}`);
           if (!el) {
@@ -1930,7 +1930,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         if (!npc.named) continue;
         const g = npcGroups.get(npc.id)!;
         let el = labelEls.get(`npc:${npc.id}`);
-        const [x, y, depth] = project(lift(g.position, 1.7));
+        const [x, y, depth] = project(lift(g.position, 1.55));
         if (flat(g.position) > NPC_LABEL_RANGE || depth > 1) continue;
         if (!el) {
           el = document.createElement('div');
@@ -1952,7 +1952,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         .slice(0, MAX_LABELS);
       for (const { n } of nearby) {
         const g = nodeGroups.get(n.id)!;
-        const [x, y, depth] = project(lift(g.position, n.kind === 'person' ? 1.6 : 1.2));
+        const [x, y, depth] = project(lift(g.position, n.kind === 'person' ? 1.45 : 1.2));
         if (depth > 1) continue;
         seen.add(n.id);
         let el = labelEls.get(n.id);
@@ -1992,7 +1992,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const show = now < hpBarUntil || hpNow / hpMax <= 0.3;
         hpBar.style.display = show ? 'block' : 'none';
         if (show) {
-          const [bx, by, depth] = project(lift(me.pos, 1.87));
+          const [bx, by, depth] = project(lift(me.pos, 1.72));
           hpBar.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
           hpBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
           hpFill.style.width = `${Math.max(0, Math.min(1, hpNow / hpMax)) * 100}%`;
@@ -2015,7 +2015,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               ? Math.max(0, Math.min(1, 1 - (mk.next - gameNow()) / ((CRAFT_BY_ID[mk.craft]?.ticks ?? 4) * 500)))
               : Math.max(0, Math.min(1, 1 - (ck!.next - gameNow()) / (COOK_TICKS * 500)));
           const hpShown = hpBar.style.display === 'block';
-          const [bx, by, depth] = project(lift(me.pos, 1.87));
+          const [bx, by, depth] = project(lift(me.pos, 1.72));
           cookBar.style.transform = `translate(${bx}px, ${by - (hpShown ? 10 : 0)}px) translate(-50%, -100%)`;
           cookBar.style.visibility = depth > 1 ? 'hidden' : 'visible';
           cookFill.style.width = `${p * 100}%`;
@@ -2029,7 +2029,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const left = st.player.eatingUntil - gameNow();
         eatRingRef.current.style.setProperty('--eat', String(left > 0 ? Math.min(1, left / (st.fight ? 1500 : 500)) : 0));
       }
-      const [hx, hy] = project(lift(me.pos, 1.65));
+      const [hx, hy] = project(lift(me.pos, 1.5));
       floatLayer.style.transform = `translate(${hx}px, ${hy}px)`;
 
       if (now - lastMini > 100) {

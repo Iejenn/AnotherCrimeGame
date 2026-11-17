@@ -73,7 +73,7 @@ scene.add(you);
 
 const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 400);
 const pitch = cam === 'low' || cam === 'close' ? 0.8 : cam === 'top' ? 1.5 : 1.16;
-const r = (cam === 'close' ? 5 : cam === 'low' ? 11 : cam === 'far' ? 24 : cam === 'top' ? 62 : 15) * 1.25;
+const r = (cam === 'close' ? 5 : cam === 'macro' ? 2.4 : cam === 'low' ? 11 : cam === 'far' ? 24 : cam === 'top' ? 62 : 15) * 1.25;
 const target = cam === 'top' ? new THREE.Vector3(29, 0, 29) : new THREE.Vector3(x, floorY(x, z), z);
 camera.position.set(target.x + Math.sin(yaw) * r * Math.cos(pitch), target.y + r * Math.sin(pitch), target.z + Math.cos(yaw) * r * Math.cos(pitch));
 camera.lookAt(target);

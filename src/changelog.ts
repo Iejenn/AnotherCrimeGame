@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.45.1',
+    date: '2026-11-17',
+    title: 'Back to size',
+    items: [
+      'People are a little smaller again (90%), so they fit the shops and doors better.',
+      "Eddy's fruit and vegetable stand has real apples, oranges, tomatoes and carrots.",
+    ],
+  },
+  {
     version: '0.45.0',
     date: '2026-11-17',
     title: 'New look for creatures and people',

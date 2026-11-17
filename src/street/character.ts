@@ -27,6 +27,8 @@ export const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 // and shoulders, forearms, baggy trousers, fists, a simple strong face) rather than trinkets, and smooth shading with
 // hard edges only where the shape turns sharply (fists, shoes, the jaw). Real joints: hips, knees, shoulders, elbows,
 // the head, and a point in the right hand where weapons go. All sizes below are in tiles (1 = a tile).
+/** How big people are drawn in the city (the model at 90%). */
+export const PERSON_SCALE = 0.9;
 export const BODY = {
   /** Height of the hips (the legs' pivot), the knees under them, the shoulders (the arms' pivot), the head's centre. */
   hip: 0.62,
@@ -353,6 +355,10 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.012;
   root.add(blob);
+
+  // Everyone is drawn at 90% of the model's size, so people fit the city's doors, shops and counters (BODY's numbers
+  // are the model's own; on screen a person is about 1.19 tall).
+  root.scale.setScalar(PERSON_SCALE);
 
   root.userData.rig = {
     legL: legs[0][0], legR: legs[1][0], kneeL: legs[0][1], kneeR: legs[1][1],

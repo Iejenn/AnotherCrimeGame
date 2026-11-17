@@ -13,7 +13,7 @@ const cache = new Map<string, Promise<THREE.Object3D>>();
 // (In dev the previews live in /scripts/preview/, so use the server root there; the built game sits next to models/.)
 const BASE = import.meta.env.DEV ? '/models/' : `${import.meta.env.BASE_URL}models/`;
 
-export type Tone = 'none' | 'dull' | 'dark' | 'grimy';
+export type Tone = 'none' | 'muted' | 'dull' | 'dark' | 'grimy';
 /** 'dark' furniture: its materials by name, in a dim bar's colours (worn red leather, dark wood, dull metal). */
 const DARK: Record<string, number> = { carpet: 0x5a2622, carpetDarker: 0x3e1a18, wood: 0x3a281c, woodDark: 0x2a1c14, metal: 0x4a4a4e, metalMedium: 0x3a3c40, metalDark: 0x2e2e32 };
 
@@ -35,6 +35,8 @@ function load(path: string, tone: Tone): Promise<THREE.Object3D> {
           // Matte, like the rest of the city (no shiny plastic).
           c.metalness = 0;
           c.roughness = 1;
+          // 'muted': a touch greyer (fruit and veg keep their colour); 'dull': greyer and darker (bright furniture, food).
+          if (tone === 'muted') c.color.lerp(grey, 0.15).multiplyScalar(0.95);
           if (tone === 'dull') c.color.lerp(grey, 0.45).multiplyScalar(0.75);
           if (tone === 'dark') {
             if (DARK[c.name] !== undefined) c.color.setHex(DARK[c.name]);
