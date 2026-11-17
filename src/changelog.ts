@@ -11,7 +11,12 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '0.39.1',
     date: '2026-11-16',
     title: 'Rats, labelled',
-    items: ['Fixed: rats in the sewer had no name or health bar, and things lying on the ground down there had no label.'],
+    items: [
+      'Fixed: rats in the sewer had no name or health bar, and things lying on the ground down there had no label.',
+      'Cooking shows the XP you get: "+5 XP" in the log, and popping up over your head.',
+      'Fixed: enemies you walk away from no longer walk through buildings and walls when they follow you or head back to their spot. They take the long way round now.',
+      'The Inventory is tidier: the cash and lifetime earnings box is gone (your cash is in the first slot). Tap an item to see what you can do with it.',
+    ],
   },
   {
     version: '0.39.0',

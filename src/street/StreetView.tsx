@@ -466,7 +466,40 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     // ---------- enemies (combat, docs/design.md §12) ----------
     // Shared by everyone: where they are comes from their schedule (pigeonAt), or where they stand still while
     // someone fights them. Tap one to walk up and fight it; the server rolls every swing.
-    const enemyViews = new Map<string, { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number; lastHp: number | null; wasDead: boolean }>();
+    // route: the tiles it's walking along when it follows someone or walks back (around walls, like you do), and
+    // routeKey: what that route was worked out for (redone when the target moves to another tile).
+    const enemyViews = new Map<
+      string,
+      { g: THREE.Group; pos: THREE.Vector3 | null; peckUntil: number; dyingUntil: number; lastHp: number | null; wasDead: boolean; route: [number, number][]; routeKey: string }
+    >();
+    /**
+     * Walk enemy view `v` towards `goal` along a path around buildings, walls and fences (findPath, the same rules as
+     * yours). `beside`: stop on a tile next to the goal (following someone). Moves at most `speed` tiles/s; returns
+     * how far it still has to go (tiles), so the caller can set the speed to arrive in time.
+     */
+    const walkEnemy = (v: { pos: THREE.Vector3 | null; route: [number, number][]; routeKey: string }, goal: [number, number], beside: boolean, speed: number, dt: number) => {
+      const pos = v.pos!;
+      const from = tileOf(pos.x, pos.z);
+      const key = `${goal[0]},${goal[1]},${beside}`;
+      if (v.routeKey !== key) {
+        v.routeKey = key;
+        v.route = findPath(blocked, W, GH, from, beside ? neighbors(...goal) : [goal], canStep) ?? [];
+      }
+      let budget = speed * dt;
+      while (v.route.length && budget > 0) {
+        const c = center(...v.route[0]);
+        const gap = c.sub(pos).setY(0);
+        if (gap.length() <= budget) {
+          pos.add(gap);
+          budget -= gap.length();
+          v.route.shift();
+        } else {
+          pos.add(gap.setLength(budget));
+          budget = 0;
+        }
+      }
+      return v.route.length;
+    };
     const enemyAt = (e: EnemyState) => {
       if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
       return scheduleAt(e.kind, e.index, gameNow());
@@ -1435,7 +1468,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           g.add(hitArea);
           scene.add(g);
           pickables.push(g);
-          v = { g, pos: null, peckUntil: 0, dyingUntil: 0, lastHp: e.hp, wasDead: !!e.deadUntil };
+          v = { g, pos: null, peckUntil: 0, dyingUntil: 0, lastHp: e.hp, wasDead: !!e.deadUntil, route: [], routeKey: '' };
           enemyViews.set(e.id, v);
         }
         // Just died (killed by anyone): play the fall before hiding it.
@@ -1467,15 +1500,23 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
           flying = false;
           const who = ret.by === worldRef.current?.myId ? me.pos : others.get(ret.by)?.pos;
           const following = t - ret.at < RETURN_MS / 2 && who && who.distanceTo(v.pos) < 10;
+          // Both along a path around walls and fences (they used to go straight, through buildings).
           if (following) {
-            const gap = who.clone().sub(v.pos).setY(0);
-            if (gap.length() > 1) v.pos.add(gap.clampLength(0, Math.min(gap.length() - 1, 2.2 * dt)));
+            walkEnemy(v, tileOf(who.x, who.z), true, 2.2, dt);
           } else {
-            const gap = new THREE.Vector3(at.x - v.pos.x, 0, at.z - v.pos.z);
             const left = Math.max(0.05, (ret.at + RETURN_MS - t) / 1000);
-            v.pos.add(gap.clampLength(0, Math.max(1.5, gap.length() / left) * dt));
+            const goal = tileOf(at.x, at.z);
+            const tilesLeft = v.route.length && v.routeKey.startsWith(`${goal[0]},${goal[1]},false`) ? v.route.length : Math.hypot(at.x - v.pos.x, at.z - v.pos.z);
+            if (walkEnemy(v, goal, false, Math.max(1.5, (tilesLeft + 0.5) / left), dt) === 0) {
+              // On its spot's tile: the last bit straight to where its routine has it.
+              const gap = new THREE.Vector3(at.x - v.pos.x, 0, at.z - v.pos.z);
+              v.pos.add(gap.clampLength(0, Math.max(1.5, gap.length() / left) * dt));
+            }
           }
-        } else v.pos.lerp(new THREE.Vector3(at.x, 0, at.z), Math.min(1, dt * 12));
+        } else {
+          v.routeKey = '';
+          v.pos.lerp(new THREE.Vector3(at.x, 0, at.z), Math.min(1, dt * 12));
+        }
         const d = v.pos.clone().sub(before).setY(0);
         const walking = d.length() / Math.max(dt, 0.001) > 0.3;
         if (d.length() > 0.002) v.g.rotation.y = Math.atan2(d.x, d.z);

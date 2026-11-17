@@ -210,7 +210,9 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
         report.hit = false;
         report.combat = true;
       }
-      if (report.jobs || report.events.length || report.hit || report.died || report.damage || Object.keys(report.items).length) listeners.current.forEach((fn) => fn(report));
+      // Anything to show over your head: also XP on its own (cooking gives XP but no cash or items).
+      const worthShowing = report.jobs || report.events.length || report.hit || report.died || report.damage || Object.keys(report.items).length;
+      if (worthShowing || Object.values(report.xp ?? {}).some((x) => (x ?? 0) > 0) || report.levelUps.length) listeners.current.forEach((fn) => fn(report));
       toast([
         ...report.levelUps.map((l) => ({ text: `${SKILL_BY_ID[l.skill].name} → Lv ${l.level}`, kind: 'level' as const })),
         ...report.events.map((e) => ({ text: e, kind: 'event' as const })),
