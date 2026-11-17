@@ -37,6 +37,8 @@ export const ITEMS: ItemDef[] = [
   // Rats in the sewer drop raw rat meat: cook it at the barbecue.
   { id: 'raw_rat_meat', name: 'Raw Rat Meat', heal: 0, value: 2 },
   { id: 'cooked_rat_meat', name: 'Cooked Rat Meat', heal: 1, value: 4 },
+  // Scrapping (docs/design.md §14): tin salvage from the Thrift Store's dumpsters. $5 (sells for $1).
+  { id: 'tin_salvage', name: 'Tin Salvage', heal: 0, value: 5 },
   // The first weapon: Ray's weapon store sells them for $50. +1 damage over bare fists, same speed, no defence.
   { id: 'brass_knuckles', name: 'Brass Knuckles', heal: 0, value: 50, gear: { slot: 'weapon', damage: 2, accuracy: 0, speed: 3, needs: { skill: 'melee', level: 1 } } },
   // The thugs' knife (a 1-in-20 drop in the Yard, not sold): Melee 5, +1 damage over fists, but fast: a stab every 1 s.

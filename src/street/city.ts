@@ -10,7 +10,7 @@ import {
   BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
-  MANHOLE, SEWER, SEWER_BRIDGES, floorY, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
+  MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -444,6 +444,7 @@ export function buildCity(scene: THREE.Scene) {
   // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
   const FLOOR = 1.45;
   for (const b of BUILDINGS) {
+    if (b.custom) continue; // drawn by its own section (the Thrift Store)
     const floors = b.height > 1.8 ? 3 : 2;
     const height = floors * FLOOR + 0.12;
     const wall = C.walls[Math.floor(rng() * C.walls.length)];
@@ -1500,6 +1501,113 @@ export function buildCity(scene: THREE.Scene) {
     const fade: Fadeable = { walls: [...walls, ...panes, ...frames], mats: [mBrick, mFacade], props: [roof, ...rim, ...roofProps, sign, ...cross, ...windows], opacity: 1 };
     fadeables.push(fade);
     rooms.set(LOBBY.id, fade);
+  }
+
+  // ---------- the Thrift Store and its salvage yard (009; Scrapping) ----------
+  // A two-storey brick shop with a big weathered "THRIFT STORE" sign over a rusty door, barred windows with boxes behind
+  // them, drainpipes and a meter box. East of it, its yard: cracked concrete with weeds, a chain-link fence with barbed
+  // wire and one open gate on the street side, pallets, rubbish bags and cans (the dumpsters are spots, see StreetView).
+  {
+    const X0 = THRIFT.x0;
+    const X1 = THRIFT.x1 + 1;
+    const Z0 = THRIFT.y0;
+    const Z1 = THRIFT.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const HT = 2.7;
+    add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
+    const bt = (across: number) => {
+      const t = own(brickTex.clone());
+      t.repeat.set(across, 2);
+      t.needsUpdate = true;
+      return t;
+    };
+    const mBrick = lam(0x8a5040, { map: bt(X1 - X0) });
+    const walls = [add(geoBox(X1 - X0, HT, Z1 - Z0), mBrick, cx, HT / 2, cz)];
+    const roofParts = [add(geoBox(X1 - X0 - 0.2, 0.06, Z1 - Z0 - 0.2), lam(C.roof), cx, HT + 0.03, cz), ...parapet(cx, cz, X1 - X0 + 0.04, Z1 - Z0 + 0.04, HT + 0.08, lam(0x5a3a2e))];
+    roofParts.push(add(geoBox(0.6, 0.35, 0.5), lam(0xd8d8d8), X0 + 1.2, HT + 0.2, Z1 - 1.2));
+    // The front (south, on the street): the sign, the door, two barred windows with boxes stacked behind them.
+    const fz = Z1 + 0.01;
+    add(geoBox(3.75, 0.74, 0.06), lam(0x3a2a22), cx, 2.05, fz + 0.02, false);
+    add(own(new THREE.PlaneGeometry(3.6, 0.62)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('THRIFT STORE', '#d8cdb8', '#8a2f28')) })), cx, 2.05, fz + 0.06, false);
+    add(geoBox(0.8, 1.25, 0.05), lam(0x7a6a5a), cx, 0.63, fz + 0.02, false); // the door
+    add(geoBox(0.3, 0.22, 0.02), lam(0x2b2b2e), cx, 0.95, fz + 0.05, false); // its little window
+    add(geoBox(0.92, 0.08, 0.1), lam(0x4a3a2e), cx, 1.28, fz + 0.03, false);
+    for (const dx of [-1.5, 1.5]) {
+      add(geoBox(1.0, 0.8, 0.04), lam(0x3a4048, { emissive: 0x2a2010, emissiveIntensity: 0.6 }), cx + dx, 0.95, fz + 0.02, false);
+      add(geoBox(0.4, 0.3, 0.02), lam(0x9a7a52), cx + dx - 0.2, 0.75, fz + 0.03, false); // boxes behind the glass
+      for (let i = -2; i <= 2; i++) add(geoBox(0.025, 0.8, 0.03), lam(0x2a2a2e), cx + dx + i * 0.2, 0.95, fz + 0.05, false); // bars
+    }
+    // Drainpipes down both front corners, a meter box.
+    for (const x of [X0 + 0.15, X1 - 0.15]) add(own(new THREE.CylinderGeometry(0.05, 0.05, HT, 8)), lam(0x5a5f66), x, HT / 2, fz + 0.06);
+    add(geoBox(0.3, 0.4, 0.12), lam(0x6a6e74), X1 - 0.6, 1.1, fz + 0.08);
+    // The back door onto the yard (east wall) with a bare bulb over it.
+    add(geoBox(0.05, 1.2, 0.75), lam(0x6a5a4a), X1 + 0.01, 0.6, THRIFT_YARD.y0 + 2.5, false);
+    add(geoBox(0.1, 0.1, 0.1), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), X1 + 0.08, 1.5, THRIFT_YARD.y0 + 2.5, false);
+    const fade: Fadeable = { walls, mats: [mBrick], props: roofParts, opacity: 1 };
+    fadeables.push(fade);
+
+    // The yard.
+    const Y0 = THRIFT_YARD.x0;
+    const Y1 = THRIFT_YARD.x1 + 1;
+    const ycx = (Y0 + Y1) / 2;
+    add(geoBox(Y1 - Y0, 0.075, Z1 - Z0), lam(0x5a5852), ycx, 0.037, cz, false);
+    const cracks = new Batch(geoBox(0.03, 0.004, 0.8), lam(0x2e2c29), false);
+    for (let i = 0; i < 10; i++) cracks.add(Y0 + 0.4 + rng() * (Y1 - Y0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), 1, 1, 0.5 + rng(), rng() * 6);
+    cracks.build(scene);
+    const weeds = new Batch(own(new THREE.ConeGeometry(0.06, 0.22, 4)), lam(0x4a6a32), false);
+    for (let i = 0; i < 26; i++) {
+      const edge = i % 3;
+      const x = edge === 0 ? Y1 - 0.12 : Y0 + 0.3 + rng() * (Y1 - Y0 - 0.6);
+      const z = edge === 1 ? Z1 - 0.12 : edge === 2 ? Z0 + 0.15 : Z0 + 0.3 + rng() * (Z1 - Z0 - 0.6);
+      weeds.add(x + (rng() - 0.5) * 0.1, 0.18, z, 1, 0.7 + rng() * 0.8, 1, rng() * 3);
+    }
+    weeds.build(scene);
+    // Chain-link fence with barbed wire along the north (but the gate), east and south edges.
+    const linkTex = own(
+      canvasTex(32, 32, (g) => {
+        g.clearRect(0, 0, 32, 32);
+        g.strokeStyle = '#b8bcc2';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(0, 16); g.lineTo(16, 0); g.lineTo(32, 16); g.lineTo(16, 32); g.closePath();
+        g.stroke();
+      }),
+    );
+    linkTex.repeat.set(4, 4);
+    const linkMat = own(new THREE.MeshBasicMaterial({ map: linkTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    const postMat = lam(0x8a8f96);
+    const fencePanel = (x: number, z: number, alongX: boolean) => {
+      const m = add(own(new THREE.PlaneGeometry(1, 1.2)), linkMat, x, 0.65, z, false);
+      m.receiveShadow = false;
+      if (!alongX) m.rotation.y = Math.PI / 2;
+      add(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), postMat, alongX ? x - 0.5 : x, 0.7, alongX ? z : z - 0.5);
+      // barbed wire on top
+      add(geoBox(alongX ? 1 : 0.015, 0.015, alongX ? 0.015 : 1), lam(0x6a6e74), x, 1.32, z, false);
+    };
+    for (let x = Y0; x < Y1; x++) {
+      fencePanel(x + 0.5, Z0 + 0.02, true);
+      if (x !== THRIFT_GATE[0]) fencePanel(x + 0.5, Z1 - 0.02, true);
+    }
+    for (let z = Z0; z < Z1; z++) fencePanel(Y1 - 0.02, z + 0.5, false);
+    add(own(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6)), postMat, Y1 - 0.02, 0.7, Z1 - 0.02);
+    // The gate, swung open into the street.
+    const gate = add(own(new THREE.PlaneGeometry(1, 1.15)), linkMat, THRIFT_GATE[0] + 1.0, 0.62, Z1 + 0.45, false);
+    gate.rotation.y = Math.PI / 2.4;
+    // Junk: pallets, rubbish bags, cans, an old tyre.
+    const wood = lam(0x8a6a44);
+    for (const [px, pz, r] of [[Y0 + 1.2, Z0 + 0.55, 0.2], [Y1 - 0.45, Z0 + 1.2, 1.5]]) {
+      for (let i = 0; i < 4; i++) add(geoBox(0.9, 0.04, 0.12), wood, px, 0.1, pz - 0.3 + i * 0.2, false).rotation.y = r;
+      add(geoBox(0.9, 0.08, 0.1), wood, px, 0.05, pz, false).rotation.y = r;
+    }
+    for (const [bx, bz] of [[Y0 + 3.4, Z0 + 0.4], [Y0 + 3.8, Z0 + 0.55], [Y1 - 0.4, Z0 + 3.4]]) add(own(new THREE.IcosahedronGeometry(0.2, 0)), lam(0x1e2022, { flatShading: true }), bx, 0.17, bz).scale.y = 0.8;
+    for (let i = 0; i < 12; i++) {
+      const can = add(own(new THREE.CylinderGeometry(0.035, 0.035, 0.11, 6)), lam([0xb8bcc2, 0x9aa0a6, 0xc8a06a][i % 3]), Y0 + 0.4 + rng() * (Y1 - Y0 - 0.8), 0.04, Z0 + 0.4 + rng() * (Z1 - Z0 - 0.8), false);
+      can.rotation.z = Math.PI / 2;
+      can.rotation.y = rng() * 6;
+    }
+    const tyre = add(own(new THREE.TorusGeometry(0.2, 0.08, 6, 12)), lam(0x1e1e22), Y0 + 1.5, 0.09, Z0 + 3.5);
+    tyre.rotation.x = Math.PI / 2;
   }
 
   // ---------- the pothole and the sewer under the city (rats; docs/design.md §12) ----------

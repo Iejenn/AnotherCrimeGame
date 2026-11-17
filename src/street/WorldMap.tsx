@@ -69,6 +69,15 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  scrap: (
+    <>
+      {/* a crushed tin can and a dented one */}
+      <path d="M5 9 L11 8 L12 19 L6 20 Z" fill="#b8bcc2" stroke="#141210" strokeWidth="0.9" />
+      <path d="M5.5 12 L11.3 11.2 M6 16 L11.6 15.3" stroke="#7a7e84" strokeWidth="0.8" />
+      <path d="M13 13 L19 11 Q21 14 19.5 16 L20 19 L14 20 Q12.5 17 13 13 Z" fill="#9aa0a6" stroke="#141210" strokeWidth="0.9" />
+      <path d="M14 15.5 L19.3 14" stroke="#6a6e74" strokeWidth="0.8" />
+    </>
+  ),
   ladder: (
     <>
       {/* a ladder going up */}

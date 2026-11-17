@@ -11,7 +11,7 @@ export const EAT_SECONDS = TICK_SECONDS;
 /** When an NPC catches you, this long passes between his yell and his punch (he walks over meanwhile). */
 export const CATCH_SECONDS = 1.6;
 
-export type SpotKind = 'person' | 'bag' | 'shelf' | 'meter' | 'car';
+export type SpotKind = 'person' | 'bag' | 'shelf' | 'meter' | 'car' | 'dumpster';
 
 /**
  * Who reacts to you:
@@ -101,6 +101,16 @@ export const CRIMES: CrimeDef[] = [
     spot: { kind: 'car', label: 'Parked car', where: 'The parking lot' },
     flavor: ['Glovebox cash and a forgotten wallet.', 'Unlocked. They always leave one unlocked.'],
     failLines: ['The car alarm went off.'],
+  },
+  // Scrapping (docs/design.md §14): the same spot machinery, another skill. A try takes 2 s and finds tin salvage about
+  // half the time (+0.5% per level); finding nothing costs nothing and you keep digging. A dumpster you found something
+  // in is empty for 15 s.
+  {
+    id: 'tin_salvage', skill: 'scrapping', name: 'Tin Salvaging', level: 1, ticks: 4, duration: 0, baseChance: 0.5, xp: 4,
+    cashMin: 0, cashMax: 0, items: ['tin_salvage'], failDamage: 0, failStun: 0, refill: 15,
+    spot: { kind: 'dumpster', label: 'Dumpster', where: 'Behind the Thrift Store (009)' },
+    flavor: ['Cans, tins, a dented pot.', 'Something shiny under the rubbish bags.'],
+    failLines: ['You find nothing useful.'],
   },
 ].map((c) => ({ ...c, skill: c.skill as SkillId, duration: c.ticks * TICK_SECONDS }) as CrimeDef);
 

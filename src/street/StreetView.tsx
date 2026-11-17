@@ -16,7 +16,7 @@ import { COOK_TICKS } from '../game/data/recipes';
 import { COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
@@ -83,6 +83,8 @@ function startLine(n: StreetNode) {
       return 'You crouch down by the bench and unzip a bag…';
     case 'shelf':
       return 'You browse the shelf, casually…';
+    case 'dumpster':
+      return 'You dig through the dumpster…';
     default:
       return `You eye the ${what}…`;
   }
@@ -268,6 +270,8 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         g = buildGymBag(BAG_COLORS[(n.x + n.y) % BAG_COLORS.length]);
       } else if (n.kind === 'meter') {
         g = buildMeter();
+      } else if (n.kind === 'dumpster') {
+        g = buildScrapDumpster();
       } else {
         g = buildShelf([0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8, 0xe86aa0], n.x * 3 + n.y);
       }
@@ -661,7 +665,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const busy = busyReason(st, gameNow());
       if (busy) return say(busy);
       const empty = emptyFor(st, n.id, gameNow());
-      if (empty) return say(`It's empty. ${n.kind === 'meter' ? 'It fills up again' : "It's restocked"} in ${Math.ceil(empty)}s.`);
+      if (empty) return say(n.kind === 'dumpster' ? "It's empty." : `It's empty. ${n.kind === 'meter' ? 'It fills up again' : "It's restocked"} in ${Math.ceil(empty)}s.`);
       if (me.lastSpot !== n.id) say(startLine(n));
       me.lastSpot = n.id;
       // One tap = one attempt. Where you stand matters: the guard checks it, and your grave goes there.
@@ -1071,6 +1075,13 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
     };
 
     const off = onReport((r) => {
+      // Scrapping: found nothing this time? Keep digging in the same dumpster (unless you walked off or are busy).
+      if (r.jobs && r.fails && !r.damage && me.attached && CRIME_BY_ID[me.attached.crimeId]?.skill === 'scrapping') {
+        const n = me.attached;
+        setTimeout(() => {
+          if (me.attached?.id === n.id && !me.path.length && !sRef.current.player.job) arrive(n);
+        }, 120);
+      }
       // A failed grab at the gym bags: the throw first, the hit when the ball lands.
       if (r.hit && me.lastSpot.startsWith('bag_')) {
         throwAtMe();
@@ -1414,7 +1425,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         }
       }
       // Spots that were emptied (shelves, meters) look empty until they refill.
-      for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, gameNow()) > 0);
+      for (const n of NODES) if (n.kind === 'shelf' || n.kind === 'meter' || n.kind === 'dumpster') setSpotEmpty(nodeGroups.get(n.id)!, emptyFor(st, n.id, gameNow()) > 0);
       // Inside a room: fade its walls and lift the roof so you can see in.
       const myTile = tileOf(me.pos.x, me.pos.z);
       for (const r of ROOMS) city.rooms.get(r.id)!.force = inRect(r, ...myTile) || (r.id === 'hospital' && isUpstairs(...myTile));
@@ -1870,11 +1881,15 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       }
       {
         // Cooking: a bar that fills from dark brown to clay while the current piece cooks (one every COOK_TICKS ticks).
+        // Also while you dig through a dumpster (Scrapping): the attempt's progress.
         const ck = st.cook;
-        const show = !!ck && !me.path.length;
+        const dig = job && CRIME_BY_ID[job.crimeId]?.skill === 'scrapping' ? job : null;
+        const show = (!!ck || !!dig) && !me.path.length;
         cookBar.style.display = show ? 'block' : 'none';
-        if (show && ck) {
-          const p = Math.max(0, Math.min(1, 1 - (ck.next - gameNow()) / (COOK_TICKS * 500)));
+        if (show) {
+          const p = dig
+            ? Math.max(0, Math.min(1, (gameNow() - dig.startedAt) / Math.max(1, dig.endsAt - dig.startedAt)))
+            : Math.max(0, Math.min(1, 1 - (ck!.next - gameNow()) / (COOK_TICKS * 500)));
           const hpShown = hpBar.style.display === 'block';
           const [bx, by, depth] = project(lift(me.pos, 1.72));
           cookBar.style.transform = `translate(${bx}px, ${by - (hpShown ? 10 : 0)}px) translate(-50%, -100%)`;

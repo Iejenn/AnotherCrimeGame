@@ -1,6 +1,6 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, PARK, PARKING, PARK_PATHS, ROOMS, SEWER, W, blockRect, isSewage, type Rect } from './map';
+import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, THRIFT_DUMPSTERS, THRIFT_YARD, PARK, PARKING, PARK_PATHS, ROOMS, SEWER, W, blockRect, isSewage, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
@@ -48,6 +48,10 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   for (const r of PARKING) area(r, '#34363c'); // the parking lot (an L around the gas station)
   tile(GAS.x0, GAS.y1 + 1, GAS.x1 - GAS.x0 + 1, 1, '#34363c'); // the pumps' forecourt
   for (const r of ROOMS) area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
+  // The Thrift Store (brick) and its yard (concrete) with the dumpsters.
+  area(THRIFT, '#8a5040');
+  area(THRIFT_YARD, '#5a5852');
+  for (const [x, y] of THRIFT_DUMPSTERS) tile(x + 0.1, y + 0.15, 0.8, 0.7, '#8a5a3a');
   // The hospital: pale walls, a red cross on the ward's roof.
   area(HOSPITAL, '#c9c4b8');
   tile(HOSPITAL.x0 + 2, HOSPITAL.y0 + 1, 1, 3, '#d9473a');

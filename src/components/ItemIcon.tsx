@@ -95,6 +95,17 @@ const RatMeat = ({ cooked }: { cooked: boolean }) => (
   </svg>
 );
 
+/** Tin salvage: a little heap of crushed and dented tin cans. */
+const TinSalvage = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <path d="M6 30 L14 22 L20 26 L12 34 Z" fill="#9aa0a6" stroke="#4a4e54" strokeWidth="1" strokeLinejoin="round" />
+    <rect x="18" y="12" width="9" height="16" rx="1.5" fill="#c8ccd2" stroke="#4a4e54" strokeWidth="1" transform="rotate(14 22 20)" />
+    <path d="M19 16 L27 17.5 M18.5 21 L26.5 22.5" stroke="#8a8e94" strokeWidth="1" transform="rotate(14 22 20)" />
+    <path d="M24 30 L33 26 L35 31 L27 35 Z" fill="#b0b4ba" stroke="#4a4e54" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M9 29 L14 25" stroke="#d8dce2" strokeWidth="0.9" />
+  </svg>
+);
+
 const Knife = () => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
     {/* a knife lying diagonally: steel blade with a bright edge, a guard, a dark wooden handle */}
@@ -109,7 +120,7 @@ const Knife = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { knife: Knife, raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, raw_rat_meat: () => <RatMeat cooked={false} />, cooked_rat_meat: () => <RatMeat cooked />, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
+const ICONS: Record<string, () => JSX.Element> = { knife: Knife, raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />, raw_rat_meat: () => <RatMeat cooked={false} />, cooked_rat_meat: () => <RatMeat cooked />, tin_salvage: TinSalvage, cash: Cash, candy_bar: CandyBar, sandwich: Sandwich, brass_knuckles: BrassKnuckles, baseball_bat: BaseballBat };
 
 /** The picture for an item id (or 'cash'); nothing for items without one yet. */
 export function ItemIcon({ id, className = 'item-icon' }: { id: string; className?: string }) {

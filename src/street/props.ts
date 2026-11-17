@@ -117,6 +117,49 @@ export function setSpotEmpty(g: THREE.Object3D, empty: boolean) {
   if (mark) mark.visible = empty;
 }
 
+/**
+ * A rusty dumpster in the Thrift Store's yard (Scrapping). Full: the lid is flipped open and junk (cans, a pot, scrap)
+ * sticks out. Empty (someone just found the salvage): the lid is shut. Opens towards +z. Uses the shelf convention
+ * (userData.goods hides when empty, userData.emptyMark shows), so setSpotEmpty works on it.
+ */
+export function buildScrapDumpster(): THREE.Group {
+  const g = new THREE.Group();
+  const rust = new THREE.MeshLambertMaterial({ color: 0x8a5a3a, flatShading: true });
+  const dark = lambert(0x4a3a2e);
+  const body = new THREE.Mesh(boxGeo(0.92, 0.62, 0.7), rust);
+  body.position.set(0, 0.36, 0);
+  body.castShadow = body.receiveShadow = true;
+  g.add(body);
+  // Ribs on the sides, a darker rim, little wheels, a sliding side door.
+  for (const x of [-0.3, 0, 0.3]) add(g, boxGeo(0.05, 0.6, 0.72), 0x6a4430, x, 0.36, 0, false);
+  add(g, boxGeo(0.96, 0.05, 0.74), 0x5a3a28, 0, 0.67, 0, false);
+  for (const [x, z] of [[-0.38, -0.26], [0.38, -0.26], [-0.38, 0.26], [0.38, 0.26]]) add(g, cylGeo(0.05, 0.05, 6), 0x1e1e22, x, 0.05, z, false);
+  add(g, boxGeo(0.3, 0.22, 0.02), 0x6a4430, 0.2, 0.36, 0.36, false);
+  // Full: junk on top and the lid flipped open, hanging down the back.
+  const goods = new THREE.Group();
+  const junk = [0xb8bcc2, 0x9aa0a6, 0x7a7e84, 0xc8a06a, 0x5a5f66];
+  for (let i = 0; i < 7; i++) {
+    const can = add(goods, cylGeo(0.05, 0.12, 8), junk[i % junk.length], -0.3 + (i % 4) * 0.2, 0.7 + (i % 2) * 0.04, -0.18 + Math.floor(i / 4) * 0.3, false);
+    can.rotation.set(i * 0.9, i, i * 0.5);
+  }
+  add(goods, boxGeo(0.3, 0.1, 0.22), 0x3a3d42, 0.05, 0.7, 0.05, false).rotation.y = 0.4;
+  const openLid = new THREE.Mesh(boxGeo(0.94, 0.04, 0.72), dark);
+  openLid.position.set(0, 0.5, -0.38);
+  openLid.rotation.x = -1.35;
+  goods.add(openLid);
+  g.add(goods);
+  // Empty: the lid shut.
+  const shut = new THREE.Mesh(boxGeo(0.94, 0.05, 0.72), dark);
+  shut.position.set(0, 0.7, 0);
+  shut.rotation.x = -0.05;
+  shut.castShadow = true;
+  shut.visible = false;
+  g.add(shut);
+  g.userData.goods = goods;
+  g.userData.emptyMark = shut;
+  return g;
+}
+
 /** Your grave: a rounded headstone with a cross, on a little mound of dirt, and a faint glow so you spot it. */
 export function buildGrave(): THREE.Group {
   const g = new THREE.Group();

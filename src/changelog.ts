@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.40.0',
+    date: '2026-11-17',
+    title: 'One man\'s trash',
+    items: [
+      'New skill: Scrapping. Salvage metal from junk, to make gear from later.',
+      'The Thrift Store opened on block 009, east of the park. Behind it, a fenced yard with five dumpsters full of junk.',
+      'Tap a dumpster to dig for tin salvage. Not every try finds something; you keep digging until you do. Then the dumpster is empty for a bit.',
+      'Tin salvage is the first metal. What you can make from it comes with Tinkering, at the Factory (coming later).',
+    ],
+  },
+  {
     version: '0.39.1',
     date: '2026-11-16',
     title: 'Rats, labelled',

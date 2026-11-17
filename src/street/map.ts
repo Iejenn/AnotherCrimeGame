@@ -112,6 +112,8 @@ export interface Building {
   front: 'n' | 's';
   /** Run down: the windows are boarded up and the ground floor is bare brick (the Yard's buildings, for graffiti). */
   boarded?: boolean;
+  /** Drawn by its own section in city.ts (the Thrift Store), not as an ordinary building. */
+  custom?: boolean;
 }
 
 /** Pocket parks (one lot each). */
@@ -239,7 +241,23 @@ const SPECIAL: [string, LotLetter][] = [
   ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
   ['007', 'C'], ['007', 'D'], // the Yard (thugs)
   ['005', 'B'], ['005', 'D'], // the hospital
+  ['009', 'C'], ['009', 'D'], // the Thrift Store and its salvage yard
 ];
+
+// ---------- the Thrift Store (Scrapping: tin salvage, level 1; docs/design.md §14) ----------
+// East of the park: the store on 009-C (a brick shop with a big sign, you don't go in), and behind a chain-link fence on
+// 009-D its yard with 5 rusty dumpsters you dig through for tin. Both face the street on the south (the side the camera
+// looks at); the yard's one gate is there too.
+//   S S S S S | . . D . .      S = the store, G = the gate, D = a dumpster
+//   S S S S S | . . . . .
+//   S S S S S | D . . . D
+//   S S S S S | . . . . .
+//   S S S S S | D . G . D
+//      (sign, door)
+export const THRIFT: Rect = lot('009', 'C');
+export const THRIFT_YARD: Rect = lot('009', 'D');
+export const THRIFT_GATE: [number, number] = [THRIFT_YARD.x0 + 2, THRIFT_YARD.y1];
+export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0, 4], [4, 4]].map(([dx, dy]) => [THRIFT_YARD.x0 + dx, THRIFT_YARD.y0 + dy]);
 
 // ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
 // The bottom half of block 007: a building down each side, the 007-A/B buildings behind, and a courtyard between them,
@@ -332,6 +350,8 @@ export const ENCLOSURES: Enclosure[] = [
       ...STAIRS.map((s) => ({ inside: s.top, outside: [s.x, WARD.y1] as [number, number] })),
     ],
   },
+  // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
+  { id: 'thrift_yard', rect: THRIFT_YARD, openings: [{ inside: THRIFT_GATE, outside: [THRIFT_GATE[0], THRIFT_GATE[1] + 1] }] },
   { id: 'ward', rect: WARD, openings: STAIRS.map((s) => ({ inside: [s.x, WARD.y1] as [number, number], outside: s.top })) },
   {
     id: 'court',
@@ -392,6 +412,8 @@ export const BUILDINGS: Building[] = (() => {
       });
     }
   }
+  // The Thrift Store fills its lot (drawn in city.ts; it blocks the tiles like any building).
+  out.push({ x: THRIFT.x0, y: THRIFT.y0, w: LOT_SIZE, h: LOT_SIZE, height: 2.6, color: WALL_COLORS[3], front: 's', custom: true });
   // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
   for (const b of YARD_SIDES) out.push({ ...b, height: 1.5, color: WALL_COLORS[2], front: 's', boarded: true });
   return out;
@@ -553,6 +575,8 @@ export const NODES: StreetNode[] = (() => {
   // Four parked cars (Steal From Cars): two nose-in at the north bays, two at the south bays.
   [1, 3].forEach((dx, i) => node(`car_${i}`, 'steal_car', PARKING_NE.x0 + dx, PARKING_NE.y0 + 1, { facing: Math.PI / 2 }));
   [3, 7].forEach((dx, i) => node(`car_${i + 2}`, 'steal_car', PARKING_S.x0 + dx, PARKING_S.y1 - 1, { facing: -Math.PI / 2 }));
+  // Five dumpsters in the Thrift Store's yard (Scrapping: tin salvage).
+  THRIFT_DUMPSTERS.forEach(([x, y], i) => node(`dumpster_${i}`, 'tin_salvage', x, y, { facing: x === THRIFT_YARD.x0 ? Math.PI / 2 : x === THRIFT_YARD.x1 ? -Math.PI / 2 : 0 }));
   // Four shelves at the gas station, either side of the fridge.
   [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
@@ -703,7 +727,7 @@ export const SEWER_AREAS: Area[] = [
 ];
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat' | 'scrap';
 export interface Area {
   id: string;
   name: string;
@@ -717,6 +741,10 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'thrift', name: 'Thrift Store', rect: { x0: THRIFT.x0, y0: THRIFT.y0, x1: THRIFT_YARD.x1, y1: THRIFT_YARD.y1 }, icon: 'scrap', crimes: ['tin_salvage'], npcs: [],
+    blurb: 'Behind the store, a fenced yard full of dumpsters. Dig through them for tin salvage (Scrapping).',
+  },
   {
     id: 'sewer', name: 'The sewer', rect: { x0: MANHOLE[0], y0: MANHOLE[1], x1: MANHOLE[0], y1: MANHOLE[1] }, icon: 'dungeon', crimes: [], npcs: [],
     blurb: 'A pothole in the crossing leads down into the sewer, where ten rats live (level 3). A good place to train, and they drop meat you can cook.',
