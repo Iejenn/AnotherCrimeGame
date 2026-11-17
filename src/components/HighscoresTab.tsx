@@ -1,4 +1,5 @@
-// Highscores: one table per skill, read from the server (public, like RuneScape's hiscores).
+// Highscores: Total (everyone's total level, then total XP; v0.50, where it always opens) and one table per skill,
+// read from the server (public, like RuneScape's hiscores).
 // Shows the top 50 by XP, highlights you, and shows your own rank if you're further down.
 import { useEffect, useState } from 'react';
 import type { SkillId } from '../game/types';
@@ -13,7 +14,7 @@ interface Row {
 }
 
 export function HighscoresTab({ myName }: { myName: string }) {
-  const [skill, setSkill] = useState<SkillId>('street');
+  const [skill, setSkill] = useState<SkillId | 'total'>('total');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [me, setMe] = useState<Row | null>(null);
   const [error, setError] = useState('');
@@ -38,7 +39,7 @@ export function HighscoresTab({ myName }: { myName: string }) {
     <div className="highscores">
       <h2 className="headline">Highscores</h2>
       <div className="hs-skills" role="tablist">
-        {SKILLS.map((sk) => (
+        {[{ id: 'total' as const, name: 'Total' }, ...SKILLS].map((sk) => (
           <button key={sk.id} role="tab" aria-selected={skill === sk.id} className={`btn tiny ${skill === sk.id ? 'primary' : ''}`} onClick={() => setSkill(sk.id)}>
             {sk.name}
           </button>
@@ -53,8 +54,8 @@ export function HighscoresTab({ myName }: { myName: string }) {
             <tr>
               <th>Rank</th>
               <th>Name</th>
-              <th>Level</th>
-              <th>XP</th>
+              <th>{skill === 'total' ? 'Total level' : 'Level'}</th>
+              <th>{skill === 'total' ? 'Total XP' : 'XP'}</th>
             </tr>
           </thead>
           <tbody>

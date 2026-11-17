@@ -14,7 +14,7 @@ import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '
 import { ITEM_BY_ID } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
 import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
-import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
+import { WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
@@ -76,8 +76,12 @@ function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly
 }
 
 /** How a weapon's swing looks (see ItemDef.gear.anim). */
-const weaponAnim = (id: string | undefined) => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
-const WALK_SPEED = 4; // tiles per second
+const weaponAnim = (id: string | undefined): 'punch' | 'swing' | 'stab' => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
+/** How long each attack takes, and how far into it the blow lands (so it lands as the hitsplat shows). */
+const ATTACK_TIMING = { punch: { ms: 420, lead: 160 }, stab: { ms: 520, lead: 230 }, swing: { ms: 900, lead: 380 } } as const;
+// Tiles per second (v0.49: 4 → 2.5, a walk rather than a jog; the steps match it, see WALK_PACE). The server allows up
+// to 5 (game.can_reach), so this needs no server change.
+const WALK_SPEED = WALK_PACE;
 const LABEL_RANGE = 5; // tiles
 const NPC_LABEL_RANGE = 9; // NPC names show from further away
 
@@ -236,7 +240,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     host.prepend(renderer.domElement);
     const scene = new THREE.Scene();
     // (Dev only: the previews read the triangle and draw-call counts from here.)
-    if (import.meta.env.DEV) Object.assign(window, { __street: { renderer, scene } });
+    if (import.meta.env.DEV) Object.assign(window, { __street: { renderer, scene, openCook: (x: number, y: number) => setCookAtRef.current([x, y]), talkTo: (id: string) => setTalkingRef.current(NPCS.find((n) => n.id === id) ?? null) } });
     const SKY = 0x1c2230;
     scene.background = new THREE.Color(SKY);
     scene.fog = new THREE.Fog(SKY, 22, 60);
@@ -261,6 +265,19 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     sun.shadow.normalBias = 0.03;
     scene.add(sun, sun.target);
     const SUN_OFFSET = new THREE.Vector3(-24, 13, 8); // low sun = long shadows
+    // The shadow box follows you, but only in whole shadow-map pixels (measured across the sun's view): sliding it by
+    // fractions made every shadow edge (the trees on the park's grass) shimmer while you walked or turned the camera.
+    const SUN_TEXEL = (sc.right - sc.left) / sun.shadow.mapSize.x;
+    const sunZ = SUN_OFFSET.clone().normalize();
+    const sunX = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), sunZ).normalize();
+    const sunY = new THREE.Vector3().crossVectors(sunZ, sunX);
+    const sunSnap = (p: THREE.Vector3) => {
+      const snap = (v: number) => Math.round(v / SUN_TEXEL) * SUN_TEXEL;
+      return new THREE.Vector3()
+        .addScaledVector(sunX, snap(p.dot(sunX)))
+        .addScaledVector(sunY, snap(p.dot(sunY)))
+        .addScaledVector(sunZ, p.dot(sunZ));
+    };
 
     const geoms: THREE.BufferGeometry[] = [];
     const disposables: { dispose: () => void }[] = [];
@@ -592,10 +609,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           const view = target ? enemyViews.get(target) : undefined;
           if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
-            // A punch is quick; a bat swing takes a moment (it lands as the hitsplat shows).
-            const swing = weaponAnim(sRef.current.equipment?.weapon) === 'swing';
-            me.punchAt = performance.now() - (swing ? 380 : 0);
-            me.punchUntil = me.punchAt + (swing ? 900 : 350);
+            // Each move lands as the hitsplat shows: a bat swing winds up longest, a knife draws back, a fist is quickest.
+            const t = ATTACK_TIMING[weaponAnim(sRef.current.equipment?.weapon)];
+            me.punchAt = performance.now() - t.lead;
+            me.punchUntil = me.punchAt + t.ms;
             if (view) hitsplat(view.g.position, ev.dmg ?? 0);
           } else {
             if (view) view.peckUntil = performance.now() + 350;
@@ -1374,9 +1391,9 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const near = STATIONS.find((x) => Math.abs(x.x + 0.5 - me.pos.x) < 2 && Math.abs(x.y + 0.5 - me.pos.z) < 2);
         if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
       }
-      const swinging = now < me.punchUntil && weaponAnim(st.equipment?.weapon) === 'swing';
-      const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : swinging ? 'swing' : working || cooking || now < me.punchUntil ? 'work' : 'idle';
-      animateCharacter(player, pose, now, 0, (now - me.punchAt) / (me.punchUntil - me.punchAt));
+      const attacking = now < me.punchUntil ? weaponAnim(st.equipment?.weapon) : null;
+      const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : attacking ?? (working || cooking ? 'work' : 'idle');
+      animateCharacter(player, pose, now, 0, pose === 'walk' ? WALK_SPEED : (now - me.punchAt) / (me.punchUntil - me.punchAt));
       player.rotation.y = me.facing;
 
       // Tourists stroll (unless you're targeting or working one).
@@ -1693,7 +1710,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
             const v = enemyViews.get(os.fightEnemy);
             if (v?.g.visible) {
               e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
-              pose = weaponAnim(o.equipment?.weapon) === 'swing' ? 'swing' : 'work';
+              pose = weaponAnim(o.equipment?.weapon);
             }
           } else if (os.spot && os.jobEndsAt > t) {
             const n = NODES.find((x) => x.id === os.spot);
@@ -1734,9 +1751,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         e.g.position.set(e.pos.x, floorY(e.pos.x, e.pos.z) + 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
         setGear(e.g, o.equipment);
-        // Someone else swinging a bat: their swings loop at the weapon's speed (we don't see their exact timing).
-        const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 6) * 500;
-        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'swing' ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, 900) : 0);
+        // Someone else fighting: their swings, stabs or punches loop at the weapon's speed (we don't see their exact timing).
+        const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 4) * 500;
+        const attack = pose === 'swing' || pose === 'stab' || pose === 'punch';
+        animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'walk' ? WALK_SPEED : attack ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, ATTACK_TIMING[pose as keyof typeof ATTACK_TIMING].ms) : 0);
       }
       for (const [id, e] of others)
         if (!here.has(id)) {
@@ -1769,8 +1787,11 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       );
       camera.lookAt(camTarget.x, camLift, camTarget.z);
       // The sun and its shadows follow you down to the floor you're on.
-      sun.position.copy(camTarget).setY(camLift).add(SUN_OFFSET);
-      sun.target.position.copy(camTarget).setY(camLift);
+      {
+        const at = sunSnap(camTarget.clone().setY(camLift));
+        sun.target.position.copy(at);
+        sun.position.copy(at).add(SUN_OFFSET);
+      }
       // Underground (the sewer): hardly any sky light, near-black around; the lanterns light it.
       {
         const under = camLift < -1;

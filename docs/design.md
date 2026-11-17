@@ -338,6 +338,11 @@ if a newer build is out it says "A new version of Underworld is out. Updating…
 
 **Smooth movement (v0.25):** other players are drawn gliding towards where their route says they are (a bit faster
 than walking, to catch up), instead of being placed there each frame; only a gap of more than 4 tiles (dying) snaps.
+**v0.49:** you walk **2.5 tiles a second** (was 4: a walk, not a jog; fast travel can come later), and the walk cycle
+keeps pace with it (`WALK_PACE`): a stride of about 0.7 tiles, the knee bending most mid-swing, arms opposite the legs,
+the body rising and shifting its weight, shoulders turning against the hips. The server's cap stays 5 tiles a second.
+Attacks have their own moves: a jab with the fists, a **stab** with a knife (the wrist turns the blade forward), the
+bat's big swing; each lands as the hitsplat shows (`ATTACK_TIMING`). Preview: `scripts/preview/anim.html`.
 The game clock moves gently towards each server answer instead of jumping to it. Before, a re-tap mid-walk (new
 route from a tile's middle) and clock corrections made players hop. Measured after: biggest step 11 px per 100 ms
 (normal walking speed) while the other player re-tapped every 1.2 s.
@@ -671,6 +676,11 @@ aluminium complete; brass and up are members-only, brass sheets included.
   can come later as an extra.
 - **Selling:** gear and materials sell only to Ray (weapons/armour) and Eddy (the rest), at 25% of their value, as
   now. **Player trading comes later** and will make Tinkering worth more.
+- **Buying (v0.49):** Ray's Arms sells every metal's weapons, sorted by kind then metal (tin knuckles, copper
+  knuckles, tin bat, copper bat, tin knife, copper knife), at **30 × the metal in them** (a sheet's value × its sheets:
+  `shopPrice`): tin knuckles $150, bat $300, knife $150; copper twice that. Buying costs minutes of crime (tin knuckles
+  ≈ 5 min of pickpocketing at level 1, a copper bat ≈ 12 min at level 11); making them yourself under a minute of
+  salvaging, so Scrapping and Tinkering are the way to gear up. The shelf has the bank's small slots, price underneath.
 
 ### The loop
 
@@ -932,6 +942,11 @@ learned from old-school RuneScape, not copied.
 - About 1,800 triangles, 2,300 in full armour. Each person's parts are merged into **one mesh per joint** when they're
   built (their colours painted on as vertex colours, one shared material): 11 meshes a person (v0.46; was 25), so the
   detail costs few draw calls.
+
+### Bag icons match the ground (v0.49)
+Food is pictured in the bag from the very model it is on the ground: `scripts/render-icons.cjs` renders each one
+(`scripts/preview/icon.html`, the same tone) into `public/icons/items/<id>.png`. A new food item is added to its list
+and to `MODEL_ICONS` in ItemIcon.tsx, then the script is run once.
 
 ### Loot on the ground (v0.46)
 Everything you can drop has a look (`buildGroundItem` in streetLife.ts): food from the Kenney Food Kit, cash as a few

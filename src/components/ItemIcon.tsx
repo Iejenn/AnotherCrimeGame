@@ -1,6 +1,5 @@
-// Little pictures for the bag: cash (a stack of dollar bills), food, and every metal's salvage, sheet, weapons and armour
-// (drawn in the metal's colours).
-// Hand-drawn SVG so they're sharp on any phone and match the game's muted dusk colours.
+// Little pictures for the bag: cash (a stack of dollar bills), every metal's salvage, sheet, weapons and armour (drawn in
+// the metal's colours) and the quest items, hand-drawn SVG; food, rendered from its 3D model (see MODEL_ICONS).
 
 const Cash = () => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
@@ -14,32 +13,7 @@ const Cash = () => (
   </svg>
 );
 
-const CandyBar = () => (
-  <svg viewBox="0 0 40 40" aria-hidden="true">
-    {/* a wrapped bar, torn open at one end to show the chocolate */}
-    <g transform="rotate(-20 20 20)">
-      <rect x="6" y="15" width="22" height="11" rx="1.5" fill="#b8336a" stroke="#5a1430" strokeWidth="1.2" />
-      <path d="M6 15 l-3 2 l2 1.5 l-2 1.5 l2 1.5 l-2 1.5 l3 2 z" fill="#b8336a" stroke="#5a1430" strokeWidth="1" />
-      <rect x="27" y="15.5" width="9" height="10" rx="1" fill="#6a3a1e" stroke="#3a1e0e" strokeWidth="1.1" />
-      <line x1="31.5" y1="15.5" x2="31.5" y2="25.5" stroke="#3a1e0e" strokeWidth="0.9" />
-      <line x1="27" y1="20.5" x2="36" y2="20.5" stroke="#3a1e0e" strokeWidth="0.9" />
-      <path d="M27 15 l1.5 2 l-1.5 2 l1.5 2 l-1.5 2 l1.5 2 l-1.5 1" fill="none" stroke="#5a1430" strokeWidth="1" />
-      <rect x="10" y="18.5" width="13" height="4" rx="0.8" fill="#f0b13c" />
-    </g>
-  </svg>
-);
 
-const Sandwich = () => (
-  <svg viewBox="0 0 40 40" aria-hidden="true">
-    {/* a triangle sandwich: bread, lettuce, tomato, cheese */}
-    <path d="M6 30 L20 8 L34 30 Z" fill="#e8c88a" stroke="#7a5a2a" strokeWidth="1.3" strokeLinejoin="round" />
-    <path d="M9 27 L20 10.5 L31 27 Z" fill="#f2e2b8" />
-    <path d="M7 31 Q11 28 14 31 T20 31 T26 31 T33 31" fill="none" stroke="#5aa04a" strokeWidth="2.4" strokeLinecap="round" />
-    <rect x="8" y="31.5" width="25" height="2.4" rx="1" fill="#d9473a" />
-    <path d="M10 34.5 L31 34.5 L29 36.5 L12 36.5 Z" fill="#f0b13c" />
-    <rect x="6" y="36" width="28" height="2.5" rx="1" fill="#c89a5a" stroke="#7a5a2a" strokeWidth="1" />
-  </svg>
-);
 
 /** A metal's colours for its icons: main, dark (outlines), light (shine). */
 type Tone = [string, string, string];
@@ -79,31 +53,8 @@ const Bat = ({ t }: { t: Tone }) => (
 );
 
 /** A drumstick: pink and pale when raw, brown when cooked. */
-const BirdMeat = ({ cooked }: { cooked: boolean }) => (
-  <svg viewBox="0 0 40 40" aria-hidden="true">
-    <g transform="rotate(-35 20 20)">
-      <rect x="22" y="18" width="11" height="4" rx="2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
-      <circle cx="33.5" cy="17.6" r="2.2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
-      <circle cx="33.5" cy="22.4" r="2.2" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="1" />
-      <ellipse cx="14" cy="20" rx="10" ry="8" fill={cooked ? '#9a5426' : '#e8a0a0'} stroke={cooked ? '#4a240e' : '#a05a5a'} strokeWidth="1.2" />
-      <ellipse cx="11" cy="17" rx="4" ry="2.2" fill={cooked ? '#c07a3a' : '#f6c8c8'} opacity="0.8" />
-    </g>
-  </svg>
-);
 
 /** Rat meat: a skinny haunch on a thin bone, with the tail still curling off it (darker than bird meat). */
-const RatMeat = ({ cooked }: { cooked: boolean }) => (
-  <svg viewBox="0 0 40 40" aria-hidden="true">
-    <g transform="rotate(-30 20 20)">
-      <rect x="23" y="18.6" width="10" height="2.8" rx="1.4" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="0.9" />
-      <circle cx="33.4" cy="18.6" r="1.7" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="0.9" />
-      <circle cx="33.4" cy="21.4" r="1.7" fill="#f2e8d8" stroke="#8a7a62" strokeWidth="0.9" />
-      <path d="M6 22 Q2 26 5 30 Q8 33 11 30" fill="none" stroke={cooked ? '#5a2e14' : '#d89a9a'} strokeWidth="1.6" strokeLinecap="round" />
-      <ellipse cx="15" cy="20" rx="9.5" ry="6" fill={cooked ? '#7a3e1a' : '#c46a6a'} stroke={cooked ? '#3a1a08' : '#7a3a3a'} strokeWidth="1.2" />
-      <ellipse cx="12" cy="18" rx="3.6" ry="1.6" fill={cooked ? '#a8642e' : '#e8a8a8'} opacity="0.8" />
-    </g>
-  </svg>
-);
 
 /** Tin salvage: a little heap of crushed and dented tin cans. */
 const TinSalvage = () => (
@@ -204,21 +155,11 @@ const SewerKey = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = {
-  raw_giant_rat_meat: () => <RatMeat cooked={false} />, cooked_giant_rat_meat: () => <RatMeat cooked />,
-  rat_antidote: Antidote, sewer_key: SewerKey,
-  cooked_rat_antidote: () => (
-    <span style={{ position: 'relative', display: 'block', width: '100%', height: '100%' }}>
-      <RatMeat cooked />
-      <svg viewBox="0 0 40 40" aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
-        <path d="M12 15 Q13 19 12 22 M18 14 Q19 18 18 21 M24 15 Q25 18 24 20" stroke="#6ad84a" strokeWidth="2" strokeLinecap="round" fill="none" />
-      </svg>
-    </span>
-  ),
-  raw_bird_meat: () => <BirdMeat cooked={false} />, cooked_bird_meat: () => <BirdMeat cooked />,
-  raw_rat_meat: () => <RatMeat cooked={false} />, cooked_rat_meat: () => <RatMeat cooked />,
-  cash: Cash, candy_bar: CandyBar, sandwich: Sandwich,
-};
+const ICONS: Record<string, () => JSX.Element> = { rat_antidote: Antidote, sewer_key: SewerKey, cash: Cash };
+/** Food is pictured from the very model it is on the ground (v0.49): rendered by scripts/render-icons.cjs into
+ *  public/icons/items/, so the bag and the street always show the same thing. */
+const MODEL_ICONS = new Set(['raw_bird_meat', 'cooked_bird_meat', 'raw_rat_meat', 'cooked_rat_meat', 'raw_giant_rat_meat', 'cooked_giant_rat_meat', 'candy_bar', 'sandwich', 'cooked_rat_antidote']);
+for (const id of MODEL_ICONS) ICONS[id] = () => <img src={`${import.meta.env.BASE_URL}icons/items/${id}.png`} alt="" draggable={false} />;
 // Every metal's items (docs/design.md §14), drawn in the metal's colours. Salvage: tin cans for tin (later metals get
 // their own scrap pictures).
 for (const [metal, t] of Object.entries(TONES)) {

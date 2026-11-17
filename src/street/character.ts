@@ -383,11 +383,14 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   return root;
 }
 
-export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing';
+export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing' | 'punch' | 'stab';
+/** Walking speed the walk cycle is tuned for (tiles a second): the feet keep pace with the ground at this speed. */
+export const WALK_PACE = 2.5;
 
 /**
  * Animate a character built by buildCharacter. `t` is time in ms; `phase` offsets different characters.
- * `p` (0–1) is how far through a one-off move it is: the 'swing' pose (a weapon swung from the side) uses it.
+ * `p` (0–1) is how far through a one-off move it is (the attacks: 'swing' a bat, 'stab' a knife, 'punch'); for 'walk'
+ * it's the walking speed in tiles a second (the steps keep pace with it; 0 = WALK_PACE).
  */
 export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 0, p = 0) {
   const rig = g.userData.rig as Rig | undefined;
@@ -406,11 +409,42 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
   let elbowL = -0.12;
   let elbowR = -0.12;
   let sink = 0;
-  if (pose === 'swing') {
+  let lean = 0;
+  let headTurn = 0;
+  let wrist = 0;
+  const ease = (x: number) => x * x * (3 - 2 * x);
+  /** Blend a, b, c... over p's stretches: [until, value] keyframes, eased between them. */
+  const keys = (pp: number, ks: [number, number][]) => {
+    let prev: [number, number] = [0, ks[ks.length - 1][1]]; // (a move starts from where it ends: the guard)
+    for (const k of ks) {
+      if (pp <= k[0]) return prev[1] + (k[1] - prev[1]) * ease(k[0] > prev[0] ? (pp - prev[0]) / (k[0] - prev[0]) : 1);
+      prev = k;
+    }
+    return prev[1];
+  };
+  if (pose === 'punch' || pose === 'stab') {
+    // Fists and knives (v0.49): the left hand up as a guard, the right drawn back to the chest, then driven straight
+    // forward with the shoulders turning into it and a little lean, then back to the guard. A knife's wrist turns so the
+    // blade points where the arm goes: a thrust, not an overhead raise.
+    const pp = Math.min(1, Math.max(0, p));
+    const stab = pose === 'stab';
+    const back = stab ? 0.3 : 0.25;
+    const hit = stab ? 0.55 : 0.5;
+    armR = keys(pp, [[back, stab ? 0.25 : -0.35], [hit, stab ? -1.4 : -1.5], [1, -0.55]]);
+    elbowR = keys(pp, [[back, -1.75], [hit, -0.12], [1, -1.4]]);
+    twist = keys(pp, [[back, 0.22], [hit, -0.3], [1, 0]]);
+    lean = keys(pp, [[back, 0], [hit, stab ? 0.16 : 0.1], [1, 0.03]]);
+    armL = -0.55;
+    elbowL = -1.7;
+    headTurn = -twist * 0.6;
+    if (stab) wrist = keys(pp, [[back, 0.6], [hit, 1.45], [1, 0.8]]);
+    // Feet apart, a little bent at the knees: ready.
+    legSwing = 0.12;
+    kneeL = kneeR = 0.12;
+  } else if (pose === 'swing') {
     p = Math.min(1, Math.max(0, p));
     // A big two-handed swing: wind back to the side (first 40%), whip through (next 25%), follow through and
     // come back to rest. Arm out (armRSide) and body twist carry it, so it reads from above.
-    const ease = (x: number) => x * x * (3 - 2 * x);
     let out;
     let tw;
     let fw;
@@ -438,15 +472,29 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     elbowR = -0.25;
     elbowL = -0.6;
   } else if (pose === 'walk') {
-    legSwing = Math.sin(s * 11) * 0.55;
-    armL = -legSwing * 0.8;
-    armR = legSwing * 0.8;
-    bob = Math.abs(Math.cos(s * 11)) * 0.03;
-    // The leg swinging back bends at the knee; the arms bend a little more as they swing forward.
-    kneeL = Math.max(0, Math.sin(s * 11 + 1.2)) * 0.75;
-    kneeR = Math.max(0, -Math.sin(s * 11 - 1.9)) * 0.75;
-    elbowL = -0.2 - Math.max(0, -armL) * 0.5;
-    elbowR = -0.2 - Math.max(0, -armR) * 0.5;
+    // A human walk (v0.49): the steps keep pace with the ground (a stride of about 0.7 tiles), each leg swings from
+    // the hip and bends most at the knee halfway through its swing (lifting the foot clear), straight again as the
+    // heel lands. The arms swing opposite the legs with soft elbows; the body is highest as the legs pass each other,
+    // shifts its weight over the standing leg, leans a little into the walk, and the shoulders turn against the hips
+    // while the head stays looking ahead.
+    const pace = (p > 0 ? p : WALK_PACE) * 4.4;
+    const ph = s * pace;
+    const sw = Math.sin(ph);
+    const cw = Math.cos(ph);
+    legSwing = sw * 0.48;
+    // (Most bend just after the leg passes under the body, swinging forward: a foot lifted clear, not kicked up behind.)
+    const bend = (x: number) => 0.06 + 0.7 * Math.pow(Math.max(0, -Math.cos(x - 0.35)), 1.4);
+    kneeL = bend(ph);
+    kneeR = bend(ph + Math.PI);
+    armL = -sw * 0.42;
+    armR = sw * 0.42;
+    elbowL = -0.28 - Math.max(0, -armL) * 0.7;
+    elbowR = -0.28 - Math.max(0, -armR) * 0.7;
+    bob = Math.abs(cw) * 0.028;
+    wobble = cw * 0.025;
+    twist = -sw * 0.07;
+    headTurn = -twist * 0.8;
+    lean = 0.05;
   } else if (pose === 'work') {
     // Reach forward with the right hand, little dips.
     armR = -0.8 + Math.sin(s * 9) * 0.3;
@@ -496,4 +544,7 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
   rig.body.position.y = bob + sink;
   rig.body.rotation.z = wobble;
   rig.body.rotation.y = twist;
+  rig.body.rotation.x = lean;
+  rig.head.rotation.y = headTurn;
+  rig.hand.rotation.x = wrist;
 }

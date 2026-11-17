@@ -130,20 +130,20 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
       {mode === 'buy' && (
         <>
           <p className="npc-line">{stock.length ? buyLine : "Shelves are bare, I'm afraid. A delivery's on its way. Check back soon."}</p>
-          <div className="bag compact store-shelf" aria-label={`${npc.name}'s stock`}>
-            {Array.from({ length: 8 }, (_, i) => {
+          {/* (v0.49: small slots like the bank's, a whole row; the name, price and stats in the line above when you tap one.) */}
+          <div className="bank-grid store-grid" aria-label={`${npc.name}'s stock`}>
+            {Array.from({ length: Math.max(10, Math.ceil(stock.length / 10) * 10) }, (_, i) => {
               const st = stock[i];
-              if (!st) return <div key={i} className="slot empty" />;
+              if (!st) return <div key={i} className="bank-slot empty" />;
               return (
                 <button
                   key={i}
-                  className={`slot ${buySel === st.item ? 'selected' : ''}`}
+                  className={`bank-slot ${buySel === st.item ? 'selected' : ''}`}
                   onClick={() => pick(st.item, st.price)}
                   title={`${ITEM_BY_ID[st.item].name} · ${fmtMoney(st.price)}`}
+                  aria-label={`${ITEM_BY_ID[st.item].name}, ${fmtMoney(st.price)}`}
                 >
                   <ItemIcon id={st.item} />
-                  <span className="slot-name">{ITEM_BY_ID[st.item].name}</span>
-                  <span className="slot-sub">{fmtMoney(st.price)}</span>
                 </button>
               );
             })}
