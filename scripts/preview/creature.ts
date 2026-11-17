@@ -24,7 +24,7 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
-const LOOK = { skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 };
+const LOOK = { skin: 1, hair: Number(q.get('hair') ?? 1), hairColor: 1, top: 0, bottom: 1 };
 const build: Record<string, [() => THREE.Group, () => THREE.Group, number, number]> = {
   // [old, new, spacing, camera distance]
   rat: [() => OLD.buildRat(), () => NEW.buildRat(), 0.55, 2.6],

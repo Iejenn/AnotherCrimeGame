@@ -82,12 +82,15 @@ const geo = {
   nose: stack([[-0.025, 0.016, 0.016, 0.01], [0.0, 0.012, 0.016, 0.012], [0.022, 0.006, 0.008, 0.004]], 4),
   mouth: new THREE.BoxGeometry(0.036, 0.006, 0.008),
   ear: stack([[-0.022, 0.009, 0.013], [0.0, 0.012, 0.02], [0.022, 0.008, 0.014, -0.003]], 6),
-  // Hair: a cap over the top and back of the head, down to the ears, with a hairline in front.
-  hairCap: new THREE.SphereGeometry(0.128, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.58),
+  // Hair, built on the head's own rings but a little bigger all round (so the head can never poke through): a top from
+  // the hairline up, and a back piece down to the neck.
+  hairTop: stack([[0.028, 0.108, 0.104, -0.006], [0.08, 0.105, 0.103, -0.004], [0.116, 0.08, 0.084, -0.01], [0.142, 0.032, 0.038, -0.012]], 10),
+  hairBackShort: stack([[-0.075, 0.09, 0.05, -0.058], [-0.02, 0.105, 0.06, -0.05], [0.035, 0.108, 0.062, -0.046]], 10),
+  hairBackLong: stack([[-0.17, 0.1, 0.045, -0.07], [-0.06, 0.112, 0.06, -0.055], [0.035, 0.11, 0.064, -0.046]], 10),
   hairBack: new THREE.BoxGeometry(0.2, 0.2, 0.06),
   fringeLock: stack([[0, 0.018, 0.01], [0.03, 0.006, 0.005]], 4),
   mohawk: new THREE.BoxGeometry(0.04, 0.09, 0.2),
-  capTop: new THREE.CylinderGeometry(0.105, 0.11, 0.07, 10),
+  capTop: new THREE.CylinderGeometry(0.112, 0.116, 0.075, 10),
   capBrim: new THREE.BoxGeometry(0.17, 0.016, 0.1),
   neck: stack([[0.99, 0.052, 0.05], [1.1, 0.047, 0.046]], 8),
   // ---- the body: hips, belt, a T-shirt over a strong chest, the shoulders sloping up to the neck ----
@@ -224,20 +227,21 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   put(geo.mouth, shade(skin as THREE.MeshLambertMaterial, 0.6), head, 0, -0.06, 0.084);
   switch (look.hair) {
     case 1: // short: a cap of hair with a choppy fringe
-      // A short crop: the cap tipped back (the hairline across the forehead, the back down to the neck), a quiff on top.
-      put(geo.hairCap, hair, head, 0, 0.012, -0.012, [-0.22, 0, 0], [0.97, 1.0, 1.0]);
-      put(geo.fringeLock, hair, head, 0.0, 0.11, 0.06, [1.2, 0, 0], [2.2, 1.0, 1.6]);
+      // A short crop: the top, the back down to the neck, a quiff at the front.
+      put(geo.hairTop, hair, head);
+      put(geo.hairBackShort, hair, head);
+      put(geo.fringeLock, hair, head, 0.0, 0.118, 0.07, [1.2, 0, 0], [2.2, 1.0, 1.6]);
       break;
     case 2: // long: down the back and over the ears
-      put(geo.hairCap, hair, head, 0, 0.012, -0.012, [-0.22, 0, 0], [0.99, 1.0, 1.02]);
-      put(geo.hairBack, hair, head, 0, -0.06, -0.07);
+      put(geo.hairTop, hair, head);
+      put(geo.hairBackLong, hair, head);
       for (const sd of [-1, 1]) put(geo.hairBack, hair, head, sd * 0.095, -0.03, -0.01, [0, 0, 0], [0.12, 0.85, 1.3]);
       break;
     case 3: // mohawk
       put(geo.mohawk, hair, head, 0, 0.12, -0.01);
       break;
     case 4: // cap
-      put(geo.capTop, hair, head, 0, 0.085, 0);
+      put(geo.capTop, hair, head, 0, 0.1, -0.004);
       put(geo.capBrim, hair, head, 0, 0.06, 0.1);
       break;
     default: // bald

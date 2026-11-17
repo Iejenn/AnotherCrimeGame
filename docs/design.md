@@ -917,7 +917,8 @@ learned from old-school RuneScape, not copied.
   `sitFloor` sits on the ground, punches and swings bend the elbows.
 - **Detail is shape:** a strong chest and shoulders (the chest is 8 flat planes with hard edges, not a round barrel), a T-shirt with short sleeves over bare forearms, a belt with a
   buckle, slightly baggy trousers, shoes with a sole, fists with a thumb, a simple strong face (eye slits, brows, a
-  nose, a mouth line, ears), hair with a hairline. No buttons, laces or separate fingers: you can't see them from the
+  nose, a mouth line, ears), hair with a hairline. Hair is built on the head's own rings, a little bigger all round, so
+  the head never pokes through (no loose domes). No buttons, laces or separate fingers: you can't see them from the
   game's camera.
 - About 1,800 triangles, 2,300 in full armour. Each person's parts are merged per joint and colour when they're built,
   so the detail costs a handful of draw calls.
