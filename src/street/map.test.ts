@@ -160,11 +160,11 @@ it('the server has the same cooking stations (0015, 0020)', async () => {
 });
 
 it('every cooking spot, press and workbench can be reached from the spawn (the Factory through its lot)', async () => {
-  const { STATIONS, GW, GH, FACTORY, FACTORY_LOT, inSewer } = await import('./map');
+  const { STATIONS, GW, GH, FACTORY, FACTORY_LOT, FACTORY_LOT_GATE, inSewer } = await import('./map');
   const b = buildBlocked();
   for (const st of STATIONS.filter((x) => !inSewer(x.x, x.y))) expect(findPath(b, GW, GH, SPAWN, neighbors(st.x, st.y), canStep), st.id).not.toBeNull();
   // The way into the Factory goes through the lot's opening and then the roll-up door.
   const route = findPath(b, GW, GH, SPAWN, [[FACTORY.x0 + 5, FACTORY.y0 + 5]], canStep)!;
   const firstLot = route.findIndex(([x, y]) => inRect(FACTORY_LOT, x, y));
-  expect(route[firstLot][0]).toBe(FACTORY_LOT.x0);
+  expect(FACTORY_LOT_GATE.some(([x, y]) => x === route[firstLot][0] && y === route[firstLot][1])).toBe(true);
 });
