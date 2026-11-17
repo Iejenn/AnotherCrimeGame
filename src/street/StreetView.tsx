@@ -868,7 +868,6 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (npc.kind === 'bartender') return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
         if (npc.kind === 'guard') return say('The guard patrols the lot with his flashlight. Stay out of the light.');
         if (npc.kind === 'receptionist') return say('"You\'re all patched up, hon. Try not to come back too soon."');
-        if (npc.kind === 'doctor') return say('The doctor is busy with the patients.');
         if (npc.kind === 'doorman') return say('The guard nods at you. "Keep it civil in here."');
         stopWorking();
         setTalkingRef.current(null);

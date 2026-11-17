@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.43.1',
+    date: '2026-11-17',
+    title: 'Doctors fixed',
+    items: [
+      'You can talk to the doctors now (they were "busy with the patients"): Elliot helps with Sewer Problems.',
+      'JD and Elliot had each other\'s names. Elliot is the one with the long hair and green scrubs.',
+    ],
+  },
+  {
     version: '0.43.0',
     date: '2026-11-17',
     title: 'Copper, dogs, bikers and Sewer Problems',
