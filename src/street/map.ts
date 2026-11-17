@@ -21,12 +21,16 @@ export const PITCH = BLOCK_SIZE + STREET;
  *  0–2 are the zone, 3–5 the city. */
 export const ZONE_COLS = 3;
 export const CITY_COLS = 3;
-export const BCOLS = ZONE_COLS + CITY_COLS;
+/** The Financial district: 3 × 3 blocks east of the city (the bank; v0.42). */
+export const FIN_COLS = 3;
+export const BCOLS = ZONE_COLS + CITY_COLS + FIN_COLS;
 export const BROWS = 3;
 /** The city's first block column. */
 export const CITY_BX = ZONE_COLS;
 /** How far east the city moved when the Industrial zone came in on its west side (v0.41): 3 blocks. */
 export const CITY_X = ZONE_COLS * PITCH;
+/** The Financial district's first block column (east of the city). */
+export const FIN_BX = ZONE_COLS + CITY_COLS;
 export const W = BCOLS * PITCH + STREET;
 export const H = BROWS * PITCH + STREET;
 /** How wide the beach around the city is, in tiles (then it's open ocean). */
@@ -60,19 +64,24 @@ export const lotRect = (bx: number, by: number, lx: number, ly: number): Rect =>
 //   A B
 //   C D
 export type LotLetter = 'A' | 'B' | 'C' | 'D';
-/** City blocks are 001–009; the Industrial zone's blocks are I-001–I-009 (numbered the same way, within the zone). */
+/** City blocks are 001–009; the Industrial zone's are I-001–I-009 and the Financial district's F-001–F-009 (numbered the
+ *  same way, within the district). */
 export const blockName = (bx: number, by: number) =>
-  bx >= CITY_BX ? String(by * CITY_COLS + (bx - CITY_BX) + 1).padStart(3, '0') : `I-${String(by * ZONE_COLS + bx + 1).padStart(3, '0')}`;
+  bx >= FIN_BX
+    ? `F-${String(by * FIN_COLS + (bx - FIN_BX) + 1).padStart(3, '0')}`
+    : bx >= CITY_BX
+      ? String(by * CITY_COLS + (bx - CITY_BX) + 1).padStart(3, '0')
+      : `I-${String(by * ZONE_COLS + bx + 1).padStart(3, '0')}`;
 /** West of the city's first block: the Industrial zone. */
 export const inZone = (x: number) => x < CITY_X;
 export const lotLetter = (lx: number, ly: number): LotLetter => (['A', 'B', 'C', 'D'] as const)[ly * 2 + lx];
 export const lotName = (bx: number, by: number, lx: number, ly: number) => `${blockName(bx, by)}-${lotLetter(lx, ly)}`;
 /** Block "005" → (bx, by). */
 const blockXY = (name: string): [number, number] => {
-  const zone = name.startsWith('I-');
-  const n = Number(zone ? name.slice(2) : name) - 1;
+  const district = name.startsWith('I-') ? 0 : name.startsWith('F-') ? FIN_BX : CITY_BX;
+  const n = Number(/^[IF]-/.test(name) ? name.slice(2) : name) - 1;
   if (!(n >= 0 && n < 9)) throw new Error(`no block ${name}`);
-  return [(n % 3) + (zone ? 0 : CITY_BX), Math.floor(n / 3)];
+  return [(n % 3) + district, Math.floor(n / 3)];
 };
 /** Block "005" and lot "C" → [bx, by, lx, ly]. */
 const lotXY = (block: string, letter: LotLetter): [number, number, number, number] => {
@@ -260,6 +269,7 @@ const SPECIAL: [string, LotLetter][] = [
   ['009', 'C'], ['009', 'D'], // the Thrift Store and its salvage yard
   ['I-003', 'A'], ['I-003', 'B'], ['I-003', 'C'], ['I-003', 'D'], // the Factory
   ['I-006', 'A'], ['I-006', 'B'], ['I-006', 'C'], ['I-006', 'D'], // its parking lot
+  ['F-005', 'A'], ['F-005', 'B'], ['F-005', 'C'], ['F-005', 'D'], // the Bank
 ];
 
 // ---------- the Thrift Store (Scrapping: tin salvage, level 1; docs/design.md §14) ----------
@@ -305,6 +315,30 @@ export const FACTORY_LOT_GATE: [number, number][] = [FACTORY_LOT.x0, FACTORY_LOT
   [x, FACTORY_LOT.y0 + 7] as [number, number],
 ]);
 ROOMS.push(FACTORY);
+
+// ---------- the Bank (Financial district, F-005; v0.42) ----------
+// A large stone bank filling the middle block of the Financial district, facing south (steps up to two big doors, columns,
+// "BANK" over the entrance). Inside (a room: the roof lifts): a long counter with three bankers behind it (talk to one to
+// open your bank), the vault door in the back wall, a guard by the door.
+//   x 126 ……………………… 135
+//   . . . V V . . . . .   y 24   V = the vault door
+//   . b . . b . . b . .          b = a banker (behind the counter)
+//   . K K K K K K K K .          K = the counter
+//   . . . . . . . . . .          you stand here to talk to a banker
+//   …
+//   . g . . D D . . . .   y 32   D = the doors (2 wide), g = the guard
+//   (steps, y 33)
+const BANK_BLOCK = block('F-005');
+export const BANK: Room = {
+  x0: BANK_BLOCK.x0, y0: BANK_BLOCK.y0, x1: BANK_BLOCK.x1, y1: BANK_BLOCK.y0 + 8,
+  id: 'bank', name: 'The Bank', door: [BANK_BLOCK.x0 + 4, BANK_BLOCK.y0 + 8], shop: false,
+};
+export const BANK_DOOR: [number, number][] = [[BANK.x0 + 4, BANK.y1], [BANK.x0 + 5, BANK.y1]];
+/** The counter's row; you talk to a banker from the row in front of it. */
+export const BANK_COUNTER_Y = BANK.y0 + 2;
+/** How many different things fit in your bank (cash counts as one). The server has the same number (game.bank_slots). */
+export const BANK_SLOTS = 50;
+ROOMS.push(BANK);
 
 export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0, 4], [4, 4]].map(([dx, dy]) => [THRIFT_YARD.x0 + dx, THRIFT_YARD.y0 + dy]);
 
@@ -389,7 +423,7 @@ export interface Enclosure {
   openings: { inside: [number, number]; outside: [number, number] }[];
 }
 export const ENCLOSURES: Enclosure[] = [
-  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
+  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory' && r.id !== 'bank').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
   // The hospital: a wide entrance (3 tiles), and the stairs are the only way between the lobby and the ward.
   {
     id: 'hospital',
@@ -408,6 +442,8 @@ export const ENCLOSURES: Enclosure[] = [
       ...FACTORY_LOT_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x === FACTORY_LOT.x0 ? x - 1 : x + 1, y] as [number, number] })),
     ],
   },
+  // The Bank: its two big doors.
+  { id: 'bank', rect: BANK, openings: BANK_DOOR.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x, y + 1] as [number, number] })) },
   // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
   { id: 'thrift_yard', rect: THRIFT_YARD, openings: [{ inside: THRIFT_GATE, outside: [THRIFT_GATE[0], THRIFT_GATE[1] + 1] }] },
   { id: 'ward', rect: WARD, openings: STAIRS.map((s) => ({ inside: [s.x, WARD.y1] as [number, number], outside: s.top })) },
@@ -427,7 +463,12 @@ export const LOTS: Lot[] = (() => {
   const special = new Set(SPECIAL.map(([b, l]) => `${b}-${l}`));
   const parks = new Set(PARKS.map(([b, l]) => `${b}-${l}`));
   // The city's blocks first, then the zone's: the city's buildings come out exactly as before the zone was added.
-  const cols = [...Array.from({ length: CITY_COLS }, (_, i) => CITY_BX + i), ...Array.from({ length: ZONE_COLS }, (_, i) => i)];
+  // (Then the Financial district's, so neither the city's nor the zone's change.)
+  const cols = [
+    ...Array.from({ length: CITY_COLS }, (_, i) => CITY_BX + i),
+    ...Array.from({ length: ZONE_COLS }, (_, i) => i),
+    ...Array.from({ length: FIN_COLS }, (_, i) => FIN_BX + i),
+  ];
   for (const bx of cols)
     for (let by = 0; by < BROWS; by++)
       for (let ly = 0; ly < 2; ly++)
@@ -503,7 +544,7 @@ export const STATIONS: Station[] = [
 ];
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
-export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench';
+export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench' | 'bankcounter' | 'vault' | 'pillar';
 export interface Fixture {
   x: number;
   y: number;
@@ -608,6 +649,12 @@ export const FIXTURES: Fixture[] = (() => {
   sw(10, 11, 'trash');
   out.push({ x: MANHOLE[0], y: MANHOLE[1], kind: 'manhole' });
 
+  // The Bank: the counter, and the vault door in the back wall.
+  for (let x = BANK.x0 + 1; x < BANK.x1; x++) out.push({ x, y: BANK_COUNTER_Y, kind: 'bankcounter' });
+  for (const dx of [3, 4]) out.push({ x: BANK.x0 + dx, y: BANK.y0, kind: 'vault' });
+  // The columns along the front stand on the step row, either side of the doors.
+  for (const dx of [2, 3, 6, 7]) out.push({ x: BANK.x0 + dx, y: BANK.y1 + 1, kind: 'pillar' });
+
   // The Factory: crates stacked at the back.
   for (const dx of [2, 3, 6, 7]) out.push({ x: FACTORY.x0 + dx, y: FACTORY.y0, kind: 'crate' });
 
@@ -671,7 +718,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor' | 'banker' | 'doorman';
 export interface Npc {
   id: string;
   name: string;
@@ -718,6 +765,12 @@ export const NPCS: Npc[] = [
   { id: 'receptionist', name: 'Receptionist', role: 'Hospital', kind: 'receptionist', x: LOBBY.x0 + 2, y: LOBBY.y0 + 1, area: { x0: LOBBY.x0 + 2, y0: LOBBY.y0 + 1, x1: LOBBY.x0 + 2, y1: LOBBY.y0 + 1 }, named: true },
   { id: 'doctor_0', name: 'Doctor', role: 'Hospital', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: false },
   { id: 'doctor_1', name: 'Doctor', role: 'Hospital', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: false },
+  // The Bank: three bankers behind the counter (talk to one to open your bank) and a guard by the door.
+  ...[1, 4, 7].map((dx, i) => ({
+    id: `banker_${i}`, name: 'Banker', role: 'The Bank', kind: 'banker' as const, x: BANK.x0 + dx, y: BANK.y0 + 1,
+    area: { x0: BANK.x0 + dx, y0: BANK.y0 + 1, x1: BANK.x0 + dx, y1: BANK.y0 + 1 }, named: true,
+  })),
+  { id: 'bank_guard', name: 'Guard', role: 'The Bank', kind: 'doorman' as const, x: BANK.x0 + 1, y: BANK.y1 - 1, area: { x0: BANK.x0 + 1, y0: BANK.y1 - 1, x1: BANK.x0 + 1, y1: BANK.y1 - 1 }, named: false },
   { id: 'baller_0', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x0 + 1, y: COURT.y0 + 2, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
   { id: 'baller_1', name: 'Baller', role: 'Shooting hoops', kind: 'baller', x: COURT.x1 - 1, y: COURT.y0 + 3, area: { ...COURT, y0: COURT.y0 + 1 }, named: false },
 ];
@@ -794,7 +847,7 @@ export const SEWER_AREAS: Area[] = [
 ];
 
 // ---------- areas (for the world map) ----------
-export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat' | 'scrap' | 'factory';
+export type AreaIcon = 'park' | 'court' | 'shop' | 'candy' | 'bar' | 'gas' | 'lot' | 'weapons' | 'fire' | 'thugs' | 'hospital' | 'dungeon' | 'ladder' | 'rat' | 'scrap' | 'factory' | 'bank';
 export interface Area {
   id: string;
   name: string;
@@ -808,6 +861,10 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
+  {
+    id: 'bank', name: 'The Bank', rect: BANK, icon: 'bank', crimes: [], npcs: ['banker_0'],
+    blurb: 'In the Financial district. Talk to a banker to open your bank: 50 slots where things stack, and your cash is safe there.',
+  },
   {
     id: 'factory', name: 'The Factory', rect: FACTORY_SITE, icon: 'factory', crimes: [], npcs: [],
     blurb: 'An abandoned factory in the Industrial zone. Press salvage into sheets and make weapons and armour at the workbenches (Tinkering).',

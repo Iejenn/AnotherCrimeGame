@@ -13,7 +13,7 @@ const listeners = new Set<(r: Report) => void>();
 const noop = () => {};
 const api: GameApi = {
   startAttempt: noop, stopAttempt: noop, eat: noop, sell: noop, drop: noop, collectGrave: noop, savePos: noop, attack: noop,
-  stopFight: noop, equip: noop, unequip: noop, buy: noop, pickUp: noop, cook: noop, stopCook: noop, make: noop, stopMake: noop, climb: async () => true,
+  stopFight: noop, equip: noop, unequip: noop, buy: noop, pickUp: noop, cook: noop, stopCook: noop, make: noop, stopMake: noop, bankDeposit: noop, bankWithdraw: noop, bankDepositAll: noop, climb: async () => true,
 };
 const onReport = (fn: (r: Report) => void) => (listeners.add(fn), () => void listeners.delete(fn));
 const w = window as unknown as { passOut: () => void; cook: (on: boolean) => void; ready: boolean };

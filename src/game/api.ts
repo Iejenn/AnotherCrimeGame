@@ -37,6 +37,10 @@ export interface GameApi {
   /** Start making something at a press or workbench (Tinkering): as many as your materials allow, one after another. */
   make(craftId: string, pos: [number, number]): void;
   stopMake(): void;
+  /** The bank (stand in it): put n of an item (or 'cash', in dollars) in, take n out, or put your whole bag in. */
+  bankDeposit(itemId: string, n: number, pos: [number, number]): void;
+  bankWithdraw(itemId: string, n: number, pos: [number, number]): void;
+  bankDepositAll(pos: [number, number]): void;
   /** Climb down the pothole into the sewer, or up its ladder (a link in map.ts), standing on tile `pos` next to it.
    *  True when the server moved you. */
   climb(linkId: string, pos: [number, number]): Promise<boolean>;

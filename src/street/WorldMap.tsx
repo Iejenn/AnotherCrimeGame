@@ -69,6 +69,17 @@ const ICON_ART: Record<AreaIcon, JSX.Element> = {
       <rect x="3.2" y="16.6" width="5.4" height="2.6" rx="0.8" transform="rotate(-45 5.9 17.9)" fill="#5a3a22" />
     </>
   ),
+  bank: (
+    <>
+      {/* a bank: a pediment on columns, a dollar sign */}
+      <path d="M3 9 L12 3 L21 9 Z" fill="#e8dcc0" stroke="#141210" strokeWidth="0.9" />
+      {[5, 9.5, 14, 18.5].map((x) => (
+        <rect key={x} x={x} y="10" width="1.8" height="8" fill="#e8dcc0" stroke="#141210" strokeWidth="0.5" />
+      ))}
+      <rect x="3" y="18" width="18" height="2.5" fill="#e8dcc0" stroke="#141210" strokeWidth="0.8" />
+      <text x="12" y="8.3" fontSize="4.2" fontWeight="700" textAnchor="middle" fill="#2f7a46">$</text>
+    </>
+  ),
   factory: (
     <>
       {/* a factory: a sawtooth roof and a chimney */}
@@ -167,6 +178,22 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
   const areas = below ? SEWER_AREAS : AREAS;
   const at = (x: number, y: number) => ({ left: `${((x - ox) / fullW) * 100}%`, top: `${((y - oy) / fullH) * 100}%` });
   const lvl = skillLevel(s, 'street');
+  // Desktop: the map fills the screen, as big as fits (its shape stays). Phones: it keeps a readable size and scrolls.
+  const [fit, setFit] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      if (window.innerWidth <= 720) return setFit(null);
+      const ratio = fullW / fullH;
+      const w = Math.min(el.clientWidth, el.clientHeight * ratio);
+      setFit({ w, h: w / ratio });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fullW, fullH]);
   // Open centred on you (when the map is wider than the screen).
   useEffect(() => {
     const el = scrollRef.current;
@@ -187,7 +214,7 @@ export function WorldMap({ s, here, onClose, onWalk }: { s: GameState; here: [nu
         {/* The whole map is wide (the Industrial zone and the city): on a phone it scrolls sideways instead of shrinking, and
             opens centred on you. */}
         <div className="worldmap-scroll" ref={scrollRef}>
-        <div className={`worldmap-canvas ${below ? '' : 'wide'}`} style={{ aspectRatio: `${fullW} / ${fullH}` }}>
+        <div className={`worldmap-canvas ${below ? '' : 'wide'}`} style={fit ? { width: fit.w, height: fit.h, minWidth: 0 } : { aspectRatio: `${fullW} / ${fullH}` }}>
           <canvas ref={canvasRef} />
           {areas.map((a) => {
             const locked = a.crimes.length > 0 && a.crimes.every((id) => canStart(s, id));

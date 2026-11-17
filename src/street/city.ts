@@ -11,7 +11,7 @@ import {
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
-  CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
+  BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
 import { mulberry32 } from '../game/rng';
@@ -1842,6 +1842,105 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(0.3, 0.06, 0.2), lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.6 }), L1 - 1.4, 2.6, LZ0 + 1.2, false);
     for (const [x, z] of [[L0 + 2, LZ1 - 2.5], [L0 + 2.4, LZ1 - 2.2]]) add(own(new THREE.TorusGeometry(0.2, 0.08, 6, 12)), lam(0x1e1e22), x, 0.18, z).rotation.x = Math.PI / 2;
     for (let i = 0; i < 4; i++) add(geoBox(0.9, 0.04, 0.12), lam(0x8a6a44), L1 - 2, 0.13, LZ1 - 3 + i * 0.2, false);
+  }
+
+  // ---------- the Bank (Financial district, F-005) ----------
+  // A stone bank: pale walls, a row of columns along the front under a pediment with "BANK" on it, steps up to two big
+  // open doors. Inside (the walls fade, the roof lifts): a marble floor, a long wooden counter with a glass screen (the
+  // bankers stand behind it), a round steel vault door in the back wall, brass lamps.
+  {
+    const X0 = BANK.x0;
+    const X1 = BANK.x1 + 1;
+    const Z0 = BANK.y0;
+    const Z1 = BANK.y1 + 1;
+    const cx = (X0 + X1) / 2;
+    const cz = (Z0 + Z1) / 2;
+    const HT = 3.0;
+    const t = 0.2;
+    const stone = lam(0xd8d0c0);
+    const stoneDark = lam(0xb0a898);
+    add(geoBox(X1 - X0 + 0.6, 0.09, Z1 - Z0 + 1.6), stoneDark, cx, 0.045, cz + 0.5, false);
+    // Marble floor.
+    const marble = own(
+      canvasTex(64, 64, (g) => {
+        g.fillStyle = '#e8e2d6';
+        g.fillRect(0, 0, 64, 64);
+        g.fillStyle = '#c8c0b0';
+        g.fillRect(0, 0, 32, 32);
+        g.fillRect(32, 32, 32, 32);
+      }),
+    );
+    marble.repeat.set((X1 - X0) / 2, (Z1 - Z0) / 2);
+    const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.3, Z1 - Z0 - 0.3)), lam(0xffffff, { map: marble }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0.1, cz);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const [d0] = BANK_DOOR[0];
+    const d1 = BANK_DOOR[BANK_DOOR.length - 1][0] + 1;
+    const walls = [
+      add(geoBox(X1 - X0, HT, t), stone, cx, HT / 2, Z0 + t / 2),
+      add(geoBox(t, HT, Z1 - Z0), stone, X0 + t / 2, HT / 2, cz),
+      add(geoBox(t, HT, Z1 - Z0), stone, X1 - t / 2, HT / 2, cz),
+      add(geoBox(d0 - X0, HT, t), stone, (X0 + d0) / 2, HT / 2, Z1 - t / 2),
+      add(geoBox(X1 - d1, HT, t), stone, (d1 + X1) / 2, HT / 2, Z1 - t / 2),
+      add(geoBox(d1 - d0, HT - 2.1, t), stone, (d0 + d1) / 2, 2.1 + (HT - 2.1) / 2, Z1 - t / 2),
+    ];
+    const props: THREE.Object3D[] = [];
+    // Tall windows along the sides.
+    const winMat = lam(0x3a4650, { emissive: 0xffe2b0, emissiveIntensity: 0.5 });
+    for (let z = Z0 + 1.2; z < Z1 - 1; z += 2) for (const x of [X0 - 0.01, X1 + 0.01]) props.push(add(geoBox(0.03, 1.4, 0.7), winMat, x, 1.4, z, false));
+    // Roof, cornice, the pediment over the entrance with BANK on it, columns, steps.
+    props.push(add(geoBox(X1 - X0 + 0.3, 0.2, Z1 - Z0 + 0.3), stoneDark, cx, HT + 0.1, cz));
+    const ped = new THREE.Shape();
+    ped.moveTo(-3, 0);
+    ped.lineTo(3, 0);
+    ped.lineTo(0, 1.1);
+    ped.closePath();
+    const pedGeo = own(new THREE.ExtrudeGeometry(ped, { depth: 0.3, bevelEnabled: false }));
+    props.push(add(pedGeo, stone, cx, HT + 0.2, Z1 + 0.6));
+    props.push(add(geoBox(6.4, 0.25, 1.2), stoneDark, cx, HT + 0.08, Z1 + 0.35));
+    const sign = add(own(new THREE.PlaneGeometry(2.2, 0.5)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('BANK', '#d8d0c0', '#2a2620')) })), cx, HT - 0.35, Z1 + 0.92, false);
+    props.push(sign);
+    for (let i = 0; i < 6; i++) {
+      const x = cx - 2.5 + i * 1.0;
+      if (x > d0 - 0.2 && x < d1 + 0.2) continue; // not in front of the doors
+      props.push(add(own(new THREE.CylinderGeometry(0.14, 0.16, HT - 0.1, 12)), stone, x, (HT - 0.1) / 2 + 0.1, Z1 + 0.85));
+    }
+    for (let i = 0; i < 3; i++) add(geoBox(6.2 - i * 0.4, 0.06, 0.35), stoneDark, cx, 0.09 + i * 0.06, Z1 + 1.35 - i * 0.3, false);
+    // The doors, swung open, and brass handles.
+    for (const [x, r] of [[d0 + 0.2, 1.2], [d1 - 0.2, -1.2]] as const) {
+      const d = add(geoBox(0.9, 1.9, 0.06), lam(0x5a3a22), x, 1.0, Z1 - 0.3, false);
+      d.rotation.y = r;
+    }
+    // Inside: the counter with a glass screen, the vault door, lamps.
+    const wood = lam(0x6a4426);
+    const counter = FIXTURES.filter((f) => f.kind === 'bankcounter');
+    if (counter.length) {
+      const cx0 = Math.min(...counter.map((f) => f.x));
+      const cx1 = Math.max(...counter.map((f) => f.x)) + 1;
+      const czz = counter[0].y + 0.5;
+      add(geoBox(cx1 - cx0, 0.75, 0.6), wood, (cx0 + cx1) / 2, 0.45, czz);
+      add(geoBox(cx1 - cx0 + 0.04, 0.05, 0.66), lam(0xd8c8a8), (cx0 + cx1) / 2, 0.84, czz);
+      add(geoBox(cx1 - cx0, 0.55, 0.03), lam(0xc8e0e8, { transparent: true, opacity: 0.35 }), (cx0 + cx1) / 2, 1.15, czz - 0.2, false);
+      for (let x = cx0; x <= cx1; x += 1) add(geoBox(0.04, 0.6, 0.04), lam(0xc8a04a), x, 1.15, czz - 0.2, false);
+    }
+    const vault = FIXTURES.filter((f) => f.kind === 'vault');
+    if (vault.length) {
+      const vx = (Math.min(...vault.map((f) => f.x)) + Math.max(...vault.map((f) => f.x)) + 1) / 2;
+      const door = add(own(new THREE.CylinderGeometry(0.85, 0.85, 0.16, 24)), lam(0x8a8f96), vx, 1.1, Z0 + t + 0.08);
+      door.rotation.x = Math.PI / 2;
+      const wheel = add(own(new THREE.TorusGeometry(0.3, 0.04, 6, 16)), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false);
+      wheel.rotation.x = 0;
+      for (let i = 0; i < 3; i++) add(geoBox(0.6, 0.04, 0.04), lam(0xc8a04a), vx, 1.1, Z0 + t + 0.2, false).rotation.z = (i * Math.PI) / 3;
+    }
+    for (const x of [X0 + 2.5, X1 - 2.5]) add(geoBox(0.3, 0.12, 0.3), lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.4 }), x, HT - 0.4, cz, false);
+    const light = new THREE.PointLight(0xfff0d8, 7, 11, 1.3);
+    light.position.set(cx, HT - 0.6, cz);
+    scene.add(light);
+    const fade: Fadeable = { walls, mats: [stone], props, opacity: 1 };
+    fadeables.push(fade);
+    rooms.set(BANK.id, fade);
   }
 
   // ---------- the pothole and the sewer under the city (rats; docs/design.md §12) ----------

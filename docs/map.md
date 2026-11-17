@@ -61,6 +61,42 @@ This page and the picture are generated from the game's map: after changing `src
 | 009-B | Buildings | 97–101 | 41–45 |
 | 009-C | Buildings | 92–96 | 46–50 |
 | 009-D | Buildings | 97–101 | 46–50 |
+| F-001-A | Buildings | 109–113 | 7–11 |
+| F-001-B | Buildings | 114–118 | 7–11 |
+| F-001-C | Buildings | 109–113 | 12–16 |
+| F-001-D | Buildings | 114–118 | 12–16 |
+| F-002-A | Buildings | 126–130 | 7–11 |
+| F-002-B | Buildings | 131–135 | 7–11 |
+| F-002-C | Buildings | 126–130 | 12–16 |
+| F-002-D | Buildings | 131–135 | 12–16 |
+| F-003-A | Buildings | 143–147 | 7–11 |
+| F-003-B | Buildings | 148–152 | 7–11 |
+| F-003-C | Buildings | 143–147 | 12–16 |
+| F-003-D | Buildings | 148–152 | 12–16 |
+| F-004-A | Buildings | 109–113 | 24–28 |
+| F-004-B | Buildings | 114–118 | 24–28 |
+| F-004-C | Buildings | 109–113 | 29–33 |
+| F-004-D | Buildings | 114–118 | 29–33 |
+| F-005-A | The Bank | 126–130 | 24–28 |
+| F-005-B | The Bank | 131–135 | 24–28 |
+| F-005-C | The Bank | 126–130 | 29–33 |
+| F-005-D | The Bank | 131–135 | 29–33 |
+| F-006-A | Buildings | 143–147 | 24–28 |
+| F-006-B | Buildings | 148–152 | 24–28 |
+| F-006-C | Buildings | 143–147 | 29–33 |
+| F-006-D | Buildings | 148–152 | 29–33 |
+| F-007-A | Buildings | 109–113 | 41–45 |
+| F-007-B | Buildings | 114–118 | 41–45 |
+| F-007-C | Buildings | 109–113 | 46–50 |
+| F-007-D | Buildings | 114–118 | 46–50 |
+| F-008-A | Buildings | 126–130 | 41–45 |
+| F-008-B | Buildings | 131–135 | 41–45 |
+| F-008-C | Buildings | 126–130 | 46–50 |
+| F-008-D | Buildings | 131–135 | 46–50 |
+| F-009-A | Buildings | 143–147 | 41–45 |
+| F-009-B | Buildings | 148–152 | 41–45 |
+| F-009-C | Buildings | 143–147 | 46–50 |
+| F-009-D | Buildings | 148–152 | 46–50 |
 | I-001-A | Buildings | 7–11 | 7–11 |
 | I-001-B | Buildings | 12–16 | 7–11 |
 | I-001-C | Buildings | 7–11 | 12–16 |

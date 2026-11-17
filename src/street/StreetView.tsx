@@ -13,7 +13,7 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { BANK_COUNTER_Y, COURT, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
@@ -21,6 +21,7 @@ import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
 import { TinkerDialog } from './TinkerDialog';
+import { BankDialog } from './BankDialog';
 import { CRAFT_BY_ID } from '../game/data/metals';
 import { QuickEat } from './QuickEat';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
@@ -179,6 +180,9 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
   // The Tinkering screen (a press or a workbench in the Factory): where you stand and which kind, or null when closed.
   const [tinkerAt, setTinkerAt] = useState<{ pos: [number, number]; kind: 'press' | 'bench' } | null>(null);
   const setTinkerAtRef = useRef(setTinkerAt);
+  // The bank screen (after talking to a banker): where you stand, or null when closed.
+  const [bankAt, setBankAt] = useState<[number, number] | null>(null);
+  const setBankAtRef = useRef(setBankAt);
   const setCookAtRef = useRef(setCookAt);
   const talkingIdRef = useRef<string | null>(null);
   talkingIdRef.current = talking?.id ?? null;
@@ -322,6 +326,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       gas_clerk: [{ skin: 4, hair: 1, hairColor: 0, top: 0, bottom: 1 }, { apron: 0x2a4a7a }], // red shirt, blue apron
       receptionist: [{ skin: 1, hair: 2, hairColor: 2, top: 1, bottom: 0 }, undefined], // blue blouse, long hair
       doctor_0: [{ skin: 1, hair: 2, hairColor: 1, top: 4, bottom: 0 }, { scrubs: 0x2f6b4a, coat: true }], // green scrubs, white coat
+      // The bankers: dark suits, a white shirt under them (the "apron"); the bank's guard in a grey uniform.
+      banker_0: [{ skin: 1, hair: 1, hairColor: 0, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
+      banker_1: [{ skin: 3, hair: 2, hairColor: 0, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
+      banker_2: [{ skin: 0, hair: 4, hairColor: 5, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
+      bank_guard: [{ skin: 4, hair: 4, hairColor: 0, top: 4, bottom: 3 }, undefined],
       doctor_1: [{ skin: 2, hair: 1, hairColor: 0, top: 4, bottom: 0 }, { scrubs: 0x7ab0d8, coat: true }], // light blue scrubs, white coat
     };
     for (const npc of NPCS) {
@@ -652,10 +661,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       me.goalLink = null;
       setCookAtRef.current(null);
       setTinkerAtRef.current(null);
+      setBankAtRef.current(null);
       if (!path.length) {
         // Already standing next to it.
         if (goal) arrive(goal);
-        if (npc) setTalkingRef.current(npc);
+        if (npc) meetNpc(npc);
         me.goal = null;
         me.goalNpc = null;
         savePos();
@@ -663,6 +673,11 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       return true;
     };
 
+    /** You reached an NPC: a banker opens your bank, everyone else talks to you. */
+    const meetNpc = (npc: Npc) => {
+      if (npc.kind === 'banker') setBankAtRef.current(tileOf(me.pos.x, me.pos.z));
+      else setTalkingRef.current(npc);
+    };
     const arrive = (n: StreetNode) => {
       const st = sRef.current;
       const job = st.player.job;
@@ -810,10 +825,13 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
         if (npc.kind === 'guard') return say('The guard patrols the lot with his flashlight. Stay out of the light.');
         if (npc.kind === 'receptionist') return say('"You\'re all patched up, hon. Try not to come back too soon."');
         if (npc.kind === 'doctor') return say('The doctor is busy with the patients.');
+        if (npc.kind === 'doorman') return say('The guard nods at you. "Keep it civil in here."');
         stopWorking();
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
-        if (walkTo(neighbors(ex, ey), null, npc)) {
+        // A banker stands behind the counter: you talk to them from the row in front of it.
+        const goals: [number, number][] = npc.kind === 'banker' ? [[ex, BANK_COUNTER_Y + 1], [ex - 1, BANK_COUNTER_Y + 1], [ex + 1, BANK_COUNTER_Y + 1]] : neighbors(ex, ey);
+        if (walkTo(goals, null, npc)) {
           ring.position.set(ex + 0.5, 0.08, ey + 0.5);
           (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
           (ring.material as THREE.MeshBasicMaterial).color.set(0xf2d27a);
@@ -1235,7 +1253,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
             const ep = npcWalk.get(npc.id)!.pos;
             me.facing = Math.atan2(ep.x - me.pos.x, ep.z - me.pos.z);
             npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - ep.x, me.pos.z - ep.z);
-            setTalkingRef.current(npc);
+            meetNpc(npc);
             me.goalNpc = null;
           }
         } else {
@@ -2007,6 +2025,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       </div>
       {talking && <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />}
       {cookAt && <CookDialog s={s} api={api} pos={cookAt} onClose={() => setCookAt(null)} />}
+      {bankAt && <BankDialog s={s} api={api} pos={bankAt} onClose={() => setBankAt(null)} />}
       {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}
       <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
       <ChatBox game={gameLines} chat={chat} myName={s.name} />

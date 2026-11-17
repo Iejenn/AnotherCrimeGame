@@ -42,6 +42,8 @@ export interface ServerAnswer {
     fight?: GameState['fight'];
     cook?: GameState['cook'];
     make?: GameState['make'];
+    bank?: GameState['bank'];
+    bankCash?: number;
   };
   /** Items on the ground you can see (game.ground_json). */
   ground?: GameState['ground'];
@@ -121,6 +123,8 @@ const SAY: Record<string, string> = {
   not_at_link: 'You need to stand right next to it to climb.',
   not_near_station: 'You need to stand next to a fire to cook.',
   not_at_station: 'Stand next to it to work.',
+  not_in_bank: 'You need to be in the bank.',
+  bank_full: 'Your bank is full.',
   no_materials: "You don't have the materials for that.",
   unknown_craft: "You can't make that here.",
   cant_cook: "You can't cook that.",
@@ -157,6 +161,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     fight: p.fight ?? null,
     cook: p.cook ?? null,
     make: p.make ?? null,
+    bank: p.bank ?? [],
+    bankCash: p.bankCash ?? 0,
     ground: a.ground ?? [],
     grave: a.grave ?? null,
     stats: p.stats,
@@ -333,6 +339,9 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       stopCook: () => void call('stop_cook'),
       make: (craftId, pos) => void call('start_make', { p_craft: craftId, p_x: pos[0], p_y: pos[1] }),
       stopMake: () => void call('stop_make'),
+      bankDeposit: (itemId, n, pos) => void call('bank_deposit', { p_item: itemId, p_n: n, p_x: pos[0], p_y: pos[1] }),
+      bankWithdraw: (itemId, n, pos) => void call('bank_withdraw', { p_item: itemId, p_n: n, p_x: pos[0], p_y: pos[1] }),
+      bankDepositAll: (pos) => void call('bank_deposit_all', { p_x: pos[0], p_y: pos[1] }),
       climb: (linkId, pos) => call('climb', { p_link: linkId, p_x: pos[0], p_y: pos[1] }).then((d) => !!d?.ok),
     }),
     [call],
