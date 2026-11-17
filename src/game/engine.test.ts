@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRAVE_MINUTES, busyReason, cantEat, collectGrave, crimeStats, eat, emptyFor, giveItem, hpAt, itemPrice, pickFood, maxHp, newGame, sellItem, spotted, startJob, tick, totalLevel } from './engine';
+import { GRAVE_MINUTES, busyReason, cantEat, collectGrave, crimeStats, eat, emptyFor, giveItem, hpAt, hpAnchor, itemPrice, pickFood, maxHp, newGame, sellItem, spotted, startJob, tick, totalLevel } from './engine';
 import { CATCH_SECONDS, TICK_SECONDS, CRIME_BY_ID, CRIMES } from './data/crimes';
 import { SKILL_IDS } from './data/skills';
 import { MAX_LEVEL, levelFromXp, totalXpForLevel } from './xp';
@@ -99,12 +99,25 @@ describe('working a crime (one tap = one attempt)', () => {
     expect(busyReason(state, T0 + 4000)).toBeNull();
   });
 
-  it('health comes back at 1 per minute', () => {
+  it('health comes back at 1 per FULL minute, in whole points (like the server)', () => {
     const s = fresh();
-    s.hp = 9;
+    s.hp = 8;
     s.hpAt = T0;
-    expect(hpAt(s, T0 + 30_000)).toBe(9.5);
-    expect(hpAt(s, T0 + 60_000)).toBe(10);
+    expect(hpAt(s, T0 + 30_000)).toBe(8);
+    expect(hpAt(s, T0 + 60_000)).toBe(9);
+    expect(hpAt(s, T0 + 119_000)).toBe(9);
+    expect(hpAt(s, T0 + 120_000)).toBe(10);
+  });
+
+  it('a hit keeps the part of a minute you had already waited (the regen clock moves by whole minutes)', () => {
+    const s = fresh();
+    s.hp = 5;
+    s.hpAt = T0;
+    expect(hpAnchor(s, T0 + 90_000)).toBe(T0 + 60_000);
+    s.hp = hpAt(s, T0 + 90_000) - 1; // 6 - 1 = 5
+    s.hpAt = hpAnchor(s, T0 + 90_000);
+    expect(hpAt(s, T0 + 119_000)).toBe(5); // 59 s since the clock
+    expect(hpAt(s, T0 + 120_000)).toBe(6); // the half minute before the hit counted
   });
 
   it('low health does not stop you: with under 1 HP you can still try (and a fail kills you)', () => {

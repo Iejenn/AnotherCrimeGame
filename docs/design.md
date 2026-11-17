@@ -152,7 +152,9 @@ timing) in `src/game/data/crimes.ts`.
 
 ## 5. Health
 
-- **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose.
+- **Health:** 10 max (+2 per Health level). Regenerates **1 HP per minute**, and stays that slow on purpose. Health is always a **whole number** (v0.48):
+  +1 for each full minute; a hit or a meal keeps the part of a minute you'd already waited (server: `game.hp_now`,
+  `game.hp_anchor`; client: `hpAt`, `hpAnchor`), so the number you see is exactly the server's.
   **No minimum health (decided, v0.24):** you can start a crime on any health. Low health is a risk, not a block:
   the next hit can kill you (and your stuff goes into your grave). Below 3 HP you get a "badly hurt" warning.
   A **health bar over your head** (OSRS-style) shows for 6 seconds after every hit, and stays (pulsing) while
