@@ -3,13 +3,14 @@
 // is a slot too. Below it your bag. Tap something in your bag to put it in, a bank slot to take it out; the toggle
 // says how many (×1, ×5, ×10 or all). Cash always moves all at once. "Deposit all" empties your bag (cash too) into the
 // bank. The server does every move (it checks you're in the bank, the counts and the 50 slots).
-import { useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useBagHandler } from '../components/bagHandler';
 import type { GameState } from '../game/types';
 import type { GameApi } from '../game/api';
 import { ITEM_BY_ID } from '../game/data/items';
 import { fmtMoney } from '../game/engine';
 import { BANK_SLOTS } from './map';
-import { Bag, bagSlots, slotKey } from '../components/Bag';
+import { bagSlots, slotKey } from '../components/Bag';
 import { ItemIcon } from '../components/ItemIcon';
 
 const AMOUNTS = [1, 5, 10, Infinity] as const;
@@ -34,6 +35,12 @@ export function BankDialog({ s, api, pos, onClose }: { s: GameState; api: GameAp
     api.bankDeposit(sl.id, n(s.inventory[sl.id] ?? 0), pos);
   };
   const withdraw = (id: string, have: number) => api.bankWithdraw(id, id === 'cash' ? have : n(have), pos);
+
+  // Putting things in: you tap them in your bag at the bottom of the screen (no second bag in here).
+  const depositRef = useRef(deposit);
+  depositRef.current = deposit;
+  const pick = useCallback((k: string) => depositRef.current(k), []);
+  useBagHandler(useMemo(() => ({ line: 'Tap something to put it in the bank.', selected: null, pick }), [pick]));
 
   return (
     <div className="bank-dialog" role="dialog" aria-label="Your bank" onPointerDown={(e) => e.stopPropagation()}>
@@ -71,8 +78,7 @@ export function BankDialog({ s, api, pos, onClose }: { s: GameState; api: GameAp
           Deposit all
         </button>
       </div>
-      <p className="muted small bank-hint">Tap your bag to put things in, the bank to take them out.</p>
-      <Bag s={s} selected={null} onSelect={deposit} compact />
+      <p className="muted small bank-hint">Tap your bag (below) to put things in, the bank to take them out.</p>
     </div>
   );
 }
