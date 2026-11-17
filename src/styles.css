@@ -362,7 +362,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .bag.compact .slot { padding: 3px 4px; aspect-ratio: 5 / 4; }
 .bag.compact .slot-name { font-size: 0.6rem; -webkit-line-clamp: 2; }
 .bag.compact .slot-sub { font-size: 0.6rem; }
-.store-shelf { grid-template-columns: repeat(4, 1fr) !important; }
 @media (max-width: 720px) {
   .topbar .label { display: none; }
   .topbar-hp::before { content: '♥ '; color: var(--red-ink); }
@@ -416,6 +415,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .slot { position: relative; }
 .item-icon { position: absolute; inset: 14% 10% 18%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .item-icon svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 2px #0009); }
+.item-icon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 2px #0009); }
 .slot .slot-name, .slot .slot-sub { position: relative; z-index: 1; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
 .slot:has(.item-icon) .slot-name { font-size: 0.56rem; color: var(--muted); -webkit-line-clamp: 2; }
 .bag.compact .item-icon { inset: 12% 18% 16%; }
@@ -575,6 +575,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .bank-slot .item-icon { inset: 8% 8% 18%; }
 .bank-count { position: absolute; left: 2px; top: 1px; font: 700 0.6rem/1 var(--mono); color: #f2e14a; text-shadow: 0 1px 0 #000, 0 0 2px #000; pointer-events: none; }
 .bank-slot.cash .bank-count { color: var(--money); }
+/* Ray's shelf (v0.49): bank-sized slots, the price along the bottom. */
+.store-grid .bank-slot.selected { border-color: #f2e14a; box-shadow: 0 0 0 1px #f2e14a inset; }
+.store-price { position: absolute; left: 0; right: 0; bottom: 1px; text-align: center; font: 700 0.52rem/1 var(--mono); color: var(--money); text-shadow: 0 1px 0 #000, 0 0 2px #000; pointer-events: none; }
 .bank-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bank-amounts { display: flex; gap: 4px; }
 .bank-hint { margin: 6px 0; }

@@ -2550,7 +2550,7 @@ export function buildCity(scene: THREE.Scene) {
   // Build all instanced batches that were filled above.
   const poolMesh = pools.build(scene);
   if (poolMesh) poolMesh.receiveShadow = false;
-  for (const b of [poles, lampHeads, lampGlow, lightBox, redDot, greenDot]) b.build(scene);
+  for (const b of [poles, lampHeads, lampGlow, lightPole, lightBox, redDot, greenDot]) b.build(scene); // (lightPole was missing: the traffic lights floated)
   trunks.build(scene);
   crowns.forEach((b) => b.build(scene));
 

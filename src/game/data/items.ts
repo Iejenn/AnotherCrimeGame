@@ -1,7 +1,7 @@
 // Items (docs/design.md §6). Skills don't drop random loot: the only items so far are food from
 // shoplifting, and food heals. Combat enemies will get loot tables later.
 
-import { METAL_ITEMS } from './metals';
+import { METALS, METAL_ITEMS, PIECES, shopPrice } from './metals';
 
 export type GearSlot = 'weapon' | 'head' | 'body' | 'legs' | 'feet';
 
@@ -56,12 +56,9 @@ export const ITEMS: ItemDef[] = [
 
 /** What the shops sell (item id → price in dollars). */
 export const SHOPS: Record<string, { item: string; price: number }[]> = {
-  weapons: [
-    // Ray's tin starter kit costs more than it's worth: making it yourself (Tinkering) is the cheap way.
-    { item: 'tin_knuckles', price: 50 },
-    { item: 'tin_bat', price: 100 },
-    { item: 'tin_knife', price: 150 },
-  ],
+  // Ray's Arms (v0.49): every metal's weapons, sorted by kind then metal (tin knuckles, copper knuckles, tin bat, …),
+  // at 30 × the metal in them (shopPrice): making them yourself (Scrapping + Tinkering) is far cheaper.
+  weapons: PIECES.filter((p) => p.slot === 'weapon').flatMap((p) => METALS.map((m) => ({ item: `${m.id}_${p.key}`, price: shopPrice(m, p) }))),
 };
 /** Shops buy things back for this share of what they're worth (decided: 25%, for every item). */
 export const SELL_SHARE = 0.25;

@@ -25,7 +25,12 @@ describe('combat maths (design §12)', () => {
     expect([k.damage, k.speed, k.needs?.level]).toEqual([2, 3, 1]);
     expect(k.speed).toBe(UNARMED.speed);
     expect(k.defence ?? 0).toBe(0);
-    expect(SHOPS.weapons).toEqual([{ item: 'tin_knuckles', price: 50 }, { item: 'tin_bat', price: 100 }, { item: 'tin_knife', price: 150 }]);
+    // Sorted by kind, then metal; 30 × the metal in them.
+    expect(SHOPS.weapons).toEqual([
+      { item: 'tin_knuckles', price: 150 }, { item: 'copper_knuckles', price: 300 },
+      { item: 'tin_bat', price: 300 }, { item: 'copper_bat', price: 600 },
+      { item: 'tin_knife', price: 150 }, { item: 'copper_knife', price: 300 },
+    ]);
     // The bat: max hit 5, a swing every 3 s; the knife: max hit 1, every 1 s. All tin at level 1.
     const bat = ITEM_BY_ID.tin_bat.gear!;
     expect([bat.damage, bat.speed, bat.needs?.level, bat.anim]).toEqual([5, 6, 1, 'swing']);

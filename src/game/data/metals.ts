@@ -23,6 +23,10 @@ export const METALS: Metal[] = [
 
 /** One sheet of a metal is worth this much (tin $5, doubling every tier). Salvage is worth the same as a sheet. */
 export const sheetValue = (m: Metal) => 5 * 2 ** (m.tier - 1);
+/** Ray's price for a weapon (v0.49): 30 × the metal in it (a sheet's value × the sheets it takes). One rule for every
+ *  tier: buying costs minutes of crime, making it yourself under a minute of salvaging (docs/design.md §14). */
+export const SHOP_MARKUP = 30;
+export const shopPrice = (m: Metal, p: Piece) => sheetValue(m) * p.sheets * SHOP_MARKUP;
 /** XP for pressing one sheet, and for every sheet that goes into an item (tin 1 and 3, doubling every tier). */
 export const pressXp = (m: Metal) => 1 * 2 ** (m.tier - 1);
 export const sheetXp = (m: Metal) => 3 * 2 ** (m.tier - 1);

@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.49.0',
+    date: '2026-11-17',
+    title: 'A walk, not a jog',
+    items: [
+      'You walk at a more natural pace now, with a real stride: heels and toes, knees bending as the leg swings, arms swinging opposite, a little sway.',
+      'Fists throw a proper jab, and a knife stabs straight forward instead of being raised in the air. The bat still swings.',
+      "Ray's Arms sells copper weapons too, on small shelves like the bank's: knuckles, bats and knives, tin then copper. Prices follow one rule: 30 times the metal in them. Making your own is much cheaper.",
+      'Food in your bag looks exactly like it does lying on the ground.',
+      'The traffic lights stand on their poles again, and shadows no longer shimmer on the grass when you move the camera.',
+    ],
+  },
+  {
     version: '0.48.1',
     date: '2026-11-17',
     title: 'One bag at the barbecue',
