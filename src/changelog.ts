@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.48.0',
+    date: '2026-11-17',
+    title: 'Health you can trust',
+    items: [
+      'Health is always a whole number now, and the number by the minimap is exactly what the server counts: at 1 HP, the next hit really is your last.',
+      'Health still comes back 1 point a minute, now a full point at a time; a hit or a meal never resets the minute you were waiting for.',
+    ],
+  },
+  {
     version: '0.47.1',
     date: '2026-11-17',
     title: 'Steady lights',

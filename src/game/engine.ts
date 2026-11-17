@@ -48,10 +48,16 @@ export const maxHp = (s: GameState) => skillLevel(s, 'health');
 /** Health starts at this level (with this much XP). */
 export const HEALTH_START_LEVEL = 10;
 
-/** Current health after regeneration up to time t (does not mutate). */
+/** Current health after regeneration up to time t (does not mutate). Whole numbers (v0.48): +1 for each FULL minute,
+ *  like the server's game.hp_now, so what you see is exactly what the server counts. */
 export function hpAt(s: GameState, t: number) {
-  const mins = Math.max(0, t - s.hpAt) / 60000;
+  const mins = Math.floor(Math.max(0, t - s.hpAt) / 60000);
   return Math.min(maxHp(s), s.hp + mins * HP_REGEN_PER_MIN);
+}
+/** The regeneration clock when health changes at t: moved on by whole minutes only, so the part of a minute you'd
+ *  already waited carries over (the server's game.hp_anchor). */
+export function hpAnchor(s: GameState, t: number) {
+  return t <= s.hpAt ? t : s.hpAt + Math.floor((t - s.hpAt) / 60000) * 60000;
 }
 
 // ---------------- Crime stats ----------------
@@ -155,7 +161,7 @@ const HIT_LINES: Record<string, string> = {
 function getHit(s: GameState, crime: CrimeDef, t: number, report: Report, why: string) {
   s.player.stunnedUntil = t + crime.failStun * 1000;
   s.hp = Math.max(0, hpAt(s, t) - crime.failDamage);
-  s.hpAt = t;
+  s.hpAt = hpAnchor(s, t);
   report.damage += crime.failDamage;
   report.hit = true;
   log(s, t, `${why} You're stunned. -${crime.failDamage} HP.`, 'fail');
@@ -390,7 +396,7 @@ export function eat(s: GameState, id: string, now: number) {
   s.inventory[id] -= 1;
   if (s.inventory[id] <= 0) delete s.inventory[id];
   s.hp = Math.min(maxHp(s), hpAt(s, now) + item.heal);
-  s.hpAt = now;
+  s.hpAt = hpAnchor(s, now);
   s.player.eatingUntil = now + EAT_SECONDS * 1000;
   log(s, now, `You eat the ${item.name.toLowerCase()}. +${item.heal} HP.`, 'info');
 }

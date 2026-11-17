@@ -1706,7 +1706,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
         // Their health: a hitsplat when it drops, and the health bar for a while (everyone sees it, like your own).
         if (os) {
-          const hpNow = Math.min(os.maxHp, os.hp + (Math.max(0, t - os.hpAt) / 60000) * 1);
+          const hpNow = Math.min(os.maxHp, os.hp + Math.floor(Math.max(0, t - os.hpAt) / 60000)); // whole points, +1 a full minute
           if (e.lastHp !== null && os.hp < e.lastHp - 0.001) {
             hitsplat(e.pos, Math.round(e.lastHp - os.hp));
             e.hpBarUntil = now + 6000;
@@ -2074,9 +2074,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
   // The game's messages for the chat box: what the Street tells you, and your log.
   const gameLines: Msg[] = [...msgs, ...s.log.slice(0, 40).map((l) => ({ t: l.t, text: l.text }))];
 
-  // Your health, as a heart next to the minimap (rounded down, but never 0 while you're alive).
-  const exactHp = hpAt(s, now);
-  const hp = exactHp > 0 ? Math.max(1, Math.floor(exactHp)) : 0;
+  // Your health on the minimap: a whole number, the same as the server's (v0.48: health is whole points).
+  const hp = Math.max(0, Math.floor(hpAt(s, now)));
   const hpMax = maxHp(s);
   const chatBox = hud ? null : <ChatBox game={gameLines} chat={chat} myName={s.name} />;
 
