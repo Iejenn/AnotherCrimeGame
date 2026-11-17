@@ -19,6 +19,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'New rats in the old-school style: crouched, spiky-backed, open-mouthed, with beady dark red eyes. The giant rats are bigger, darker versions.',
       'New pigeons (fat, with folded barred wings and the green neck) and new guard dogs (lean, spiked collar, bared teeth).',
       'A new look for everyone (you, the people in the city, thugs and bikers): grown-up proportions, broad shoulders, T-shirts and bare forearms, real knees and elbows (you bend your knees when you walk, drunks sit properly on their stools), smooth shading.',
+      'Everyone dresses for their job: shopkeepers in aprons, bankers in suits and ties, guards in uniforms with a badge, doctors in long coats, thugs in hoodies, bikers in open leather vests, Splinter in an old army jacket.',
     ],
   },
   {

@@ -920,6 +920,10 @@ learned from old-school RuneScape, not copied.
   nose, a mouth line, ears), hair with a hairline. Hair is built on the head's own rings, a little bigger all round, so
   the head never pokes through (no loose domes). No buttons, laces or separate fingers: you can't see them from the
   game's camera.
+- **Job clothes** (`Outfit` in character.ts), fitted to the same body: shopkeepers and the bartender wear an apron (a bib
+  on a neck strap, a skirt to the thighs); bankers a suit (jacket, white shirt, tie); guards a uniform (badge, shoulder
+  straps); doctors a long coat over scrubs; thugs a hoodie (the hood up, a front pocket); bikers an open leather vest;
+  Splinter an old army jacket. Jackets, coats, hoodies, suits and uniforms have long sleeves.
 - About 1,800 triangles, 2,300 in full armour. Each person's parts are merged per joint and colour when they're built,
   so the detail costs a handful of draw calls.
 

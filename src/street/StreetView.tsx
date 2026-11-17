@@ -46,11 +46,11 @@ const THUG_LOOKS: Look[] = [
   { skin: 3, hair: 0, hairColor: 0, top: 3, bottom: 3 },
   { skin: 1, hair: 0, hairColor: 0, top: 3, bottom: 1 },
 ];
-/** The bikers (v0.43): leather (black tops), beards, a bandana; copper knuckles. */
+/** The bikers: open black leather vests over white, red or grey T-shirts, dark jeans; copper knuckles. */
 const BIKER_LOOKS: Look[] = [
-  { skin: 1, hair: 3, hairColor: 0, top: 3, bottom: 3 },
-  { skin: 2, hair: 1, hairColor: 1, top: 3, bottom: 0 },
-  { skin: 0, hair: 3, hairColor: 2, top: 3, bottom: 3 },
+  { skin: 1, hair: 3, hairColor: 0, top: 4, bottom: 0 },
+  { skin: 2, hair: 1, hairColor: 1, top: 0, bottom: 0 },
+  { skin: 0, hair: 3, hairColor: 2, top: 4, bottom: 3 },
 ];
 let thugCount = 0;
 let bikerCount = 0;
@@ -60,7 +60,7 @@ function buildEnemy(kind: string): THREE.Group {
   if (kind === 'giant_rat') return buildGiantRat();
   if (kind === 'dog') return buildDog();
   if (kind === 'biker') {
-    const b = buildCharacter(BIKER_LOOKS[bikerCount++ % BIKER_LOOKS.length], { apron: 0x2a2220 });
+    const b = buildCharacter(BIKER_LOOKS[bikerCount++ % BIKER_LOOKS.length], { vest: 0x1e1b18 });
     setGear(b, { weapon: 'copper_knuckles' });
     return b;
   }
@@ -340,23 +340,23 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       return tileOf(w.pos.x, w.pos.z);
     };
     const NPC_LOOKS: Record<string, [Parameters<typeof buildCharacter>[0], Parameters<typeof buildCharacter>[1]]> = {
-      eddy: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xf2efe8 }], // flat cap, green top, white apron
+      eddy: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 2 }, { apron: 0xe8e2d4 }], // flat cap, green top, white apron
       baller_0: [{ skin: 3, hair: 0, hairColor: 0, top: 4, bottom: 1 }, undefined],
       baller_1: [{ skin: 0, hair: 1, hairColor: 2, top: 1, bottom: 3 }, undefined],
       candy_clerk: [{ skin: 2, hair: 2, hairColor: 3, top: 5, bottom: 0 }, { apron: 0xff7ab8 }], // pink apron
       bartender: [{ skin: 1, hair: 0, hairColor: 0, top: 4, bottom: 0 }, { apron: 0x1e1b18 }], // white shirt, black apron
-      guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, undefined], // navy uniform and cap
+      guard: [{ skin: 3, hair: 4, hairColor: 0, top: 1, bottom: 0 }, { uniform: true }], // navy uniform and cap
       gas_clerk: [{ skin: 4, hair: 1, hairColor: 0, top: 0, bottom: 1 }, { apron: 0x2a4a7a }], // red shirt, blue apron
       receptionist: [{ skin: 1, hair: 2, hairColor: 2, top: 1, bottom: 0 }, undefined], // blue blouse, long hair
       doctor_0: [{ skin: 1, hair: 2, hairColor: 1, top: 4, bottom: 0 }, { scrubs: 0x2f6b4a, coat: true }], // green scrubs, white coat
-      // The bankers: dark suits, a white shirt under them (the "apron"); the bank's guard in a grey uniform.
-      banker_0: [{ skin: 1, hair: 1, hairColor: 0, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
-      banker_1: [{ skin: 3, hair: 2, hairColor: 0, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
-      banker_2: [{ skin: 0, hair: 4, hairColor: 5, top: 3, bottom: 0 }, { apron: 0xf2efe8 }],
-      bank_guard: [{ skin: 4, hair: 4, hairColor: 0, top: 4, bottom: 3 }, undefined],
+      // The bankers: dark suits over white shirts, with ties; the bank's guard in a grey uniform.
+      banker_0: [{ skin: 1, hair: 1, hairColor: 0, top: 3, bottom: 0 }, { suit: 0xf2efe8 }],
+      banker_1: [{ skin: 3, hair: 2, hairColor: 0, top: 3, bottom: 0 }, { suit: 0xf2efe8 }],
+      banker_2: [{ skin: 0, hair: 4, hairColor: 5, top: 3, bottom: 0 }, { suit: 0xf2efe8 }],
+      bank_guard: [{ skin: 4, hair: 4, hairColor: 0, top: 4, bottom: 3 }, { uniform: true }],
       doctor_1: [{ skin: 2, hair: 1, hairColor: 0, top: 4, bottom: 0 }, { scrubs: 0x7ab0d8, coat: true }], // light blue scrubs, white coat
       // Splinter: a filthy old army jacket, a cap, a beard (sits against the sewer wall).
-      splinter: [{ skin: 1, hair: 4, hairColor: 1, top: 3, bottom: 3 }, { apron: 0x4a4a32 }],
+      splinter: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 3 }, { jacket: 0x4e5236 }],
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];

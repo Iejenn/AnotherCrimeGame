@@ -149,8 +149,29 @@ export interface Rig {
   body: THREE.Object3D;
 }
 
+/**
+ * What a person wears on top of their look (their job's clothes), all fitted to the base model:
+ *  - apron: a shop apron (a bib with a neck strap, a skirt to the thighs, ties at the waist), in this colour;
+ *  - suit: a suit jacket (the top colour) over a shirt of this colour, with lapels and a tie; long sleeves;
+ *  - uniform: a guard's uniform (the top colour): a badge, straps on the shoulders, long sleeves;
+ *  - vest: an open leather vest in this colour, over the shirt;
+ *  - hood: a hoodie in this colour: the hood up, long sleeves, a front pocket;
+ *  - jacket: an old jacket in this colour, with long sleeves, big pockets and a collar (Splinter's army jacket);
+ *  - scrubs + coat: a doctor: scrubs in this colour under a long white coat with long sleeves.
+ */
+export interface Outfit {
+  apron?: number;
+  suit?: number;
+  uniform?: boolean;
+  vest?: number;
+  hood?: number;
+  jacket?: number;
+  scrubs?: number;
+  coat?: boolean;
+}
+
 /** Build a person. The returned group has `userData.rig` for animateCharacter() and setGear(). */
-export function buildCharacter(look: Look, extra?: { apron?: number; hood?: number; scrubs?: number; coat?: boolean }): THREE.Group {
+export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   const root = new THREE.Group();
   const body = new THREE.Group(); // everything, so it can bob, wobble, twist and sit down
   root.add(body);
@@ -158,12 +179,14 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   // Doctors wear scrubs (top and trousers in one colour) under a white coat.
   const coat = extra?.coat ? mat(0xf4f4f0) : null;
   const scrubs = extra?.scrubs !== undefined ? mat(extra.scrubs) : null;
-  const top = coat ?? scrubs ?? mat(TOP_COLORS[look.top] ?? TOP_COLORS[0]);
+  const top = coat ?? scrubs ?? (extra?.jacket !== undefined ? mat(extra.jacket) : mat(TOP_COLORS[look.top] ?? TOP_COLORS[0]));
   const bottom = scrubs ?? mat(BOTTOM_COLORS[look.bottom] ?? BOTTOM_COLORS[0]);
   const hair = mat(HAIR_COLORS[look.hairColor] ?? HAIR_COLORS[0]);
   const dark = mat(0x1e1b18);
   const sole = mat(0x3e352c);
   const shade = (m: THREE.MeshLambertMaterial, k: number) => mat(m.color.clone().multiplyScalar(k).getHex());
+  // Jackets, coats, hoodies, suits and uniforms have long sleeves (the forearms in the top's colour, a cuff at the wrist).
+  const longSleeves = !!(extra?.coat || extra?.hood !== undefined || extra?.suit !== undefined || extra?.uniform || extra?.jacket !== undefined);
 
   // Parts are collected per joint and colour, then merged into one mesh each (a handful of draw calls per person).
   const parts = new Map<THREE.Object3D, Map<THREE.Material, THREE.BufferGeometry[]>>();
@@ -205,14 +228,53 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   put(geo.buckle, mat(0x9a8a5a), body, 0, 0.678, 0.104);
   put(geo.torso, planes((top as THREE.MeshLambertMaterial).color.getHex()), body);
   put(geo.neck, skin, body);
-  if (extra?.apron !== undefined) put(new THREE.BoxGeometry(0.24, 0.3, 0.025), mat(extra.apron), body, 0, 0.83, 0.115, [0.08, 0, 0]);
+  const F = 0.112; // how far in front of the body's centre the chest's flat front is (clothes sit just outside it)
+  if (extra?.apron !== undefined) {
+    // A shop apron: a bib over the chest on a strap round the neck, a skirt down to the thighs, ties at the back.
+    const ap = mat(extra.apron);
+    put(new THREE.BoxGeometry(0.2, 0.2, 0.012), ap, body, 0, 0.88, F + 0.006);
+    put(new THREE.BoxGeometry(0.29, 0.34, 0.012), ap, body, 0, 0.56, 0.11, [-0.08, 0, 0]);
+    for (const sd of [-1, 1]) put(new THREE.BoxGeometry(0.012, 0.14, 0.012), ap, body, sd * 0.07, 1.0, 0.07, [0.5, 0, sd * -0.35]);
+    put(new THREE.BoxGeometry(0.31, 0.02, 0.2), ap, body, 0, 0.71, 0);
+    put(new THREE.BoxGeometry(0.1, 0.06, 0.012), shade(ap, 0.85), body, 0, 0.62, 0.135, [-0.08, 0, 0]); // a pocket
+  }
+  if (extra?.suit !== undefined) {
+    // A suit: the shirt shows in a V at the chest, a tie down it, dark lapels either side, buttons.
+    put(new THREE.BoxGeometry(0.09, 0.15, 0.01), mat(extra.suit), body, 0, 0.94, F + 0.002);
+    put(new THREE.BoxGeometry(0.03, 0.17, 0.01), mat(0x6a1a22), body, 0, 0.9, F + 0.008);
+    for (const sd of [-1, 1]) put(new THREE.BoxGeometry(0.05, 0.17, 0.012), shade(top as THREE.MeshLambertMaterial, 0.75), body, sd * 0.06, 0.93, F + 0.006, [0, 0, sd * 0.35]);
+    for (const y of [0.78, 0.83]) put(new THREE.BoxGeometry(0.016, 0.016, 0.01), mat(0x2a2620), body, 0, y, F - 0.004);
+  }
+  if (extra?.uniform) {
+    // A guard's uniform: a gold badge on the chest, straps on the shoulders, a pocket.
+    put(new THREE.BoxGeometry(0.04, 0.045, 0.012), mat(0xd8b04a), body, -0.08, 0.92, F + 0.004);
+    put(new THREE.BoxGeometry(0.07, 0.06, 0.01), shade(top as THREE.MeshLambertMaterial, 0.8), body, 0.08, 0.88, F + 0.003);
+    for (const sd of [-1, 1]) put(new THREE.BoxGeometry(0.07, 0.016, 0.1), shade(top as THREE.MeshLambertMaterial, 0.7), body, sd * 0.17, 1.005, 0, [0, 0, sd * -0.2]);
+  }
+  if (extra?.vest !== undefined) {
+    // An open leather vest: two front panels with the shirt between them, the back, a patch on it.
+    const v = mat(extra.vest);
+    for (const sd of [-1, 1]) put(new THREE.BoxGeometry(0.11, 0.3, 0.014), v, body, sd * 0.098, 0.86, F + 0.006, [0, sd * 0.25, 0]);
+    put(new THREE.BoxGeometry(0.36, 0.32, 0.014), v, body, 0, 0.86, -F + 0.002);
+    put(new THREE.CircleGeometry(0.06, 8), mat(0x8a2a22), body, 0, 0.9, -F - 0.007, [0, Math.PI, 0]);
+  }
+  if (extra?.hood !== undefined) {
+    // A hoodie's front pocket.
+    put(new THREE.BoxGeometry(0.18, 0.08, 0.012), shade(top as THREE.MeshLambertMaterial, 0.85), body, 0, 0.76, F + 0.002);
+  }
+  if (extra?.jacket !== undefined) {
+    // An old jacket: two big front pockets and a collar.
+    for (const sd of [-1, 1]) put(new THREE.BoxGeometry(0.08, 0.07, 0.014), shade(top as THREE.MeshLambertMaterial, 0.8), body, sd * 0.08, 0.8, F + 0.004);
+    put(stack([[1.0, 0.11, 0.08, -0.01], [1.05, 0.09, 0.07, -0.02]], 8), shade(top as THREE.MeshLambertMaterial, 0.85), body);
+  }
   if (coat) {
     // The coat hangs open over the scrubs: the scrubs show in a V at the chest, the coat's skirt reaches the knees,
-    // a stethoscope round the neck and a name badge.
-    if (scrubs) put(new THREE.BoxGeometry(0.08, 0.18, 0.02), scrubs, body, 0, 0.92, 0.118, [0.15, 0, 0]);
-    put(stack([[0.36, 0.17, 0.12], [0.7, 0.15, 0.108]], 10), coat, body);
+    // lapels, a stethoscope round the neck and a name badge.
+    if (scrubs) put(new THREE.BoxGeometry(0.08, 0.18, 0.01), scrubs, body, 0, 0.92, F + 0.003);
+    for (const sd of [-1, 1]) put(new THREE.BoxGeometry(0.045, 0.2, 0.012), shade(coat, 0.9), body, sd * 0.058, 0.91, F + 0.007, [0, 0, sd * 0.3]);
+    put(stack([[0.36, 0.17, 0.12], [0.5, 0.16, 0.114], [0.7, 0.152, 0.106]], 10), coat, body);
     put(new THREE.TorusGeometry(0.075, 0.009, 3, 8, Math.PI), mat(0x3a5a4a), body, 0, 0.98, 0.07, [Math.PI * 0.6, 0, Math.PI]);
-    put(new THREE.BoxGeometry(0.045, 0.03, 0.008), mat(0x3a6ea5), body, 0.08, 0.9, 0.125);
+    put(new THREE.BoxGeometry(0.045, 0.03, 0.008), mat(0x3a6ea5), body, 0.09, 0.88, F + 0.008);
   }
 
   // ---------- the head: a simple strong face ----------
@@ -262,7 +324,11 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
     put(geo.deltoid, top, arm, sd * -0.012, -0.02, 0, [0, 0, 0], [0.95, 1.0, 1]);
     put(geo.sleeve, top, arm);
     put(geo.upperArm, skin, arm);
-    put(geo.forearm, skin, elbow);
+    if (longSleeves) {
+      put(geo.forearm, top, elbow, 0, 0, 0, [0, 0, 0], [1.12, 1, 1.12]);
+      put(stack([[-0.205, 0.04, 0.042, 0.004], [-0.18, 0.04, 0.042, 0.004]], 8), shade(top as THREE.MeshLambertMaterial, 0.8), elbow);
+      put(geo.upperArm, top, arm, 0, 0, 0, [0, 0, 0], [1.1, 1, 1.1]);
+    } else put(geo.forearm, skin, elbow);
     put(geo.fist, skin, elbow, 0, BODY.fist, 0.006);
     put(geo.thumb, skin, elbow, sd * -0.026, BODY.fist + 0.012, 0.036, [0.2, 0, sd * 0.2]);
     return [arm, elbow] as const;
