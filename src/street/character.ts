@@ -94,7 +94,8 @@ const geo = {
   hips: stack([[0.54, 0.128, 0.09], [0.6, 0.142, 0.098], [0.665, 0.146, 0.1]], 10),
   belt: stack([[0.655, 0.15, 0.104], [0.7, 0.148, 0.102]], 10),
   buckle: new THREE.BoxGeometry(0.036, 0.03, 0.01),
-  torso: stack([[0.69, 0.142, 0.1], [0.76, 0.136, 0.096], [0.84, 0.156, 0.108], [0.91, 0.184, 0.122], [0.965, 0.198, 0.118], [1.0, 0.17, 0.104], [1.03, 0.11, 0.08], [1.045, 0.06, 0.055]], 12),
+  // (8 sides: a flat chest and back, broad flat sides, squared shoulders; drawn with hard edges, see `planes` below)
+  torso: stack([[0.69, 0.15, 0.1], [0.76, 0.145, 0.095], [0.85, 0.17, 0.106], [0.92, 0.2, 0.116], [0.975, 0.215, 0.11], [1.0, 0.19, 0.098], [1.03, 0.115, 0.072], [1.045, 0.062, 0.052]], 8),
   // ---- an arm (from the shoulder pivot): deltoid, short sleeve, bicep; forearm and fist (from the elbow pivot) ----
   deltoid: new THREE.SphereGeometry(0.058, 8, 6),
   sleeve: stack([[-0.14, 0.06, 0.062, 0.004], [-0.07, 0.062, 0.064], [-0.01, 0.06, 0.062], [0.03, 0.035, 0.045, -0.005]], 8),
@@ -109,12 +110,22 @@ const geo = {
   sole: lying([[-0.072, 0.044, 0.01], [0.128, 0.044, 0.01]], 8),
   shadow: new THREE.CircleGeometry(0.22, 12),
 };
-const matCache = new Map<number, THREE.MeshLambertMaterial>();
+const matCache = new Map<string, THREE.MeshLambertMaterial>();
+/** A person's colour, smooth-shaded (soft across rounded parts, hard where the shape turns sharply). */
 function mat(color: number) {
-  let m = matCache.get(color);
+  return cached(color, 0.9);
+}
+/** The same colour with hard edges between its flat planes (the chest and back: planes, not a barrel). */
+function planes(color: number) {
+  return cached(color, 0.3);
+}
+function cached(color: number, crease: number) {
+  const key = `${color}|${crease}`;
+  let m = matCache.get(key);
   if (!m) {
     m = new THREE.MeshLambertMaterial({ color });
-    matCache.set(color, m);
+    m.userData.crease = crease;
+    matCache.set(key, m);
   }
   return m;
 }
@@ -189,7 +200,7 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
   put(geo.hips, bottom, body);
   put(geo.belt, mat(0x4a2a1e), body);
   put(geo.buckle, mat(0x9a8a5a), body, 0, 0.678, 0.104);
-  put(geo.torso, top, body);
+  put(geo.torso, planes((top as THREE.MeshLambertMaterial).color.getHex()), body);
   put(geo.neck, skin, body);
   if (extra?.apron !== undefined) put(new THREE.BoxGeometry(0.24, 0.3, 0.025), mat(extra.apron), body, 0, 0.83, 0.115, [0.08, 0, 0]);
   if (coat) {
@@ -260,7 +271,7 @@ export function buildCharacter(look: Look, extra?: { apron?: number; hood?: numb
       const merged = mergeGeometries(list, false);
       list.forEach((g) => g.dispose());
       if (!merged) continue;
-      const smooth = toCreasedNormals(merged, 0.9);
+      const smooth = toCreasedNormals(merged, (m.userData.crease as number | undefined) ?? 0.9);
       merged.dispose();
       const o = new THREE.Mesh(smooth, m);
       o.castShadow = true;

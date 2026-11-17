@@ -915,7 +915,7 @@ learned from old-school RuneScape, not copied.
 - **Joints:** hips, knees, shoulders, elbows, the head, and a point in the right fist where weapons go
   (`userData.rig`: legL/R, kneeL/R, armL/R, elbowL/R, head, hand, body). Walking bends the knees, sitting bends them 90°,
   `sitFloor` sits on the ground, punches and swings bend the elbows.
-- **Detail is shape:** a strong chest and shoulders, a T-shirt with short sleeves over bare forearms, a belt with a
+- **Detail is shape:** a strong chest and shoulders (the chest is 8 flat planes with hard edges, not a round barrel), a T-shirt with short sleeves over bare forearms, a belt with a
   buckle, slightly baggy trousers, shoes with a sole, fists with a thumb, a simple strong face (eye slits, brows, a
   nose, a mouth line, ears), hair with a hairline. No buttons, laces or separate fingers: you can't see them from the
   game's camera.
