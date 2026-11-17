@@ -1742,15 +1742,30 @@ export function buildCity(scene: THREE.Scene) {
     // A painted name over the door.
     const sign = add(own(new THREE.PlaneGeometry(3.4, 0.55)), own(new THREE.MeshBasicMaterial({ map: own(signTexture('FACTORY', '#3a3632', '#c8b89a')) })), (d0 + d1) / 2, 2.75, Z1 + 0.02, false);
     props.push(sign);
-    // The roof: a corrugated sawtooth, three ridges, with skylights (some broken), on top of the walls.
+    // The roof: a closed slab on top of the walls, and on it a corrugated sawtooth: three ridges, each rising towards
+    // the north with a steep glazed face there, and a skylight lying on each slope (the middle one broken). Closed shapes,
+    // so nothing shows through from outside; all of it lifts off while you're inside.
     const roofMat = lam(0x6a6a66, { map: corrugated });
+    props.push(add(geoBox(X1 - X0 + 0.2, 0.1, Z1 - Z0 + 0.2), lam(0x4a4a48), cx, HT + 0.05, cz));
+    const RISE = 0.75;
+    const bay = (Z1 - Z0) / 3;
+    const ridge = new THREE.Shape();
+    ridge.moveTo(0, 0);
+    ridge.lineTo(bay, 0);
+    ridge.lineTo(0, RISE);
+    ridge.closePath();
+    const ridgeGeo = own(new THREE.ExtrudeGeometry(ridge, { depth: X1 - X0 + 0.2, bevelEnabled: false }));
+    ridgeGeo.rotateY(-Math.PI / 2); // the triangle stands in the north–south plane, extruded west → east
+    const slope = Math.atan2(RISE, bay);
     for (let i = 0; i < 3; i++) {
-      const z0 = Z0 + (i * (Z1 - Z0)) / 3;
-      const depth = (Z1 - Z0) / 3;
-      const slope = add(geoBox(X1 - X0 + 0.3, 0.08, depth * 1.06), roofMat, cx, HT + 0.45, z0 + depth / 2);
-      slope.rotation.x = -0.28;
-      props.push(slope);
-      props.push(add(geoBox(X1 - X0 - 1, 0.04, 0.8), i === 1 ? broken : lam(0x9fb8c8, { emissive: 0x405060, emissiveIntensity: 0.3 }), cx, HT + 0.62, z0 + depth * 0.35, false));
+      const z0 = Z0 + i * bay;
+      const m = add(ridgeGeo, roofMat, X1 + 0.1, HT + 0.1, z0);
+      props.push(m);
+      // The glazed north face of the ridge, and a skylight on the slope.
+      props.push(add(geoBox(X1 - X0 - 0.6, RISE * 0.7, 0.03), glassMat, cx, HT + 0.1 + RISE * 0.4, z0 - 0.02, false));
+      const sky = add(geoBox(X1 - X0 - 2, 0.03, bay * 0.45), i === 1 ? broken : lam(0x9fb8c8, { emissive: 0x405060, emissiveIntensity: 0.3 }), cx, HT + 0.1 + RISE * 0.5 + 0.02, z0 + bay * 0.5, false);
+      sky.rotation.x = slope;
+      props.push(sky);
     }
     // Inside: the plate presses (west wall) and workbenches (east wall) are the stations (drawn below), crates at the
     // back, oil drums, and lamps hanging from the roof.
@@ -1814,11 +1829,12 @@ export function buildCity(scene: THREE.Scene) {
       if (!alongX) m.rotation.y = Math.PI / 2;
       post.add(alongX ? x - 0.5 : x, 0.7, alongX ? z : z - 0.5);
     };
-    const gate = new Set(FACTORY_LOT_GATE.map(([, y]) => y));
+    const gateW = new Set(FACTORY_LOT_GATE.filter(([x]) => x === FACTORY_LOT.x0).map(([, y]) => y));
+    const gateE = new Set(FACTORY_LOT_GATE.filter(([x]) => x === FACTORY_LOT.x1).map(([, y]) => y));
     for (let x = L0; x < L1; x++) panel(x + 0.5, LZ1 - 0.02, true);
     for (let z = LZ0; z < LZ1; z++) {
-      if (!gate.has(z)) panel(L0 + 0.02, z + 0.5, false);
-      panel(L1 - 0.02, z + 0.5, false);
+      if (!gateW.has(z)) panel(L0 + 0.02, z + 0.5, false);
+      if (!gateE.has(z)) panel(L1 - 0.02, z + 0.5, false);
     }
     post.build(scene);
     // A lamp post in the lot, and a few old tyres and pallets.

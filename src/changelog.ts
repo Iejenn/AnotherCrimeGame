@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.41.1',
+    date: '2026-11-17',
+    title: 'Fixed roof',
+    items: [
+      'The Factory has a proper roof now (you could see inside through gaps).',
+      'The Factory\'s parking lot has a second opening in the fence, on the east side.',
+      'Salvaging keeps digging by itself right away when you find nothing, until you find something.',
+    ],
+  },
+  {
     version: '0.41.0',
     date: '2026-11-17',
     title: 'Made of tin',

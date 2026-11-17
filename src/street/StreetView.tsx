@@ -668,7 +668,7 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       const job = st.player.job;
       me.attached = n;
       me.attachedAt = performance.now();
-      if (job && job.crimeId === n.crimeId) return;
+      if (job && job.crimeId === n.crimeId && job.endsAt > gameNow()) return; // mid-attempt (one that has ended counts as done)
       const busy = busyReason(st, gameNow());
       if (busy) return say(busy);
       const empty = emptyFor(st, n.id, gameNow());
@@ -1089,9 +1089,12 @@ export function StreetView({ s, api, onReport, world, chat }: { s: GameState; ap
       // Scrapping: found nothing this time? Keep digging in the same dumpster (unless you walked off or are busy).
       if (r.jobs && r.fails && !r.damage && me.attached && CRIME_BY_ID[me.attached.crimeId]?.skill === 'scrapping') {
         const n = me.attached;
+        // (The game's state reaches this view a moment later, so the attempt that just ended may still look busy: an
+        // attempt that's past its end counts as done.)
         setTimeout(() => {
-          if (me.attached?.id === n.id && !me.path.length && !sRef.current.player.job) arrive(n);
-        }, 120);
+          const j = sRef.current.player.job;
+          if (me.attached?.id === n.id && !me.path.length && (!j || j.endsAt <= gameNow())) arrive(n);
+        }, 0);
       }
       // A failed grab at the gym bags: the throw first, the hit when the ball lands.
       if (r.hit && me.lastSpot.startsWith('bag_')) {
