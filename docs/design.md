@@ -1025,7 +1025,10 @@ learned from old-school RuneScape, not copied.
 
 **New props are models** (v0.58): a prop is built as its own model in `props.ts` (standing on the floor at its origin,
 flat-shaded, within its budget) and placed in city.ts, never pieced together from loose boxes in the scene;
-`src/street/props.test.ts` counts their triangles against the budget.
+`src/street/props.test.ts` counts their triangles against the budget. **And it gets textures** (v0.59): every surface
+made of a material with a look (brick, wood, steel, paint, concrete, and new ones as needed) uses a pixel texture
+drawn in code (`texMat` in props.ts), not a plain colour; a new material gets its own painter there. Small details
+(dice, bottles, glowing bits) can stay plain.
 
 ### Bag icons match the ground (v0.49)
 Food is pictured in the bag from the very model it is on the ground: `scripts/render-icons.cjs` renders each one
