@@ -85,6 +85,10 @@ begin
   execute replace(def, $t$'equipment', p.equipment,$t$, $t$'equipment', p.equipment, 'style', p.fight_style,$t$);
 end $do$;
 
+-- The new Marksman slot is an allowed gear slot (the live check only had weapon, head, body, legs, feet).
+alter table public.items drop constraint if exists items_slot_check;
+alter table public.items add constraint items_slot_check check (slot = any (array['weapon', 'marksman', 'head', 'body', 'legs', 'feet']));
+
 insert into public.items (id, name, slot, damage, accuracy, defence, speed, needs_skill, needs_level, heal, value, quest, stack, range) values
   ('tin_throwing_knife', 'Tin Throwing Knife', 'marksman', 1, 0, 0, 3, 'marksman', 1, 0, 1, false, true, 6),
   ('copper_throwing_knife', 'Copper Throwing Knife', 'marksman', 2, 0, 0, 3, 'marksman', 11, 0, 2, false, true, 6)
