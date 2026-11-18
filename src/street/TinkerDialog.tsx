@@ -13,7 +13,8 @@ const canMake = (s: GameState, c: Craft) => Math.min(...Object.entries(c.inputs)
 
 export function TinkerDialog({ s, api, pos, kind, onClose }: { s: GameState; api: GameApi; pos: [number, number]; kind: 'press' | 'bench'; onClose: () => void }) {
   const level = skillLevel(s, 'tinkering');
-  const crafts = CRAFTS.filter((c) => c.station === kind);
+  // In the order they unlock (v0.51: throwing knives unlock at the metal's first level, before the knuckles).
+  const crafts = CRAFTS.filter((c) => c.station === kind).sort((a, b) => a.level - b.level);
   return (
     <div className="npc-dialog" role="dialog" aria-label={kind === 'press' ? 'The plate press' : 'The workbench'} onPointerDown={(e) => e.stopPropagation()}>
       <div className="npc-head">

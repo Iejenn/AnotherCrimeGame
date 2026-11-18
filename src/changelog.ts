@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.52.0',
+    date: '2026-11-18',
+    title: 'Blocking trains Health',
+    items: [
+      'Health and Defense train on blocked hits too: every time an enemy misses you, you get 0.5 Health XP and 0.5 Defense XP. With a high Defense, Health no longer stalls.',
+      "If an enemy you throw at has no way to walk to you, you can still throw: it just can't hit back. It costs you the knives.",
+      'The combat style button moved to the minimap (bottom-left, while you have throwing knives readied): a knife for Melee, a gun for Marksman. Tap it to switch.',
+      'The workbench lists everything in the order it unlocks: throwing knives first.',
+    ],
+  },
+  {
     version: '0.51.0',
     date: '2026-11-18',
     title: 'Marksman: throwing knives',

@@ -12,6 +12,8 @@ export const COMBAT_XP = {
   defense: 0.5,
   /** Health, for damage you take in combat. */
   health: 1,
+  /** v0.52: an enemy's miss (you blocked it): this much Health XP AND Defense XP. */
+  blocked: 0.5,
 };
 
 /** Fighting with nothing in your hands. */
