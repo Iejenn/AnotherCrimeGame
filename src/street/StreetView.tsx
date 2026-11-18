@@ -13,7 +13,7 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { BAR_FACING, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { clearShot, routeMs, routePoint } from './sight';
 import { rangedWeapon } from '../game/combat';
@@ -1052,7 +1052,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     mini.height = MINI_SIZE * dpr;
     mini.style.width = `${MINI_SIZE}px`;
     mini.style.height = `${MINI_SIZE}px`;
-    const base = drawWorld(BASE_PX, true);
+    // Two pictures (v0.57): the surface with its whole beach and shallows round it, and underground (the sewer).
+    const SURFACE_EDGE = 10;
+    const surface = drawWorld(BASE_PX, false, SURFACE_EDGE);
+    const underground = drawWorld(BASE_PX, true);
     const drawMini = () => {
       const g = mini.getContext('2d')!;
       const R = MINI_SIZE / 2;
@@ -1071,7 +1074,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       g.rotate(yaw);
       g.scale(MINI_TILE, MINI_TILE);
       g.translate(-me.pos.x, -me.pos.z);
-      g.drawImage(base, -MAP_EDGE, -MAP_EDGE, base.width / BASE_PX, base.height / BASE_PX);
+      const below = inSewer(Math.floor(me.pos.x), Math.floor(me.pos.z));
+      const base = below ? underground : surface;
+      const edge = below ? MAP_EDGE : SURFACE_EDGE;
+      g.drawImage(base, -edge, -edge, base.width / BASE_PX, base.height / BASE_PX);
       /** Draw something upright (not turned with the map) at world point (x, z), in CSS pixels. */
       const upright = (x: number, z: number, draw: () => void) => {
         g.save();
@@ -1359,6 +1365,71 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     // ---------- main loop ----------
     let last = performance.now();
     let raf = 0;
+    /** Walk along the path (dt in seconds). */
+    const walkStep = (dt: number) => {
+    if (me.path.length) {
+      const next = center(...me.path[0]);
+      const d = next.clone().sub(me.pos);
+      const step = WALK_SPEED * dt;
+      if (d.length() <= step) {
+        me.pos.copy(next);
+        me.path.shift();
+        if (!me.path.length && me.goal) {
+          arrive(me.goal);
+          me.goal = null;
+        }
+        if (!me.path.length && me.goalGrave) {
+          me.goalGrave = false;
+          openGrave();
+        }
+        if (!me.path.length && me.goalEnemy) {
+          savePos();
+          reachEnemy();
+        }
+        if (!me.path.length && me.goalGround !== null) {
+          savePos();
+          reachGround();
+        }
+        if (!me.path.length && me.goalStation) {
+          savePos();
+          reachStation();
+        }
+        if (!me.path.length && me.goalLink) {
+          savePos();
+          reachLink();
+        }
+        if (!me.path.length && me.goalGate) {
+          savePos();
+          reachGate();
+        }
+        if (!me.path.length) savePos();
+        if (!me.path.length && me.goalNpc) {
+          const npc = me.goalNpc;
+          const ep = npcWalk.get(npc.id)!.pos;
+          me.facing = Math.atan2(ep.x - me.pos.x, ep.z - me.pos.z);
+          npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - ep.x, me.pos.z - ep.z);
+          meetNpc(npc);
+          me.goalNpc = null;
+        }
+      } else {
+        me.pos.add(d.normalize().multiplyScalar(step));
+        me.facing = Math.atan2(d.x, d.z);
+      }
+    }
+    };
+    // v0.58: a hidden tab (another tab, a minimised browser) gets no animation frames, so you'd stop mid-walk. It's an
+    // online game: keep walking on a timer while hidden (the browser still runs it, if only about once a second), in
+    // the same small steps as on screen, and nothing is drawn.
+    const background = window.setInterval(() => {
+      if (!document.hidden) return;
+      const now = performance.now();
+      let left = Math.min(120, (now - last) / 1000);
+      last = now;
+      while (left > 0 && me.path.length) {
+        walkStep(Math.min(0.05, left));
+        left -= 0.05;
+      }
+    }, 250);
     camTarget.copy(me.pos);
     const loop = () => {
       raf = requestAnimationFrame(loop);
@@ -1370,55 +1441,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const job = meCrew?.job;
 
       // Walk along the path.
-      if (me.path.length) {
-        const next = center(...me.path[0]);
-        const d = next.clone().sub(me.pos);
-        const step = WALK_SPEED * dt;
-        if (d.length() <= step) {
-          me.pos.copy(next);
-          me.path.shift();
-          if (!me.path.length && me.goal) {
-            arrive(me.goal);
-            me.goal = null;
-          }
-          if (!me.path.length && me.goalGrave) {
-            me.goalGrave = false;
-            openGrave();
-          }
-          if (!me.path.length && me.goalEnemy) {
-            savePos();
-            reachEnemy();
-          }
-          if (!me.path.length && me.goalGround !== null) {
-            savePos();
-            reachGround();
-          }
-          if (!me.path.length && me.goalStation) {
-            savePos();
-            reachStation();
-          }
-          if (!me.path.length && me.goalLink) {
-            savePos();
-            reachLink();
-          }
-          if (!me.path.length && me.goalGate) {
-            savePos();
-            reachGate();
-          }
-          if (!me.path.length) savePos();
-          if (!me.path.length && me.goalNpc) {
-            const npc = me.goalNpc;
-            const ep = npcWalk.get(npc.id)!.pos;
-            me.facing = Math.atan2(ep.x - me.pos.x, ep.z - me.pos.z);
-            npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - ep.x, me.pos.z - ep.z);
-            meetNpc(npc);
-            me.goalNpc = null;
-          }
-        } else {
-          me.pos.add(d.normalize().multiplyScalar(step));
-          me.facing = Math.atan2(d.x, d.z);
-        }
-      }
+      walkStep(dt);
       // Job finished or stopped elsewhere (e.g. the crew card's Stop button). The grace period covers the
       // moment right after arriving, before the new job has reached this view.
       if (me.attached && !job && !me.path.length && now - me.attachedAt > 1500) me.attached = null;
@@ -1539,7 +1562,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               w.speed = 1.6;
               // Walk back to where his routine has him now (the bartender's spot, the guard's place on his route).
           const home: [number, number] =
-            npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? [npc.area.x0 + bartenderAt(gameNow()).spot, npc.area.y0] : [npc.x, npc.y];
+            npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? barSpot(bartenderAt(gameNow()).spot) : [npc.x, npc.y];
           w.path = findPath(blocked, GRID, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
             }
           } else if (followPath(w, g, dt)) {
@@ -1557,14 +1580,14 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           // His routine is a fixed schedule (game/watchers.ts): watch the room, then turn his back and
           // polish the bottles at one of three spots. We only draw it; the game rules decide if he saw you.
           const b = bartenderAt(gameNow());
-          if (!b.watching) w.target = center(npc.area.x0 + b.spot, npc.area.y0);
+          if (!b.watching) w.target = center(...barSpot(b.spot)); // (v0.58: along his aisle, which runs north–south)
           const d = w.target.clone().sub(w.pos);
           if (d.length() > 0.02) {
             w.pos.add(d.clampLength(0, 1.6 * dt));
             g.rotation.y = Math.atan2(d.x, d.z);
             w.moving = true;
           } else {
-            g.rotation.y = turnTowards(g.rotation.y, b.watching ? 0 : Math.PI, dt * 6);
+            g.rotation.y = turnTowards(g.rotation.y, b.watching ? BAR_FACING.watch : BAR_FACING.polish, dt * 6);
           }
           g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
           animateCharacter(g, w.moving ? 'walk' : b.watching ? 'idle' : 'work', now, 2.3);
@@ -2164,6 +2187,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     return () => {
       savePos();
       cancelAnimationFrame(raf);
+      clearInterval(background);
       off();
       offFight?.();
       ro.disconnect();

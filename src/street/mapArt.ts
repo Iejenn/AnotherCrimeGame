@@ -1,7 +1,7 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
 import { coastAt } from './coast';
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PARK_JOINS, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
+import { TURF_SITE, YARD, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PARK_JOINS, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
@@ -9,13 +9,15 @@ export const MAP_EDGE = 3;
 export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#3a5a8a', weapons: '#5a5a62', club: '#3e3430' };
 
 /**
- * Draw the whole map into a new canvas at `px` canvas pixels per tile. Tile (x, y) starts at
- * ((x + MAP_EDGE) * px, (y + MAP_EDGE) * px).
+ * Draw the whole map into a new canvas at `px` canvas pixels per tile, with `edge` tiles of sea round it. Tile (x, y)
+ * starts at ((x + edge) * px, (y + edge) * px).
  */
-export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
+export function drawWorld(px: number, withSewer = false, edge = MAP_EDGE): HTMLCanvasElement {
+  const MAP_EDGE = edge;
   const c = document.createElement('canvas');
   c.width = (W + MAP_EDGE * 2) * px;
-  // The minimap also has the sewer (drawn below the island, where its tiles are); the world map only the island.
+  // The minimap's underground picture has the sewer (drawn below the island, where its tiles are); the others only the
+  // island and its coast (v0.57: two pictures, so the sewer's dark rock never covers the south beach you can walk on).
   c.height = ((withSewer ? GH : H) + MAP_EDGE * 2) * px;
   const g = c.getContext('2d')!;
   const tile = (x: number, y: number, w: number, h: number, col: string) => {
@@ -62,6 +64,16 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   area(FACTORY, '#7a5a48');
   tile(FACTORY.x0 + 0.3, FACTORY.y0 + 0.3, FACTORY.x1 - FACTORY.x0 + 0.4, FACTORY.y1 - FACTORY.y0 + 0.4, '#6a6a66');
   area(FACTORY_LOT, '#3e4046');
+  // v0.58: the bar and the Yard: one site (the street between I-009 and 007 is part of it), the Yard's cracked concrete.
+  tile(TURF_SITE.x0 - 1.5, TURF_SITE.y0 - 1.5, TURF_SITE.x1 - TURF_SITE.x0 + 4, TURF_SITE.y1 - TURF_SITE.y0 + 4, '#66625b');
+  area(YARD, '#55524d');
+  for (const f of FIXTURES) {
+    if (f.kind === 'container') tile(f.x, f.y, 1, 1, '#2f5a78');
+    if (f.kind === 'ruin') tile(f.x, f.y + 0.3, 1, 0.4, '#8a5040');
+    if (f.kind === 'rubble') tile(f.x + 0.2, f.y + 0.2, 0.6, 0.6, '#7a766e');
+    if (f.kind === 'stripped') tile(f.x, f.y + 0.1, 1, 0.8, '#6a6e74');
+  }
+  for (const r of ROOMS) if (r.id === 'bar') area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
   // The Thrift Store (brick) and its yard (concrete) with the dumpsters.
   area(THRIFT, '#8a5040');
   area(THRIFT_YARD, '#5a5852');

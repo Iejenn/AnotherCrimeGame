@@ -323,15 +323,8 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       }
       rerender();
     }, 250);
-    // Leaving the game stops your attempt (only active play counts).
-    const onHide = () => {
-      if (document.visibilityState === 'hidden' && ref.current.player.job) call('stop_attempt');
-    };
-    document.addEventListener('visibilitychange', onHide);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', onHide);
-    };
+    // (v0.58: switching to another tab no longer stops your attempt: it's an online game, everything carries on.)
+    return () => clearInterval(id);
   }, [call, settle]);
 
   const api: GameApi = useMemo(

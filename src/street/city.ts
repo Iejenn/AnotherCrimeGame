@@ -10,7 +10,7 @@ import { SURFACES, buildFloor } from './floor';
 import { DETAIL_GAIN, animateWater, waterTexture } from './textures';
 import { COAST_ROCKS, SHALLOWS, coastAt } from './coast';
 import {
-  BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
+  BAR, TURF_SITE, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
   PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, gi, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SUPERSTORE, SUPERSTORE_GATE, SUPERSTORE_LOT, SUPERSTORE_YARD,
@@ -166,9 +166,9 @@ export function buildCity(scene: THREE.Scene) {
   const zebra = new Batch(geoBox(0.32, 0.01, 2.6), lam(0xd8d2c4), false);
   const inCrossing = (v: number) => v % PITCH < STREET;
   /** On the Factory's site (I-003 + I-006 merged, the street between them included): no road paint, lamps or lights. */
-  // (v0.54: the park's joins too: they were streets, now they're lawn.)
+  // (v0.54: the park's joins too: they were streets, now they're lawn. v0.58: the bar and the Yard's site too.)
   const onSite = (x: number, z: number) =>
-    (x >= FACTORY_SITE.x0 - 0.2 && x <= FACTORY_SITE.x1 + 1.2 && z >= FACTORY_SITE.y0 - 0.2 && z <= FACTORY_SITE.y1 + 1.2) || inPark(Math.floor(x), Math.floor(z));
+    [FACTORY_SITE, TURF_SITE].some((S) => x >= S.x0 - 0.2 && x <= S.x1 + 1.2 && z >= S.y0 - 0.2 && z <= S.y1 + 1.2) || inPark(Math.floor(x), Math.floor(z));
   /** How many roads meet at crossing (i, j) (the one north-west of block (i, j)): 4 inside the city, 3 along the
    *  island's edge, 2 on a bend; a road that became the park or the Factory's site doesn't count. */
   const roadsAt = (i: number, j: number) => {
@@ -184,7 +184,7 @@ export function buildCity(scene: THREE.Scene) {
   };
   for (let k = 0; k <= BCOLS; k++) {
     const x = k * PITCH + STREET / 2; // centre of a north–south street
-    for (let z = 0; z < H; z += 1.6) if (!inCrossing(Math.floor(z)) && !inCrossing(Math.floor(z + 0.7))) dash.add(x, 0.006, z + 0.35);
+    for (let z = 0; z < H; z += 1.6) if (!inCrossing(Math.floor(z)) && !inCrossing(Math.floor(z + 0.7)) && !onSite(x, z + 0.35)) dash.add(x, 0.006, z + 0.35);
   }
   for (let k = 0; k <= BROWS; k++) {
     const z = k * PITCH + STREET / 2;
@@ -217,6 +217,8 @@ export function buildCity(scene: THREE.Scene) {
     for (let by = 0; by < BROWS; by++) {
       const b = blockRect(bx, by);
       if (inPark(b.x0, b.y0)) continue; // (the park's sidewalk is one, below)
+      // (v0.58: nor the merged sites': one sidewalk round each, drawn with it; a block's own curb showed through.)
+      if ([FACTORY_SITE, TURF_SITE].some((S) => inRect(S, b.x0, b.y0))) continue;
       const cx = b.x0 + BLOCK_SIZE / 2;
       const cz = b.y0 + BLOCK_SIZE / 2;
       const size = BLOCK_SIZE + 2 * SW;
@@ -880,6 +882,8 @@ export function buildCity(scene: THREE.Scene) {
     /** Warm light inside. */
     light: number;
     height?: number;
+    /** How much higher the floor is (v0.58: the bar stands on its site's sidewalk slab, which is higher than a lot's). */
+    lift?: number;
   }
   const rooms = new Map<string, Fadeable>();
   const shopShell = (r: Room, st: ShopStyle) => {
@@ -926,11 +930,11 @@ export function buildCity(scene: THREE.Scene) {
     checker.repeat.set(X1 - X0, Z1 - Z0);
     const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.1, Z1 - Z0 - 0.1)), lam(0xffffff, { map: checker }));
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(cx, 0.065, cz);
+    floor.position.set(cx, 0.065 + (st.lift ?? 0), cz);
     floor.receiveShadow = true;
     scene.add(floor);
     // Doormat inside the door.
-    add(geoBox(0.8, 0.02, 0.5), lam(st.trim), doorX + 0.5, 0.075, Z1 - 0.4, false);
+    add(geoBox(0.8, 0.02, 0.5), lam(st.trim), doorX + 0.5, 0.075 + (st.lift ?? 0), Z1 - 0.4, false);
     // Warm light inside, so the shop glows when you look in.
     const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
     lamp.position.set(cx, sh - 0.2, cz);
@@ -1076,73 +1080,94 @@ export function buildCity(scene: THREE.Scene) {
   }
 
   // ---------- the bar (Pickpocket Drunks) ----------
-  // Dark wood, a red neon BAR sign, a dim amber light. A back bar full of glowing bottles and a
-  // mirror, a jukebox in the corner, the counter with beer taps and a brass foot rail, stools with
-  // the drunks on them (spots, added by the Street view), a little table with a candle.
+  // Dark wood, a red neon BAR sign, a dim amber light. v0.58: twice as deep. Along the west wall a back bar full of
+  // glowing bottles and a long mirror; in front of it the bartender's aisle and the long counter (beer taps, a brass
+  // foot rail) with the six drunks on stools (spots, added by the Street view); a jukebox in the corner; at the front a
+  // pool table, two little tables with candles, a dartboard.
   {
-    const { Z0, X1, t } = shopShell(BAR, {
+    const { Z0, X0, X1, t } = shopShell(BAR, {
       wall: 0x4a3a30, trim: 0x2a1a14, stripe: ['#5a1a14', '#c8b8a0'], sign: 'BAR', signBg: '#14100c', signFg: '#ff5a3a',
-      floor: ['#5a4232', '#46321f'], light: 0xffa060,
+      floor: ['#5a4232', '#46321f'], light: 0xffa060, lift: 0.035,
     });
     const dark = lam(0x3a2418);
     const wood = lam(0x5a3a22);
-    // The back bar: a low cabinet, a mirror, and two shelves of bottles.
+    // (The room is 10 deep: a second warm light over the front half.)
+    const front = new THREE.PointLight(0xffa060, 5, 6, 1.6);
+    front.position.set((X0 + X1) / 2, 1.5, BAR.y1 - 1);
+    scene.add(front);
+    // The back bar along the west wall: a low cabinet, a mirror, and two shelves of bottles.
     const back = FIXTURES.filter((f) => f.kind === 'backbar' && inRect(BAR, f.x, f.y));
-    const bx0 = Math.min(...back.map((f) => f.x));
-    const bx1 = Math.max(...back.map((f) => f.x)) + 1;
-    const bcx = (bx0 + bx1) / 2;
-    const bz = Z0 + t + 0.2;
-    add(geoBox(bx1 - bx0 - 0.1, 0.55, 0.4), dark, bcx, 0.3, bz);
-    add(geoBox(bx1 - bx0 - 0.4, 0.4, 0.02), lam(0x8a9aa8, { emissive: 0x2a3440, emissiveIntensity: 0.8 }), bcx, 0.85, Z0 + t + 0.02, false); // mirror
+    const bz0 = Math.min(...back.map((f) => f.y));
+    const bz1 = Math.max(...back.map((f) => f.y)) + 1;
+    const bcz = (bz0 + bz1) / 2;
+    const blen = bz1 - bz0;
+    add(geoBox(0.4, 0.55, blen - 0.1), dark, X0 + t + 0.2, 0.3, bcz);
+    add(geoBox(0.02, 0.4, blen - 0.4), lam(0x8a9aa8, { emissive: 0x2a3440, emissiveIntensity: 0.8 }), X0 + t + 0.02, 0.85, bcz, false); // mirror
     const bottleColors = [0x3a7a3a, 0x8a5a2a, 0xc8b8a0, 0x2a4a7a, 0x9a2a2a, 0xd8a83a];
     for (const shelfY of [0.68, 1.02]) {
-      add(geoBox(bx1 - bx0 - 0.2, 0.03, 0.2), wood, bcx, shelfY, Z0 + t + 0.1, false);
-      for (let i = 0; i < 14; i++) {
+      add(geoBox(0.2, 0.03, blen - 0.2), wood, X0 + t + 0.1, shelfY, bcz, false);
+      for (let i = 0; i < 22; i++) {
         const c = bottleColors[(i * 5 + Math.round(shelfY * 10)) % bottleColors.length];
-        add(own(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 6)), lam(c, { emissive: c, emissiveIntensity: 0.35 }), bx0 + 0.25 + i * ((bx1 - bx0 - 0.5) / 13), shelfY + 0.11, Z0 + t + 0.1, false);
+        add(own(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 6)), lam(c, { emissive: c, emissiveIntensity: 0.35 }), X0 + t + 0.1, shelfY + 0.11, bz0 + 0.25 + i * ((blen - 0.5) / 21), false);
       }
     }
-    // The jukebox: a box with a glowing arched front.
+    // The jukebox, in the north-east corner: a box with a glowing arched front.
     const jb = FIXTURES.find((f) => f.kind === 'jukebox' && inRect(BAR, f.x, f.y))!;
     add(geoBox(0.6, 0.8, 0.4), lam(0x6a2a1a), jb.x + 0.5, 0.4, Z0 + t + 0.22);
     add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.4, 12, 1, false, -Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), lam(0xffb04a, { emissive: 0xff8a2a, emissiveIntensity: 1.1 }), jb.x + 0.5, 0.8, Z0 + t + 0.22, false);
     for (let i = 0; i < 3; i++) add(geoBox(0.08, 0.5, 0.02), lam([0xff5a3a, 0x5ac8ff, 0xffd84a][i], { emissive: [0xff5a3a, 0x5ac8ff, 0xffd84a][i], emissiveIntensity: 1 }), jb.x + 0.32 + i * 0.18, 0.42, Z0 + t + 0.43, false);
-    // The counter, with a brass foot rail, beer taps, and a beer in front of each stool.
+    // The counter (north–south), with a brass foot rail on the guests' side, beer taps, and a beer in front of each stool.
     const bars = FIXTURES.filter((f) => f.kind === 'bar' && inRect(BAR, f.x, f.y));
-    const cx0 = Math.min(...bars.map((f) => f.x));
-    const cx1 = Math.max(...bars.map((f) => f.x)) + 1;
-    const ccx = (cx0 + cx1) / 2;
-    const cz = bars[0].y + 0.5;
-    add(geoBox(cx1 - cx0, 0.6, 0.5), dark, ccx, 0.3, cz);
-    add(geoBox(cx1 - cx0 + 0.06, 0.06, 0.62), wood, ccx, 0.63, cz);
-    add(geoBox(cx1 - cx0, 0.04, 0.04), lam(0xc8a040), ccx, 0.12, cz + 0.3, false); // foot rail
-    for (let i = 0; i < 3; i++) add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 6)), lam(0xc8a040), ccx - 0.3 + i * 0.3, 0.77, cz - 0.15, false);
+    const cz0 = Math.min(...bars.map((f) => f.y));
+    const cz1 = Math.max(...bars.map((f) => f.y)) + 1;
+    const ccz = (cz0 + cz1) / 2;
+    const ccx = bars[0].x + 0.5;
+    add(geoBox(0.5, 0.6, cz1 - cz0), dark, ccx, 0.3, ccz);
+    add(geoBox(0.62, 0.06, cz1 - cz0 + 0.06), wood, ccx, 0.63, ccz);
+    add(geoBox(0.04, 0.04, cz1 - cz0), lam(0xc8a040), ccx + 0.3, 0.12, ccz, false); // foot rail
+    for (let i = 0; i < 4; i++) add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 6)), lam(0xc8a040), ccx - 0.15, 0.77, cz0 + 1 + i * ((cz1 - cz0 - 2) / 3), false);
     for (const f of bars) {
-      add(own(new THREE.CylinderGeometry(0.05, 0.045, 0.14, 8)), lam(0xe0a030, { emissive: 0x8a5010, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }), f.x + 0.5, 0.73, cz + 0.18, false);
-      add(own(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8)), lam(0xf2ece0), f.x + 0.5, 0.815, cz + 0.18, false);
-      // A stool on the tile below (the drunk sits on it).
-      add(own(new THREE.CylinderGeometry(0.03, 0.04, 0.46, 6)), lam(0x2b2b2e), f.x + 0.5, 0.23, f.y + 1.45);
-      add(own(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), lam(0x7a2a1a), f.x + 0.5, 0.48, f.y + 1.45);
+      add(own(new THREE.CylinderGeometry(0.05, 0.045, 0.14, 8)), lam(0xe0a030, { emissive: 0x8a5010, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }), ccx + 0.18, 0.73, f.y + 0.5, false);
+      add(own(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8)), lam(0xf2ece0), ccx + 0.18, 0.815, f.y + 0.5, false);
+      // A stool on the tile east of it (the drunk sits on it).
+      add(own(new THREE.CylinderGeometry(0.03, 0.04, 0.46, 6)), lam(0x2b2b2e), f.x + 1.45, 0.23, f.y + 0.5);
+      add(own(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), lam(0x7a2a1a), f.x + 1.45, 0.48, f.y + 0.5);
     }
     // Pendant lamps over the counter.
     for (let i = 0; i < 3; i++) {
-      add(own(new THREE.CylinderGeometry(0.01, 0.01, 0.35, 4)), lam(0x1e1b18), cx0 + 0.5 + i, 1.05, cz, false);
-      add(own(new THREE.ConeGeometry(0.12, 0.1, 8)), lam(0x2a4a3a), cx0 + 0.5 + i, 0.85, cz, false);
-      add(own(new THREE.SphereGeometry(0.05, 6, 5)), lam(0xffd8a0, { emissive: 0xffc070, emissiveIntensity: 1.6 }), cx0 + 0.5 + i, 0.8, cz, false);
+      const z = cz0 + 1 + i * ((cz1 - cz0 - 2) / 2);
+      add(own(new THREE.CylinderGeometry(0.01, 0.01, 0.35, 4)), lam(0x1e1b18), ccx, 1.05, z, false);
+      add(own(new THREE.ConeGeometry(0.12, 0.1, 8)), lam(0x2a4a3a), ccx, 0.85, z, false);
+      add(own(new THREE.SphereGeometry(0.05, 6, 5)), lam(0xffd8a0, { emissive: 0xffc070, emissiveIntensity: 1.6 }), ccx, 0.8, z, false);
     }
-    // A small round table with two chairs and a candle.
-    const tb = FIXTURES.find((f) => f.kind === 'table' && inRect(BAR, f.x, f.y))!;
-    add(own(new THREE.CylinderGeometry(0.03, 0.05, 0.45, 6)), lam(0x2b2b2e), tb.x + 0.5, 0.23, tb.y + 0.5);
-    add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 12)), wood, tb.x + 0.5, 0.46, tb.y + 0.5);
-    add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.07, 6)), lam(0xffe8c0, { emissive: 0xffc070, emissiveIntensity: 1.5 }), tb.x + 0.5, 0.52, tb.y + 0.5, false);
-    for (const dz of [-0.4, 0.4]) {
-      add(geoBox(0.26, 0.04, 0.26), wood, tb.x + 0.5, 0.28, tb.y + 0.5 + dz);
-      add(geoBox(0.26, 0.28, 0.04), wood, tb.x + 0.5, 0.42, tb.y + 0.5 + dz * 1.32);
+    // Small round tables, each with two chairs and a candle.
+    for (const tb of FIXTURES.filter((f) => f.kind === 'table' && inRect(BAR, f.x, f.y))) {
+      add(own(new THREE.CylinderGeometry(0.03, 0.05, 0.45, 6)), lam(0x2b2b2e), tb.x + 0.5, 0.23, tb.y + 0.5);
+      add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 12)), wood, tb.x + 0.5, 0.46, tb.y + 0.5);
+      add(own(new THREE.CylinderGeometry(0.025, 0.025, 0.07, 6)), lam(0xffe8c0, { emissive: 0xffc070, emissiveIntensity: 1.5 }), tb.x + 0.5, 0.52, tb.y + 0.5, false);
+      for (const dz of [-0.4, 0.4]) {
+        add(geoBox(0.26, 0.04, 0.26), wood, tb.x + 0.5, 0.28, tb.y + 0.5 + dz);
+        add(geoBox(0.26, 0.28, 0.04), wood, tb.x + 0.5, 0.42, tb.y + 0.5 + dz * 1.32);
+      }
+    }
+    // The pool table (two tiles), balls and a cue on the felt.
+    const pool = FIXTURES.filter((f) => f.kind === 'pool' && inRect(BAR, f.x, f.y));
+    {
+      const px = (Math.min(...pool.map((f) => f.x)) + Math.max(...pool.map((f) => f.x)) + 1) / 2;
+      const pz = pool[0].y + 0.5;
+      add(geoBox(1.8, 0.5, 0.95), wood, px, 0.3, pz);
+      add(geoBox(1.6, 0.04, 0.78), lam(0x1e6a3a), px, 0.57, pz, false);
+      for (const [dx, c] of [[-0.3, 0xe8e8e0], [0.2, 0xd83a2a], [0.35, 0xe8c040], [0.27, 0x2a4ad8]] as const)
+        add(own(new THREE.SphereGeometry(0.04, 8, 6)), lam(c), px + dx, 0.62, pz + (dx * 0.7) % 0.3, false);
+      add(geoBox(1.3, 0.025, 0.025), lam(0xc8a06a), px + 0.1, 0.62, pz + 0.3, false).rotation.y = 0.2;
+      // A low lamp over it.
+      add(geoBox(0.9, 0.08, 0.3), lam(0x2a4a3a), px, 1.15, pz, false);
+      add(geoBox(0.8, 0.02, 0.22), lam(0xffe0a0, { emissive: 0xffd080, emissiveIntensity: 1.4 }), px, 1.1, pz, false);
     }
     // A neon beer sign on the east wall and a dartboard on the west wall.
-    add(geoBox(0.02, 0.22, 0.6), lam(0x5ac8ff, { emissive: 0x5ac8ff, emissiveIntensity: 1.3 }), X1 - t - 0.02, 0.95, Z0 + 2.6, false);
-    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 10)).rotateZ(Math.PI / 2), lam(0x2a5a2a), BAR.x0 + t + 0.03, 0.85, Z0 + 3.5, false);
-    add(own(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 10)).rotateZ(Math.PI / 2), lam(0xb8282a), BAR.x0 + t + 0.035, 0.85, Z0 + 3.5, false);
+    add(geoBox(0.02, 0.22, 0.6), lam(0x5ac8ff, { emissive: 0x5ac8ff, emissiveIntensity: 1.3 }), X1 - t - 0.02, 0.95, Z0 + 3.5, false);
+    add(own(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 10)).rotateZ(Math.PI / 2), lam(0x2a5a2a), X0 + t + 0.03, 0.85, Z0 + 8.5, false);
+    add(own(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 10)).rotateZ(Math.PI / 2), lam(0xb8282a), X0 + t + 0.035, 0.85, Z0 + 8.5, false);
   }
 
   // ---------- the parking lot (Parking Meters, Steal From Cars) ----------
@@ -1338,9 +1363,9 @@ export function buildCity(scene: THREE.Scene) {
     fireLights.push(light);
   };
 
-  // ---------- the Yard (007): where the thugs hang out ----------
-  // Cracked concrete, graffiti on the walls around it, an old couch, a burning barrel, a chain-link fence along the
-  // street with two gaps (the gates), and a single bulb over the back.
+  // ---------- the Yard (v0.58: I-009 and 007 merged, next to the bar): where the thugs hang out ----------
+  // Cracked concrete, graffiti on the walls around it, an old couch, a burning barrel, a pile of wrecked cars, tyres, a
+  // chain-link fence along the street with three gaps (the gates), and bare bulbs on the buildings at the back.
   {
     const Y = YARD;
     const X0 = Y.x0;
@@ -1349,9 +1374,18 @@ export function buildCity(scene: THREE.Scene) {
     const Z1 = Y.y1 + 1;
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
-    add(geoBox(X1 - X0, 0.075, Z1 - Z0), lam(0x55524d), cx, 0.037, cz, false);
+    // The site (the bar, the Yard and the street that ran between them): one sidewalk all round it, like the Factory's.
+    {
+      const S = TURF_SITE;
+      sidewalk([[S.x0, S.y0], [S.x1 + 1, S.y0], [S.x1 + 1, S.y1 + 1], [S.x0, S.y1 + 1]], 0.09, 0.11);
+    }
+    add(geoBox(X1 - X0, 0.1, Z1 - Z0), lam(0x55524d), cx, 0.05, cz, false);
+    // Oil stains and patches of darker, newer concrete; cracks all over.
+    const stains = new Batch(own(new THREE.CircleGeometry(0.3, 7).rotateX(-Math.PI / 2)), lam(0x3a3835, DECAL), false);
+    for (let i = 0; i < 18; i++) stains.add(X0 + 0.5 + rng() * (X1 - X0 - 1), 0.102, Z0 + 0.5 + rng() * (Z1 - Z0 - 1.5), 0.6 + rng() * 1.4, 1, 0.5 + rng(), rng() * 6);
+    stains.build(scene);
     const cracks = new Batch(geoBox(0.03, 0.004, 0.9), lam(0x2e2c29, DECAL), false);
-    for (let i = 0; i < 14; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.077, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
+    for (let i = 0; i < 60; i++) cracks.add(X0 + 0.4 + rng() * (X1 - X0 - 0.8), 0.103, Z0 + 0.4 + rng() * (Z1 - Z0 - 1.4), 1, 1, 0.5 + rng(), rng() * 6);
     cracks.build(scene);
     // Graffiti: tags on the side walls (facing in) and the back wall.
     /** Spray-paint graffiti, matte and worn: soft sprayed edges, a dark outline, speckles of overspray, drips, and
@@ -1430,13 +1464,16 @@ export function buildCity(scene: THREE.Scene) {
       const m = add(own(new THREE.PlaneGeometry(w, w * 0.375)), mat, x, y, z, false);
       m.rotation.y = rotY;
       m.receiveShadow = false;
+      return m;
     };
-    // On the bare ground floors of the two side buildings, facing into the Yard.
-    graffiti('YARD', '#c8382c', '#7a1a14', 2.6, X0 + 0.03, 0.62, cz - 0.3, Math.PI / 2);
+    // On the bar's side wall (facing into the Yard; it hides with the bar's roof when you're inside), and the bare side
+    // of the east building.
+    rooms.get('bar')!.props.push(graffiti('YARD', '#c8382c', '#7a1a14', 2.6, X0 + 0.03, 0.62, cz - 0.3, Math.PI / 2));
     graffiti('KEEP OUT', '#d8a83a', '#9a5a1a', 3.0, X1 - 0.03, 0.62, cz - 0.2, -Math.PI / 2);
-    // The back wall has windows: that tag goes on a sheet of plywood leaning against it, next to the couch.
+    graffiti('NO COPS', '#e8e8e0', '#6a6a70', 1.8, X1 - 0.03, 0.62, Z1 - 1.0, -Math.PI / 2);
+    // The buildings at the back have windows: that tag goes on a sheet of plywood leaning against them.
     {
-      const px = X1 - 1.4;
+      const px = cx + 4;
       const pz = Z0 + 0.22;
       const ply = add(geoBox(2.2, 1.2, 0.05), lam(0xb8935a, { flatShading: true }), px, 0.62, pz);
       ply.rotation.x = -0.12;
@@ -1457,13 +1494,122 @@ export function buildCity(scene: THREE.Scene) {
     }
     // The burning barrel: a rusty drum with flames and a flickering orange light.
     for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) burningBarrel(b.x + 0.5, 0, b.y + 0.5);
+    // v0.58: the gang's hangout. (Own random numbers, so nothing placed after it moves.)
+    {
+      const rnd = mulberry32(5858);
+      const tilesOf = (kind: string) => FIXTURES.filter((f) => f.kind === kind && inRect(YARD, f.x, f.y));
+      const box = (kind: string) => {
+        const t = tilesOf(kind);
+        const x0 = Math.min(...t.map((f) => f.x)), x1 = Math.max(...t.map((f) => f.x)) + 1;
+        const z0 = Math.min(...t.map((f) => f.y)), z1 = Math.max(...t.map((f) => f.y)) + 1;
+        return { x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 };
+      };
+      // The shipping container (their clubhouse): faded blue, ribbed, the doors at its east end swung open onto a dark
+      // inside lit blue by a TV; a tag on its side, a tarp over part of the roof.
+      {
+        const c = box('container');
+        const L = c.x1 - c.x0 - 0.2, D = c.z1 - c.z0 - 0.3, HC = 1.35;
+        const steel = lam(0x2f5a78, { flatShading: true });
+        add(geoBox(L, HC, D), steel, c.cx - 0.05, HC / 2 + 0.1, c.cz);
+        const rib = lam(0x24465e);
+        const ribs = new Batch(geoBox(0.06, HC - 0.1, 0.03), rib);
+        for (let x = c.x0 + 0.3; x < c.x1 - 0.3; x += 0.28) ribs.add(x, HC / 2 + 0.1, c.cz + D / 2 + 0.015), ribs.add(x, HC / 2 + 0.1, c.cz - D / 2 - 0.015);
+        ribs.build(scene);
+        for (const p of [[0.6, 0.2], [2.4, 0.5]]) add(geoBox(p[1] + 0.6, 0.3, 0.02), lam(0x8a4a2a), c.x0 + p[0] + 0.4, 0.4 + p[1], c.cz + D / 2 + 0.03, false); // rust streaks
+        // The open end: a dark inside, a TV's blue glow, and the two doors swung wide.
+        const ex = c.cx - 0.05 + L / 2;
+        add(geoBox(0.02, HC - 0.15, D - 0.15), lam(0x0e1014, { emissive: 0x10203a, emissiveIntensity: 0.6 }), ex + 0.01, HC / 2 + 0.1, c.cz, false);
+        add(geoBox(0.02, 0.22, 0.32), lam(0x5a8ad8, { emissive: 0x4a7ad8, emissiveIntensity: 1.4 }), ex + 0.02, 0.55, c.cz + 0.3, false);
+        for (const sz of [-1, 1]) {
+          const door = add(geoBox(D / 2, HC - 0.05, 0.05), steel, ex + Math.cos(0.4) * D / 4 + 0.05, HC / 2 + 0.1, c.cz + sz * (D / 2 + Math.sin(0.4) * D / 4));
+          door.rotation.y = sz * -1.15;
+        }
+        const tv = new THREE.PointLight(0x6a9aff, 2.2, 3.5, 1.6);
+        tv.position.set(ex + 0.5, 0.7, c.cz + 0.3);
+        scene.add(tv);
+        // A tarp over the west half of the roof, and a tag on the side facing the yard.
+        add(geoBox(L / 2, 0.04, D + 0.2), lam(0x3a5a3a, { flatShading: true }), c.x0 + L / 4 + 0.1, HC + 0.14, c.cz, false).rotation.z = 0.04;
+        const tag = add(own(new THREE.PlaneGeometry(2.2, 0.82)), paintMat('CREW', '#e8d84a', '#b08a1a'), c.cx - 0.3, 0.75, c.cz + D / 2 + 0.04, false);
+        tag.receiveShadow = false;
+      }
+      // The half-demolished wall: brick, broken off at different heights, loose bricks at its foot.
+      {
+        const brick = lam(0x8a5040, { flatShading: true });
+        const mortar = lam(0x6a3e32, { flatShading: true });
+        for (const f of tilesOf('ruin')) {
+          for (let k = 0; k < 2; k++) {
+            const h = 0.4 + rnd() * 1.0;
+            add(geoBox(0.5, h, 0.3), k ? brick : mortar, f.x + 0.25 + k * 0.5, h / 2, f.y + 0.5);
+          }
+        }
+        const r = box('ruin');
+        for (let i = 0; i < 10; i++) add(geoBox(0.2, 0.08, 0.1), brick, r.x0 + rnd() * (r.x1 - r.x0), 0.14, r.cz + (rnd() < 0.5 ? -1 : 1) * (0.25 + rnd() * 0.2), false).rotation.y = rnd() * 3;
+      }
+      // Rubble: heaps of broken brick and concrete.
+      {
+        const bits = [lam(0x8a5040, { flatShading: true }), lam(0x7a766e, { flatShading: true }), lam(0x5a5650, { flatShading: true })];
+        for (const f of tilesOf('rubble'))
+          for (let i = 0; i < 9; i++) {
+            const s = 0.12 + rnd() * 0.2;
+            const m = add(own(new THREE.DodecahedronGeometry(s, 0)), bits[i % 3], f.x + 0.2 + rnd() * 0.6, 0.1 + s * 0.6 + (i < 3 ? 0.15 : 0), f.y + 0.2 + rnd() * 0.6, i < 4);
+            m.rotation.set(rnd() * 3, rnd() * 3, 0);
+          }
+      }
+      // The stripped car: no wheels, no doors, the hood up, on cinder blocks.
+      {
+        const c = box('stripped');
+        const body = lam(0x6a6e74, { flatShading: true });
+        add(geoBox(1.7, 0.36, 0.8), body, c.cx, 0.48, c.cz);
+        add(geoBox(0.9, 0.3, 0.74), body, c.cx + 0.1, 0.81, c.cz);
+        add(geoBox(0.88, 0.24, 0.76), lam(0x14161a), c.cx + 0.1, 0.81, c.cz, false); // empty windows
+        add(geoBox(0.6, 0.3, 0.02), lam(0x14161a), c.cx + 0.1, 0.5, c.cz + 0.41, false); // the missing doors
+        const hood = add(geoBox(0.5, 0.03, 0.78), body, c.cx - 0.68, 0.86, c.cz, false);
+        hood.rotation.z = -1.0;
+        for (const [dx, dz] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) add(geoBox(0.22, 0.3, 0.18), lam(0x8a8680), c.cx + dx, 0.15, c.cz + dz);
+        add(own(new THREE.TorusGeometry(0.22, 0.09, 6, 10)).rotateX(-Math.PI / 2), lam(0x1a1a1e), c.cx + 1.25, 0.1, c.cz + 0.45, false); // a wheel left lying
+      }
+      // The dice game: a crate for a table, dice and bills on it, a bottle.
+      for (const f of tilesOf('dice')) {
+        add(geoBox(0.6, 0.5, 0.6), lam(0x7a5a3a), f.x + 0.5, 0.3, f.y + 0.5).rotation.y = 0.2;
+        add(geoBox(0.62, 0.02, 0.62), lam(0x6a4a2e), f.x + 0.5, 0.56, f.y + 0.5, false).rotation.y = 0.2;
+        for (const [dx, dz] of [[-0.08, 0.05], [0.07, -0.06]]) add(geoBox(0.07, 0.07, 0.07), lam(0xf2efe8), f.x + 0.5 + dx, 0.6, f.y + 0.5 + dz, false).rotation.y = dx * 9;
+        for (let i = 0; i < 3; i++) add(geoBox(0.16, 0.01, 0.08), lam(0x5a8a4a), f.x + 0.3 + i * 0.12, 0.575, f.y + 0.32 + i * 0.05, false).rotation.y = i * 0.7;
+        add(own(new THREE.CylinderGeometry(0.035, 0.04, 0.22, 6)), lam(0x3a6a3a, { transparent: true, opacity: 0.85 }), f.x + 0.72, 0.68, f.y + 0.68, false);
+      }
+      // The lookout: two pallets stacked, a white plastic chair on top, facing the street.
+      for (const f of tilesOf('lookout')) {
+        const pal = lam(0x9a7a4e);
+        for (let k = 0; k < 2; k++) add(geoBox(0.8, 0.14, 0.8), pal, f.x + 0.5, 0.08 + k * 0.15, f.y + 0.5).rotation.y = k * 0.15;
+        const white = lam(0xe8e6de);
+        add(geoBox(0.42, 0.04, 0.4), white, f.x + 0.5, 0.62, f.y + 0.5);
+        add(geoBox(0.42, 0.4, 0.04), white, f.x + 0.5, 0.84, f.y + 0.3);
+        for (const [dx, dz] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) add(geoBox(0.03, 0.3, 0.03), white, f.x + 0.5 + dx, 0.46, f.y + 0.5 + dz, false);
+      }
+      // String lights from the container to the buildings at the back, over the couch.
+      {
+        const c = box('container');
+        const bulbMat = lam(0xffe0a0, { emissive: 0xffc870, emissiveIntensity: 1.6 });
+        const bulbs = new Batch(own(new THREE.SphereGeometry(0.04, 5, 4)), bulbMat, false);
+        const ax = c.x1, az = c.z0 + 0.2, bx = YARD.x0 + 12, bz = YARD.y0 + 0.05;
+        for (let i = 0; i <= 16; i++) {
+          const t = i / 16;
+          bulbs.add(ax + (bx - ax) * t, 1.75 - Math.sin(t * Math.PI) * 0.35, az + (bz - az) * t);
+        }
+        bulbs.build(scene);
+        const glow = new THREE.PointLight(0xffd090, 2, 6, 1.6);
+        glow.position.set((ax + bx) / 2, 1.3, (az + bz) / 2 + 0.6);
+        scene.add(glow);
+      }
+    }
     // Chain-link fence along the street (kit): a see-through panel and posts on every fence tile.
     for (const f of FIXTURES.filter((x) => x.kind === 'fence')) kit.fence(f.x, f.y + 0.5, f.x + 1, f.y + 0.5, 'chain', { high: 1.1 });
-    // A bare bulb on the back wall.
-    add(geoBox(0.12, 0.12, 0.12), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), cx + 1.5, 1.6, Z0 + 0.1, false);
-    const bulb = new THREE.PointLight(0xffd9a0, 3, 5, 1.6);
-    bulb.position.set(cx + 1.5, 1.5, Z0 + 0.6);
-    scene.add(bulb);
+    // Bare bulbs on the buildings at the back.
+    for (const bx of [X0 + 3.5, cx + 1.5, X1 - 4.5]) {
+      add(geoBox(0.12, 0.12, 0.12), lam(0xffe7c2, { emissive: 0xffd9a0, emissiveIntensity: 1.5 }), bx, 1.6, Z0 + 0.1, false);
+      const bulb = new THREE.PointLight(0xffd9a0, 3, 6, 1.6);
+      bulb.position.set(bx, 1.5, Z0 + 0.6);
+      scene.add(bulb);
+    }
   }
 
   // ---------- the hospital (005-B + 005-D): where you wake up after passing out ----------
@@ -2364,7 +2510,7 @@ export function buildCity(scene: THREE.Scene) {
       props.push(tv);
       scene.add(tv);
     }
-    const pool = FIXTURES.filter((f) => f.kind === 'pool');
+    const pool = FIXTURES.filter((f) => f.kind === 'pool' && inRect(CLUB, f.x, f.y)); // (v0.58: the bar has one too)
     if (pool.length) {
       const px = (Math.min(...pool.map((f) => f.x)) + Math.max(...pool.map((f) => f.x)) + 1) / 2;
       const pz = pool[0].y + 0.5;

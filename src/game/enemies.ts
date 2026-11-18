@@ -4,7 +4,7 @@
 // Enemies are shared by everyone, so where they walk is a FIXED SCHEDULE worked out from the game clock (like the
 // guard, watchers.ts): every phone and the server agree where each Pigeon is. The server has the same function
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
-import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK_AREA, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
+import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK_AREA, SEWER, SEWER_CHANNEL, SPLINTER, THUG_QUARTERS, type Rect } from '../street/map';
 import { minstd } from './watchers';
 import { addRoamPlace, walkPoint } from './roamPaths';
 
@@ -51,7 +51,7 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
   // The Yard's thugs (007): hooded, with a knife. Not aggressive (for now). Drop $5–10 (1 in 5) and a tin knife (1 in 20).
   thug: {
     id: 'thug', name: 'Thug', level: 5, hp: 10, attack: 5, defense: 5, defenceBonus: 0, speed: 2, maxHit: 2, respawn: 30, aggressive: false,
-    where: 'The Yard (007)',
+    where: 'The Yard (next to the bar, I-009/007)',
     loot: [
       { item: 'cash', chance: 0.2, min: 5, max: 10 },
       { item: 'tin_knife', chance: 0.05, min: 1, max: 1 },
@@ -92,7 +92,7 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
 /** Every enemy on the island: its id, kind, and which one of its kind it is (its schedule). */
 export const ENEMIES = [
   ...Array.from({ length: 8 }, (_, i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })), // (v0.54: 8, in the big park)
-  ...[0, 1, 2].map((i) => ({ id: `thug_${i}`, kind: 'thug', index: i })),
+  ...Array.from({ length: 8 }, (_, i) => ({ id: `thug_${i}`, kind: 'thug', index: i })), // (v0.58: 8, in the bigger Yard)
   ...Array.from({ length: 10 }, (_, i) => ({ id: `rat_${i}`, kind: 'rat', index: i })),
   ...[0, 1, 2, 3].map((i) => ({ id: `dog_${i}`, kind: 'dog', index: i })),
   ...[0, 1, 2].map((i) => ({ id: `giant_rat_${i}`, kind: 'giant_rat', index: i })),
@@ -132,20 +132,24 @@ export function pigeonAt(index: number, t: number) {
 }
 
 // ---------- the thugs: they stroll around the Yard ----------
-/** Open tiles in the Yard a thug may stand on (not the fence row, the couch or the barrel). */
-export const THUG_TILES: [number, number][] = (() => {
+/** v0.58: the Yard is cut into four quarters (map.ts, THUG_QUARTERS); thug i strolls in quarter i % 4, over its open
+ *  tiles (not the fence row, the couch, the barrel, the wrecks or the tyres). Two thugs share each quarter. */
+export const THUG_PATCHES: [number, number][][] = THUG_QUARTERS.map((r) => {
   const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
   const out: [number, number][] = [];
-  for (let y = YARD.y0; y < YARD.y1; y++) for (let x = YARD.x0; x <= YARD.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
+  for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
   return out;
-})();
+});
+/** Every tile a thug may stand on. */
+export const THUG_TILES: [number, number][] = THUG_PATCHES.flat();
 /** A thug's routine: every 12 s he strolls (3 s) to another spot, then hangs around there. */
 export const THUG_MOVE_MS = 12000;
 export const THUG_WALK_MS = 3000;
 
 export function thugSpot(index: number, k: number): [number, number] {
+  const patch = THUG_PATCHES[index % THUG_PATCHES.length];
   const h = minstd(((k * 3 + index) % M) + 1);
-  return THUG_TILES[h % THUG_TILES.length];
+  return patch[h % patch.length];
 }
 
 /** Where thug `index` is at time t, and whether he's walking (the same as game.thug_at on the server). */
@@ -231,7 +235,7 @@ export function roamAt(r: Roam, index: number, t: number) {
 }
 
 // The places they stroll in: their walks go round what's in the way (roamPaths.ts, v0.54).
-for (const list of [THUG_TILES, ...RAT_ZONES, ...Object.values(ROAMS).map((r) => r.tiles)]) addRoamPlace(list);
+for (const list of [...THUG_PATCHES, ...RAT_ZONES, ...Object.values(ROAMS).map((r) => r.tiles)]) addRoamPlace(list);
 
 /** Where an enemy of this kind is at time t (game.enemy_at on the server). */
 export function enemyAt(kind: string, index: number, t: number) {
