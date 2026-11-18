@@ -1,14 +1,20 @@
 begin;
 
-create or replace function game.roam_in(inset boolean[], x0 integer, y0 integer, w integer, h integer, x integer, y integer)
+create or replace function game.roam_in(inset boolean[], x0 integer,
+     y0 integer, w integer, h integer, x integer, y integer)
  returns boolean
  language sql
  immutable
  set search_path to 'pg_catalog'
-as $$ select x >= x0 and x < x0 + w and y >= y0 and y < y0 + h and coalesce(inset[(y - y0) * w + (x - x0) + 1], false) $$;
-revoke execute on function game.roam_in(boolean[], integer, integer, integer, integer, integer, integer) from public, anon, authenticated;
+as $$ select x >= x0 and x < x0 + w and y >= y0 and y < y0 +
+    h and coalesce(inset[(y - y0) * w + (x - x0) + 1], false)
+    $$;
+revoke execute on function game.roam_in(boolean[], integer, integer,
+     integer, integer, integer, integer) from public, anon, authenticated;
 
-create or replace function game.roam_straight(inset boolean[], mk integer[], x0 integer, y0 integer, w integer, h integer, ax integer, ay integer, bx integer, by integer)
+create or replace function game.roam_straight(inset boolean[],
+     mk integer[], x0 integer, y0 integer, w integer, h integer,
+     ax integer, ay integer, bx integer, by integer)
  returns boolean
  language plpgsql
  immutable
@@ -30,22 +36,31 @@ begin
   while ix < nx or iy < ny loop
     d := (1 + 2 * ix) * ny - (1 + 2 * iy) * nx;
     if d = 0 then
-      if not game.roam_in(inset, x0, y0, w, h, px + sx, py) or not game.roam_in(inset, x0, y0, w, h, px, py + sy) then return false; end if;
-      px := px + sx; py := py + sy; ix := ix + 1; iy := iy + 1;
+      if not game.roam_in(inset, x0, y0, w, h, px + sx, py) or
+    not game.roam_in(inset, x0, y0, w, h, px, py + sy) then return
+    false; end if;
+      px := px + sx; py := py + sy; ix := ix + 1; iy := iy +
+    1;
     elsif d < 0 then
       px := px + sx; ix := ix + 1;
     else
       py := py + sy; iy := iy + 1;
     end if;
-    if not game.roam_in(inset, x0, y0, w, h, px, py) then return false; end if;
-    if (mk[(qy - y0) * w + (qx - x0) + 1] & (1 << game.walk_bit(px - qx, py - qy))) = 0 then return false; end if;
+    if not game.roam_in(inset, x0, y0, w, h, px, py) then return
+    false; end if;
+    if (mk[(qy - y0) * w + (qx - x0) + 1] & (1 << game.walk_bit(px
+    - qx, py - qy))) = 0 then return false; end if;
     qx := px; qy := py;
   end loop;
   return true;
 end $$;
-revoke execute on function game.roam_straight(boolean[], integer[], integer, integer, integer, integer, integer, integer, integer, integer) from public, anon, authenticated;
+revoke execute on function game.roam_straight(boolean[], integer[],
+     integer, integer, integer, integer, integer, integer, integer,
+     integer) from public, anon, authenticated;
 
-create or replace function game.roam_bends(px integer[], py integer[], s integer, n integer, fx integer, fy integer, tx integer, ty integer, out xs integer[], out ys integer[])
+create or replace function game.roam_bends(px integer[], py integer[],
+     s integer, n integer, fx integer, fy integer, tx integer,
+     ty integer, out xs integer[], out ys integer[])
  returns record
  language plpgsql
  stable
@@ -56,7 +71,8 @@ declare
   inset boolean[];
   mk int[];
   rws text[];
-  i int; j int; c int; cx int; cy int; nx int; ny int; nn int; m int;
+  i int; j int; c int; cx int; cy int; nx int; ny int; nn int;
+    m int;
   head int := 1;
   start int; goal int;
   came int[]; q int[];
@@ -65,17 +81,22 @@ declare
   dys constant int[] := array[-1, -1, -1, 0, 0, 1, 1, 1];
 begin
   if fx = tx and fy = ty then return; end if;
-  select min(px[g.v]), max(px[g.v]), min(py[g.v]), max(py[g.v]) into x0, x1, y0, y1 from generate_series(s, s + n - 1) as g(v);
+  select min(px[g.v]), max(px[g.v]), min(py[g.v]), max(py[g.v])
+    into x0, x1, y0, y1 from generate_series(s, s + n - 1) as
+    g(v);
   w := x1 - x0 + 1; h := y1 - y0 + 1;
   inset := array_fill(false, array[w * h]);
   mk := array_fill(0, array[w * h]);
-  rws := array(select r.masks from game.walk_map r where r.y between y0 and y1 order by r.y);
+  rws := array(select r.masks from game.walk_map r where r.y
+    between y0 and y1 order by r.y);
   for i in s .. s + n - 1 loop
     j := (py[i] - y0) * w + (px[i] - x0) + 1;
     inset[j] := true;
-    mk[j] := ('x' || substr(rws[py[i] - y0 + 1], px[i] * 2 + 1, 2))::bit(8)::int;
+    mk[j] := ('x' || substr(rws[py[i] - y0 + 1], px[i] * 2 +
+    1, 2))::bit(8)::int;
   end loop;
-  if game.roam_straight(inset, mk, x0, y0, w, h, fx, fy, tx, ty) then return; end if;
+  if game.roam_straight(inset, mk, x0, y0, w, h, fx, fy, tx,
+    ty) then return; end if;
   start := (fy - y0) * w + (fx - x0);
   goal := (ty - y0) * w + (tx - x0);
   came := array_fill(-1, array[w * h]);
@@ -89,9 +110,11 @@ begin
     m := mk[c + 1];
     for i in 1..8 loop
       nx := cx + dxs[i]; ny := cy + dys[i];
-      continue when not game.roam_in(inset, x0, y0, w, h, nx, ny);
+      continue when not game.roam_in(inset, x0, y0, w, h, nx,
+     ny);
       nn := (ny - y0) * w + (nx - x0);
-      continue when came[nn + 1] >= 0 or (m & (1 << (i - 1))) = 0;
+      continue when came[nn + 1] >= 0 or (m & (1 << (i - 1)))
+    = 0;
       came[nn + 1] := c;
       q := array_append(q, nn);
     end loop;
@@ -108,15 +131,22 @@ begin
   i := 1;
   while i < cardinality(wx) loop
     j := cardinality(wx);
-    while j > i + 1 and not game.roam_straight(inset, mk, x0, y0, w, h, wx[i], wy[i], wx[j], wy[j]) loop j := j - 1; end loop;
+    while j > i + 1 and not game.roam_straight(inset, mk, x0,
+     y0, w, h, wx[i], wy[i], wx[j], wy[j]) loop j := j - 1; end
+    loop;
     xs := xs || wx[j]; ys := ys || wy[j];
     i := j;
   end loop;
   if cardinality(xs) = 1 then xs := null; ys := null; end if;
 end $$;
-revoke execute on function game.roam_bends(integer[], integer[], integer, integer, integer, integer, integer, integer) from public, anon, authenticated;
+revoke execute on function game.roam_bends(integer[], integer[],
+     integer, integer, integer, integer, integer, integer) from
+    public, anon, authenticated;
 
-create or replace function game.roam_point(px integer[], py integer[], s integer, n integer, fx integer, fy integer, tx integer, ty integer, f double precision, out x double precision, out z double precision)
+create or replace function game.roam_point(px integer[], py integer[],
+     s integer, n integer, fx integer, fy integer, tx integer,
+     ty integer, f double precision, out x double precision,
+    out z double precision)
  returns record
  language plpgsql
  stable
@@ -133,7 +163,8 @@ declare
   left_ double precision;
   k double precision;
 begin
-  select r.xs, r.ys into bx, by_ from game.roam_bends(px, py, s, n, fx, fy, tx, ty) r;
+  select r.xs, r.ys into bx, by_ from game.roam_bends(px, py,
+     s, n, fx, fy, tx, ty) r;
   if bx is null then
     x := fx + 0.5 + (tx - fx) * f;
     z := fy + 0.5 + (ty - fy) * f;
@@ -141,15 +172,18 @@ begin
   end if;
   qx := fx; qy := fy;
   for i in 1..cardinality(bx) loop
-    total := total + sqrt((bx[i] - qx)::double precision ^ 2 + (by_[i] - qy)::double precision ^ 2);
+    total := total + sqrt((bx[i] - qx)::double precision ^ 2
+    + (by_[i] - qy)::double precision ^ 2);
     qx := bx[i]; qy := by_[i];
   end loop;
   left_ := f * total;
   qx := fx; qy := fy;
   for i in 1..cardinality(bx) loop
-    seg := sqrt((bx[i] - qx)::double precision ^ 2 + (by_[i] - qy)::double precision ^ 2);
+    seg := sqrt((bx[i] - qx)::double precision ^ 2 + (by_[i]
+    - qy)::double precision ^ 2);
     if left_ <= seg or i = cardinality(bx) then
-      k := case when seg > 0 then least(1, left_ / seg) else 1 end;
+      k := case when seg > 0 then least(1, left_ / seg) else
+    1 end;
       x := qx + 0.5 + (bx[i] - qx) * k;
       z := qy + 0.5 + (by_[i] - qy) * k;
       return;
@@ -158,17 +192,42 @@ begin
     qx := bx[i]; qy := by_[i];
   end loop;
 end $$;
-revoke execute on function game.roam_point(integer[], integer[], integer, integer, integer, integer, integer, integer, double precision) from public, anon, authenticated;
+revoke execute on function game.roam_point(integer[], integer[],
+     integer, integer, integer, integer, integer, integer, double
+    precision) from public, anon, authenticated;
 
-create or replace function game.rat_at(idx integer, t bigint, out x double precision, out z double precision, out flying boolean)
+create or replace function game.rat_at(idx integer, t bigint,
+     out x double precision, out z double precision, out flying
+    boolean)
  returns record
  language plpgsql
  stable
  set search_path to 'pg_catalog', 'game'
 as $$
 declare
-  px int[] := array[18,19,21,22,18,19,20,21,22,18,19,20,21,22,18,19,20,21,22,24,25,26,27,23,24,25,26,27,23,24,25,26,27,23,24,25,26,27,28,31,32,28,29,30,31,32,28,29,30,31,32,28,29,30,31,32,33,34,35,36,37,33,34,35,36,37,33,34,35,36,37,33,34,35,36,37,41,38,39,40,41,38,39,40,41,38,39,40,41,18,19,20,21,22,18,19,20,21,22,18,19,20,21,22,18,19,20,22,23,24,25,26,27,23,24,25,26,27,23,24,25,26,27,23,24,25,26,28,29,30,31,32,28,29,30,31,32,28,29,30,31,32,29,30,31,32,33,34,35,36,37,33,34,35,36,37,33,34,35,36,37,34,35,36,37,38,39,40,41,38,39,40,41,38,39,40,41,38,40,41];
-  py int[] := array[115,115,115,115,116,116,116,116,116,117,117,117,117,117,118,118,118,118,118,115,115,115,115,116,116,116,116,116,117,117,117,117,117,118,118,118,118,118,115,115,115,116,116,116,116,116,117,117,117,117,117,118,118,118,118,118,115,115,115,115,115,116,116,116,116,116,117,117,117,117,117,118,118,118,118,118,115,116,116,116,116,117,117,117,117,118,118,118,118,123,123,123,123,123,124,124,124,124,124,125,125,125,125,125,126,126,126,126,123,123,123,123,123,124,124,124,124,124,125,125,125,125,125,126,126,126,126,123,123,123,123,123,124,124,124,124,124,125,125,125,125,125,126,126,126,126,123,123,123,123,123,124,124,124,124,124,125,125,125,125,125,126,126,126,126,123,123,123,123,124,124,124,124,125,125,125,125,126,126,126];
+  px int[] := array[18,19,21,22,18,19,20,21,22,18,19,20,21,22,
+    18,19,20,21,22,24,25,26,27,23,24,25,26,27,23,24,25,26,27,
+    23,24,25,26,27,28,31,32,28,29,30,31,32,28,29,30,31,32,28,
+    29,30,31,32,33,34,35,36,37,33,34,35,36,37,33,34,35,36,37,
+    33,34,35,36,37,41,38,39,40,41,38,39,40,41,38,39,40,41,18,
+    19,20,21,22,18,19,20,21,22,18,19,20,21,22,18,19,20,22,23,
+    24,25,26,27,23,24,25,26,27,23,24,25,26,27,23,24,25,26,28,
+    29,30,31,32,28,29,30,31,32,28,29,30,31,32,29,30,31,32,33,
+    34,35,36,37,33,34,35,36,37,33,34,35,36,37,34,35,36,37,38,
+    39,40,41,38,39,40,41,38,39,40,41,38,40,41];
+  py int[] := array[115,115,115,115,116,116,116,116,116,117,117,
+    117,117,117,118,118,118,118,118,115,115,115,115,116,116,116,
+    116,116,117,117,117,117,117,118,118,118,118,118,115,115,115,
+    116,116,116,116,116,117,117,117,117,117,118,118,118,118,118,
+    115,115,115,115,115,116,116,116,116,116,117,117,117,117,117,
+    118,118,118,118,118,115,116,116,116,116,117,117,117,117,118,
+    118,118,118,123,123,123,123,123,124,124,124,124,124,125,125,
+    125,125,125,126,126,126,126,123,123,123,123,123,124,124,124,
+    124,124,125,125,125,125,125,126,126,126,126,123,123,123,123,
+    123,124,124,124,124,124,125,125,125,125,125,126,126,126,126,
+    123,123,123,123,123,124,124,124,124,124,125,125,125,125,125,
+    126,126,126,126,123,123,123,123,124,124,124,124,125,125,125,
+    125,126,126,126];
   zs int[] := array[1,20,39,57,77,90,109,128,147,166];
   zn int[] := array[19,19,18,20,13,19,19,19,19,15];
   shifted bigint := t + idx * 3331;
@@ -178,17 +237,25 @@ declare
   b int;
 begin
   flying := false;
-  a := zs[idx + 1] + (game.minstd(((k * 3 + idx) % 2147483647) + 1) % zn[idx + 1])::int;
+  a := zs[idx + 1] + (game.minstd(((k * 3 + idx) % 2147483647)
+    + 1) % zn[idx + 1])::int;
   if into_move >= 2000 then
     x := px[a] + 0.5; z := py[a] + 0.5;
     return;
   end if;
-  b := zs[idx + 1] + (game.minstd((((k - 1) * 3 + idx) % 2147483647) + 1) % zn[idx + 1])::int;
-  select w.x, w.z into x, z from game.roam_point(px, py, zs[idx + 1], zn[idx + 1], px[b], py[b], px[a], py[a], into_move / 2000.0) w;
+  b := zs[idx + 1] + (game.minstd((((k - 1) * 3 + idx) % 2147483647)
+    + 1) % zn[idx + 1])::int;
+  select w.x, w.z into x, z from game.roam_point(px, py, zs[idx
+    + 1], zn[idx + 1], px[b], py[b], px[a], py[a], into_move
+    / 2000.0) w;
 end $$;
-revoke execute on function game.rat_at(integer, bigint) from public, anon, authenticated;
+revoke execute on function game.rat_at(integer, bigint) from
+    public, anon, authenticated;
 
-create or replace function game.roam_at(px integer[], py integer[], idx integer, t bigint, move_ms integer, walk_ms integer, shift integer, out x double precision, out z double precision, out flying boolean)
+create or replace function game.roam_at(px integer[], py integer[],
+     idx integer, t bigint, move_ms integer, walk_ms integer,
+     shift integer, out x double precision, out z double precision,
+     out flying boolean)
  returns record
  language plpgsql
  stable
@@ -208,20 +275,39 @@ begin
     x := px[a] + 0.5; z := py[a] + 0.5;
     return;
   end if;
-  b := 1 + (game.minstd((((k - 1) * 3 + idx) % 2147483647) + 1) % n)::int;
-  select w.x, w.z into x, z from game.roam_point(px, py, 1, n, px[b], py[b], px[a], py[a], into_move::double precision / walk_ms) w;
+  b := 1 + (game.minstd((((k - 1) * 3 + idx) % 2147483647) +
+    1) % n)::int;
+  select w.x, w.z into x, z from game.roam_point(px, py, 1, n,
+     px[b], py[b], px[a], py[a], into_move::double precision
+    / walk_ms) w;
 end $$;
-revoke execute on function game.roam_at(integer[], integer[], integer, bigint, integer, integer, integer) from public, anon, authenticated;
+revoke execute on function game.roam_at(integer[], integer[],
+     integer, bigint, integer, integer, integer) from public,
+     anon, authenticated;
 
-create or replace function game.thug_at(idx integer, t bigint, out x double precision, out z double precision, out flying boolean)
+create or replace function game.thug_at(idx integer, t bigint,
+     out x double precision, out z double precision, out flying
+    boolean)
  returns record
  language plpgsql
  stable
  set search_path to 'pg_catalog', 'game'
 as $$
 declare
-  px int[] := array[50,50,46,47,48,49,50,47,48,49,50,46,47,48,49,50,46,47,48,50,46,47,48,49,50,51,54,55,51,52,54,55,51,52,53,54,55,51,52,53,54,55,51,53,54,55,51,52,53,54,55,51,52,53,55,56,57,58,59,56,57,58,59,60,56,57,58,59,60,60,56,57,58,59,60,56,57,58,59,60,56,57,58,59,60,61,62,63,61,62,63,64,65,61,62,63,64,65,61,64,65,61,62,63,64,65,61,62,63,64,61,62,63,64,65];
-  py int[] := array[43,44,45,45,45,45,45,46,46,46,46,47,47,47,47,47,48,48,48,48,49,49,49,49,49,43,43,43,44,44,44,44,45,45,45,45,45,46,46,46,46,46,47,47,47,47,48,48,48,48,48,49,49,49,49,43,43,43,43,44,44,44,44,44,45,45,45,45,45,46,47,47,47,47,47,48,48,48,48,48,49,49,49,49,49,43,43,43,44,44,44,44,44,45,45,45,45,45,46,46,46,47,47,47,47,47,48,48,48,48,49,49,49,49,49];
+  px int[] := array[50,50,46,47,48,49,50,47,48,49,50,46,47,48,
+    49,50,46,47,48,50,46,47,48,49,50,51,54,55,51,52,54,55,51,
+    52,53,54,55,51,52,53,54,55,51,53,54,55,51,52,53,54,55,51,
+    52,53,55,56,57,58,59,56,57,58,59,60,56,57,58,59,60,60,56,
+    57,58,59,60,56,57,58,59,60,56,57,58,59,60,61,62,63,61,62,
+    63,64,65,61,62,63,64,65,61,64,65,61,62,63,64,65,61,62,63,
+    64,61,62,63,64,65];
+  py int[] := array[43,44,45,45,45,45,45,46,46,46,46,47,47,47,
+    47,47,48,48,48,48,49,49,49,49,49,43,43,43,44,44,44,44,45,
+    45,45,45,45,46,46,46,46,46,47,47,47,47,48,48,48,48,48,49,
+    49,49,49,43,43,43,43,44,44,44,44,44,45,45,45,45,45,46,47,
+    47,47,47,47,48,48,48,48,48,49,49,49,49,49,43,43,43,44,44,
+    44,44,44,45,45,45,45,45,46,46,46,47,47,47,47,47,48,48,48,
+    48,49,49,49,49,49];
   zs int[] := array[1,26,56,86];
   zn int[] := array[25,30,30,30];
   q int := idx % 4;
@@ -232,15 +318,20 @@ declare
   b int;
 begin
   flying := false;
-  a := zs[q + 1] + (game.minstd(((k * 3 + idx) % 2147483647) + 1) % zn[q + 1])::int;
+  a := zs[q + 1] + (game.minstd(((k * 3 + idx) % 2147483647)
+    + 1) % zn[q + 1])::int;
   if into_move >= 3000 then
     x := px[a] + 0.5; z := py[a] + 0.5;
     return;
   end if;
-  b := zs[q + 1] + (game.minstd((((k - 1) * 3 + idx) % 2147483647) + 1) % zn[q + 1])::int;
-  select w.x, w.z into x, z from game.roam_point(px, py, zs[q + 1], zn[q + 1], px[b], py[b], px[a], py[a], into_move / 3000.0) w;
+  b := zs[q + 1] + (game.minstd((((k - 1) * 3 + idx) % 2147483647)
+    + 1) % zn[q + 1])::int;
+  select w.x, w.z into x, z from game.roam_point(px, py, zs[q
+    + 1], zn[q + 1], px[b], py[b], px[a], py[a], into_move /
+    3000.0) w;
 end $$;
-revoke execute on function game.thug_at(integer, bigint) from public, anon, authenticated;
+revoke execute on function game.thug_at(integer, bigint) from
+    public, anon, authenticated;
 
 insert into public.enemies (id, kind, idx, hp) values
   ('thug_0', 'thug', 0, 10),
@@ -253,81 +344,215 @@ insert into public.enemies (id, kind, idx, hp) values
   ('thug_7', 'thug', 7, 10)
 on conflict (id) do nothing;
 
-insert into public.spots (id, crime_id, x, y, area_x0, area_y0, area_x1, area_y1) values
+insert into public.spots (id, crime_id, x, y, area_x0, area_y0,
+     area_x1, area_y1) values
   ('drunk_0', 'pick_drunk', 44, 41, null, null, null, null),
   ('drunk_1', 'pick_drunk', 44, 42, null, null, null, null),
   ('drunk_2', 'pick_drunk', 44, 43, null, null, null, null),
   ('drunk_3', 'pick_drunk', 44, 44, null, null, null, null),
   ('drunk_4', 'pick_drunk', 44, 45, null, null, null, null),
   ('drunk_5', 'pick_drunk', 44, 46, null, null, null, null)
-on conflict (id) do update set crime_id = excluded.crime_id, x = excluded.x, y = excluded.y;
+on conflict (id) do update set crime_id = excluded.crime_id,
+    x = excluded.x, y = excluded.y;
 update public.stations set x = 53, y = 44 where id = 'barrel_1';
 
-delete from game.shot_walls where x0 between 41 and 67 and y0 between 41 and 50;
+delete from game.shot_walls where x0 between 41 and 67 and y0
+    between 41 and 50;
 insert into game.shot_walls (x0, y0, x1, y1) values
   (46, 41, 50, 42),
   (51, 41, 54, 42),
   (55, 41, 60, 42),
   (61, 41, 65, 42),
   (66, 41, 67, 50);
-update game.shot_enclosures set x0 = 41, y0 = 41, x1 = 45, y1 = 50 where id = 'bar';
-update game.walk_map set masks = 'd6ffffffffff7f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f1f1f1f1f1f1f1f9fdfffffffffff7f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f5f1f1f1f1f5f1f1fdfffffffffff7f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f1f1f1f1f1f5f1f1fdfffffffffff7f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f5f1f1f1f1f1f1f1fdfffffffffff6b' where y = 40;
-update game.walk_map set masks = 'd6ffffffffff6b00400000d06800004000d6ffffffffff6b00000000000000400040d7ffffffffff6b004000000000000000000000000000000000000000000000000000d6ffffffffff6b00004200000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b00004200000000000000d6ffffffffff6b' where y = 41;
-update game.walk_map set masks = 'd6ffffffffff6b10daf8f8fe6b00005208d6ffffffffff6b0000000000d0f8fa780ad6ffffffffff6b004200004000000000000000000000000000000000000000000000d6ffffffffff6b00d0fa6800d0f86a0000d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b00004200000000000000d6ffffffffff6b' where y = 42;
-update game.walk_map set masks = 'd6ffffffffff6b00d67f1fdffbf8f86a00d6ffffffffff6b0000000000d6ffff6b00d6ffffffffff6b004200004200000000d0680000d0f8f8f8f86800d0f86800000000d6ffffffffff7b18deff7b181edffb7818deffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff7b18181818181818181818deffffffffff6b00004200000000000000d6ffffffffff6b' where y = 43;
-update game.walk_map set masks = 'd6ffffffffff6b00d66b00d6fffffffb68d6ffffffffff6b0000000000d6fffffb68d6ffffffffff6b004200004200000000d6fb6800d6fffffffffbf8fefffbf8680000d6ffffffffff6b0016df6b0000d67f0b00d6ffff7f1fdf6b00000000000000400000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b00004200000000000000d6ffffffffff6b' where y = 44;
-update game.walk_map set masks = 'd6ffffffffff6bd0fefbf8feffffffff7bdeffffffffff6b0000000000d6ffffff7bdeffffffffff6b004200004210d8f8f8fefffbf8fe7f1f1f1f1fdf7f1f1fdf6b0000d6ffffffffff6b0000d66b0000d66b0000d6ffff6b00d66b00000000000000020000d6ffffffffff6b00000000000000020000d6ffffffffff6b00000000000000000000d6ffffffffff6b00000200000000000000d6ffffffffff6b' where y = 45;
-update game.walk_map set masks = 'd6ffffffffff6bd6ffffff7f1f1fdfff7bdeffffffffff6b0000000000d6ffffff7bdeffffffffff6b004200004200d6ffffff7f1fdfff6b00000000d66b0000d66b0000d6ffffffffff6b00d0fe6b0000d66b0000d6ffff6b00d66b0000000000d06800d068d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000400000d6ffffffffff6b00000000000000000000d6ffffffffff6b' where y = 46;
-update game.walk_map set masks = 'd6ffffffffff6bd6ffffff6b0000d6ff6bd6ffffffffff6b0000000000d6ffff7f0bd6ffffffffff6b105a18180ad0fe7f1fdf6b00d6fffbf8f8f8f8fefbf8f87e0b0000d6ffffffffff6b00d6ff6b0000d6fb6800d6ffff6b00d66b000000000016dbf87e0bd6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b' where y = 47;
-update game.walk_map set masks = 'd6ffffffffff6b16dffffffbf8f8feff6bd6ffffffffff6b0000000000d6ffff6b00d6ffffffffff6b0042000000d6ff6b00d6fbf87e1fdfffffffffffffffff6b000000d6ffffffffff7b181edf7b18d8fe7f1b18defffffbf8fe6b000000000000d6ff6b00d6ffffffffff6b00000000001018181818deffffffffff6b00000000000000420000d6ffffffffff6b00000000001018181818deffffffffff6b' where y = 48;
-update game.walk_map set masks = 'd6ffffffffff6b0016df7f1fdf7f1f1f4bd6ffffffffff6b0000000000165f1fdb68d6ffffffffff6bd0faf8f868161f1b581e1f1f0b00561f1f1f1f1f5f1f1f1b080000d6ffffffffff6b0000d66b00d6ff6b0000d6ffffffffff6b000000000010deff7b08d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b' where y = 49;
-update game.walk_map set masks = 'd6ffffffffff6b0000160b00160b000002f6ffffffffff6b0000000000000200160bf6ffffffffffeb161f5f1f0b00000042000000000042000000000042000000000000d6ffffffffff6b00d0fefbf8fefffb6800d6ffffffffff6b000000000000165f0b00d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b' where y = 50;
-update game.walk_map set masks = 'd6fffffffffffbf8f8f8f8f8f8f8f8f8fcfefffffffffffbf8f8f8f8f8f8f8f8f8fcfefffffffffffbf9f8faf8f8f8f8f8faf8f8f8f8f8faf8f8f8f8f8faf8f8f8f8f8f8feffffffffff6b00d6ffffffffffff6b00d6fffffffffffbf8f8f8f8f8f8f8faf8f8fefffffffffffbf8f8f8f8f8f8f8f8f8f8fefffffffffffbf8f8f8f8f8f8f8faf8f8fefffffffffffbf8f8f8f8f8f8f8f8f8f8feffffffffff6b' where y = 51;
+update game.shot_enclosures set x0 = 41, y0 = 41, x1 = 45, y1
+    = 50 where id = 'bar';
+update game.walk_map set masks = 
+  'd6ffffffffff7f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f1f1f1f1f1f1f1f9fdfffffffffff'
+  || '7f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f5f1f1f'
+  || '1f1f5f1f1fdfffffffffff7f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f1f1f1f1f1f5f1f1fdf'
+  || 'ffffffffff7f1f1f1f1f1f1f1f1f1f1fdfffffffffff7f1f1f5f1f1f1f1f1f1f1fdfffffffffff6b'
+    where y = 40;
+update game.walk_map set masks = 
+  'd6ffffffffff6b00400000d06800004000d6ffffffffff6b00000000000000400040d7ffffffffff'
+  || '6b004000000000000000000000000000000000000000000000000000d6ffffffffff6b0000420000'
+  || '0000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6'
+  || 'ffffffffff6b00000000000000000000d6ffffffffff6b00004200000000000000d6ffffffffff6b'
+    where y = 41;
+update game.walk_map set masks = 
+  'd6ffffffffff6b10daf8f8fe6b00005208d6ffffffffff6b0000000000d0f8fa780ad6ffffffffff'
+  || '6b004200004000000000000000000000000000000000000000000000d6ffffffffff6b00d0fa6800'
+  || 'd0f86a0000d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6'
+  || 'ffffffffff6b00000000000000000000d6ffffffffff6b00004200000000000000d6ffffffffff6b'
+    where y = 42;
+update game.walk_map set masks = 
+  'd6ffffffffff6b00d67f1fdffbf8f86a00d6ffffffffff6b0000000000d6ffff6b00d6ffffffffff'
+  || '6b004200004200000000d0680000d0f8f8f8f86800d0f86800000000d6ffffffffff7b18deff7b18'
+  || '1edffb7818deffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6'
+  || 'ffffffffff7b18181818181818181818deffffffffff6b00004200000000000000d6ffffffffff6b'
+    where y = 43;
+update game.walk_map set masks = 
+  'd6ffffffffff6b00d66b00d6fffffffb68d6ffffffffff6b0000000000d6fffffb68d6ffffffffff'
+  || '6b004200004200000000d6fb6800d6fffffffffbf8fefffbf8680000d6ffffffffff6b0016df6b00'
+  || '00d67f0b00d6ffff7f1fdf6b00000000000000400000d6ffffffffff6b00000000000000420000d6'
+  || 'ffffffffff6b00000000000000000000d6ffffffffff6b00004200000000000000d6ffffffffff6b'
+    where y = 44;
+update game.walk_map set masks = 
+  'd6ffffffffff6bd0fefbf8feffffffff7bdeffffffffff6b0000000000d6ffffff7bdeffffffffff'
+  || '6b004200004210d8f8f8fefffbf8fe7f1f1f1f1fdf7f1f1fdf6b0000d6ffffffffff6b0000d66b00'
+  || '00d66b0000d6ffff6b00d66b00000000000000020000d6ffffffffff6b00000000000000020000d6'
+  || 'ffffffffff6b00000000000000000000d6ffffffffff6b00000200000000000000d6ffffffffff6b'
+    where y = 45;
+update game.walk_map set masks = 
+  'd6ffffffffff6bd6ffffff7f1f1fdfff7bdeffffffffff6b0000000000d6ffffff7bdeffffffffff'
+  || '6b004200004200d6ffffff7f1fdfff6b00000000d66b0000d66b0000d6ffffffffff6b00d0fe6b00'
+  || '00d66b0000d6ffff6b00d66b0000000000d06800d068d6ffffffffff6b00000000000000000000d6'
+  || 'ffffffffff6b00000000000000400000d6ffffffffff6b00000000000000000000d6ffffffffff6b'
+    where y = 46;
+update game.walk_map set masks = 
+  'd6ffffffffff6bd6ffffff6b0000d6ff6bd6ffffffffff6b0000000000d6ffff7f0bd6ffffffffff'
+  || '6b105a18180ad0fe7f1fdf6b00d6fffbf8f8f8f8fefbf8f87e0b0000d6ffffffffff6b00d6ff6b00'
+  || '00d6fb6800d6ffff6b00d66b000000000016dbf87e0bd6ffffffffff6b00000000000000000000d6'
+  || 'ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b'
+    where y = 47;
+update game.walk_map set masks = 
+  'd6ffffffffff6b16dffffffbf8f8feff6bd6ffffffffff6b0000000000d6ffff6b00d6ffffffffff'
+  || '6b0042000000d6ff6b00d6fbf87e1fdfffffffffffffffff6b000000d6ffffffffff7b181edf7b18'
+  || 'd8fe7f1b18defffffbf8fe6b000000000000d6ff6b00d6ffffffffff6b00000000001018181818de'
+  || 'ffffffffff6b00000000000000420000d6ffffffffff6b00000000001018181818deffffffffff6b'
+    where y = 48;
+update game.walk_map set masks = 
+  'd6ffffffffff6b0016df7f1fdf7f1f1f4bd6ffffffffff6b0000000000165f1fdb68d6ffffffffff'
+  || '6bd0faf8f868161f1b581e1f1f0b00561f1f1f1f1f5f1f1f1b080000d6ffffffffff6b0000d66b00'
+  || 'd6ff6b0000d6ffffffffff6b000000000010deff7b08d6ffffffffff6b00000000000000000000d6'
+  || 'ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b'
+    where y = 49;
+update game.walk_map set masks = 
+  'd6ffffffffff6b0000160b00160b000002f6ffffffffff6b0000000000000200160bf6ffffffffff'
+  || 'eb161f5f1f0b00000042000000000042000000000042000000000000d6ffffffffff6b00d0fefbf8'
+  || 'fefffb6800d6ffffffffff6b000000000000165f0b00d6ffffffffff6b00000000000000000000d6'
+  || 'ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b'
+    where y = 50;
+update game.walk_map set masks = 
+  'd6fffffffffffbf8f8f8f8f8f8f8f8f8fcfefffffffffffbf8f8f8f8f8f8f8f8f8fcfeffffffffff'
+  || 'fbf9f8faf8f8f8f8f8faf8f8f8f8f8faf8f8f8f8f8faf8f8f8f8f8f8feffffffffff6b00d6ffffff'
+  || 'ffffff6b00d6fffffffffffbf8f8f8f8f8f8f8faf8f8fefffffffffffbf8f8f8f8f8f8f8f8f8f8fe'
+  || 'fffffffffffbf8f8f8f8f8f8f8faf8f8fefffffffffffbf8f8f8f8f8f8f8f8f8f8feffffffffff6b'
+    where y = 51;
 
 update public.players t set pos_x = 55, pos_y = 51
-from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
-where t.pos_y = s.y and t.pos_x between 41 and 67 and substr(s.bits, t.pos_x - 40, 1) = '1';
+from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'),
+     (43, '101101111001100000010001111'), (44, '101101111000100000000000011'),
+     (45, '101100000000000000000000011'), (46, '101101000000000111100110011'),
+     (47, '000000000001000000000000011'), (48, '101110001000000000000000111'),
+     (49, '000000000000010000000000011'), (50, '000001110111110111110111111'))
+    s(y, bits)
+where t.pos_y = s.y and t.pos_x between 41 and 67 and substr(s.bits,
+     t.pos_x - 40, 1) = '1';
 update public.ground_items t set x = 55, y = 51
-from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
-where t.y = s.y and t.x between 41 and 67 and substr(s.bits, t.x - 40, 1) = '1';
+from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'),
+     (43, '101101111001100000010001111'), (44, '101101111000100000000000011'),
+     (45, '101100000000000000000000011'), (46, '101101000000000111100110011'),
+     (47, '000000000001000000000000011'), (48, '101110001000000000000000111'),
+     (49, '000000000000010000000000011'), (50, '000001110111110111110111111'))
+    s(y, bits)
+where t.y = s.y and t.x between 41 and 67 and substr(s.bits,
+    t.x - 40, 1) = '1';
 update public.graves t set x = 55, y = 51
-from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
-where t.y = s.y and t.x between 41 and 67 and substr(s.bits, t.x - 40, 1) = '1';
+from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'),
+     (43, '101101111001100000010001111'), (44, '101101111000100000000000011'),
+     (45, '101100000000000000000000011'), (46, '101101000000000111100110011'),
+     (47, '000000000001000000000000011'), (48, '101110001000000000000000111'),
+     (49, '000000000000010000000000011'), (50, '000001110111110111110111111'))
+    s(y, bits)
+where t.y = s.y and t.x between 41 and 67 and substr(s.bits,
+    t.x - 40, 1) = '1';
 
-select case when (select abs(w.x - 48.500000) < 0.001 and abs(w.z - 48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097) w)
-    and (select abs(w.x - 54.500000) < 0.001 and abs(w.z - 44.655000) < 0.001 from game.enemy_at('thug', 1, 1763000000582) w)
-    and (select abs(w.x - 34.183000) < 0.001 and abs(w.z - 125.500000) < 0.001 from game.enemy_at('rat', 8, 1763000065669) w)
-    and (select abs(w.x - 41.500000) < 0.001 and abs(w.z - 116.106763) < 0.001 from game.enemy_at('rat', 4, 1763000105051) w)
-    and (select abs(w.x - 10.065333) < 0.001 and abs(w.z - 46.065333) < 0.001 from game.enemy_at('dog', 3, 1763000001164) w)
-    and (select abs(w.x - 9.030667) < 0.001 and abs(w.z - 45.030667) < 0.001 from game.enemy_at('dog', 3, 1763000001552) w)
-    and (select abs(w.x - 53.931332) < 0.001 and abs(w.z - 117.353003) < 0.001 from game.enemy_at('giant_rat', 0, 1763000000388) w)
-    and (select abs(w.x - 53.504830) < 0.001 and abs(w.z - 117.992755) < 0.001 from game.enemy_at('giant_rat', 0, 1763000000679) w)
-    and (select abs(w.x - 26.568795) < 0.001 and abs(w.z - 10.500000) < 0.001 from game.enemy_at('biker', 2, 1763000000000) w)
-    and (select abs(w.x - 26.996973) < 0.001 and abs(w.z - 10.500000) < 0.001 from game.enemy_at('biker', 2, 1763000000291) w) then 'ok' else 'WALKS DIFFER' end as walks,
-  case when (select count(*) from public.enemies where kind = 'thug') = 8 then 'ok' else 'BAD THUGS' end as thugs,
-  case when (select count(*) from public.spots where crime_id = 'pick_drunk') = 6
-    and (select y from public.stations where id = 'barrel_1') = 44 then 'ok' else 'BAD ROWS' end as rows,
+select case when (select abs(w.x - 48.500000) < 0.001 and abs(w.z
+    - 48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097)
+    w)
+    and (select abs(w.x - 54.500000) < 0.001 and abs(w.z - 44.655000)
+    < 0.001 from game.enemy_at('thug', 1, 1763000000582) w)
+    and (select abs(w.x - 34.183000) < 0.001 and abs(w.z - 125.500000)
+    < 0.001 from game.enemy_at('rat', 8, 1763000065669) w)
+    and (select abs(w.x - 41.500000) < 0.001 and abs(w.z - 116.106763)
+    < 0.001 from game.enemy_at('rat', 4, 1763000105051) w)
+    and (select abs(w.x - 10.065333) < 0.001 and abs(w.z - 46.065333)
+    < 0.001 from game.enemy_at('dog', 3, 1763000001164) w)
+    and (select abs(w.x - 9.030667) < 0.001 and abs(w.z - 45.030667)
+    < 0.001 from game.enemy_at('dog', 3, 1763000001552) w)
+    and (select abs(w.x - 53.931332) < 0.001 and abs(w.z - 117.353003)
+    < 0.001 from game.enemy_at('giant_rat', 0, 1763000000388)
+    w)
+    and (select abs(w.x - 53.504830) < 0.001 and abs(w.z - 117.992755)
+    < 0.001 from game.enemy_at('giant_rat', 0, 1763000000679)
+    w)
+    and (select abs(w.x - 26.568795) < 0.001 and abs(w.z - 10.500000)
+    < 0.001 from game.enemy_at('biker', 2, 1763000000000) w)
+    and (select abs(w.x - 26.996973) < 0.001 and abs(w.z - 10.500000)
+    < 0.001 from game.enemy_at('biker', 2, 1763000000291) w)
+    then 'ok' else 'WALKS DIFFER' end as walks,
+  case when (select count(*) from public.enemies where kind =
+    'thug') = 8 then 'ok' else 'BAD THUGS' end as thugs,
+  case when (select count(*) from public.spots where crime_id
+    = 'pick_drunk') = 6
+    and (select y from public.stations where id = 'barrel_1')
+    = 44 then 'ok' else 'BAD ROWS' end as rows,
   case when (select count(*) from game.shot_walls) = 300
-    and (select y1 - y0 from game.shot_enclosures where id = 'bar') = 9 then 'ok' else 'BAD TABLES' end as tables,
-  case when (select count(*) from public.players t join (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits) on t.pos_y = s.y and t.pos_x between 41 and 67
-    and substr(s.bits, t.pos_x - 40, 1) = '1') = 0 then 'ok' else 'SOMEONE STUCK' end as players;
+    and (select y1 - y0 from game.shot_enclosures where id =
+    'bar') = 9 then 'ok' else 'BAD TABLES' end as tables,
+  case when (select count(*) from public.players t join (values
+    (41, '101111111111111111111111111'), (42, '101101111111111111111111111'),
+     (43, '101101111001100000010001111'), (44, '101101111000100000000000011'),
+     (45, '101100000000000000000000011'), (46, '101101000000000111100110011'),
+     (47, '000000000001000000000000011'), (48, '101110001000000000000000111'),
+     (49, '000000000000010000000000011'), (50, '000001110111110111110111111'))
+    s(y, bits) on t.pos_y = s.y and t.pos_x between 41 and 67
+    and substr(s.bits, t.pos_x - 40, 1) = '1') = 0 then 'ok'
+    else 'SOMEONE STUCK' end as players;
 
 do $$
 begin
-  if (select md5(string_agg(masks, '' order by y)) from game.walk_map) <> '0ddf95369f0f2d595d504f523e29c69e' then raise exception '0041: walk map differs from the game'; end if;
-  if (select md5(string_agg(concat_ws(',', x0, y0, x1, y1), ';' order by x0, y0)) from game.shot_walls where x0 between 41 and 67 and y0 between 41 and 50) <> 'da54519299760845a64d6662a5117f90' then raise exception '0041: walls differ from the game'; end if;
-  if (select md5(string_agg(concat_ws(',', id, x, y), ';' order by id)) from public.spots where crime_id = 'pick_drunk') <> '206fb63efac8908ba59e68e4f188367e' then raise exception '0041: drunks differ from the game'; end if;
-  if (select count(*) from public.enemies where kind = 'thug') <> 8 or (select y from public.stations where id = 'barrel_1') <> 44 then raise exception '0041: thugs or barrel wrong'; end if;
-  if not ((select abs(w.x - 48.500000) < 0.001 and abs(w.z - 48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097) w)
-    and (select abs(w.x - 54.500000) < 0.001 and abs(w.z - 44.655000) < 0.001 from game.enemy_at('thug', 1, 1763000000582) w)
-    and (select abs(w.x - 34.183000) < 0.001 and abs(w.z - 125.500000) < 0.001 from game.enemy_at('rat', 8, 1763000065669) w)
-    and (select abs(w.x - 41.500000) < 0.001 and abs(w.z - 116.106763) < 0.001 from game.enemy_at('rat', 4, 1763000105051) w)
-    and (select abs(w.x - 10.065333) < 0.001 and abs(w.z - 46.065333) < 0.001 from game.enemy_at('dog', 3, 1763000001164) w)
-    and (select abs(w.x - 9.030667) < 0.001 and abs(w.z - 45.030667) < 0.001 from game.enemy_at('dog', 3, 1763000001552) w)
-    and (select abs(w.x - 53.931332) < 0.001 and abs(w.z - 117.353003) < 0.001 from game.enemy_at('giant_rat', 0, 1763000000388) w)
-    and (select abs(w.x - 53.504830) < 0.001 and abs(w.z - 117.992755) < 0.001 from game.enemy_at('giant_rat', 0, 1763000000679) w)
-    and (select abs(w.x - 26.568795) < 0.001 and abs(w.z - 10.500000) < 0.001 from game.enemy_at('biker', 2, 1763000000000) w)
-    and (select abs(w.x - 26.996973) < 0.001 and abs(w.z - 10.500000) < 0.001 from game.enemy_at('biker', 2, 1763000000291) w)) then raise exception '0041: walks differ from the game'; end if;
+  if (select md5(string_agg(masks, '' order by y)) from game.walk_map)
+    <> '0ddf95369f0f2d595d504f523e29c69e' then raise exception
+    '0041: walk map differs from the game'; end if;
+  if (select md5(string_agg(concat_ws(',', x0, y0, x1, y1), ';'
+    order by x0, y0)) from game.shot_walls where x0 between 41
+    and 67 and y0 between 41 and 50) <> 'da54519299760845a64d6662a5117f90'
+    then raise exception '0041: walls differ from the game';
+    end if;
+  if (select md5(string_agg(concat_ws(',', id, x, y), ';' order
+    by id)) from public.spots where crime_id = 'pick_drunk')
+    <> '206fb63efac8908ba59e68e4f188367e' then raise exception
+    '0041: drunks differ from the game'; end if;
+  if (select count(*) from public.enemies where kind = 'thug')
+    <> 8 or (select y from public.stations where id = 'barrel_1')
+    <> 44 then raise exception '0041: thugs or barrel wrong';
+    end if;
+  if not ((select abs(w.x - 48.500000) < 0.001 and abs(w.z -
+    48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097)
+    w)
+    and (select abs(w.x - 54.500000) < 0.001 and abs(w.z - 44.655000)
+    < 0.001 from game.enemy_at('thug', 1, 1763000000582) w)
+    and (select abs(w.x - 34.183000) < 0.001 and abs(w.z - 125.500000)
+    < 0.001 from game.enemy_at('rat', 8, 1763000065669) w)
+    and (select abs(w.x - 41.500000) < 0.001 and abs(w.z - 116.106763)
+    < 0.001 from game.enemy_at('rat', 4, 1763000105051) w)
+    and (select abs(w.x - 10.065333) < 0.001 and abs(w.z - 46.065333)
+    < 0.001 from game.enemy_at('dog', 3, 1763000001164) w)
+    and (select abs(w.x - 9.030667) < 0.001 and abs(w.z - 45.030667)
+    < 0.001 from game.enemy_at('dog', 3, 1763000001552) w)
+    and (select abs(w.x - 53.931332) < 0.001 and abs(w.z - 117.353003)
+    < 0.001 from game.enemy_at('giant_rat', 0, 1763000000388)
+    w)
+    and (select abs(w.x - 53.504830) < 0.001 and abs(w.z - 117.992755)
+    < 0.001 from game.enemy_at('giant_rat', 0, 1763000000679)
+    w)
+    and (select abs(w.x - 26.568795) < 0.001 and abs(w.z - 10.500000)
+    < 0.001 from game.enemy_at('biker', 2, 1763000000000) w)
+    and (select abs(w.x - 26.996973) < 0.001 and abs(w.z - 10.500000)
+    < 0.001 from game.enemy_at('biker', 2, 1763000000291) w))
+    then raise exception '0041: walks differ from the game';
+    end if;
 end $$;
 
 commit;

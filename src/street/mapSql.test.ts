@@ -21,7 +21,9 @@ test('0041 is the map as it is (the bar and the Yard merged)', async () => {
 test("the enemies' walk map is the live one plus 0041's rows", async () => {
   const { walkMasks } = await import('./sight');
   const { GH, W, gi } = await import('./map');
-  const { m0038, m0040, m0041 } = await load();
+  const { m0038, m0040 } = await load();
+  // (0041's rows are split over short lines, 'abc'\n  || 'def': join them back.)
+  const m0041 = (await load()).m0041.replace(/'\n {2}\|\| '/g, '').replace(/masks = \n {2}'/g, "masks = '").replace(/'\n +where y/g, "' where y");
   const live = liveWalkRows(m0038, m0040);
   const m = walkMasks();
   for (let y = 0; y < GH; y++) {

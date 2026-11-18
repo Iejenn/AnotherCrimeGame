@@ -78,9 +78,33 @@ function bareSql(sql: string): string {
     .filter((l) => !/^\s*--/.test(l))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
-    .trimStart();
+    .trimStart()
+    .split('\n')
+    .map(shortLines)
+    .join('\n');
+  for (const l of out.split('\n')) if (l.length > 100) throw new Error('a line is longer than 100 characters: ' + l.slice(0, 160));
   if (/--/.test(out.replace(/'[^']*'/g, ''))) throw new Error('a comment is left in the migration');
   return out;
+}
+/** v0.58: no line over 100 characters (a long line got wrapped on its way into the SQL editor, which broke it): long
+ *  hex strings become pieces joined with ||, and long lines break after a comma or a space outside quotes. */
+function shortLines(line: string): string {
+  line = line.replace(/'([0-9a-f]{80,})'/g, (_, hex: string) => (hex.match(/.{1,80}/g) as string[]).map((h) => `'${h}'`).join('\n  || ').replace(/^/, '\n  '));
+  return line
+    .split('\n')
+    .flatMap((l) => {
+      const out: string[] = [];
+      let cur = '';
+      let quoted = false;
+      for (const ch of l) {
+        cur += ch;
+        if (ch === "'") quoted = !quoted;
+        if (!quoted && (ch === ',' || ch === ' ') && cur.length > 60) out.push(cur.trimEnd()), (cur = '    ');
+      }
+      out.push(cur);
+      return out.filter((x, i) => i === 0 || x.trim());
+    })
+    .join('\n');
 }
 function turfSqlCommented(m0038: string, m0040: string): string {
   const S = TURF_SITE;
