@@ -81,6 +81,19 @@ const Knife = ({ t }: { t: Tone }) => (
   </svg>
 );
 
+/** Throwing knives (v0.51): three slim knives fanned out, bare blades on black grips. */
+const ThrowingKnives = ({ t }: { t: Tone }) => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    {[-24, -42, -60].map((a) => (
+      <g key={a} transform={`rotate(${a} 20 22)`}>
+        <path d="M18 20.6 L33 20.8 L37 22 L33 23.2 L18 23.4 Z" fill={t[0]} stroke={t[1]} strokeWidth="0.9" strokeLinejoin="round" />
+        <path d="M19 22.6 L33 22.6" stroke={t[2]} strokeWidth="0.7" opacity="0.8" />
+        <rect x="8" y="20.4" width="10.5" height="3.2" rx="1.2" fill="#2b2b2e" stroke="#111" strokeWidth="0.7" />
+      </g>
+    ))}
+  </svg>
+);
+
 /** A flat sheet of metal, slightly bent at a corner. */
 const Sheet = ({ t }: { t: Tone }) => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
@@ -168,6 +181,7 @@ for (const [metal, t] of Object.entries(TONES)) {
   ICONS[`${metal}_knuckles`] = () => <Knuckles t={t} />;
   ICONS[`${metal}_bat`] = () => <Bat t={t} />;
   ICONS[`${metal}_knife`] = () => <Knife t={t} />;
+  ICONS[`${metal}_throwing_knife`] = () => <ThrowingKnives t={t} />;
   ICONS[`${metal}_helmet`] = () => <Helmet t={t} />;
   ICONS[`${metal}_legs`] = () => <LegGuards t={t} />;
   ICONS[`${metal}_vest`] = () => <Vest t={t} />;

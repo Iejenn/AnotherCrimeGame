@@ -11,12 +11,14 @@ import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, hpAt, maxHp, ski
 import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
-import { ITEM_BY_ID } from '../game/data/items';
+import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
 import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
-import { WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
+import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
+import { clearShot, routeMs, routePoint } from './sight';
+import { rangedWeapon } from '../game/combat';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
@@ -24,6 +26,7 @@ import { TinkerDialog } from './TinkerDialog';
 import { BankDialog } from './BankDialog';
 import { CRAFT_BY_ID } from '../game/data/metals';
 import { QuickEat } from './QuickEat';
+import { StyleToggle } from './StyleToggle';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
@@ -76,9 +79,15 @@ function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly
 }
 
 /** How a weapon's swing looks (see ItemDef.gear.anim). */
-const weaponAnim = (id: string | undefined): 'punch' | 'swing' | 'stab' => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
-/** How long each attack takes, and how far into it the blow lands (so it lands as the hitsplat shows). */
-const ATTACK_TIMING = { punch: { ms: 420, lead: 160 }, stab: { ms: 520, lead: 230 }, swing: { ms: 900, lead: 380 } } as const;
+const weaponAnim = (id: string | undefined): 'punch' | 'swing' | 'stab' | 'throw' => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
+/** What someone holds and how they attack: their throwing knives in Marksman style (v0.51), else their melee weapon. */
+const heldWeapon = (equipment: GameState['equipment'], style: string | undefined, hasKnives = true) =>
+  style === 'marksman' && equipment?.marksman && hasKnives ? equipment.marksman : equipment?.weapon;
+/** How long each attack takes, and how far into it the blow lands (so it lands as the hitsplat shows). A throw lets go
+ *  at THROW_RELEASE and the knife then flies (THROW_SPEED): its hitsplat waits for the knife. */
+const ATTACK_TIMING = { punch: { ms: 420, lead: 160 }, stab: { ms: 520, lead: 230 }, swing: { ms: 900, lead: 380 }, throw: { ms: 640, lead: 640 * THROW_RELEASE } } as const;
+/** How fast a thrown knife flies (tiles a second). */
+const THROW_SPEED = 16;
 // Tiles per second (v0.49: 4 → 2.5, a walk rather than a jog; the steps match it, see WALK_PACE). The server allows up
 // to 5 (game.can_reach), so this needs no server change.
 const WALK_SPEED = WALK_PACE;
@@ -122,6 +131,8 @@ export interface OtherPlayer {
   path: [number, number][];
   at: number;
   equipment?: Partial<Record<string, string>>;
+  /** Melee or Marksman (v0.51): with Marksman they hold and throw their knives. */
+  style?: string;
   /** Their combat level (shown next to their name). */
   combat?: number;
   /** What they're doing right now, and their health (from the server, live). */
@@ -195,7 +206,9 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
   // The log always starts with the welcome (time 0, so it sorts above everything else), then the how-to line.
   const [msgs, setMsgs] = useState<Msg[]>([
     { t: 0, text: 'Welcome to Underworld.' },
-    { t: 1, text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' },
+    // v0.51: the how-to covers more than pickpocketing now (fighting, talking, cooking) and points to the Skills guides.
+    { t: 1, text: 'Tap to walk. Tap people and things to act on them: pick a pocket, fight, talk, cook. Drag to turn the camera, pinch or scroll to zoom.' },
+    { t: 2, text: 'New here? Pick tourists\' pockets in the park or fight the Pigeons. Tap a skill in Skills to see how to train it.' },
   ]);
   const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-20), { t: gameNow(), text }]));
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
@@ -576,10 +589,34 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       if (e.fighter && e.fighter !== w.myId) return say(`Someone else is fighting that ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'thing'}.`);
       const at = enemyAt(e);
       const [ex, ey] = tileOf(at.x, at.z);
+      // Throwing knives (v0.51): walk only as far as a tile you can throw from (in range, nothing in the way), the
+      // nearest one; if you're on one already, throw right away.
+      const rw = rangedWeapon(sRef.current);
+      if (rw) {
+        if (rw.left <= 0) return say(`You have no ${plural(ITEM_BY_ID[rw.id].name).toLowerCase()} left.`);
+        const goals: [number, number][] = [];
+        for (let dy = -rw.range; dy <= rw.range; dy++)
+          for (let dx = -rw.range; dx <= rw.range; dx++) {
+            const [tx, ty] = [ex + dx, ey + dy];
+            if (tx >= 0 && ty >= 0 && tx < W && ty < GH && !blocked[ty * W + tx] && canThrowFrom([tx, ty], at, rw.range)) goals.push([tx, ty]);
+          }
+        if (!goals.length) return say("You can't get a clear throw at that.");
+        if (walkTo(goals, null)) {
+          me.goalEnemy = id;
+          if (!me.path.length) reachEnemy();
+        }
+        return;
+      }
       if (walkTo(beside(ex, ey), null)) {
         me.goalEnemy = id;
         if (!me.path.length) reachEnemy();
       }
+    };
+    /** Can you throw from tile `from` at something at (at.x, at.z)? Close enough for the weapon, and a clear line
+     *  (the same checks as the server's attack(): up to range + ½ tile, walls and fences block however close). */
+    const canThrowFrom = (from: [number, number], at: { x: number; z: number }, range: number) => {
+      const d = Math.hypot(from[0] + 0.5 - at.x, from[1] + 0.5 - at.z);
+      return d <= range && clearShot(from[0], from[1], Math.floor(at.x), Math.floor(at.z));
     };
     /** Arrived next to it: attack, or follow it if it flew off meanwhile. */
     let chases = 0;
@@ -590,7 +627,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const e = worldRef.current?.enemies().find((x) => x.id === id);
       if (!e || e.deadUntil) return;
       const at = enemyAt(e);
-      if (Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
+      const rw = rangedWeapon(sRef.current);
+      if (rw ? !canThrowFrom(tileOf(me.pos.x, me.pos.z), at, rw.range) : Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
         // It moved while you walked: follow it a few times, then give up (instead of a swing the server refuses).
         if (chases++ < 6) return goFight(id);
         chases = 0;
@@ -609,8 +647,17 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           const view = target ? enemyViews.get(target) : undefined;
           if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
+            const anim = rangedWeapon(sRef.current) ? 'throw' : weaponAnim(sRef.current.equipment?.weapon);
+            if (anim === 'throw') {
+              // A throw (v0.51): wind up, let go, and the knife flies to it; the hitsplat shows as it lands.
+              const t = ATTACK_TIMING.throw;
+              me.punchAt = performance.now();
+              me.punchUntil = me.punchAt + t.ms;
+              if (view) throwKnife(sRef.current.equipment?.marksman ?? '', view.g.position, me.punchAt + t.lead, ev.dmg ?? 0);
+              return;
+            }
             // Each move lands as the hitsplat shows: a bat swing winds up longest, a knife draws back, a fist is quickest.
-            const t = ATTACK_TIMING[weaponAnim(sRef.current.equipment?.weapon)];
+            const t = ATTACK_TIMING[anim];
             me.punchAt = performance.now() - t.lead;
             me.punchUntil = me.punchAt + t.ms;
             if (view) hitsplat(view.g.position, ev.dmg ?? 0);
@@ -621,6 +668,37 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }, delay);
       }
     });
+    /** Knives in the air (v0.51): each flies from your hand to where the target stands, spinning, then its hitsplat. */
+    const knivesInAir: { g: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; t0: number; t1: number; dmg: number }[] = [];
+    const throwKnife = (weapon: string, target: THREE.Vector3, release: number, dmg: number) => {
+      const g = buildThrowingKnife(METAL_COLORS[weapon.split('_')[0]] ?? 0xb8bcc2);
+      g.visible = false;
+      scene.add(g);
+      const to = target.clone();
+      to.y = floorY(to.x, to.z) + 0.55;
+      const fromPos = me.pos.clone();
+      fromPos.y = floorY(fromPos.x, fromPos.z) + 1.45;
+      const ms = (Math.max(0.6, fromPos.distanceTo(to)) / THROW_SPEED) * 1000;
+      knivesInAir.push({ g, from: fromPos, to, t0: release, t1: release + ms, dmg });
+    };
+    const updateFlying = (now: number) => {
+      for (let i = knivesInAir.length - 1; i >= 0; i--) {
+        const f = knivesInAir[i];
+        if (now < f.t0) continue;
+        const k = Math.min(1, (now - f.t0) / (f.t1 - f.t0));
+        f.g.visible = true;
+        f.g.position.lerpVectors(f.from, f.to, k);
+        f.g.position.y += Math.sin(k * Math.PI) * 0.25; // a slight arc
+        // Point along the flight (the knife's +y), tumbling end over end.
+        f.g.lookAt(f.to);
+        f.g.rotateX(Math.PI / 2 + k * Math.PI * 4);
+        if (k >= 1) {
+          hitsplat(f.to, f.dmg);
+          scene.remove(f.g);
+          knivesInAir.splice(i, 1);
+        }
+      }
+    };
     let lastFoe: string | null = null;
     /** The biker club: when you last asked to be jumped, and who jumped you. */
     let lastJump = 0;
@@ -1382,7 +1460,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       if (foe) lastFoe = foe;
       const foeView = foe ? enemyViews.get(foe) : undefined;
       if (foeView && !me.path.length) me.facing = Math.atan2(foeView.g.position.x - me.pos.x, foeView.g.position.z - me.pos.z);
-      setGear(player, st.equipment);
+      const myRanged = rangedWeapon(st);
+      setGear(player, { ...st.equipment, weapon: myRanged ? myRanged.id : st.equipment?.weapon });
       player.position.set(me.pos.x, floorY(me.pos.x, me.pos.z) + 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
       // Cooking: face the barbecue and work it.
@@ -1391,9 +1470,14 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const near = STATIONS.find((x) => Math.abs(x.x + 0.5 - me.pos.x) < 2 && Math.abs(x.y + 0.5 - me.pos.z) < 2);
         if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
       }
-      const attacking = now < me.punchUntil ? weaponAnim(st.equipment?.weapon) : null;
+      const attacking = now < me.punchUntil ? (myRanged ? 'throw' : weaponAnim(st.equipment?.weapon)) : null;
       const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : attacking ?? (working || cooking ? 'work' : 'idle');
       animateCharacter(player, pose, now, 0, pose === 'walk' ? WALK_SPEED : (now - me.punchAt) / (me.punchUntil - me.punchAt));
+      // A thrown knife has left your hand (it's in the air); and with none left there's nothing to hold.
+      const held = player.getObjectByName('weapon');
+      if (held) {
+        held.visible = !(pose === 'throw' && (now - me.punchAt) / (me.punchUntil - me.punchAt) > THROW_RELEASE);
+      }
       player.rotation.y = me.facing;
 
       // Tourists stroll (unless you're targeting or working one).
@@ -1601,6 +1685,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           }
       }
 
+      updateFlying(now);
       // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
       for (const e of worldRef.current?.enemies() ?? []) {
         let v = enemyViews.get(e.id);
@@ -1663,6 +1748,15 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               v.pos.add(gap.clampLength(0, Math.max(1.5, gap.length() / left) * dt));
             }
           }
+        } else if (e.approach && e.fightPos && t < e.approach.arriveAt) {
+          // Hit from a distance (v0.51): it walks the server's route (the real way round: over a bridge, through a gate)
+          // up to its fighter, arriving when the server says.
+          const route = e.approach.route?.length ? e.approach.route : [e.fightPos];
+          const dur = routeMs(e.approach.from, route);
+          const p = routePoint(e.approach.from, route, dur > 0 ? 1 - (e.approach.arriveAt - t) / dur : 1);
+          v.routeKey = '';
+          v.pos.lerp(new THREE.Vector3(p.x, 0, p.z), Math.min(1, dt * 12));
+          flying = false;
         } else {
           v.routeKey = '';
           v.pos.lerp(new THREE.Vector3(at.x, 0, at.z), Math.min(1, dt * 12));
@@ -1710,7 +1804,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
             const v = enemyViews.get(os.fightEnemy);
             if (v?.g.visible) {
               e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
-              pose = weaponAnim(o.equipment?.weapon);
+              pose = weaponAnim(heldWeapon(o.equipment, o.style));
             }
           } else if (os.spot && os.jobEndsAt > t) {
             const n = NODES.find((x) => x.id === os.spot);
@@ -1750,10 +1844,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
         e.g.position.set(e.pos.x, floorY(e.pos.x, e.pos.z) + 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
-        setGear(e.g, o.equipment);
+        setGear(e.g, { ...o.equipment, weapon: heldWeapon(o.equipment, o.style) });
         // Someone else fighting: their swings, stabs or punches loop at the weapon's speed (we don't see their exact timing).
-        const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 4) * 500;
-        const attack = pose === 'swing' || pose === 'stab' || pose === 'punch';
+        const swingMs = (ITEM_BY_ID[heldWeapon(o.equipment, o.style) ?? '']?.gear?.speed ?? 4) * 500;
+        const attack = pose === 'swing' || pose === 'stab' || pose === 'punch' || pose === 'throw';
         animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'walk' ? WALK_SPEED : attack ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, ATTACK_TIMING[pose as keyof typeof ATTACK_TIMING].ms) : 0);
       }
       for (const [id, e] of others)
@@ -2155,6 +2249,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       {bankAt && <BankDialog s={s} api={api} pos={bankAt} onClose={() => setBankAt(null)} />}
       {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}
       <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
+      <StyleToggle s={s} api={api} />
       {chatBox}
       {/* With the HUD: the last two lines of the log stay in view over the street, unless the full chat is open. */}
       {hud && hud.panel !== 'chat' && <ChatBox game={gameLines} chat={chat} myName={s.name} strip />}

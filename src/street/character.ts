@@ -383,7 +383,9 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   return root;
 }
 
-export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing' | 'punch' | 'stab';
+export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing' | 'punch' | 'stab' | 'throw';
+/** When the knife leaves the hand in the 'throw' pose (how far through it, 0–1). */
+export const THROW_RELEASE = 0.55;
 /** Walking speed the walk cycle is tuned for (tiles a second): the feet keep pace with the ground at this speed. */
 export const WALK_PACE = 2.5;
 
@@ -441,6 +443,21 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     // Feet apart, a little bent at the knees: ready.
     legSwing = 0.12;
     kneeL = kneeR = 0.12;
+  } else if (pose === 'throw') {
+    // An overhand throw (v0.51, throwing knives): the free hand points at the target while the right arm cocks back
+    // over the shoulder (first 35%), then whips forward and down, letting go at THROW_RELEASE with the body turning
+    // and leaning into it, then settles.
+    const pp = Math.min(1, Math.max(0, p));
+    const cock = 0.35;
+    armR = keys(pp, [[cock, -2.75], [THROW_RELEASE, -1.25], [0.8, -0.85], [1, -0.4]]);
+    elbowR = keys(pp, [[cock, -1.7], [THROW_RELEASE, -0.15], [1, -0.5]]);
+    twist = keys(pp, [[cock, 0.4], [THROW_RELEASE, -0.35], [1, 0]]);
+    lean = keys(pp, [[cock, -0.04], [THROW_RELEASE, 0.16], [1, 0.03]]);
+    armL = keys(pp, [[cock, -1.25], [THROW_RELEASE, -0.5], [1, -0.3]]);
+    elbowL = -0.35;
+    headTurn = -twist * 0.6;
+    legSwing = 0.14;
+    kneeL = kneeR = 0.14;
   } else if (pose === 'swing') {
     p = Math.min(1, Math.max(0, p));
     // A big two-handed swing: wind back to the side (first 40%), whip through (next 25%), follow through and

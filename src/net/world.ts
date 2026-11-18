@@ -98,7 +98,7 @@ export function useWorld(
         roster.current.map((p) => {
           const live = routes.current.get(p.id);
           const r = live && live.at >= p.at ? live : p;
-          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at, equipment: p.equipment, combat: p.combat, status: status.current.get(p.id) };
+          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at, equipment: p.equipment, style: p.style, combat: p.combat, status: status.current.get(p.id) };
         }),
       move,
       myId: userId,

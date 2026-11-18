@@ -27,6 +27,8 @@ export interface GameApi {
   /** Wield or wear an item from your bag; take off what's in a slot. */
   equip(itemId: string): void;
   unequip(slot: string): void;
+  /** Fight with your melee weapon or throw from your Marksman slot (v0.51). */
+  setFightStyle(style: 'melee' | 'marksman'): void;
   /** Buy one item from the shop you're in. */
   buy(itemId: string): void;
   /** Pick up something lying on the ground (standing on it or next to it). */

@@ -3,7 +3,7 @@
 // every one). Walking away stops it. Recipes you're not high enough for are shown with their level, greyed out.
 import type { GameState } from '../game/types';
 import type { GameApi } from '../game/api';
-import { ITEM_BY_ID } from '../game/data/items';
+import { ITEM_BY_ID, plural } from '../game/data/items';
 import { CRAFTS, type Craft } from '../game/data/metals';
 import { skillLevel } from '../game/engine';
 import { ItemIcon } from '../components/ItemIcon';
@@ -42,7 +42,7 @@ export function TinkerDialog({ s, api, pos, kind, onClose }: { s: GameState; api
                   <ItemIcon id={c.id} className="item-icon inline" />
                 </span>
                 <span className="craft-name">
-                  {ITEM_BY_ID[c.id]?.name}
+                  {c.amount ? `${c.amount} ${plural(ITEM_BY_ID[c.id]?.name ?? c.id)}` : ITEM_BY_ID[c.id]?.name}
                   <span className="muted small">{locked ? `Level ${c.level}` : `${inputs} · +${c.xp} XP`}</span>
                 </span>
                 <span className="mono small">{locked ? '' : `×${n}`}</span>

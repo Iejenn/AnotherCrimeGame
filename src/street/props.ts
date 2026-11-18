@@ -546,13 +546,13 @@ export function buildDog(): THREE.Group {
 const dogEye = new THREE.MeshLambertMaterial({ color: 0xffb030, emissive: 0x8a5010, emissiveIntensity: 0.8 });
 
 /** Each metal's colour (its gear is drawn in it). */
-const METAL_COLORS: Record<string, number> = {
+export const METAL_COLORS: Record<string, number> = {
   tin: 0xb8bcc2, copper: 0xc07040, aluminium: 0xd8dde2, brass: 0xd8b04a, bronze: 0xb0703a, iron: 0x6a6e74, steel: 0x9aa4ae,
   hardened: 0x5a6878, titanium: 0xc8ccd8, tungsten: 0x4a4e58,
 };
-/** "tin_knuckles" → ["tin", "knuckles"]. */
+/** "tin_knuckles" → ["tin", "knuckles"], "tin_throwing_knife" → ["tin", "throwing_knife"] (metal ids have no "_"). */
 const metalPiece = (id: string): [string, string] => {
-  const i = id.lastIndexOf('_');
+  const i = id.indexOf('_');
   return i < 0 ? ['', id] : [id.slice(0, i), id.slice(i + 1)];
 };
 
@@ -601,6 +601,13 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
     knife.position.set(0, 0, 0.02);
     knife.rotation.x = 1.4;
     rig.hand.add(knife);
+  } else if (wPiece === 'throwing_knife') {
+    // A throwing knife held by its handle (v0.51): smaller and slimmer than a fighting knife, no guard, a bare blade.
+    const k = buildThrowingKnife(metal);
+    k.name = 'weapon';
+    k.position.set(0, 0, 0.02);
+    k.rotation.x = 1.4;
+    rig.hand.add(k);
   } else if (wPiece === 'bat') {
     // A bat gripped in the right hand, pointing forward and up: grip tape, then the barrel (of the metal) thickening.
     const bat = new THREE.Group();
@@ -657,6 +664,23 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
   }
 }
 
+/** A throwing knife along +y (handle at the origin, point up): a wrapped grip and a slim blade of the metal. Used in
+ *  the hand and for the knife in flight (StreetView). */
+export function buildThrowingKnife(metal: number): THREE.Group {
+  const g = new THREE.Group();
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.08, 0.03), lambert(0x2b2b2e));
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.15, 0.036), new THREE.MeshLambertMaterial({ color: metal, emissive: 0x30343a }));
+  blade.position.y = 0.115;
+  const point = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.05, 4), new THREE.MeshLambertMaterial({ color: metal, emissive: 0x30343a }));
+  point.position.y = 0.215;
+  point.scale.set(0.7, 1, 1);
+  for (const m of [grip, blade, point]) {
+    m.castShadow = true;
+    g.add(m);
+  }
+  return g;
+}
+
 // ---------- loot lying on the ground (v0.46): metal, gear and quest items ----------
 // Each one is a few chunky pieces, faceted, well under the item budget (200 triangles, docs/design.md §18), and about
 // a third of a tile across so it reads from the game's camera. The gear lies flat, the same shapes you wear and wield.
@@ -690,6 +714,19 @@ export function buildLoot(item: string): THREE.Group | null {
     if (piece === 'knuckles') {
       for (let i = 0; i < 4; i++) add(g, new THREE.TorusGeometry(0.03, 0.012, 3, 6), col, (i - 1.5) * 0.06, 0.012, 0).rotation.x = Math.PI / 2;
       add(g, boxGeo(0.25, 0.024, 0.04), col, 0, 0.014, 0.05);
+      return g;
+    }
+    if (piece === 'throwing_knife') {
+      // Three slim knives, fanned out.
+      for (let i = 0; i < 3; i++) {
+        const k = new THREE.Group();
+        add(k, boxGeo(0.08, 0.026, 0.03), 0x2b2b2e, -0.09, 0.013, 0);
+        add(k, boxGeo(0.16, 0.012, 0.036), col, 0.03, 0.01, 0);
+        add(k, new THREE.ConeGeometry(0.018, 0.05, 4), col, 0.135, 0.01, 0).rotation.set(Math.PI / 4, 0, -Math.PI / 2);
+        k.rotation.y = (i - 1) * 0.35;
+        k.position.set(0, i * 0.004, (i - 1) * 0.02);
+        g.add(k);
+      }
       return g;
     }
     if (piece === 'knife') {

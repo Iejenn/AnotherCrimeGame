@@ -14,7 +14,7 @@ const listeners = new Set<(r: Report) => void>();
 const noop = () => {};
 const api: GameApi = {
   startAttempt: noop, stopAttempt: noop, eat: noop, sell: noop, drop: noop, collectGrave: noop, savePos: noop, attack: noop,
-  stopFight: noop, equip: noop, unequip: noop, buy: noop, pickUp: noop, cook: noop, stopCook: noop, make: noop, stopMake: noop, bankDeposit: noop, bankWithdraw: noop, bankDepositAll: noop, questTalk: async () => null, useItem: noop, unlockGate: noop, jumpMe: noop, climb: async () => true,
+  stopFight: noop, equip: noop, unequip: noop, setFightStyle: noop, buy: noop, pickUp: noop, cook: noop, stopCook: noop, make: noop, stopMake: noop, bankDeposit: noop, bankWithdraw: noop, bankDepositAll: noop, questTalk: async () => null, useItem: noop, unlockGate: noop, jumpMe: noop, climb: async () => true,
 };
 const onReport = (fn: (r: Report) => void) => (listeners.add(fn), () => void listeners.delete(fn));
 const w = window as unknown as { passOut: () => void; cook: (on: boolean) => void; ready: boolean };
@@ -26,8 +26,14 @@ function App() {
     // ?food=1: a sandwich and two candy bars in the bag; ?hp=2: hurt.
     if (q.get('food')) g.inventory = { sandwich: 1, candy_bar: 2, cooked_bird_meat: 3 };
     if (q.get('hp')) g.hp = Number(q.get('hp'));
+    // ?knives=1: throwing knives readied in the Marksman slot (v0.51), fighting with them.
+    if (q.get('knives')) {
+      g.equipment = { weapon: 'tin_bat', marksman: 'tin_throwing_knife' };
+      g.marksmanCount = 23;
+      g.fightStyle = 'marksman';
+    }
     if (q.get('hud')) {
-      g.inventory = { sandwich: 1, candy_bar: 2, cooked_rat_meat: 3, tin_salvage: 6, copper_sheet: 4, rat_antidote: 1, tin_bat: 1 };
+      g.inventory = { sandwich: 1, candy_bar: 2, cooked_rat_meat: 3, tin_salvage: 6, copper_sheet: 4, rat_antidote: 1, tin_bat: 1, tin_throwing_knife: 37 };
       g.equipment = { weapon: 'copper_knuckles', head: 'tin_helmet', body: 'copper_vest', legs: 'tin_legs' };
       g.cash = 1234;
     }

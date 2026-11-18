@@ -1,4 +1,4 @@
-export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering';
+export type SkillId = 'melee' | 'defense' | 'marksman' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -86,8 +86,13 @@ export interface GameState {
   inventory: Record<string, number>;
   /** Your grave, if you died and haven't collected your stuff yet. */
   grave?: Grave | null;
-  /** What you wield and wear: slot → item id (docs/design.md §12). */
-  equipment?: Partial<Record<'weapon' | 'head' | 'body' | 'legs' | 'feet', string>>;
+  /** What you wield and wear: slot → item id (docs/design.md §12). `marksman` (v0.51): your throwing knives, the whole
+   *  stack (how many: marksmanCount). */
+  equipment?: Partial<Record<'weapon' | 'marksman' | 'head' | 'body' | 'legs' | 'feet', string>>;
+  /** How many throwing knives are in the Marksman slot. */
+  marksmanCount?: number;
+  /** Which of your weapons you fight with: your melee weapon (or fists), or the Marksman slot (the toggle). */
+  fightStyle?: 'melee' | 'marksman';
   /** The enemy you're fighting right now. */
   fight?: { enemy: string } | null;
   /** What you're cooking right now (one after another, until it runs out or you walk away), and when the next is done. */
