@@ -1,5 +1,6 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
+import { coastAt } from './coast';
 import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PARK_JOINS, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
@@ -24,8 +25,12 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
   const area = (r: Rect, col: string) => tile(r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1, col);
   g.fillStyle = '#15303f';
   g.fillRect(0, 0, c.width, c.height);
-  tile(-2, -2, W + 4, H + 4, '#24536a'); // shallows
-  tile(-1, -1, W + 2, H + 2, '#7d705a'); // beach
+  // The shallows and the beach (v0.55: the coast's wobbly edge, coast.ts), as far as the map's edge shows.
+  for (let y = -MAP_EDGE; y < H + MAP_EDGE; y++)
+    for (let x = -MAP_EDGE; x < W + MAP_EDGE; x++) {
+      const c = coastAt(x, y);
+      if (c) tile(x, y, 1, 1, c === 'sand' ? '#7d705a' : '#24536a');
+    }
   tile(0, 0, W, H, '#4a4d53'); // roads
   // Sidewalks around every block, and the pocket parks.
   for (let bx = 0; bx < BCOLS; bx++)

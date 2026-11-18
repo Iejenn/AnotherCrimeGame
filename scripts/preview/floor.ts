@@ -18,6 +18,9 @@ for (let x = 0; x < W; x++) {
 }
 rect(30, 22, 33, 29, 'water'); // the cove
 rect(30, 22, 30, 22, 'sand');
+// The road never meets the water: any road tile next to water becomes sand.
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+  if (g[y][x] === 'asphalt' && [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]].some(([dx, dy]) => g[y + dy]?.[x + dx] === 'water')) g[y][x] = 'sand';
 rect(36, 24, 37, 31, 'concrete'); // the pier
 // Two city blocks with sidewalks round them; the road between them is the crossing.
 const block = (x0: number, y0: number, x1: number, y1: number, inner: Surface) => { rect(x0 - 1, y0 - 1, x1 + 1, y1 + 1, 'sidewalk'); rect(x0, y0, x1, y1, inner); };

@@ -10,9 +10,10 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.55.0',
     date: '2026-11-18',
-    title: 'Park touch-ups',
+    title: 'Curvy shores',
     items: [
       'The darker grass spots on the park lawns no longer flicker and slide around when you turn the camera.',
+      "The island's beach isn't a straight strip any more: a sandy shore that curves in and out all round the city, with rocks along the waterline.",
     ],
   },
   {

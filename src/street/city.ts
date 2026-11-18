@@ -6,8 +6,10 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
+import { buildFloor } from './floor';
+import { SHALLOWS, coastAt } from './coast';
 import {
-  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, onParkPath, OLD_ROWS,
+  BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, onParkPath, OLD_ROWS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
@@ -143,23 +145,23 @@ export function buildCity(scene: THREE.Scene) {
     return m;
   };
   plane(W + 600, H + 600, C.sea, -0.32); // open ocean to the horizon (the fog hides the edge)
-  plane(W + BEACH * 2 + 3, H + BEACH * 2 + 3, C.shallows, -0.3); // lighter shallow water around the beach
-  const sand = add(geoBox(W + BEACH * 2, 0.3, H + BEACH * 2), lam(C.sand), W / 2, -0.17, H / 2, false);
-  sand.receiveShadow = true;
+  // v0.55: the beach and the shallows from the floor kit: a sandy edge whose width wobbles, round corners (coast.ts).
+  scene.add(buildFloor({ x0: -SHALLOWS - 1, y0: -SHALLOWS - 1, w: W + 2 * SHALLOWS + 2, h: H + 2 * SHALLOWS + 2, at: coastAt }));
   // A low kerb where the streets meet the sand (just below the asphalt, so it only shows around the edge).
   add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.075, H / 2, false);
   plane(W, H, C.asphalt, 0);
-  // Rocks scattered along the waterline.
+  // Rocks along the waterline: on sand tiles next to the water. (Their own random numbers; the city's shared ones
+  // move on as many as the old rocks took, so nothing placed after them moves.)
+  for (let i = 0; i < 450; i++) rng();
+  const rockRng = mulberry32(99);
   const rocks = new Batch(own(new THREE.DodecahedronGeometry(0.35, 0)), lam(C.rock, { flatShading: true }));
-  for (let i = 0; i < 90; i++) {
-    const side = i % 4;
-    const along = rng();
-    const out = BEACH - 0.2 + rng() * 0.9;
-    const x = side < 2 ? along * (W + 2 * out) - out : side === 2 ? -out : W + out;
-    const z = side >= 2 ? along * (H + 2 * out) - out : side === 0 ? -out : H + out;
-    const sc = 0.5 + rng() * 1.1;
-    rocks.add(x, -0.12, z, sc, sc * (0.5 + rng() * 0.4), sc, rng() * 6);
-  }
+  for (let y = -SHALLOWS; y < H + SHALLOWS; y++)
+    for (let x = -SHALLOWS; x < W + SHALLOWS; x++) {
+      if (coastAt(x, y) !== 'sand' || ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => coastAt(x + dx, y + dy) === 'water')) continue;
+      if (rockRng() < 0.75) continue;
+      const sc = 0.5 + rockRng() * 1.1;
+      rocks.add(x + 0.2 + rockRng() * 0.6, -0.2, y + 0.2 + rockRng() * 0.6, sc, sc * (0.5 + rockRng() * 0.4), sc, rockRng() * 6);
+    }
   rocks.build(scene);
 
   // ---------- streets: a road for two cars (dashed centre line), zebra crossings, curbs and sidewalks ----------
