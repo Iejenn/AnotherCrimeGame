@@ -172,6 +172,13 @@ export function buildCity(scene: THREE.Scene) {
   // (v0.54: the park's joins too: they were streets, now they're lawn.)
   const onSite = (x: number, z: number) =>
     (x >= FACTORY_SITE.x0 - 0.2 && x <= FACTORY_SITE.x1 + 1.2 && z >= FACTORY_SITE.y0 - 0.2 && z <= FACTORY_SITE.y1 + 1.2) || inPark(Math.floor(x), Math.floor(z));
+  /** How many roads meet at crossing (i, j) (the one north-west of block (i, j)): 4 inside the city, 3 along the
+   *  island's edge, 2 on a bend; a road that became the park or the Factory's site doesn't count. */
+  const roadsAt = (i: number, j: number) => {
+    const cx = i * PITCH + STREET / 2, cz = j * PITCH + STREET / 2;
+    const road = (x: number, z: number) => x >= 0 && z >= 0 && x < W && z < H && !onSite(x, z);
+    return [road(cx, cz - STREET), road(cx, cz + STREET), road(cx - STREET, cz), road(cx + STREET, cz)].filter(Boolean).length;
+  };
   /** Blocks in the order the old map rolled their random numbers (column by column), then the new rows (v0.54). */
   const blocksInOrder = (bx0: number, bx1: number) => {
     const out: [number, number][] = [];
@@ -362,9 +369,10 @@ export function buildCity(scene: THREE.Scene) {
         lamp(b.x0 - 1.3, b.y0 + BLOCK_SIZE - t, -1, 0);
         lamp(b.x1 + 2.3, b.y0 + t, 1, 0);
       }
-      // Traffic lights on the block's corners, facing the crossing.
-      for (const [cx, cz, i] of [[b.x0 - 1.3, b.y0 - 1.3, 0], [b.x1 + 2.3, b.y0 - 1.3, 1], [b.x0 - 1.3, b.y1 + 2.3, 1], [b.x1 + 2.3, b.y1 + 2.3, 0]] as const) {
-        if (onSite(cx, cz)) continue;
+      // Traffic lights on the block's corners, facing the crossing (v0.54: only where 3 or 4 roads meet; not on a bend,
+      // like the island's corners or the park cross's inner corners).
+      for (const [cx, cz, i, ix, iz] of [[b.x0 - 1.3, b.y0 - 1.3, 0, bx, by], [b.x1 + 2.3, b.y0 - 1.3, 1, bx + 1, by], [b.x0 - 1.3, b.y1 + 2.3, 1, bx, by + 1], [b.x1 + 2.3, b.y1 + 2.3, 0, bx + 1, by + 1]] as const) {
+        if (onSite(cx, cz) || roadsAt(ix, iz) < 3) continue;
         lightPole.add(cx, 0.95, cz);
         lightBox.add(cx, 1.9, cz);
         (i ? redDot : greenDot).add(cx, 2.0, cz + (cz < b.y0 ? -0.08 : 0.08));
