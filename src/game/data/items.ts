@@ -64,8 +64,8 @@ export const ITEMS: ItemDef[] = [
 export const SHOPS: Record<string, { item: string; price: number; amount: number }[]> = {
   // Ray's Arms (v0.49): every metal's weapons, sorted by kind then metal (tin knuckles, copper knuckles, tin bat, …),
   // at 30 × the metal in them (shopPrice): making them yourself (Scrapping + Tinkering) is far cheaper. Throwing knives
-  // (v0.51) come in packs of 5, what a sheet makes, at the same rule: $150 for 5 tin, $300 for 5 copper.
-  weapons: PIECES.filter((p) => p.slot === 'weapon' || p.slot === 'marksman').flatMap((p) => METALS.map((m) => ({ item: `${m.id}_${p.key}`, price: shopPrice(m, p), amount: p.makes ?? 1 }))),
+  // (v0.51) come in packs of 10 at one sheet's price: $150 for 10 tin, $300 for 10 copper.
+  weapons: PIECES.filter((p) => p.slot === 'weapon' || p.slot === 'marksman').flatMap((p) => METALS.map((m) => ({ item: `${m.id}_${p.key}`, price: shopPrice(m, p), amount: p.pack ?? 1 }))),
 };
 /** How many of a stacking item fit in one bag slot (the server's game.bag_used). */
 export const STACK_MAX = 1000;

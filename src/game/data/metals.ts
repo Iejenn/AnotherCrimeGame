@@ -40,6 +40,8 @@ export interface Piece {
   slot: GearSlot;
   /** How many one craft makes (default 1). More than 1: they stack in your bag. */
   makes?: number;
+  /** How many Ray sells in one pack (default 1), for shopPrice. */
+  pack?: number;
 }
 export const PIECES: Piece[] = [
   { key: 'knuckles', name: 'Knuckles', at: 1, sheets: 1, slot: 'weapon' },
@@ -47,7 +49,8 @@ export const PIECES: Piece[] = [
   { key: 'knife', name: 'Knife', at: 3, sheets: 1, slot: 'weapon' },
   // v0.51 (Marksman): throwing knives, 5 from a sheet, from the metal's first level (tin: Tinkering 1). Each throw uses
   // one up, so Marksman keeps eating salvage. (Later, at 4: bullet casings for guns.)
-  { key: 'throwing_knife', name: 'Throwing Knife', at: 0, sheets: 1, slot: 'marksman', makes: 5 },
+  // Ray sells them 10 a pack at one sheet's price ($15 a tin knife): an expensive way to fight, paid for by the range.
+  { key: 'throwing_knife', name: 'Throwing Knife', at: 0, sheets: 1, slot: 'marksman', makes: 5, pack: 10 },
   { key: 'helmet', name: 'Helmet', at: 5, sheets: 1, slot: 'head' },
   { key: 'legs', name: 'Leg Guards', at: 6, sheets: 2, slot: 'legs' },
   { key: 'vest', name: 'Plate Vest', at: 7, sheets: 3, slot: 'body' },

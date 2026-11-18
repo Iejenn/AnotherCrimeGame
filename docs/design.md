@@ -654,7 +654,8 @@ Outside fights eating still takes half a second.
   The last knife thrown switches you to melee (your weapon, or fists). They sell for nothing (five $1 knives would
   otherwise sell for more than their $5 sheet).
 - **Where they come from:** 5 from a sheet at a workbench (Tinkering 1 for tin, 11 for copper; 3 / 6 XP), or Ray's
-  Arms in packs of 5 at the usual rule (30 × the metal: $150 tin, $300 copper), deliberately expensive.
+  Arms in packs of 10 at one sheet's price ($150 tin, $300 copper: $15 / $30 a knife), deliberately expensive: an
+  expensive way to fight, paid for by the range.
 - **Line of sight:** a throw needs a straight line with nothing in the way: no building, no wall or fence of an
   enclosure (you only throw at things on your side of it), no tile off the map (the sewer's walls). Benches, cars and
   the sewage channel don't block. Within 2 tiles it always works. `src/street/sight.ts` and `game.clear_shot` take the

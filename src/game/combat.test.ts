@@ -30,8 +30,8 @@ describe('combat maths (design §12)', () => {
       { item: 'tin_knuckles', price: 150, amount: 1 }, { item: 'copper_knuckles', price: 300, amount: 1 },
       { item: 'tin_bat', price: 300, amount: 1 }, { item: 'copper_bat', price: 600, amount: 1 },
       { item: 'tin_knife', price: 150, amount: 1 }, { item: 'copper_knife', price: 300, amount: 1 },
-      // v0.51: throwing knives in packs of 5 (one sheet's worth), same rule.
-      { item: 'tin_throwing_knife', price: 150, amount: 5 }, { item: 'copper_throwing_knife', price: 300, amount: 5 },
+      // v0.51: throwing knives in packs of 10 at one sheet's price.
+      { item: 'tin_throwing_knife', price: 150, amount: 10 }, { item: 'copper_throwing_knife', price: 300, amount: 10 },
     ]);
     // The bat: max hit 5, a swing every 3 s; the knife: max hit 1, every 1 s. All tin at level 1.
     const bat = ITEM_BY_ID.tin_bat.gear!;
