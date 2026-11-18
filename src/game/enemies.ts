@@ -108,9 +108,9 @@ export const PIGEON_TILES: [number, number][] = (() => {
   return out;
 })();
 
-/** A Pigeon's routine: every 8 s it flutters to another spot (1.5 s), then pecks around there. */
+/** A Pigeon's routine: every 8 s it flutters to another spot (2.5 s), then pecks around there. */
 export const PIGEON_HOP_MS = 8000;
-export const PIGEON_FLY_MS = 1500;
+export const PIGEON_FLY_MS = 2500; // (v0.56: was 1.5 s; 40% slower in the air. The server has the same: game.pigeon_at, 0039)
 const M = 2147483647;
 
 /** The tile Pigeon `index` lands on in its k-th hop. */

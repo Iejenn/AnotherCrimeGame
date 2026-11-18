@@ -2258,7 +2258,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
   );
   if (!hud) return street;
   return (
-    <div className="game-view">
+    // (v0.56: the panel and the icon bar float over the street; the street is always the whole screen.)
+    <div className={`game-view ${hud.panel ? 'panel-open' : ''}`}>
       {street}
       {hud.panel && (
         <div className={`hud-panel panel-${hud.panel}`} onPointerDown={(e) => e.stopPropagation()}>

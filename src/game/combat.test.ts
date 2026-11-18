@@ -166,7 +166,7 @@ describe('Pigeons (shared, on a fixed schedule)', () => {
     }
   });
 
-  it('a Pigeon flies for 1.5 s, then stays put until its next hop', () => {
+  it('a Pigeon flies for 2.5 s (v0.56), then stays put until its next hop', () => {
     const t0 = 1794830000000;
     for (let i = 0; i < 3; i++) {
       const start = Math.ceil((t0 + i * 2777) / PIGEON_HOP_MS) * PIGEON_HOP_MS - i * 2777;
