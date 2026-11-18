@@ -377,10 +377,8 @@ ${stuck('public.players', 'pos_x', 'pos_y')}
 ${stuck('public.ground_items', 'x', 'y')}
 ${stuck('public.graves', 'x', 'y')}
 
--- ---------- check: should say "ok" in every column ----------
-select
-  -- (Enemies caught mid-walk round something: the server has them exactly where the game does.)
-  case when ${samples
+-- ---------- check: should say "ok" in every column (walks: enemies caught mid-walk round something, where the game has them) ----------
+select case when ${samples
     .map((p) => `(select abs(w.x - ${p.x.toFixed(6)}) < 0.001 and abs(w.z - ${p.z.toFixed(6)}) < 0.001 from game.enemy_at('${p.kind}', ${p.idx}, ${p.t}) w)`)
     .join('\n    and ')} then 'ok' else 'WALKS DIFFER' end as walks,
   case when (select count(*) from public.enemies where kind = 'thug') = ${thugIds.length} then 'ok' else 'BAD THUGS' end as thugs,

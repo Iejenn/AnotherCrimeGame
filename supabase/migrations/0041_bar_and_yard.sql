@@ -322,10 +322,8 @@ update public.graves t set x = 55, y = 51
 from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
 where t.y = s.y and t.x between 41 and 67 and substr(s.bits, t.x - 40, 1) = '1';
 
--- ---------- check: should say "ok" in every column ----------
-select
-  -- (Enemies caught mid-walk round something: the server has them exactly where the game does.)
-  case when (select abs(w.x - 48.500000) < 0.001 and abs(w.z - 48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097) w)
+-- ---------- check: should say "ok" in every column (walks: enemies caught mid-walk round something, where the game has them) ----------
+select case when (select abs(w.x - 48.500000) < 0.001 and abs(w.z - 48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097) w)
     and (select abs(w.x - 54.500000) < 0.001 and abs(w.z - 44.655000) < 0.001 from game.enemy_at('thug', 1, 1763000000582) w)
     and (select abs(w.x - 34.183000) < 0.001 and abs(w.z - 125.500000) < 0.001 from game.enemy_at('rat', 8, 1763000065669) w)
     and (select abs(w.x - 41.500000) < 0.001 and abs(w.z - 116.106763) < 0.001 from game.enemy_at('rat', 4, 1763000105051) w)
