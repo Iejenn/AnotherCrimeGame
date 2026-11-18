@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.55.0',
+    date: '2026-11-18',
+    title: 'Curvy shores',
+    items: [
+      'The darker grass spots on the park lawns no longer flicker and slide around when you turn the camera.',
+      "The island's beach isn't a straight strip any more: a sandy shore that curves in and out all round the city, with rocks along the waterline.",
+      'The park got softer too: the gravel paths curve round where they meet, and the ponds have round edges with a grassy bank.',
+      'Street corners are rounded now, like real crossings, and one sidewalk curves round the whole park.',
+      'No more street lights in the park or along its edges, and nothing stands in front of the park entrances any more (the bus stop moved over).',
+    ],
+  },
+  {
     version: '0.54.0',
     date: '2026-11-18',
     title: 'A bigger city',

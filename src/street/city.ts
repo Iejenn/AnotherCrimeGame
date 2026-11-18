@@ -6,9 +6,11 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
+import { SURFACES, buildFloor } from './floor';
+import { SHALLOWS, coastAt } from './coast';
 import {
-  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, OLD_ROWS,
-  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
+  PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
   CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
@@ -143,23 +145,23 @@ export function buildCity(scene: THREE.Scene) {
     return m;
   };
   plane(W + 600, H + 600, C.sea, -0.32); // open ocean to the horizon (the fog hides the edge)
-  plane(W + BEACH * 2 + 3, H + BEACH * 2 + 3, C.shallows, -0.3); // lighter shallow water around the beach
-  const sand = add(geoBox(W + BEACH * 2, 0.3, H + BEACH * 2), lam(C.sand), W / 2, -0.17, H / 2, false);
-  sand.receiveShadow = true;
+  // v0.55: the beach and the shallows from the floor kit: a sandy edge whose width wobbles, round corners (coast.ts).
+  scene.add(buildFloor({ x0: -SHALLOWS - 1, y0: -SHALLOWS - 1, w: W + 2 * SHALLOWS + 2, h: H + 2 * SHALLOWS + 2, at: coastAt }));
   // A low kerb where the streets meet the sand (just below the asphalt, so it only shows around the edge).
   add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.075, H / 2, false);
   plane(W, H, C.asphalt, 0);
-  // Rocks scattered along the waterline.
+  // Rocks along the waterline: on sand tiles next to the water. (Their own random numbers; the city's shared ones
+  // move on as many as the old rocks took, so nothing placed after them moves.)
+  for (let i = 0; i < 450; i++) rng();
+  const rockRng = mulberry32(99);
   const rocks = new Batch(own(new THREE.DodecahedronGeometry(0.35, 0)), lam(C.rock, { flatShading: true }));
-  for (let i = 0; i < 90; i++) {
-    const side = i % 4;
-    const along = rng();
-    const out = BEACH - 0.2 + rng() * 0.9;
-    const x = side < 2 ? along * (W + 2 * out) - out : side === 2 ? -out : W + out;
-    const z = side >= 2 ? along * (H + 2 * out) - out : side === 0 ? -out : H + out;
-    const sc = 0.5 + rng() * 1.1;
-    rocks.add(x, -0.12, z, sc, sc * (0.5 + rng() * 0.4), sc, rng() * 6);
-  }
+  for (let y = -SHALLOWS; y < H + SHALLOWS; y++)
+    for (let x = -SHALLOWS; x < W + SHALLOWS; x++) {
+      if (coastAt(x, y) !== 'sand' || ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => coastAt(x + dx, y + dy) === 'water')) continue;
+      if (rockRng() < 0.75) continue;
+      const sc = 0.5 + rockRng() * 1.1;
+      rocks.add(x + 0.2 + rockRng() * 0.6, -0.2, y + 0.2 + rockRng() * 0.6, sc, sc * (0.5 + rockRng() * 0.4), sc, rockRng() * 6);
+    }
   rocks.build(scene);
 
   // ---------- streets: a road for two cars (dashed centre line), zebra crossings, curbs and sidewalks ----------
@@ -212,68 +214,82 @@ export function buildCity(scene: THREE.Scene) {
   const sidewalkMat = lam(C.pavement);
   const curbMat = lam(0x8a857c);
   const joints = new Batch(geoBox(0.03, 0.004, SW), lam(0x5c5852), false);
+  // v0.55: the sidewalks have rounded corners, like real crossings (CORNER: the curb's radius, in tiles): each block's
+  // sidewalk is one slab with round corners and a curb round its edge, and the park has one round the whole cross
+  // (round on its outside corners, and filled round in its inside corners). Only the look: you walk the same tiles.
+  const CORNER = 1.5;
   for (let bx = 0; bx < BCOLS; bx++)
     for (let by = 0; by < BROWS; by++) {
       const b = blockRect(bx, by);
+      if (inPark(b.x0, b.y0)) continue; // (the park's sidewalk is one, below)
       const cx = b.x0 + BLOCK_SIZE / 2;
       const cz = b.y0 + BLOCK_SIZE / 2;
       const size = BLOCK_SIZE + 2 * SW;
-      add(geoBox(size, 0.07, size), sidewalkMat, cx, 0.035, cz, false);
-      // (The park's blocks get one curb round the whole cross instead, below.)
-      if (!inPark(b.x0, b.y0))
-        for (const [w, d, dx, dz] of [[size, 0.12, 0, -size / 2], [size, 0.12, 0, size / 2], [0.12, size, -size / 2, 0], [0.12, size, size / 2, 0]] as const)
-          add(geoBox(w, 0.09, d), curbMat, cx + dx, 0.045, cz + dz, false);
-      for (let t = -size / 2 + 1; t < size / 2; t += 1) {
+      sidewalk([[b.x0, b.y0], [b.x1 + 1, b.y0], [b.x1 + 1, b.y1 + 1], [b.x0, b.y1 + 1]], 0.07, 0.09);
+      // Joints along the straight stretches (not round the corners).
+      for (let t = -size / 2 + CORNER + 0.5; t < size / 2 - CORNER; t += 1) {
         joints.add(cx + t, 0.072, b.y0 - SW / 2, 1, 1, 1, 0);
         joints.add(cx + t, 0.072, b.y1 + 1 + SW / 2, 1, 1, 1, 0);
         joints.add(b.x0 - SW / 2, 0.072, cz + t, 1, 1, 1, Math.PI / 2);
         joints.add(b.x1 + 1 + SW / 2, 0.072, cz + t, 1, 1, 1, Math.PI / 2);
       }
     }
-  // v0.54: the sidewalk runs on along both sides of the park's joins (where a street became park), so one sidewalk
-  // wraps the whole cross and turns its inner corners; one curb runs round its outside edge (traced on a half-tile grid:
-  // wherever sidewalk meets road).
   {
-    const slabs: { x0: number; z0: number; x1: number; z1: number }[] = [];
-    for (const r of PARK_BLOCKS) slabs.push({ x0: r.x0 - SW, z0: r.y0 - SW, x1: r.x1 + 1 + SW, z1: r.y1 + 1 + SW });
-    PARK_JOINS.forEach((j, i) => {
-      const along = i < 2; // the north and south joins run north–south
-      const sides = along
-        ? [{ x0: j.x0 - SW, z0: j.y0, x1: j.x0, z1: j.y1 + 1 }, { x0: j.x1 + 1, z0: j.y0, x1: j.x1 + 1 + SW, z1: j.y1 + 1 }]
-        : [{ x0: j.x0, z0: j.y0 - SW, x1: j.x1 + 1, z1: j.y0 }, { x0: j.x0, z0: j.y1 + 1, x1: j.x1 + 1, z1: j.y1 + 1 + SW }];
-      for (const r of sides) {
-        slabs.push(r);
-        add(geoBox(r.x1 - r.x0, 0.07, r.z1 - r.z0), sidewalkMat, (r.x0 + r.x1) / 2, 0.035, (r.z0 + r.z1) / 2, false);
-      }
-    });
-    const G = 0.5;
-    const walk = (x: number, z: number) => slabs.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || inPark(Math.floor(x), Math.floor(z));
-    const B = PARK_BOUNDS;
-    // Edges between a sidewalk cell and a road cell, run together into straight pieces of curb.
-    for (const dir of ['x', 'z'] as const) {
-      const lines = new Map<number, number[]>();
-      for (let x = B.x0 - 3; x < B.x1 + 4; x += G)
-        for (let z = B.y0 - 3; z < B.y1 + 4; z += G) {
-          const a = walk(x + G / 2, z + G / 2);
-          const b = dir === 'x' ? walk(x + G / 2, z - G / 2) : walk(x - G / 2, z + G / 2);
-          if (a === b) continue;
-          // An edge along x at height z (dir x), or along z at x (dir z).
-          const key = dir === 'x' ? z : x;
-          if (!lines.has(key)) lines.set(key, []);
-          lines.get(key)!.push(dir === 'x' ? x : z);
-        }
-      for (const [k, starts] of lines) {
-        starts.sort((p, q) => p - q);
-        for (let i = 0; i < starts.length; ) {
-          let j = i;
-          while (j + 1 < starts.length && Math.abs(starts[j + 1] - starts[j] - G) < 1e-6) j++;
-          const from = starts[i], to = starts[j] + G;
-          if (dir === 'x') add(geoBox(to - from + 0.12, 0.09, 0.12), curbMat, (from + to) / 2, 0.045, k, false);
-          else add(geoBox(0.12, 0.09, to - from + 0.12), curbMat, k, 0.045, (from + to) / 2, false);
-          i = j + 1;
-        }
-      }
+    // The park: one sidewalk round the whole cross (its blocks and the joins between them).
+    const P = PLAZA, N = PARK_BLOCKS[0], Wb = PARK_BLOCKS[1], E = PARK_BLOCKS[3], S = PARK_BLOCKS[4];
+    const px0 = P.x0, px1 = P.x1 + 1, py0 = P.y0, py1 = P.y1 + 1;
+    sidewalk(
+      [[px0, N.y0], [px1, N.y0], [px1, py0], [E.x1 + 1, py0], [E.x1 + 1, py1], [px1, py1], [px1, S.y1 + 1], [px0, S.y1 + 1], [px0, py1], [Wb.x0, py1], [Wb.x0, py0], [px0, py0]],
+      0.07, 0.09,
+    );
+  }
+  /** A sidewalk slab round a shape (a polygon of block edges, corners in order), SW wide, with round corners and a
+   *  curb round its edge: the slab's top at `top`, the curb's at `curbTop`. */
+  function sidewalk(poly: [number, number][], top: number, curbTop: number) {
+    const flat = (pts: THREE.Vector2[], hole: THREE.Vector2[] | null, h: number, y: number, mat: THREE.Material) => {
+      const shape = new THREE.Shape(pts);
+      if (hole) shape.holes.push(new THREE.Path(hole));
+      const g = own(new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, curveSegments: 1 }));
+      g.rotateX(Math.PI / 2);
+      g.translate(0, y, 0);
+      add(g, mat, 0, 0, 0, false);
+    };
+    flat(outline(poly, SW, CORNER, CORNER), null, top, top, sidewalkMat);
+    flat(outline(poly, SW + 0.06, CORNER + 0.06, CORNER - 0.06), outline(poly, SW - 0.06, CORNER - 0.06, CORNER + 0.06), curbTop, curbTop, curbMat);
+  }
+  /**
+   * A polygon of straight, square edges (corners in order) grown outwards by d, its corners rounded: outside corners
+   * with radius `convex`, inside corners with `concave` (both measured on the grown line).
+   */
+  function outline(poly: [number, number][], d: number, convex: number, concave: number): THREE.Vector2[] {
+    const n = poly.length;
+    let area = 0;
+    for (let i = 0; i < n; i++) area += poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1];
+    const sgn = Math.sign(area);
+    const dir = (a: [number, number], b: [number, number]) => {
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+    };
+    const normal = (u: number[]) => (sgn > 0 ? [u[1], -u[0]] : [-u[1], u[0]]);
+    const out: THREE.Vector2[] = [];
+    for (let i = 0; i < n; i++) {
+      const prev = poly[(i + n - 1) % n], c = poly[i], next = poly[(i + 1) % n];
+      const u = dir(prev, c), v = dir(c, next);
+      const nu = normal(u), nv = normal(v);
+      const C = [c[0] + (nu[0] + nv[0]) * d, c[1] + (nu[1] + nv[1]) * d];
+      const isConvex = Math.sign(u[0] * v[1] - u[1] * v[0]) === sgn;
+      const r = Math.max(0.01, isConvex ? convex : concave);
+      const A = [C[0] - u[0] * r, C[1] - u[1] * r];
+      const B = [C[0] + v[0] * r, C[1] + v[1] * r];
+      const O = [A[0] + v[0] * r, A[1] + v[1] * r];
+      const a0 = Math.atan2(A[1] - O[1], A[0] - O[0]);
+      let da = Math.atan2(B[1] - O[1], B[0] - O[0]) - a0;
+      if (da > Math.PI) da -= 2 * Math.PI;
+      if (da < -Math.PI) da += 2 * Math.PI;
+      const SEG = 5;
+      for (let k = 0; k <= SEG; k++) out.push(new THREE.Vector2(O[0] + Math.cos(a0 + (da * k) / SEG) * r, O[1] + Math.sin(a0 + (da * k) / SEG) * r));
     }
+    return out;
   }
   joints.build(scene);
 
@@ -299,6 +315,15 @@ export function buildCity(scene: THREE.Scene) {
   for (const p of NPCS) busy.add(`${p.x},${p.y}`);
   for (const e of ENCLOSURES) for (const o of e.openings) for (let d = -1; d <= 1; d++) busy.add(`${o.outside[0] + d},${o.outside[1]}`), busy.add(`${o.outside[0] + d},${o.outside[1] + 1}`);
   for (let d = -1; d <= 1; d++) busy.add(`${SPAWN[0] + d},${SPAWN[1]}`);
+  // v0.55: nothing in front of the park's entrances (where a path leaves the park): two tiles out, a tile either side.
+  for (const r of PARK_AREA)
+    for (let y = r.y0; y <= r.y1; y++)
+      for (let x = r.x0; x <= r.x1; x++) {
+        if (!onParkPath(x, y)) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+          if (!inPark(x + dx, y + dy))
+            for (let k = 1; k <= 2; k++) for (let e = -1; e <= 1; e++) busy.add(`${x + dx * k + dy * e},${y + dy * k + dx * e}`);
+      }
   // Nothing in front of the Yard's gates.
   for (const [gx, gy] of YARD_GATES) for (let d = -1; d <= 1; d++) for (let e = 1; e <= 2; e++) busy.add(`${gx + d},${gy + e}`);
   for (const lot of LOTS) {
@@ -362,8 +387,9 @@ export function buildCity(scene: THREE.Scene) {
   for (let bx = 0; bx < BCOLS; bx++)
     for (let by = 0; by < BROWS; by++) {
       const b = blockRect(bx, by);
-      // Two lamps on each side of the block, near the curb, staggered so they don't face each other.
-      for (const t of [3.2, 7.8]) {
+      // Two lamps on each side of the block, near the curb, staggered so they don't face each other. (v0.55: none round
+      // the park's blocks: no street lights on the park's edges.)
+      for (const t of inPark(b.x0, b.y0) ? [] : [3.2, 7.8]) {
         lamp(b.x0 + t, b.y0 - 1.3, 0, -1);
         lamp(b.x0 + BLOCK_SIZE - t, b.y1 + 2.3, 0, 1);
         lamp(b.x0 - 1.3, b.y0 + BLOCK_SIZE - t, -1, 0);
@@ -371,7 +397,8 @@ export function buildCity(scene: THREE.Scene) {
       }
       // Traffic lights on the block's corners, facing the crossing (v0.54: only where 3 or 4 roads meet; not on a bend,
       // like the island's corners or the park cross's inner corners).
-      for (const [cx, cz, i, ix, iz] of [[b.x0 - 1.3, b.y0 - 1.3, 0, bx, by], [b.x1 + 2.3, b.y0 - 1.3, 1, bx + 1, by], [b.x0 - 1.3, b.y1 + 2.3, 1, bx, by + 1], [b.x1 + 2.3, b.y1 + 2.3, 0, bx + 1, by + 1]] as const) {
+      // (v0.55: a little further in, on the rounded corner.)
+      for (const [cx, cz, i, ix, iz] of [[b.x0 - 0.85, b.y0 - 0.85, 0, bx, by], [b.x1 + 1.85, b.y0 - 0.85, 1, bx + 1, by], [b.x0 - 0.85, b.y1 + 1.85, 1, bx, by + 1], [b.x1 + 1.85, b.y1 + 1.85, 0, bx + 1, by + 1]] as const) {
         if (onSite(cx, cz) || roadsAt(ix, iz) < 3) continue;
         lightPole.add(cx, 0.95, cz);
         lightBox.add(cx, 1.9, cz);
@@ -439,7 +466,7 @@ export function buildCity(scene: THREE.Scene) {
     }
     // A bus stop on the park's sidewalk, across from the candy store.
     const stop = L.buildBusStop();
-    stop.position.set(PARK.x0 + 6.5, 0.07, PARK.y0 - 0.55);
+    stop.position.set(PARK.x0 + 5, 0.07, PARK.y0 - 0.55); // (v0.55: between the two paths out, not in front of one)
     stop.rotation.y = Math.PI;
     scene.add(stop);
   }
@@ -615,27 +642,32 @@ export function buildCity(scene: THREE.Scene) {
     const LAWN = 0.1;
     const gravel = lam(0x8a8070);
     const stone = lam(0x8e877b, { flatShading: true });
-    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false);
+    // Darker grass patches so the lawn isn't one flat colour (v0.54 fix: they overlapped, almost at the same height,
+    // and flickered as the camera moved). Now each stays inside its own tile (at most one tile across), on every other
+    // tile at most, so they never overlap; none on a path; all at one height, a clear step above the lawn (below the
+    // paths).
+    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31), false);
+    const prng = mulberry32(808);
     for (const r of PARK_AREA) {
-      const X0 = r.x0, Z0 = r.y0, X1 = r.x1 + 1, Z1 = r.y1 + 1;
-      const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
-      if (r === PLAZA) continue; // (paved, below)
-      const join = PARK_JOINS.includes(r);
-      add(geoBox(X1 - X0 + (join ? 0 : 0.6), LAWN - 0.02, Z1 - Z0 + (join ? 0 : 0.6)), pavement, cx, (LAWN - 0.02) / 2, cz, false);
-      add(geoBox(X1 - X0, LAWN, Z1 - Z0), grassMat, cx, LAWN / 2, cz, false);
-      // Darker grass patches so the lawn isn't one flat colour (a little above it, pulled forward: no flicker).
-      const n = Math.round(((X1 - X0) * (Z1 - Z0)) / 1.7);
-      for (let i = 0; i < n; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), LAWN + 0.004 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
-      // The paths: a # in a lawn block; a join carries the paths that run through it.
-      const vertical = r === PARK_JOINS[0] || r === PARK_JOINS[1];
-      if (!join || !vertical) for (const k of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, LAWN + 0.01, (join ? PLAZA.y0 : r.y0) + k + 0.5, false);
-      if (!join || vertical) for (const k of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, (join ? PLAZA.x0 : r.x0) + k + 0.5, LAWN + 0.011, cz, false);
-      if (!join) {
-        // Old park lamps at the inner corners of the paths.
-        for (const [lx, lz] of [[r.x0 + 3.2, r.y0 + 1.8], [r.x0 + 6.8, r.y0 + 1.8], [r.x0 + 3.2, r.y0 + 8.2], [r.x0 + 6.8, r.y0 + 8.2]]) lamp(lx, lz, 0, lz < cz ? 1 : -1, true);
-      }
+      if (r === PLAZA) continue;
+      for (let y = r.y0; y <= r.y1; y++)
+        for (let x = r.x0; x <= r.x1; x++) {
+          if (x % 2 !== 0 || (y + (x % 4 === 0 ? 0 : 1)) % 2 !== 0 || onParkPath(x, y) || prng() < 0.3) continue;
+          const s = 0.75 + prng() * 0.25;
+          patch.add(x + 0.5 + (prng() - 0.5) * (1 - s), LAWN + 0.006, y + 0.5 + (prng() - 0.5) * (1 - s), s, 1, s * (0.8 + prng() * 0.2), prng() * 6);
+        }
     }
+    // (v0.55: no lamps in the park any more, nor along its edges: it's lit by the street round it and the fountains.)
     patch.build(scene);
+    // v0.55: the park's ground from the floor kit: lawn, gravel paths (round where they meet each other and the Plaza),
+    // the Plaza's paving and the ponds (sunk into the lawn, with grassy banks).
+    const pondTiles = new Set(FIXTURES.filter((f) => f.kind === 'pond').map((f) => `${f.x},${f.y}`));
+    scene.add(
+      buildFloor({
+        x0: PARK_BOUNDS.x0, y0: PARK_BOUNDS.y0, w: PARK_BOUNDS.x1 - PARK_BOUNDS.x0 + 1, h: PARK_BOUNDS.y1 - PARK_BOUNDS.y0 + 1,
+        at: (x, y) => (!inPark(x, y) ? null : inRect(PLAZA, x, y) ? 'paving' : pondTiles.has(`${x},${y}`) ? 'pond' : onParkPath(x, y) ? 'gravel' : 'grass'),
+      }),
+    );
 
     // The old block's fountain (008): a gravel ring, a low stone basin with water, a pillar and a top bowl.
     const fountain = (x: number, z: number, k: number) => {
@@ -658,7 +690,6 @@ export function buildCity(scene: THREE.Scene) {
     {
       const X0 = PLAZA.x0, Z0 = PLAZA.y0, X1 = PLAZA.x1 + 1, Z1 = PLAZA.y1 + 1;
       const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
-      add(geoBox(X1 - X0, LAWN, Z1 - Z0), lam(0x9a9286), cx, LAWN / 2, cz, false);
       const seam = new Batch(geoBox(X1 - X0, 0.004, 0.04), lam(0x6e675d), false);
       for (let i = 1; i < X1 - X0; i += 2) {
         seam.add(cx, LAWN + 0.002, Z0 + i, 1, 1, 1, 0);
@@ -679,8 +710,6 @@ export function buildCity(scene: THREE.Scene) {
         add(geoBox(0.9, 0.35, 0.9), stone, f.x + 0.5, LAWN + 0.17, f.y + 0.5);
         add(geoBox(0.78, 0.04, 0.78), lam(0x3a2a1e), f.x + 0.5, LAWN + 0.36, f.y + 0.5, false);
       }
-      // Lamps round the square.
-      for (const [lx, lz] of [[X0 + 2.2, Z0 + 2.2], [X1 - 2.2, Z0 + 2.2], [X0 + 2.2, Z1 - 2.2], [X1 - 2.2, Z1 - 2.2]]) lamp(lx, lz, lx < cx ? 1 : -1, 0, true);
     }
 
     // Benches facing the fountains and along the paths: they face away from their back, the side nearest the edge of
@@ -727,14 +756,14 @@ export function buildCity(scene: THREE.Scene) {
       const pz = (Math.min(...zs) + Math.max(...zs) + 1) / 2;
       const sx = (Math.max(...xs) - Math.min(...xs) + 1) / 2;
       const sz = (Math.max(...zs) - Math.min(...zs) + 1) / 2;
-      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, LAWN + 0.02, pz).scale.set(sx, 1, sz);
-      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, LAWN + 0.08, pz, false).scale.set(sx, 1, sz);
+      // (The water itself is the floor kit's, a little below the lawn: v0.55.)
+      const W0 = SURFACES.pond.top;
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
-        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, LAWN + 0.105, pz + Math.sin(a) * r, false);
+        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, W0 + 0.01, pz + Math.sin(a) * r, false);
       }
-      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.3 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.7 + rng() * 0.1, LAWN + 0.17, pz - 0.4 + i * 0.16, false);
+      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.35 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.6 + rng() * 0.1, W0 + 0.2, pz - 0.4 + i * 0.16, false);
     }
   }
 
@@ -1720,17 +1749,9 @@ export function buildCity(scene: THREE.Scene) {
     // The two blocks are merged into one site: one sidewalk all round it (covering the old street between them, its
     // sides included), with a curb along the road, like every block.
     {
-      const SW = 1.5;
-      const sx0 = FACTORY_SITE.x0 - SW;
-      const sx1 = FACTORY_SITE.x1 + 1 + SW;
-      const sz0 = FACTORY_SITE.y0 - SW;
-      const sz1 = FACTORY_SITE.y1 + 1 + SW;
-      const scx = (sx0 + sx1) / 2;
-      const scz = (sz0 + sz1) / 2;
-      add(geoBox(sx1 - sx0, 0.09, sz1 - sz0), pavement, scx, 0.045, scz, false);
-      const curb = lam(0x8a857c);
-      for (const [w, d, x, z] of [[sx1 - sx0, 0.12, scx, sz0], [sx1 - sx0, 0.12, scx, sz1], [0.12, sz1 - sz0, sx0, scz], [0.12, sz1 - sz0, sx1, scz]] as const)
-        add(geoBox(w, 0.11, d), curb, x, 0.055, z, false);
+      // (v0.55: round corners, like every block.)
+      const F = FACTORY_SITE;
+      sidewalk([[F.x0, F.y0], [F.x1 + 1, F.y0], [F.x1 + 1, F.y1 + 1], [F.x0, F.y1 + 1]], 0.09, 0.11);
     }
     // Floor.
     const floorTex = own(
