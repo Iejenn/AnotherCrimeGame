@@ -664,7 +664,7 @@ Outside fights eating still takes half a second.
   sewage channel (over a bridge), walls, fences and objects, through doors and gates (`enemyRoute` in sight.ts and
   `game.enemy_route` take the same steps over the same walk map). It stops on a tile it could step onto yours from
   and only starts swinging once there: the free throws meanwhile are what ranged buys you. If it has no way to reach
-  you at all, you can't throw (no safespot). Measured over every spot you can throw from: the longest walk is 16
+  you at all, you can still throw (v0.52, decided): it stays put and never swings; the knives are the cost. Measured over every spot you can throw from: the longest walk is 16
   tiles (a sewer rat going round via a bridge), most are under 8. A melee weapon can't hit it before it arrives (no
   swapping to a bat mid-approach). Killed on the way, it drops its loot where it fell.
 - The game walks you to the nearest tile you can throw from (in range, clear line), not up to the enemy.

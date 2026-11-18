@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.52.0',
+    date: '2026-11-18',
+    title: 'Throwing from anywhere',
+    items: [
+      "If an enemy you throw at has no way to walk to you, you can still throw: it just can't hit back. It costs you the knives.",
+    ],
+  },
+  {
     version: '0.51.0',
     date: '2026-11-18',
     title: 'Marksman: throwing knives',
