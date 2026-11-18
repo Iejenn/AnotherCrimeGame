@@ -496,17 +496,20 @@ export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0,
 
 // ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
 // v0.58: the bar's block (I-009) and the Yard's (007) are one site, the street between them included (like the
-// Factory). The bar fills the west half of I-009; everything east of it is the Yard: a big stretch of cracked concrete
-// with boarded-up buildings along the north and east sides and a chain-link fence along the south street, with three
-// gaps (the gates). Eight thugs hang around in it, each pair in its own quarter (THUG_PATCHES).
+// Factory). The bar fills the west half of I-009; everything east of it is the Yard: a vacant lot where a building was
+// torn down, now a gang's hangout. Boarded-up buildings along its north and east sides, a chain-link fence along the
+// south street with three gaps (the gates). A shipping container they use as a clubhouse, the couch and the fire
+// barrel, a half-demolished wall with rubble, a stripped car on blocks, a dice game on a crate, a lookout's chair by the
+// middle gate. Eight thugs hang around in it, each pair in its own quarter (THUG_QUARTERS).
 //   x 41    45 46                                   65 66 67
 //     bar     | N N N N N N N N N N N N N N N N N N N N E E   y 41–42  N/E = boarded-up buildings
-//             | . . . . . . c c . . . . . . . . . . w w E E   y 43     c = couch, w = a pile of wrecked cars
+//             | K K K K . . c c . . . . . . r . . . w w E E   y 43     K = the container, c = couch, w = wrecked cars
+//             | K K K K . . . B . . . . . . . . . . . . E E            B = the fire barrel (a cooking spot)
 //             | . . . . . . . . . . . . . . . . . . . . E E
-//             | . . . . . . . B . . . . . . . . . . . . E E            B = the burning barrel (a cooking spot)
-//             | t . . . . . . . . . . . . . . . . . . . E E            t = tyres
-//             | . . . . . . . . . . . . . . . . . . . t E E
-//             | . . . . . . . . . . . . . . . . . . . . E E   y 49
+//             | t . . . . . . . . . R R R r . . S S . . E E            R = the half wall, r = rubble, S = stripped car
+//             | . . . . . . d . . . . . . . . . . . . . E E            d = the dice game, t = tyres
+//             | . . . r . . . . . . . . . . . . . . t E E
+//             | . . . . . . . . L . . . . . . . . . . . E E   y 49     L = the lookout
 //      D      | f f f G f f f f f G f f f f f G f f f f E E   y 50     f = fence, G = a gate, D = the bar's door
 /** The whole site: the bar and the Yard, with the street between I-009 and 007. */
 export const TURF_SITE: Rect = { x0: BAR_BLOCK.x0, y0: BAR_BLOCK.y0, x1: block('007').x1, y1: BAR_BLOCK.y1 };
@@ -788,7 +791,7 @@ export const STATIONS: Station[] = [
   // In the sewer: a burning oil drum against the north wall, where a crate stood (so the rats' patches stay the same).
   { id: 'barrel_0', kind: 'bbq', x: SEWER.x0 + 11, y: SEWER.y0, look: 'barrel' },
   // v0.57: the Yard's burning barrel is a cooking spot too. (v0.58: in front of the couch, in the bigger Yard.)
-  { id: 'barrel_1', kind: 'bbq', x: YARD.x0 + 7, y: YARD.y0 + 2, look: 'barrel' },
+  { id: 'barrel_1', kind: 'bbq', x: YARD.x0 + 7, y: YARD.y0 + 1, look: 'barrel' },
   // The Factory: 3 plate presses along the west wall, 3 workbenches along the east wall (Tinkering).
   ...[2, 5, 8].map((dy, i) => ({ id: `press_${i}`, kind: 'press' as const, x: FACTORY.x0, y: FACTORY.y0 + dy })),
   ...[2, 5, 8].map((dy, i) => ({ id: `bench_${i}`, kind: 'bench' as const, x: FACTORY.x1, y: FACTORY.y0 + dy })),
@@ -796,6 +799,7 @@ export const STATIONS: Station[] = [
 
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
 export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench' | 'bankcounter' | 'vault' | 'pillar'
+  | 'container' | 'ruin' | 'rubble' | 'stripped' | 'dice' | 'lookout'
   | 'pipes' | 'wreck' | 'junktruck' | 'lottruck' | 'pallets' | 'tyres' | 'crane' | 'doghouse' | 'clubbar' | 'pool' | 'clubtable' | 'clubjuke' | 'motorbike' | 'mound' | 'splinter';
 export interface Fixture {
   x: number;
@@ -909,12 +913,19 @@ export const FIXTURES: Fixture[] = (() => {
   // The guard booth in the parking lot's south-west corner.
   out.push({ x: PARKING_S.x0, y: PARKING_S.y1, kind: 'booth' });
 
-  // The Yard: an old couch against the north buildings with the burning barrel in front of it, a pile of wrecked cars in
-  // the north-east corner, stacks of tyres, and the fence along the street (except the gates). Everything stands along
-  // the sides, so the middle is open ground. (The barrel is a cooking station since v0.57: STATIONS, barrel_1.)
-  out.push({ x: YARD.x0 + 6, y: YARD.y0, kind: 'couch' }, { x: YARD.x0 + 7, y: YARD.y0, kind: 'couch' });
-  out.push({ x: YARD.x1 - 1, y: YARD.y0, kind: 'wreck' }, { x: YARD.x1, y: YARD.y0, kind: 'wreck' });
-  out.push({ x: YARD.x0, y: YARD.y0 + 3, kind: 'tyres' }, { x: YARD.x1, y: YARD.y0 + 4, kind: 'tyres' });
+  // The Yard (v0.58: a gang's hangout; see the drawing above): the container, the couch with the fire barrel in front of
+  // it, the half wall and rubble, the stripped car, the dice game, the lookout, wrecks and tyres; the fence along the
+  // street (except the gates). (The barrel is a cooking station since v0.57: STATIONS, barrel_1.)
+  const yd = (dx: number, dy: number, kind: FixtureKind) => out.push({ x: YARD.x0 + dx, y: YARD.y0 + dy, kind });
+  for (let dx = 0; dx < 4; dx++) for (const dy of [0, 1]) yd(dx, dy, 'container');
+  yd(6, 0, 'couch'), yd(7, 0, 'couch');
+  for (const dx of [10, 11, 12]) yd(dx, 3, 'ruin');
+  yd(13, 3, 'rubble'), yd(14, 0, 'rubble'), yd(3, 5, 'rubble');
+  yd(16, 3, 'stripped'), yd(17, 3, 'stripped');
+  yd(6, 4, 'dice');
+  yd(8, 6, 'lookout');
+  yd(18, 0, 'wreck'), yd(19, 0, 'wreck');
+  yd(0, 3, 'tyres'), yd(19, 5, 'tyres');
   for (let x = YARD.x0; x <= YARD.x1; x++) if (!YARD_GATES.some(([gx]) => gx === x)) out.push({ x, y: YARD.y1, kind: 'fence' });
 
   // The hospital: three beds along each wall of the ward, the reception desk in the lobby (the receptionist stands

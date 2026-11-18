@@ -115,7 +115,7 @@ describe('combat maths (design §12)', () => {
         const p = thugAt(i, 1.8e12 + ms); // real clock times (the schedule counts from 1970)
         expect(inRect(YARD, Math.floor(p.x), Math.floor(p.z))).toBe(true);
       }
-    expect(THUG_TILES.length).toBe(133); // (v0.58: the bigger Yard; was 21)
+    expect(THUG_TILES.length).toBe(115); // (v0.58: the bigger Yard; was 21)
     expect(ENEMY_KINDS.thug.loot.find((d) => d.item === 'tin_knife')?.chance).toBe(0.05);
   });
 

@@ -1,20 +1,16 @@
-// The server walks the same detours as the game (v0.54): 0037_bigger_map.sql holds exactly the rows roamPaths.ts
-// works out (0036 had them first; the sewer's moved down since), except the thugs': 0041 (v0.58, the bigger Yard)
-// deleted those and put in the new ones.
+// The server walks the same detours as the game (v0.54; since v0.58 it works them out itself, see below).
 import { expect, test } from 'vitest';
 import { enemyAt, THUG_TILES } from './enemies';
 import { allDetours, walkPoint } from './roamPaths';
 
-test('the migration has every detour, and only those', async () => {
-  const old = (await import('../../supabase/migrations/0037_bigger_map.sql?raw')).default as string;
-  const turf = (await import('../../supabase/migrations/0041_bar_and_yard.sql?raw')).default as string;
-  const { YARD, inRect } = await import('../street/map');
-  const match = (sql: string) => sql.match(/^\(\d+,\d+,\d+,\d+,'\{[\d,]+\}','\{[\d,]+\}'\)/gm) ?? [];
-  const inYard = (r: string) => inRect(YARD, ...(r.slice(1).split(',').slice(0, 2).map(Number) as [number, number]));
-  const rows = [...match(old).filter((r) => !inYard(r)), ...match(turf)];
-  const want = [...allDetours()].map(([k, w]) => `(${k},'{${w.map((p) => p[0]).join(',')}}','{${w.map((p) => p[1]).join(',')}}')`);
-  expect(rows.length).toBe(want.length);
-  expect(new Set(rows)).toEqual(new Set(want));
+// v0.58: the server works the walks out itself (0041, game.roam_bends: the same algorithm, ported). Checked against the
+// game for every pair of tiles of every place with scripts/roam-parity.ts (18,838 pairs, all the same); the migration's
+// own check compares enemies caught mid-detour, two of every roaming kind.
+test("0041's check catches every roaming kind mid-detour", async () => {
+  const { detourSamples } = await import('../../scripts/turf-sql');
+  const kinds = new Set(detourSamples().map((p) => p.kind));
+  expect([...kinds].sort()).toEqual(['biker', 'dog', 'giant_rat', 'rat', 'thug']);
+  expect(allDetours().size).toBeGreaterThan(0);
 });
 
 test('a thug walks round the barrel, not through it', async () => {

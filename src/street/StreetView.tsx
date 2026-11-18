@@ -1365,6 +1365,71 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     // ---------- main loop ----------
     let last = performance.now();
     let raf = 0;
+    /** Walk along the path (dt in seconds). */
+    const walkStep = (dt: number) => {
+    if (me.path.length) {
+      const next = center(...me.path[0]);
+      const d = next.clone().sub(me.pos);
+      const step = WALK_SPEED * dt;
+      if (d.length() <= step) {
+        me.pos.copy(next);
+        me.path.shift();
+        if (!me.path.length && me.goal) {
+          arrive(me.goal);
+          me.goal = null;
+        }
+        if (!me.path.length && me.goalGrave) {
+          me.goalGrave = false;
+          openGrave();
+        }
+        if (!me.path.length && me.goalEnemy) {
+          savePos();
+          reachEnemy();
+        }
+        if (!me.path.length && me.goalGround !== null) {
+          savePos();
+          reachGround();
+        }
+        if (!me.path.length && me.goalStation) {
+          savePos();
+          reachStation();
+        }
+        if (!me.path.length && me.goalLink) {
+          savePos();
+          reachLink();
+        }
+        if (!me.path.length && me.goalGate) {
+          savePos();
+          reachGate();
+        }
+        if (!me.path.length) savePos();
+        if (!me.path.length && me.goalNpc) {
+          const npc = me.goalNpc;
+          const ep = npcWalk.get(npc.id)!.pos;
+          me.facing = Math.atan2(ep.x - me.pos.x, ep.z - me.pos.z);
+          npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - ep.x, me.pos.z - ep.z);
+          meetNpc(npc);
+          me.goalNpc = null;
+        }
+      } else {
+        me.pos.add(d.normalize().multiplyScalar(step));
+        me.facing = Math.atan2(d.x, d.z);
+      }
+    }
+    };
+    // v0.58: a hidden tab (another tab, a minimised browser) gets no animation frames, so you'd stop mid-walk. It's an
+    // online game: keep walking on a timer while hidden (the browser still runs it, if only about once a second), in
+    // the same small steps as on screen, and nothing is drawn.
+    const background = window.setInterval(() => {
+      if (!document.hidden) return;
+      const now = performance.now();
+      let left = Math.min(120, (now - last) / 1000);
+      last = now;
+      while (left > 0 && me.path.length) {
+        walkStep(Math.min(0.05, left));
+        left -= 0.05;
+      }
+    }, 250);
     camTarget.copy(me.pos);
     const loop = () => {
       raf = requestAnimationFrame(loop);
@@ -1376,55 +1441,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const job = meCrew?.job;
 
       // Walk along the path.
-      if (me.path.length) {
-        const next = center(...me.path[0]);
-        const d = next.clone().sub(me.pos);
-        const step = WALK_SPEED * dt;
-        if (d.length() <= step) {
-          me.pos.copy(next);
-          me.path.shift();
-          if (!me.path.length && me.goal) {
-            arrive(me.goal);
-            me.goal = null;
-          }
-          if (!me.path.length && me.goalGrave) {
-            me.goalGrave = false;
-            openGrave();
-          }
-          if (!me.path.length && me.goalEnemy) {
-            savePos();
-            reachEnemy();
-          }
-          if (!me.path.length && me.goalGround !== null) {
-            savePos();
-            reachGround();
-          }
-          if (!me.path.length && me.goalStation) {
-            savePos();
-            reachStation();
-          }
-          if (!me.path.length && me.goalLink) {
-            savePos();
-            reachLink();
-          }
-          if (!me.path.length && me.goalGate) {
-            savePos();
-            reachGate();
-          }
-          if (!me.path.length) savePos();
-          if (!me.path.length && me.goalNpc) {
-            const npc = me.goalNpc;
-            const ep = npcWalk.get(npc.id)!.pos;
-            me.facing = Math.atan2(ep.x - me.pos.x, ep.z - me.pos.z);
-            npcGroups.get(npc.id)!.rotation.y = Math.atan2(me.pos.x - ep.x, me.pos.z - ep.z);
-            meetNpc(npc);
-            me.goalNpc = null;
-          }
-        } else {
-          me.pos.add(d.normalize().multiplyScalar(step));
-          me.facing = Math.atan2(d.x, d.z);
-        }
-      }
+      walkStep(dt);
       // Job finished or stopped elsewhere (e.g. the crew card's Stop button). The grace period covers the
       // moment right after arriving, before the new job has reached this view.
       if (me.attached && !job && !me.path.length && now - me.attachedAt > 1500) me.attached = null;
@@ -2170,6 +2187,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     return () => {
       savePos();
       cancelAnimationFrame(raf);
+      clearInterval(background);
       off();
       offFight?.();
       ro.disconnect();

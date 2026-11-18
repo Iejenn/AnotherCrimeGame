@@ -67,6 +67,12 @@ export function drawWorld(px: number, withSewer = false, edge = MAP_EDGE): HTMLC
   // v0.58: the bar and the Yard: one site (the street between I-009 and 007 is part of it), the Yard's cracked concrete.
   tile(TURF_SITE.x0 - 1.5, TURF_SITE.y0 - 1.5, TURF_SITE.x1 - TURF_SITE.x0 + 4, TURF_SITE.y1 - TURF_SITE.y0 + 4, '#66625b');
   area(YARD, '#55524d');
+  for (const f of FIXTURES) {
+    if (f.kind === 'container') tile(f.x, f.y, 1, 1, '#2f5a78');
+    if (f.kind === 'ruin') tile(f.x, f.y + 0.3, 1, 0.4, '#8a5040');
+    if (f.kind === 'rubble') tile(f.x + 0.2, f.y + 0.2, 0.6, 0.6, '#7a766e');
+    if (f.kind === 'stripped') tile(f.x, f.y + 0.1, 1, 0.8, '#6a6e74');
+  }
   for (const r of ROOMS) if (r.id === 'bar') area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
   // The Thrift Store (brick) and its yard (concrete) with the dumpsters.
   area(THRIFT, '#8a5040');

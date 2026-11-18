@@ -5,8 +5,9 @@
 // (each bend only where it's needed), so they walk naturally instead of zig-zagging tile by tile.
 //
 // The schedule stays the same (which spot, and when): a detour is walked in the same time, a bit faster. The server
-// has the same paths, in a table (game.roam_paths, printed by scripts/roam-paths-sql.ts), and walks them the same way
-// (game.path_point), so everyone agrees where an enemy is.
+// works out the same walks (v0.58: itself, game.roam_bends in 0041, the same steps as here, from its walk map; before,
+// a table of them was shipped with every map change), so everyone agrees where an enemy is. If you change how a walk is
+// worked out here, change it there too (scripts/roam-parity.ts checks they agree).
 import { shotLine, walkBit, walkMasks } from '../street/sight';
 import { gi } from '../street/map';
 

@@ -13,7 +13,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'The Yard and the bar',
     items: [
       "The bar and the Yard are one big site now (the street between them is gone). The bar is twice as big: six drunks at a long counter, a pool table, tables and a jukebox.",
-      'The Yard is about six times bigger: a wide-open lot behind a chain-link fence with three gates, boarded-up buildings round it, and eight thugs hanging around (was three).',
+      "The Yard is about six times bigger and is now a gang's hangout: a vacant lot behind a chain-link fence with three gates, a shipping container they use as a clubhouse, string lights over the couch and the fire, a half-demolished wall, a stripped car on blocks, a dice game and a lookout by the gate. Eight thugs hang around (was three).",
+      'Switching to another tab or minimising the browser no longer pauses you: you keep walking, fighting and working while the game is in the background.',
       'The minimap shows the beach and the sea properly now (the south beach showed as a black strip).',
     ],
   },
