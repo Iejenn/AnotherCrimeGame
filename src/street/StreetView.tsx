@@ -1052,7 +1052,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     mini.height = MINI_SIZE * dpr;
     mini.style.width = `${MINI_SIZE}px`;
     mini.style.height = `${MINI_SIZE}px`;
-    const base = drawWorld(BASE_PX, true);
+    // Two pictures (v0.57): the surface with its whole beach and shallows round it, and underground (the sewer).
+    const SURFACE_EDGE = 10;
+    const surface = drawWorld(BASE_PX, false, SURFACE_EDGE);
+    const underground = drawWorld(BASE_PX, true);
     const drawMini = () => {
       const g = mini.getContext('2d')!;
       const R = MINI_SIZE / 2;
@@ -1071,7 +1074,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       g.rotate(yaw);
       g.scale(MINI_TILE, MINI_TILE);
       g.translate(-me.pos.x, -me.pos.z);
-      g.drawImage(base, -MAP_EDGE, -MAP_EDGE, base.width / BASE_PX, base.height / BASE_PX);
+      const below = inSewer(Math.floor(me.pos.x), Math.floor(me.pos.z));
+      const base = below ? underground : surface;
+      const edge = below ? MAP_EDGE : SURFACE_EDGE;
+      g.drawImage(base, -edge, -edge, base.width / BASE_PX, base.height / BASE_PX);
       /** Draw something upright (not turned with the map) at world point (x, z), in CSS pixels. */
       const upright = (x: number, z: number, draw: () => void) => {
         g.save();

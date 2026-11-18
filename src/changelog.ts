@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.58.0',
+    date: '2026-11-18',
+    title: 'Minimap fix',
+    items: [
+      'The minimap shows the beach and the sea properly now (the south beach showed as a black strip).',
+    ],
+  },
+  {
     version: '0.57.0',
     date: '2026-11-18',
     title: 'Beach walks',

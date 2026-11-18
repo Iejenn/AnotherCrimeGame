@@ -9,13 +9,15 @@ export const MAP_EDGE = 3;
 export const ROOM_COLORS: Record<string, string> = { store: '#2f7a46', candy: '#9a4a6a', bar: '#6a4a2a', gas: '#3a5a8a', weapons: '#5a5a62', club: '#3e3430' };
 
 /**
- * Draw the whole map into a new canvas at `px` canvas pixels per tile. Tile (x, y) starts at
- * ((x + MAP_EDGE) * px, (y + MAP_EDGE) * px).
+ * Draw the whole map into a new canvas at `px` canvas pixels per tile, with `edge` tiles of sea round it. Tile (x, y)
+ * starts at ((x + edge) * px, (y + edge) * px).
  */
-export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
+export function drawWorld(px: number, withSewer = false, edge = MAP_EDGE): HTMLCanvasElement {
+  const MAP_EDGE = edge;
   const c = document.createElement('canvas');
   c.width = (W + MAP_EDGE * 2) * px;
-  // The minimap also has the sewer (drawn below the island, where its tiles are); the world map only the island.
+  // The minimap's underground picture has the sewer (drawn below the island, where its tiles are); the others only the
+  // island and its coast (v0.57: two pictures, so the sewer's dark rock never covers the south beach you can walk on).
   c.height = ((withSewer ? GH : H) + MAP_EDGE * 2) * px;
   const g = c.getContext('2d')!;
   const tile = (x: number, y: number, w: number, h: number, col: string) => {
