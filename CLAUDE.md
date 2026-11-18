@@ -6,6 +6,8 @@
   entry (and its title adjusted if needed), not given a new version.
 - A new version starts only after the previous one was merged to main.
 - Commits on the branch can be as many as needed; their messages don't need version numbers.
+- **Bigger batches:** updates are merged in bigger batches. Don't suggest or ask to merge after each change; keep
+  adding to the current version until the owner says "merge it".
 
 ## Ask, don't assume
 - Whenever something isn't specified (a gap: a number, a rule, how a feature behaves in a case that wasn't discussed),
