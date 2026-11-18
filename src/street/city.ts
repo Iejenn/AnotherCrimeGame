@@ -1120,15 +1120,48 @@ export function buildCity(scene: THREE.Scene) {
   const flames: THREE.Mesh[] = [];
   const fireLights: THREE.PointLight[] = [];
 
-  /** A burning oil drum (the Yard's, and the sewer's for cooking): a rusty drum with flames and a flickering light. */
+  /**
+   * A burning oil drum (the Yard's, and the sewer's for cooking). v0.54, reworked: a rusty steel drum with a rolled rim
+   * and two bulging hoops, rust patches and soot round the top, glowing coals and charred sticks inside, tall layered
+   * flames (orange outside, yellow inside) with a few sparks, and a flickering light. About 290 triangles (prop budget: 300).
+   */
   const burningBarrel = (x: number, y0: number, z: number) => {
-    add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.75, 12)), lam(0x6a4a32, { flatShading: true }), x, y0 + 0.4, z);
-    for (const y of [0.2, 0.6]) add(own(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 12)), lam(0x3a2a1e), x, y0 + y, z, false);
-    add(own(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 12)), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 1 }), x, y0 + 0.78, z, false);
-    for (let i = 0; i < 5; i++) {
-      const f = add(own(new THREE.ConeGeometry(0.07 + rng() * 0.04, 0.32, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 }), x + (rng() - 0.5) * 0.3, y0 + 0.95, z + (rng() - 0.5) * 0.3, false);
-      flames.push(f);
+    // (Its own random numbers: the city's shared ones stay as they were, so nothing placed after it moves; the old drum
+    // used 10.)
+    for (let i = 0; i < 10; i++) rng();
+    const rnd = mulberry32(Math.round(x * 97 + z * 13));
+    const steel = lam(0x8a5232, { side: THREE.DoubleSide });
+    const rim = lam(0x5a3420);
+    // The drum, open at the top (you look into the fire), the rolled rim and the two hoops standing out from it.
+    add(own(new THREE.CylinderGeometry(0.28, 0.28, 0.8, 10, 1, true)), steel, x, y0 + 0.4, z);
+    add(own(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 10, 1, true)), rim, x, y0 + 0.79, z, false);
+    for (const y of [0.27, 0.53]) add(own(new THREE.CylinderGeometry(0.295, 0.295, 0.035, 10, 1, true)), rim, x, y0 + y, z, false);
+    // Soot blackening the top, and rust patches eaten into the side.
+    add(own(new THREE.CylinderGeometry(0.283, 0.283, 0.12, 10, 1, true)), lam(0x2a1c14), x, y0 + 0.71, z, false);
+    for (const [a, y, w, h] of [[0.6, 0.4, 0.16, 0.13], [2.5, 0.15, 0.14, 0.1], [4.4, 0.62, 0.15, 0.09], [5.6, 0.2, 0.12, 0.1]]) {
+      const p = add(own(new THREE.PlaneGeometry(w, h)), lam(0xb8662a), x + Math.sin(a) * 0.284, y0 + y, z + Math.cos(a) * 0.284, false);
+      p.rotation.y = a;
     }
+    // Glowing coals, a few lumps on them, and charred sticks poking out.
+    const coals = add(own(new THREE.CircleGeometry(0.27, 10)), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 1 }), x, y0 + 0.74, z, false);
+    coals.rotation.x = -Math.PI / 2;
+    const lump = lam(0x3a2418, { emissive: 0xff4a10, emissiveIntensity: 0.5 });
+    for (let i = 0; i < 3; i++) add(own(new THREE.IcosahedronGeometry(0.06, 0)), lump, x + Math.sin(i * 2.1) * 0.13, y0 + 0.77, z + Math.cos(i * 2.1) * 0.13, false);
+    const stick = lam(0x4a2e1c);
+    for (const [a, tilt] of [[0.4, 0.5], [2.4, -0.6], [4.3, 0.45]]) {
+      const s = add(geoBox(0.05, 0.42, 0.05), stick, x + Math.sin(a) * 0.12, y0 + 0.88, z + Math.cos(a) * 0.12, false);
+      s.rotation.set(Math.cos(a) * tilt, 0, -Math.sin(a) * tilt);
+    }
+    // The flames: three tall orange ones round the edge, two yellow ones in the middle; and sparks above them.
+    const outer = lam(0xff7a22, { emissive: 0xff5a10, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 });
+    const inner = lam(0xffd04a, { emissive: 0xffb020, emissiveIntensity: 1.8, transparent: true, opacity: 0.95 });
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1 + rnd() * 0.6;
+      flames.push(add(own(new THREE.ConeGeometry(0.11, 0.5 + rnd() * 0.15, 6)), outer, x + Math.sin(a) * 0.1, y0 + 1.0, z + Math.cos(a) * 0.1, false));
+    }
+    for (let i = 0; i < 2; i++) flames.push(add(own(new THREE.ConeGeometry(0.07, 0.34, 6)), inner, x + (i - 0.5) * 0.08, y0 + 0.92, z + (rnd() - 0.5) * 0.08, false));
+    const spark = lam(0xffe08a, { emissive: 0xffc040, emissiveIntensity: 2 });
+    for (let i = 0; i < 2; i++) flames.push(add(own(new THREE.OctahedronGeometry(0.02, 0)), spark, x + (rnd() - 0.5) * 0.3, y0 + 1.35 + i * 0.2, z + (rnd() - 0.5) * 0.3, false));
     const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
     light.position.set(x, y0 + 1.2, z);
     scene.add(light);

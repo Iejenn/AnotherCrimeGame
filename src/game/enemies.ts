@@ -6,6 +6,7 @@
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
 import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
 import { minstd } from './watchers';
+import { addRoamPlace, walkPoint } from './roamPaths';
 
 export interface EnemyKind {
   id: string;
@@ -154,8 +155,8 @@ export function thugAt(index: number, t: number) {
   const [tx, ty] = thugSpot(index, k);
   if (into >= THUG_WALK_MS) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
   const [fx, fy] = thugSpot(index, k - 1);
-  const f = into / THUG_WALK_MS;
-  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+  // (v0.54: round the couch and the barrel, not through them.)
+  return { ...walkPoint([fx, fy], [tx, ty], into / THUG_WALK_MS), flying: false, moving: tx !== fx || ty !== fy };
 }
 
 // ---------- the rats: each scurries around its own patch of a walkway in the sewer ----------
@@ -192,8 +193,7 @@ export function ratAt(index: number, t: number) {
   const [tx, ty] = ratSpot(index, k);
   if (into >= RAT_WALK_MS) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
   const [fx, fy] = ratSpot(index, k - 1);
-  const f = into / RAT_WALK_MS;
-  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+  return { ...walkPoint([fx, fy], [tx, ty], into / RAT_WALK_MS), flying: false, moving: tx !== fx || ty !== fy };
 }
 
 // ---------- v0.43: guard dogs, giant rats, bikers: each roams the open tiles of its place ----------
@@ -226,9 +226,11 @@ export function roamAt(r: Roam, index: number, t: number) {
   const [tx, ty] = spot(k);
   if (into >= r.walkMs) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
   const [fx, fy] = spot(k - 1);
-  const f = into / r.walkMs;
-  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+  return { ...walkPoint([fx, fy], [tx, ty], into / r.walkMs), flying: false, moving: tx !== fx || ty !== fy };
 }
+
+// The places they stroll in: their walks go round what's in the way (roamPaths.ts, v0.54).
+for (const list of [THUG_TILES, ...RAT_ZONES, ...Object.values(ROAMS).map((r) => r.tiles)]) addRoamPlace(list);
 
 /** Where an enemy of this kind is at time t (game.enemy_at on the server). */
 export function enemyAt(kind: string, index: number, t: number) {

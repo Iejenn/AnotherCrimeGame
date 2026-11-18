@@ -636,6 +636,9 @@ export function setGear(character: THREE.Group, equipment: Partial<Record<string
     return g;
   };
   const head = equipment?.head;
+  // The hair on top of the head hides under a helmet (v0.54), so it can't poke through.
+  const crown = rig.head.getObjectByName('crown');
+  if (crown) crown.visible = !head;
   if (head) {
     const col = METAL_COLORS[metalPiece(head)[0]] ?? 0xb8bcc2;
     const g = armour(rig.head);

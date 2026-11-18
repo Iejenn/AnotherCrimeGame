@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.54.0',
+    date: '2026-11-18',
+    title: 'Watch your step',
+    items: [
+      'Enemies walk round things now instead of through them: thugs round the couch and the fire barrel, rats round the crates, dogs round the junk, bikers round the furniture.',
+      'Helmets fit: your hair no longer pokes through. Whatever is under the helmet stays under it (mohawks and caps too); long hair still hangs out below.',
+      'The fire barrels (the Yard and the sewer) are proper rusty oil drums now, with glowing coals, charred wood and taller flames.',
+    ],
+  },
+  {
     version: '0.53.0',
     date: '2026-11-18',
     title: 'Steady panels',
