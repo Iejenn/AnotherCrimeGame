@@ -3,11 +3,14 @@
 --   1. The skill is renamed: players.gunfire_xp -> marksman_xp, and every function that names it. Nobody has Gunfire
 --      XP yet (checked: 0 of 6 players), so nothing is lost. game.respond still ALSO sends it as 'gunfire' for a while,
 --      so a phone running the old game keeps working until it reloads.
---   2. Stacks: items.stack (any number take one bag slot); game.bag_used counts them that way, and the functions that
+--   2. Stacks: items.stack (up to 1,000 in one bag slot); game.bag_used counts them that way, and the functions that
 --      check "does it fit" by adding counts now check the bag after the change instead.
 --   3. Throwing knives: tin (Marksman 1) and copper (Marksman 11), 5 from a sheet at a workbench (Tinkering 1 / 11;
---      crafts.amount), Ray sells packs of 5 for $150 / $300 (shop_items.amount). Wielding them leaves them in your bag:
---      each throw takes one from there; out of knives = the fight stops. They sell for nothing (no money printer).
+--      crafts.amount), Ray sells packs of 5 for $150 / $300 (shop_items.amount). They go in their own Marksman slot
+--      (the whole stack: equipment.marksman + players.marksman_count), next to your melee weapon; players.fight_style
+--      ('melee' / 'marksman', set_fight_style) picks which one you fight with. Each throw uses one; 1 in 3 lands on
+--      the ground under the target for you to pick up (one pile per tile). Out of knives: you switch to melee.
+--      They sell for nothing (no money printer).
 --   4. Ranged fights: attack() lets a ranged weapon hit from range (6) + 1/2 tile if the line is clear: no building,
 --      no off-map tile and no wall or fence of an enclosure in the way (game.clear_shot, the same steps as
 --      src/street/sight.ts; walls and enclosures from the map: scripts/marksman-sql.ts). The enemy then walks up
@@ -58,10 +61,33 @@ alter table public.shop_items add column if not exists amount integer not null d
 alter table public.enemies add column if not exists arrive_at timestamptz;
 alter table public.enemies add column if not exists from_x integer;
 alter table public.enemies add column if not exists from_y integer;
+alter table public.players add column if not exists marksman_count integer not null default 0;
+alter table public.players add column if not exists fight_style text not null default 'melee';
+alter table public.players drop constraint if exists players_fight_style_check;
+alter table public.players add constraint players_fight_style_check check (fight_style in ('melee', 'marksman') and marksman_count >= 0);
+
+-- Save, send and show the Marksman slot's count and your fighting style (from their live definitions).
+do $do$
+declare
+  def text;
+begin
+  def := pg_get_functiondef('game.save(players)'::regprocedure);
+  if position('equipment = p.equipment,' in def) = 0 then raise exception 'save: anchor not found'; end if;
+  execute replace(def, 'equipment = p.equipment,', 'equipment = p.equipment, marksman_count = p.marksman_count, fight_style = p.fight_style,');
+
+  def := pg_get_functiondef('game.respond(uuid, boolean, text, jsonb, jsonb)'::regprocedure);
+  if position($t$'equipment', p.equipment, 'fight'$t$ in def) = 0 then raise exception 'respond: equipment anchor not found'; end if;
+  execute replace(def, $t$'equipment', p.equipment, 'fight'$t$,
+    $t$'equipment', p.equipment, 'marksmanCount', p.marksman_count, 'fightStyle', p.fight_style, 'fight'$t$);
+
+  def := pg_get_functiondef('game.world(uuid)'::regprocedure);
+  if position($t$'equipment', p.equipment,$t$ in def) = 0 then raise exception 'world: anchor not found'; end if;
+  execute replace(def, $t$'equipment', p.equipment,$t$, $t$'equipment', p.equipment, 'style', p.fight_style,$t$);
+end $do$;
 
 insert into public.items (id, name, slot, damage, accuracy, defence, speed, needs_skill, needs_level, heal, value, quest, stack, range) values
-  ('tin_throwing_knife', 'Tin Throwing Knife', 'weapon', 1, 0, 0, 3, 'marksman', 1, 0, 1, false, true, 6),
-  ('copper_throwing_knife', 'Copper Throwing Knife', 'weapon', 2, 0, 0, 3, 'marksman', 11, 0, 2, false, true, 6)
+  ('tin_throwing_knife', 'Tin Throwing Knife', 'marksman', 1, 0, 0, 3, 'marksman', 1, 0, 1, false, true, 6),
+  ('copper_throwing_knife', 'Copper Throwing Knife', 'marksman', 2, 0, 0, 3, 'marksman', 11, 0, 2, false, true, 6)
 on conflict (id) do update set name = excluded.name, slot = excluded.slot, damage = excluded.damage, accuracy = excluded.accuracy,
   defence = excluded.defence, speed = excluded.speed, needs_skill = excluded.needs_skill, needs_level = excluded.needs_level,
   heal = excluded.heal, value = excluded.value, quest = excluded.quest, stack = excluded.stack, range = excluded.range;
@@ -76,14 +102,14 @@ insert into public.shop_items (shop, item, price, amount) values
   ('weapons', 'tin_throwing_knife', 150, 5), ('weapons', 'copper_throwing_knife', 300, 5)
 on conflict (shop, item) do update set price = excluded.price, amount = excluded.amount;
 
--- Bag slots in use: a stack takes one slot however many there are; everything else one each.
+-- Bag slots in use: a stack takes one slot for every 1,000 (or part of it); everything else one each.
 create or replace function game.bag_used(inv jsonb)
 returns integer
 language sql
 stable
 set search_path = pg_catalog, public
 as $$
-  select coalesce(sum(case when coalesce(it.stack, false) then 1 else e.value::int end), 0)::int
+  select coalesce(sum(case when coalesce(it.stack, false) then ceil(e.value::int / 1000.0)::int else e.value::int end), 0)::int
   from jsonb_each_text(coalesce(inv, '{}'::jsonb)) e left join public.items it on it.id = e.key
 $$;
 
@@ -310,7 +336,7 @@ revoke execute on function game.enclosure_at(integer, integer) from public, anon
 revoke execute on function game.shot_open(integer, integer, text) from public, anon, authenticated;
 revoke execute on function game.clear_shot(integer, integer, integer, integer) from public, anon, authenticated;
 
--- ---------- 4. Equipping: a stack stays in your bag (each throw takes one from it) ----------
+-- ---------- 4. Equipping: the Marksman slot holds a whole stack; your style picks melee or Marksman ----------
 create or replace function public.equip_item(p_item text)
  returns jsonb
  language plpgsql
@@ -322,7 +348,6 @@ declare
   it public.items;
   have int;
   old text;
-  old_stack boolean;
   inv jsonb;
 begin
   if p.id is null then return jsonb_build_object('ok', false, 'reason', 'no_character'); end if;
@@ -332,16 +357,30 @@ begin
   if it.needs_skill is not null and game.level_from_xp(case it.needs_skill when 'melee' then p.melee_xp when 'marksman' then p.marksman_xp else p.defense_xp end) < it.needs_level then
     return game.respond(p.id, false, 'level_too_low', null, null);
   end if;
-  -- v0.51: a stack (throwing knives) stays in the bag; wielding just readies it. Anything else moves out of the bag.
-  inv := case when it.stack then p.inventory when have = 1 then p.inventory - p_item else jsonb_set(p.inventory, array[p_item], to_jsonb(have - 1)) end;
+  if it.slot = 'marksman' then
+    -- v0.51: throwing knives: the whole stack moves into the Marksman slot (adding to it if it's the same kind; the
+    -- other kind goes back to the bag), and you switch to throwing.
+    inv := p.inventory - p_item;
+    old := p.equipment ->> 'marksman';
+    if old = p_item then
+      have := have + p.marksman_count;
+    elsif old is not null and p.marksman_count > 0 then
+      inv := jsonb_set(inv, array[old], to_jsonb(coalesce((inv ->> old)::int, 0) + p.marksman_count));
+      if game.bag_used(inv) > game.bag_slots() then return game.respond(p.id, false, 'bag_full', null, null); end if;
+    end if;
+    update public.players set inventory = inv, equipment = jsonb_set(equipment, '{marksman}', to_jsonb(it.id)),
+      marksman_count = have, fight_style = 'marksman', updated_at = now() where id = p.id;
+    return game.respond(p.id, true, null, null, jsonb_build_array(format('You ready %s %s.', have, lower(regexp_replace(it.name, 'fe$', 'ves')))));
+  end if;
+  inv := case when have = 1 then p.inventory - p_item else jsonb_set(p.inventory, array[p_item], to_jsonb(have - 1)) end;
   old := p.equipment ->> it.slot;
-  select coalesce(stack, false) into old_stack from public.items where id = old;
-  -- What you held goes back in the bag, unless it was a stack (that never left it).
-  if old is not null and not coalesce(old_stack, false) then
+  if old is not null then
     inv := jsonb_set(inv, array[old], to_jsonb(coalesce((inv ->> old)::int, 0) + 1));
     if game.bag_used(inv) > game.bag_slots() then return game.respond(p.id, false, 'bag_full', null, null); end if;
   end if;
-  update public.players set inventory = inv, equipment = jsonb_set(equipment, array[it.slot], to_jsonb(it.id)), updated_at = now() where id = p.id;
+  -- Wielding a melee weapon switches you to melee.
+  update public.players set inventory = inv, equipment = jsonb_set(equipment, array[it.slot], to_jsonb(it.id)),
+    fight_style = case when it.slot = 'weapon' then 'melee' else fight_style end, updated_at = now() where id = p.id;
   return game.respond(p.id, true, null, null, jsonb_build_array(format('You equip the %s.', it.name)));
 end $function$;
 
@@ -355,20 +394,39 @@ declare
   p public.players := game.me();
   item text;
   inv jsonb;
+  n int;
 begin
   if p.id is null then return jsonb_build_object('ok', false, 'reason', 'no_character'); end if;
   item := p.equipment ->> p_slot;
   if item is null then return game.respond(p.id, false, 'nothing_there', null, null); end if;
-  -- v0.51: a stack is still in your bag: just put it away.
-  if exists (select 1 from public.items where id = item and stack) then
-    update public.players set equipment = equipment - p_slot, updated_at = now() where id = p.id;
-    return game.respond(p.id, true, null, null, null);
-  end if;
-  inv := jsonb_set(p.inventory, array[item], to_jsonb(coalesce((p.inventory ->> item)::int, 0) + 1));
+  -- v0.51: the Marksman slot's whole stack goes back in the bag, and you're back to melee.
+  n := case when p_slot = 'marksman' then p.marksman_count else 1 end;
+  inv := case when n > 0 then jsonb_set(p.inventory, array[item], to_jsonb(coalesce((p.inventory ->> item)::int, 0) + n)) else p.inventory end;
   if game.bag_used(inv) > game.bag_slots() then return game.respond(p.id, false, 'bag_full', null, null); end if;
-  update public.players set inventory = inv, equipment = equipment - p_slot, updated_at = now() where id = p.id;
+  update public.players set inventory = inv, equipment = equipment - p_slot,
+    marksman_count = case when p_slot = 'marksman' then 0 else marksman_count end,
+    fight_style = case when p_slot = 'marksman' then 'melee' else fight_style end, updated_at = now() where id = p.id;
   return game.respond(p.id, true, null, null, null);
 end $function$;
+
+-- Melee or Marksman: which of your weapons you fight with (the toggle on the screen). Allowed mid-fight.
+create or replace function public.set_fight_style(p_style text)
+ returns jsonb
+ language plpgsql
+ security definer
+ set search_path to 'pg_catalog', 'public', 'game'
+as $function$
+declare
+  p public.players := game.me();
+begin
+  if p.id is null then return jsonb_build_object('ok', false, 'reason', 'no_character'); end if;
+  if p_style is null or p_style not in ('melee', 'marksman') then return game.respond(p.id, false, 'bad_style', null, null); end if;
+  if p_style = 'marksman' and (p.equipment ->> 'marksman' is null or p.marksman_count <= 0) then return game.respond(p.id, false, 'no_ammo', null, null); end if;
+  update public.players set fight_style = p_style, updated_at = now() where id = p.id;
+  return game.respond(p.id, true, null, null, null);
+end $function$;
+revoke execute on function public.set_fight_style(text) from public, anon;
+grant execute on function public.set_fight_style(text) to authenticated;
 
 -- ---------- 5. Buying packs, making several, selling stacks ----------
 create or replace function public.buy_item(p_item text)
@@ -520,11 +578,48 @@ begin
   if position('k := least(p_n::bigint, have, game.bag_slots() - game.bag_used(p.inventory));' in def) = 0 then raise exception 'bank_withdraw: anchor not found'; end if;
   execute replace(def, 'k := least(p_n::bigint, have, game.bag_slots() - game.bag_used(p.inventory));',
     'k := case when exists (select 1 from public.items it where it.id = p_item and it.stack)
-           then case when p.inventory ? p_item or game.bag_used(p.inventory) < game.bag_slots() then least(p_n::bigint, have) else 0 end
+           then least(p_n::bigint, have, (game.bag_slots() - game.bag_used(p.inventory))::bigint * 1000
+                + (ceil(coalesce((p.inventory ->> p_item)::int, 0) / 1000.0) * 1000)::bigint - coalesce((p.inventory ->> p_item)::int, 0))
            else least(p_n::bigint, have, game.bag_slots() - game.bag_used(p.inventory)) end;');
 end $do$;
 
 -- ---------- 7. Fights at a distance ----------
+-- Where an enemy in a fight is at time t: walking up to its fighter (from -> fight tile, 2.5 tiles/s), or there.
+create or replace function game.enemy_tile(e public.enemies, t timestamptz, out x integer, out y integer)
+ language plpgsql
+ stable
+ set search_path to 'pg_catalog'
+as $function$
+declare
+  frac double precision;
+begin
+  x := e.fight_x; y := e.fight_y;
+  if e.arrive_at is not null and t < e.arrive_at and e.from_x is not null then
+    frac := 1 - extract(epoch from (e.arrive_at - t)) / greatest(0.001, sqrt(((e.fight_x - e.from_x) ^ 2 + (e.fight_y - e.from_y) ^ 2)::double precision) / 2.5);
+    frac := least(1, greatest(0, frac));
+    x := round(e.from_x + (e.fight_x - e.from_x) * frac)::int;
+    y := round(e.from_y + (e.fight_y - e.from_y) * frac)::int;
+  end if;
+end $function$;
+
+-- Put n of an item on the ground (yours for 60 s, then anyone's, gone after 3 min): onto your pile of it on that tile
+-- if there is one (thrown knives land one by one), else a new pile.
+create or replace function game.drop_on_ground(p_item text, p_n integer, p_x integer, p_y integer, p_owner uuid, p_at timestamptz)
+ returns void
+ language plpgsql
+ set search_path to 'pg_catalog', 'public'
+as $function$
+begin
+  update public.ground_items set amount = amount + p_n, expires_at = greatest(expires_at, p_at + interval '180 seconds')
+  where item = p_item and x = p_x and y = p_y and owner is not distinct from p_owner and expires_at > now();
+  if not found then
+    insert into public.ground_items (item, amount, x, y, owner, dropped_at, public_at, expires_at)
+    values (p_item, p_n, p_x, p_y, p_owner, p_at, p_at + interval '60 seconds', p_at + interval '180 seconds');
+  end if;
+end $function$;
+revoke execute on function game.enemy_tile(public.enemies, timestamptz) from public, anon, authenticated;
+revoke execute on function game.drop_on_ground(text, integer, integer, integer, uuid, timestamptz) from public, anon, authenticated;
+
 create or replace function public.attack(p_enemy text, p_x integer, p_y integer)
  returns jsonb
  language plpgsql
@@ -544,6 +639,7 @@ declare
   ez double precision;
   dist double precision;
   reach double precision;
+  ranged boolean;
   nx int; ny int; d int;
 begin
   if p.id is null then return jsonb_build_object('ok', false, 'reason', 'no_character'); end if;
@@ -562,9 +658,9 @@ begin
     return game.respond(p.id, false, 'enemy_busy', rep, logs);
   end if;
   if not game.can_reach(p, p_x, p_y) then return game.respond(p.id, false, 'too_fast', rep, logs); end if;
-  -- v0.51: a ranged weapon (throwing knives) needs something left to throw.
-  select * into w from public.items where id = p.equipment ->> 'weapon';
-  if w.range is not null and coalesce((p.inventory ->> w.id)::int, 0) <= 0 then return game.respond(p.id, false, 'no_ammo', rep, logs); end if;
+  -- v0.51: you throw when your style is Marksman and the Marksman slot has knives left; otherwise it's melee.
+  select * into w from public.items where id = p.equipment ->> 'marksman';
+  ranged := p.fight_style = 'marksman' and w.range is not null and p.marksman_count > 0;
   if e.fighter = p.id and e.fight_seen > now() - interval '5 seconds' then
     ex := e.fight_x + 0.5; ez := e.fight_y + 0.5;
   else
@@ -573,9 +669,9 @@ begin
   end if;
   dist := sqrt((p_x + 0.5 - ex) ^ 2 + (p_y + 0.5 - ez) ^ 2);
   -- Melee: next to it (2 tiles, as before). Ranged: up to its range + 1/2 tile, and nothing in the way.
-  reach := case when w.range is not null then w.range + 0.5 else 2.0 end;
+  reach := case when ranged then w.range + 0.5 else 2.0 end;
   if dist > reach then return game.respond(p.id, false, 'too_far', rep, logs); end if;
-  if w.range is not null and dist > 2.0 and not game.clear_shot(p_x, p_y, floor(ex)::int, floor(ez)::int) then
+  if ranged and dist > 2.0 and not game.clear_shot(p_x, p_y, floor(ex)::int, floor(ez)::int) then
     return game.respond(p.id, false, 'no_line_of_sight', rep, logs);
   end if;
   if e.fighter is distinct from p.id or e.fight_seen <= now() - interval '5 seconds' then
@@ -626,16 +722,16 @@ declare
   e public.enemies;
   k public.enemy_kinds;
   w public.items;
+  wr public.items;
   t timestamptz;
   dmg int;
+  at_x int; at_y int;
   max_hit int;
   chance double precision;
   lv_melee int; lv_mark int; lv_def int; lv_hp int;
   lv_att int;
   n int := 0;
-  have int;
   ranged boolean;
-  frac double precision;
   w_damage int; w_accuracy int; w_speed int;
 begin
   if p.id is null then return jsonb_build_object('ok', false, 'reason', 'no_character'); end if;
@@ -655,9 +751,9 @@ begin
     return game.respond(p.id, true, 'fight_over', rep, logs) || jsonb_build_object('events', events);
   end if;
 
+  -- The melee weapon (or fists) and the Marksman slot's knives; which one each turn uses follows your style.
   select * into w from public.items where id = p.equipment ->> 'weapon';
-  w_damage := coalesce(w.damage, 1); w_accuracy := coalesce(w.accuracy, 0); w_speed := coalesce(w.speed, 3);
-  ranged := w.range is not null;
+  select * into wr from public.items where id = p.equipment ->> 'marksman';
   lv_melee := game.level_from_xp(p.melee_xp); lv_mark := game.level_from_xp(p.marksman_xp);
   lv_def := game.level_from_xp(p.defense_xp); lv_hp := game.level_from_xp(p.health_xp);
 
@@ -667,23 +763,33 @@ begin
     t := least(p.fight_next, e.next_swing);
     exit when t > now();
     if p.fight_next <= e.next_swing then
+      -- This turn: a throw (Marksman style with knives left) or a melee swing (your weapon, or fists). Out of knives
+      -- in Marksman style: you switch to melee (your style goes back with it).
+      if p.fight_style = 'marksman' and (wr.range is null or p.marksman_count <= 0) then
+        p.fight_style := 'melee';
+      end if;
+      ranged := p.fight_style = 'marksman';
+      if ranged then
+        w_damage := coalesce(wr.damage, 1); w_accuracy := coalesce(wr.accuracy, 0); w_speed := coalesce(wr.speed, 3);
+      else
+        w_damage := coalesce(w.damage, 1); w_accuracy := coalesce(w.accuracy, 0); w_speed := coalesce(w.speed, 3);
+      end if;
       -- A melee weapon can't reach it while it's still walking up to you (v0.51).
       if not ranged and e.arrive_at is not null and t < e.arrive_at then
         p.fight_next := e.arrive_at;
         continue;
       end if;
       if ranged then
-        -- Each throw uses one knife up. None left: you put them away and fight on with your fists (so a biker who
-        -- jumps you while you hold an empty stack doesn't end and restart the fight every couple of seconds).
-        have := coalesce((p.inventory ->> w.id)::int, 0);
-        if have <= 0 then
-          logs := logs || to_jsonb(format('You have no %s left. You fight on with your fists.', lower(regexp_replace(w.name, 'fe$', 'ves'))));
-          p.equipment := p.equipment - 'weapon';
-          ranged := false;
-          w_damage := 1; w_accuracy := 0; w_speed := 3;
-          continue;
+        -- Each throw uses one knife from the Marksman slot; 1 in 3 lands where the target is, for you to pick up.
+        p.marksman_count := p.marksman_count - 1;
+        select * into at_x, at_y from game.enemy_tile(e, t);
+        if random() < 1.0 / 3 then perform game.drop_on_ground(wr.id, 1, at_x, at_y, p.id, t); end if;
+        if p.marksman_count <= 0 then
+          logs := logs || to_jsonb(format('That was your last %s. You switch to melee.', lower(wr.name)));
+          p.equipment := p.equipment - 'marksman';
+          p.marksman_count := 0;
+          p.fight_style := 'melee';
         end if;
-        p.inventory := case when have = 1 then p.inventory - w.id else jsonb_set(p.inventory, array[w.id], to_jsonb(have - 1)) end;
       end if;
       lv_att := case when ranged then game.level_from_xp(p.marksman_xp) else game.level_from_xp(p.melee_xp) end;
       chance := game.hit_chance((lv_att + 8) * (w_accuracy + 64), (k.defense + 8) * (k.defence_bonus + 64));
@@ -706,13 +812,8 @@ begin
         p.fight_enemy := null;
         logs := logs || to_jsonb(format('You killed the %s.', lower(k.name)));
         -- Killed on its way to you: it drops where it fell, part-way along.
-        if e.arrive_at is not null and t < e.arrive_at and e.from_x is not null then
-          frac := 1 - extract(epoch from (e.arrive_at - t)) / greatest(0.001, sqrt(((e.fight_x - e.from_x) ^ 2 + (e.fight_y - e.from_y) ^ 2)::double precision) / 2.5);
-          frac := least(1, greatest(0, frac));
-          perform game.drop_loot(k.id, round(e.from_x + (e.fight_x - e.from_x) * frac)::int, round(e.from_y + (e.fight_y - e.from_y) * frac)::int, p.id, t);
-        else
-          perform game.drop_loot(k.id, e.fight_x, e.fight_y, p.id, t);
-        end if;
+        select * into at_x, at_y from game.enemy_tile(e, t);
+        perform game.drop_loot(k.id, at_x, at_y, p.id, t);
         events := events || jsonb_build_object('at', game.ms(t), 'by', 'you', 'killed', true);
         exit;
       end if;
@@ -784,7 +885,7 @@ select
                           and case when p.prokind = 'f' then pg_get_functiondef(p.oid) like '%gunfire_xp%' else false end)
    and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'players' and column_name = 'marksman_xp')
   then 'ok' else 'NOT RENAMED' end as rename,
-  case when game.bag_used('{"tin_throwing_knife": 40, "tin_sheet": 2}') = 3 and game.bag_used('{"tin_sheet": 2}') = 2 then 'ok' else 'BAD BAG' end as stacks,
+  case when game.bag_used('{"tin_throwing_knife": 40, "tin_sheet": 2}') = 3 and game.bag_used('{"tin_throwing_knife": 2500}') = 3 then 'ok' else 'BAD BAG' end as stacks,
   case when (select count(*) from game.shot_walls) > 100 and (select count(*) from game.shot_enclosures) = 15 then 'ok' else 'NO MAP' end as map_rows,
   -- In the park (008, x 75-84): clear. Junkyard (I-007, x 7-16) from the street east of it: blocked by the fence.
   case when game.clear_shot(76, 42, 81, 46) and not game.clear_shot(18, 43, 15, 43) and game.clear_shot(12, 43, 15, 43) then 'ok' else 'BAD SIGHT' end as sight,

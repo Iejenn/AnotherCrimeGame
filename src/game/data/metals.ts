@@ -47,7 +47,7 @@ export const PIECES: Piece[] = [
   { key: 'knife', name: 'Knife', at: 3, sheets: 1, slot: 'weapon' },
   // v0.51 (Marksman): throwing knives, 5 from a sheet, from the metal's first level (tin: Tinkering 1). Each throw uses
   // one up, so Marksman keeps eating salvage. (Later, at 4: bullet casings for guns.)
-  { key: 'throwing_knife', name: 'Throwing Knife', at: 0, sheets: 1, slot: 'weapon', makes: 5 },
+  { key: 'throwing_knife', name: 'Throwing Knife', at: 0, sheets: 1, slot: 'marksman', makes: 5 },
   { key: 'helmet', name: 'Helmet', at: 5, sheets: 1, slot: 'head' },
   { key: 'legs', name: 'Leg Guards', at: 6, sheets: 2, slot: 'legs' },
   { key: 'vest', name: 'Plate Vest', at: 7, sheets: 3, slot: 'body' },
@@ -68,7 +68,7 @@ export function pieceGear(m: Metal, p: Piece): ItemDef['gear'] {
       return { slot: 'weapon', damage: Math.max(1, Math.round((2 * (B + 1)) / 3 - 1)), accuracy: 0, speed: 2, needs, anim: 'stab' };
     case 'throwing_knife':
       // The knife's damage, a throw every 1.5 s (like a punch: 40 knives a minute is plenty to keep stocked).
-      return { slot: 'weapon', damage: Math.max(1, Math.round((2 * (B + 1)) / 3 - 1)), accuracy: 0, speed: 3, range: THROW_RANGE, needs, anim: 'throw' };
+      return { slot: 'marksman', damage: Math.max(1, Math.round((2 * (B + 1)) / 3 - 1)), accuracy: 0, speed: 3, range: THROW_RANGE, needs, anim: 'throw' };
     case 'helmet':
       return { slot: 'head', defence: 2 * m.tier, needs };
     case 'legs':

@@ -646,9 +646,13 @@ Outside fights eating still takes half a second.
 
 - **Throwing knives** are every metal's ranged weapon: tin (Marksman 1), copper (Marksman 11). Damage = the knife's
   (tin 1, copper 2), a throw every 1.5 s, **range 6 tiles** (later weapons get their own: a pistol further).
-- **Ammo is the knife itself.** They **stack** (any number take one bag slot). Wielding them leaves them in your bag;
-  every throw (hit or miss) uses one up on the server. Out of knives mid-fight: you put them away and fight on with
-  your fists. They sell for nothing (five $1 knives would otherwise sell for more than their $5 sheet).
+- **Ammo is the knife itself.** They **stack**, up to 1,000 in a bag slot. Readying them moves the whole stack into
+  the **Marksman slot** (next to the melee weapon slot, with its count). The **Melee / Marksman toggle** on the Street
+  (`players.fight_style`, `set_fight_style`) picks which one you fight with; readying knives switches to Marksman,
+  wielding a melee weapon to Melee. Every throw (hit or miss) uses one on the server, and **1 in 3 lands** under the
+  target (one pile per tile, yours for 60 s like loot): recovery stretches a sheet to about 7.5 throws, never forever.
+  The last knife thrown switches you to melee (your weapon, or fists). They sell for nothing (five $1 knives would
+  otherwise sell for more than their $5 sheet).
 - **Where they come from:** 5 from a sheet at a workbench (Tinkering 1 for tin, 11 for copper; 3 / 6 XP), or Ray's
   Arms in packs of 5 at the usual rule (30 × the metal: $150 tin, $300 copper), deliberately expensive.
 - **Line of sight:** a throw needs a straight line with nothing in the way: no building, no wall or fence of an

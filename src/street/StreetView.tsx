@@ -26,6 +26,7 @@ import { TinkerDialog } from './TinkerDialog';
 import { BankDialog } from './BankDialog';
 import { CRAFT_BY_ID } from '../game/data/metals';
 import { QuickEat } from './QuickEat';
+import { StyleToggle } from './StyleToggle';
 import { RETURN_MS, type EnemyState, type FightEvent } from '../net/useOnlineGame';
 import { MAP_EDGE, drawBag, drawGrave, drawWorld } from './mapArt';
 import { WorldMap } from './WorldMap';
@@ -79,6 +80,9 @@ function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly
 
 /** How a weapon's swing looks (see ItemDef.gear.anim). */
 const weaponAnim = (id: string | undefined): 'punch' | 'swing' | 'stab' | 'throw' => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
+/** What someone holds and how they attack: their throwing knives in Marksman style (v0.51), else their melee weapon. */
+const heldWeapon = (equipment: GameState['equipment'], style: string | undefined, hasKnives = true) =>
+  style === 'marksman' && equipment?.marksman && hasKnives ? equipment.marksman : equipment?.weapon;
 /** How long each attack takes, and how far into it the blow lands (so it lands as the hitsplat shows). A throw lets go
  *  at THROW_RELEASE and the knife then flies (THROW_SPEED): its hitsplat waits for the knife. */
 const ATTACK_TIMING = { punch: { ms: 420, lead: 160 }, stab: { ms: 520, lead: 230 }, swing: { ms: 900, lead: 380 }, throw: { ms: 640, lead: 640 * THROW_RELEASE } } as const;
@@ -127,6 +131,8 @@ export interface OtherPlayer {
   path: [number, number][];
   at: number;
   equipment?: Partial<Record<string, string>>;
+  /** Melee or Marksman (v0.51): with Marksman they hold and throw their knives. */
+  style?: string;
   /** Their combat level (shown next to their name). */
   combat?: number;
   /** What they're doing right now, and their health (from the server, live). */
@@ -641,13 +647,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           const view = target ? enemyViews.get(target) : undefined;
           if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
-            const anim = weaponAnim(sRef.current.equipment?.weapon);
+            const anim = rangedWeapon(sRef.current) ? 'throw' : weaponAnim(sRef.current.equipment?.weapon);
             if (anim === 'throw') {
               // A throw (v0.51): wind up, let go, and the knife flies to it; the hitsplat shows as it lands.
               const t = ATTACK_TIMING.throw;
               me.punchAt = performance.now();
               me.punchUntil = me.punchAt + t.ms;
-              if (view) throwKnife(sRef.current.equipment?.weapon ?? '', view.g.position, me.punchAt + t.lead, ev.dmg ?? 0);
+              if (view) throwKnife(sRef.current.equipment?.marksman ?? '', view.g.position, me.punchAt + t.lead, ev.dmg ?? 0);
               return;
             }
             // Each move lands as the hitsplat shows: a bat swing winds up longest, a knife draws back, a fist is quickest.
@@ -1454,7 +1460,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       if (foe) lastFoe = foe;
       const foeView = foe ? enemyViews.get(foe) : undefined;
       if (foeView && !me.path.length) me.facing = Math.atan2(foeView.g.position.x - me.pos.x, foeView.g.position.z - me.pos.z);
-      setGear(player, st.equipment);
+      const myRanged = rangedWeapon(st);
+      setGear(player, { ...st.equipment, weapon: myRanged ? myRanged.id : st.equipment?.weapon });
       player.position.set(me.pos.x, floorY(me.pos.x, me.pos.z) + 0.03, me.pos.z);
       const stunned = meCrew.stunnedUntil > gameNow();
       // Cooking: face the barbecue and work it.
@@ -1463,14 +1470,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         const near = STATIONS.find((x) => Math.abs(x.x + 0.5 - me.pos.x) < 2 && Math.abs(x.y + 0.5 - me.pos.z) < 2);
         if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
       }
-      const attacking = now < me.punchUntil ? weaponAnim(st.equipment?.weapon) : null;
+      const attacking = now < me.punchUntil ? (myRanged ? 'throw' : weaponAnim(st.equipment?.weapon)) : null;
       const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : attacking ?? (working || cooking ? 'work' : 'idle');
       animateCharacter(player, pose, now, 0, pose === 'walk' ? WALK_SPEED : (now - me.punchAt) / (me.punchUntil - me.punchAt));
       // A thrown knife has left your hand (it's in the air); and with none left there's nothing to hold.
       const held = player.getObjectByName('weapon');
       if (held) {
-        const rw = rangedWeapon(st);
-        held.visible = !rw || (rw.left > 0 && !(pose === 'throw' && (now - me.punchAt) / (me.punchUntil - me.punchAt) > THROW_RELEASE));
+        held.visible = !(pose === 'throw' && (now - me.punchAt) / (me.punchUntil - me.punchAt) > THROW_RELEASE);
       }
       player.rotation.y = me.facing;
 
@@ -1798,7 +1804,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
             const v = enemyViews.get(os.fightEnemy);
             if (v?.g.visible) {
               e.facing = Math.atan2(v.g.position.x - e.pos.x, v.g.position.z - e.pos.z);
-              pose = weaponAnim(o.equipment?.weapon);
+              pose = weaponAnim(heldWeapon(o.equipment, o.style));
             }
           } else if (os.spot && os.jobEndsAt > t) {
             const n = NODES.find((x) => x.id === os.spot);
@@ -1838,9 +1844,9 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
         e.g.position.set(e.pos.x, floorY(e.pos.x, e.pos.z) + 0.03, e.pos.z);
         e.g.rotation.y = e.facing;
-        setGear(e.g, o.equipment);
+        setGear(e.g, { ...o.equipment, weapon: heldWeapon(o.equipment, o.style) });
         // Someone else fighting: their swings, stabs or punches loop at the weapon's speed (we don't see their exact timing).
-        const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 4) * 500;
+        const swingMs = (ITEM_BY_ID[heldWeapon(o.equipment, o.style) ?? '']?.gear?.speed ?? 4) * 500;
         const attack = pose === 'swing' || pose === 'stab' || pose === 'punch' || pose === 'throw';
         animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'walk' ? WALK_SPEED : attack ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, ATTACK_TIMING[pose as keyof typeof ATTACK_TIMING].ms) : 0);
       }
@@ -2243,6 +2249,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       {bankAt && <BankDialog s={s} api={api} pos={bankAt} onClose={() => setBankAt(null)} />}
       {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}
       <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
+      <StyleToggle s={s} api={api} />
       {chatBox}
       {/* With the HUD: the last two lines of the log stay in view over the street, unless the full chat is open. */}
       {hud && hud.panel !== 'chat' && <ChatBox game={gameLines} chat={chat} myName={s.name} strip />}

@@ -26,12 +26,15 @@ export function weaponStats(s: GameState) {
   return w?.gear ? { damage: w.gear.damage ?? 0, accuracy: w.gear.accuracy ?? 0, speed: w.gear.speed ?? UNARMED.speed, range: w.gear.range ?? 0 } : UNARMED;
 }
 
-/** The ranged weapon you hold, if any, and how many you have left to throw (the stack in your bag; v0.51). */
-export function rangedWeapon(s: GameState) {
-  const id = s.equipment?.weapon;
+/** What's in your Marksman slot (v0.51): the knives, how far they fly and how many are left; null when it's empty. */
+export function marksmanSlot(s: GameState) {
+  const id = s.equipment?.marksman;
   const range = id ? ITEM_BY_ID[id]?.gear?.range : undefined;
-  return id && range ? { id, range, left: s.inventory[id] ?? 0 } : null;
+  return id && range && (s.marksmanCount ?? 0) > 0 ? { id, range, left: s.marksmanCount ?? 0 } : null;
 }
+/** The ranged weapon you fight with right now: your Marksman slot, when your style is Marksman (the toggle). The
+ *  server decides the same way (attack, fight_step); with no knives left you fight melee. */
+export const rangedWeapon = (s: GameState) => (s.fightStyle === 'marksman' ? marksmanSlot(s) : null);
 
 /** The armour you wear: its defence bonuses added up (helmet + plate vest + leg guards; docs/design.md §14). The
  *  server adds them up the same way (game.armour_bonus) for every swing an enemy takes at you. */

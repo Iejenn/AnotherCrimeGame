@@ -3,7 +3,7 @@
 import type { GameState, Look, LogKind, Report, SkillId } from './types';
 import { SKILL_BY_ID, SKILL_IDS } from './data/skills';
 import { CATCH_SECONDS, CRIME_BY_ID, EAT_SECONDS, type CrimeDef } from './data/crimes';
-import { ITEM_BY_ID, SELL_SHARE } from './data/items';
+import { ITEM_BY_ID, SELL_SHARE, STACK_MAX } from './data/items';
 import { RANKS } from './data/world';
 import { levelFromXp, MAX_LEVEL, totalXpForLevel } from './xp';
 import { pick, randRange, type Rng } from './rng';
@@ -37,10 +37,10 @@ export function rankFor(total: number) {
   return { name: RANKS[idx][1], next: RANKS[idx + 1] ?? null, current: RANKS[idx] };
 }
 
-/** Bag slots in use: cash takes one, every item one of its own, and a stack (throwing knives, v0.51) one for all of
- *  them. The server counts the same way (game.bag_used). */
+/** Bag slots in use: cash takes one, every item one of its own, and a stack (throwing knives, v0.51) one for every
+ *  STACK_MAX (1,000). The server counts the same way (game.bag_used). */
 export function slotsUsed(s: GameState) {
-  return 1 + Object.entries(s.inventory).reduce((n, [id, c]) => n + (c > 0 && ITEM_BY_ID[id]?.stack ? 1 : c), 0);
+  return 1 + Object.entries(s.inventory).reduce((n, [id, c]) => n + (ITEM_BY_ID[id]?.stack ? Math.ceil(c / STACK_MAX) : c), 0);
 }
 
 
@@ -356,7 +356,8 @@ export function stopJob(s: GameState) {
 export function giveItem(s: GameState, id: string, count = 1): number {
   if (!ITEM_BY_ID[id] || count <= 0) return 0;
   const free = INVENTORY_SLOTS - slotsUsed(s);
-  const n = ITEM_BY_ID[id].stack ? (s.inventory[id] || free > 0 ? count : 0) : Math.min(count, free);
+  const have = s.inventory[id] ?? 0;
+  const n = ITEM_BY_ID[id].stack ? Math.min(count, free * STACK_MAX + (Math.ceil(have / STACK_MAX) * STACK_MAX - have)) : Math.min(count, free);
   if (n <= 0) return 0;
   s.inventory[id] = (s.inventory[id] ?? 0) + n;
   return n;

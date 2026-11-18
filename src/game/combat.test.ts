@@ -48,7 +48,7 @@ describe('combat maths (design §12)', () => {
     const { CRAFT_BY_ID } = await import('./data/metals');
     const { slotsUsed } = await import('./engine');
     const t = ITEM_BY_ID.tin_throwing_knife;
-    expect([t.gear!.damage, t.gear!.speed, t.gear!.range, t.gear!.needs, t.gear!.anim, t.stack, t.value]).toEqual([1, 3, 6, { skill: 'marksman', level: 1 }, 'throw', true, 1]);
+    expect([t.gear!.slot, t.gear!.damage, t.gear!.speed, t.gear!.range, t.gear!.needs, t.gear!.anim, t.stack, t.value]).toEqual(['marksman', 1, 3, 6, { skill: 'marksman', level: 1 }, 'throw', true, 1]);
     expect(ITEM_BY_ID.copper_throwing_knife.gear!.damage).toBe(2);
     expect(ITEM_BY_ID.copper_throwing_knife.gear!.needs).toEqual({ skill: 'marksman', level: 11 });
     expect(CRAFT_BY_ID.tin_throwing_knife).toMatchObject({ level: 1, xp: 3, amount: 5, inputs: { tin_sheet: 1 } });
@@ -56,6 +56,19 @@ describe('combat maths (design §12)', () => {
     const s = newGame('T', DEFAULT_LOOK, 0);
     s.inventory = { tin_throwing_knife: 40, tin_sheet: 2 };
     expect(slotsUsed(s)).toBe(1 + 1 + 2);
+    // Up to 1,000 a slot.
+    s.inventory = { tin_throwing_knife: 2500 };
+    expect(slotsUsed(s)).toBe(1 + 3);
+    // Marksman style throws only with knives in the Marksman slot.
+    const { rangedWeapon } = await import('./combat');
+    s.equipment = { weapon: 'tin_bat', marksman: 'tin_throwing_knife' };
+    s.marksmanCount = 12;
+    s.fightStyle = 'melee';
+    expect(rangedWeapon(s)).toBeNull();
+    s.fightStyle = 'marksman';
+    expect(rangedWeapon(s)).toEqual({ id: 'tin_throwing_knife', range: 6, left: 12 });
+    s.marksmanCount = 0;
+    expect(rangedWeapon(s)).toBeNull();
     // Selling a sheet's worth of knives must not beat selling the sheet: a knife sells for nothing.
     expect(itemPrice('tin_throwing_knife')).toBe(0);
   });

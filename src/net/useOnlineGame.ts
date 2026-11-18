@@ -39,6 +39,8 @@ export interface ServerAnswer {
     inventory: Record<string, number>;
     stats: GameState['stats'];
     equipment?: GameState['equipment'];
+    marksmanCount?: number;
+    fightStyle?: string;
     fight?: GameState['fight'];
     cook?: GameState['cook'];
     make?: GameState['make'];
@@ -95,6 +97,8 @@ export interface WorldEntry {
   name: string;
   look: GameState['look'];
   equipment?: GameState['equipment'];
+  /** v0.51: whether they fight with their melee weapon or throw (their Marksman slot). */
+  style?: 'melee' | 'marksman';
   /** Their combat level (shown next to their name). */
   combat?: number;
   from: [number, number];
@@ -168,6 +172,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     },
     inventory: p.inventory ?? {},
     equipment: p.equipment ?? {},
+    marksmanCount: Number(p.marksmanCount ?? 0),
+    fightStyle: p.fightStyle === 'marksman' ? 'marksman' : 'melee',
     fight: p.fight ?? null,
     cook: p.cook ?? null,
     make: p.make ?? null,
@@ -345,6 +351,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       stopFight: () => void call('stop_fight'),
       equip: (id) => void call('equip_item', { p_item: id }),
       unequip: (slot) => void call('unequip_item', { p_slot: slot }),
+      setFightStyle: (style) => void call('set_fight_style', { p_style: style }),
       buy: (id) => void call('buy_item', { p_item: id }),
       pickUp: (groundId, pos) => void call('pick_up', { p_id: groundId, p_x: pos[0], p_y: pos[1] }),
       cook: (item, pos) => void call('start_cook', { p_item: item, p_x: pos[0], p_y: pos[1] }),

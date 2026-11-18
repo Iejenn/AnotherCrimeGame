@@ -9,7 +9,7 @@ import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from './Bag';
 import { SKILL_BY_ID } from '../game/data/skills';
 import { ItemIcon } from './ItemIcon';
-import { armourBonus, maxHit, myCombatLevel, weaponStats } from '../game/combat';
+import { armourBonus, marksmanSlot, maxHit, myCombatLevel, weaponStats } from '../game/combat';
 import { skillLevel } from '../game/engine';
 import { COMBOS, findCombo } from '../game/data/combos';
 import { useCurrentBagHandler } from './bagHandler';
@@ -142,8 +142,16 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
 export function Equipment({ s, api }: { s: GameState; api: GameApi }) {
   const w = weaponStats(s);
   const hit = maxHit(w.damage, skillLevel(s, 'melee'));
-  const rows: { slot: 'weapon' | 'head' | 'body' | 'legs'; label: string; empty: string; info: (id: string) => string }[] = [
-    { slot: 'weapon', label: 'Weapon', empty: 'Bare fists', info: () => `Max hit ${hit} · a swing every ${(w.speed * 0.5).toFixed(1)}s` },
+  const knives = marksmanSlot(s);
+  const kGear = knives ? ITEM_BY_ID[knives.id]?.gear : undefined;
+  const throwing = s.fightStyle === 'marksman' && !!knives;
+  const rows: { slot: 'weapon' | 'marksman' | 'head' | 'body' | 'legs'; label: string; empty: string; info: (id: string) => string }[] = [
+    { slot: 'weapon', label: 'Weapon', empty: 'Bare fists', info: () => `Max hit ${hit} · a swing every ${(w.speed * 0.5).toFixed(1)}s${throwing ? '' : ' · fighting with this'}` },
+    // v0.51: the throwing knives' own slot (the whole stack); the toggle on the Street picks which one you fight with.
+    {
+      slot: 'marksman', label: 'Marksman', empty: 'No throwing knives',
+      info: () => `×${knives?.left ?? 0} · max hit ${maxHit(kGear?.damage ?? 1, skillLevel(s, 'marksman'))} · ${kGear?.range ?? 0} tiles${throwing ? ' · fighting with this' : ''}`,
+    },
     { slot: 'head', label: 'Head', empty: 'Nothing', info: (id) => `+${ITEM_BY_ID[id]?.gear?.defence ?? 0} defence` },
     { slot: 'body', label: 'Body', empty: 'Nothing', info: (id) => `+${ITEM_BY_ID[id]?.gear?.defence ?? 0} defence` },
     { slot: 'legs', label: 'Legs', empty: 'Nothing', info: (id) => `+${ITEM_BY_ID[id]?.gear?.defence ?? 0} defence` },
