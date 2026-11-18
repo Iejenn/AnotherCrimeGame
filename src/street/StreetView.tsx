@@ -2206,6 +2206,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           <span className="mono">{hp}</span>
         </div>
         <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
+        <StyleToggle s={s} api={api} say={(t) => sayRef.current(t)} />
         <button className="map-btn" onClick={() => setMapOpen(true)} aria-label="Open the world map" title="World map">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 6 L9 3.5 L15 6 L21 3.5 V18 L15 20.5 L9 18 L3 20.5 Z" fill="#e8dcc0" stroke="#141210" strokeWidth="1.4" strokeLinejoin="round" />
@@ -2249,7 +2250,6 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       {bankAt && <BankDialog s={s} api={api} pos={bankAt} onClose={() => setBankAt(null)} />}
       {tinkerAt && <TinkerDialog s={s} api={api} pos={tinkerAt.pos} kind={tinkerAt.kind} onClose={() => setTinkerAt(null)} />}
       <QuickEat s={s} api={api} say={(t) => sayRef.current(t)} ringRef={eatRingRef} />
-      <StyleToggle s={s} api={api} />
       {chatBox}
       {/* With the HUD: the last two lines of the log stay in view over the street, unless the full chat is open. */}
       {hud && hud.panel !== 'chat' && <ChatBox game={gameLines} chat={chat} myName={s.name} strip />}
