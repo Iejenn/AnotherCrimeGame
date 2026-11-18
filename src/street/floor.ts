@@ -10,7 +10,7 @@
 // Walking stays on the tile grid (the server checks tiles): the shapes are only how it looks, close to the tiles.
 import * as THREE from 'three';
 
-export type Surface = 'water' | 'sand' | 'asphalt' | 'concrete' | 'dirt' | 'sidewalk' | 'grass' | 'gravel' | 'paving';
+export type Surface = 'water' | 'pond' | 'sand' | 'asphalt' | 'concrete' | 'dirt' | 'sidewalk' | 'grass' | 'gravel' | 'paving';
 
 export interface SurfaceLook {
   color: number;
@@ -27,6 +27,8 @@ export interface SurfaceLook {
 /** The surfaces, in our dusk palette (docs/design.md §18). */
 export const SURFACES: Record<Surface, SurfaceLook> = {
   water: { color: 0x24536a, top: -0.3, corner: 'round', vary: 0.02 },
+  /** A pond in a park: water just above street level, so it sits in the lawn with a low grassy bank round it. */
+  pond: { color: 0x1f4a5a, top: 0.075, corner: 'round', vary: 0.02 },
   sand: { color: 0x7d705a, top: -0.08, side: 0x6a5e4a, corner: 'round' },
   asphalt: { color: 0x2f3036, top: 0, corner: 'square', vary: 0.03 },
   concrete: { color: 0x55524c, top: 0.02, side: 0x45423d, corner: 'square' },

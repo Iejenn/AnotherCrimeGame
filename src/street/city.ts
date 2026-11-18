@@ -6,11 +6,11 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
-import { buildFloor } from './floor';
+import { SURFACES, buildFloor } from './floor';
 import { SHALLOWS, coastAt } from './coast';
 import {
   BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, onParkPath, OLD_ROWS,
-  PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
   CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
@@ -633,22 +633,24 @@ export function buildCity(scene: THREE.Scene) {
         }
     }
     for (const r of PARK_AREA) {
-      const X0 = r.x0, Z0 = r.y0, X1 = r.x1 + 1, Z1 = r.y1 + 1;
-      const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
-      if (r === PLAZA) continue; // (paved, below)
-      const join = PARK_JOINS.includes(r);
-      add(geoBox(X1 - X0 + (join ? 0 : 0.6), LAWN - 0.02, Z1 - Z0 + (join ? 0 : 0.6)), pavement, cx, (LAWN - 0.02) / 2, cz, false);
-      add(geoBox(X1 - X0, LAWN, Z1 - Z0), grassMat, cx, LAWN / 2, cz, false);
-      // The paths: a # in a lawn block; a join carries the paths that run through it.
-      const vertical = r === PARK_JOINS[0] || r === PARK_JOINS[1];
-      if (!join || !vertical) for (const k of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, LAWN + 0.01, (join ? PLAZA.y0 : r.y0) + k + 0.5, false);
-      if (!join || vertical) for (const k of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, (join ? PLAZA.x0 : r.x0) + k + 0.5, LAWN + 0.011, cz, false);
-      if (!join) {
+      const Z0 = r.y0, Z1 = r.y1 + 1;
+      const cz = (Z0 + Z1) / 2;
+      if (r === PLAZA || PARK_JOINS.includes(r)) continue;
+      {
         // Old park lamps at the inner corners of the paths.
         for (const [lx, lz] of [[r.x0 + 3.2, r.y0 + 1.8], [r.x0 + 6.8, r.y0 + 1.8], [r.x0 + 3.2, r.y0 + 8.2], [r.x0 + 6.8, r.y0 + 8.2]]) lamp(lx, lz, 0, lz < cz ? 1 : -1, true);
       }
     }
     patch.build(scene);
+    // v0.55: the park's ground from the floor kit: lawn, gravel paths (round where they meet each other and the Plaza),
+    // the Plaza's paving and the ponds (sunk into the lawn, with grassy banks).
+    const pondTiles = new Set(FIXTURES.filter((f) => f.kind === 'pond').map((f) => `${f.x},${f.y}`));
+    scene.add(
+      buildFloor({
+        x0: PARK_BOUNDS.x0, y0: PARK_BOUNDS.y0, w: PARK_BOUNDS.x1 - PARK_BOUNDS.x0 + 1, h: PARK_BOUNDS.y1 - PARK_BOUNDS.y0 + 1,
+        at: (x, y) => (!inPark(x, y) ? null : inRect(PLAZA, x, y) ? 'paving' : pondTiles.has(`${x},${y}`) ? 'pond' : onParkPath(x, y) ? 'gravel' : 'grass'),
+      }),
+    );
 
     // The old block's fountain (008): a gravel ring, a low stone basin with water, a pillar and a top bowl.
     const fountain = (x: number, z: number, k: number) => {
@@ -671,7 +673,6 @@ export function buildCity(scene: THREE.Scene) {
     {
       const X0 = PLAZA.x0, Z0 = PLAZA.y0, X1 = PLAZA.x1 + 1, Z1 = PLAZA.y1 + 1;
       const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
-      add(geoBox(X1 - X0, LAWN, Z1 - Z0), lam(0x9a9286), cx, LAWN / 2, cz, false);
       const seam = new Batch(geoBox(X1 - X0, 0.004, 0.04), lam(0x6e675d), false);
       for (let i = 1; i < X1 - X0; i += 2) {
         seam.add(cx, LAWN + 0.002, Z0 + i, 1, 1, 1, 0);
@@ -740,14 +741,14 @@ export function buildCity(scene: THREE.Scene) {
       const pz = (Math.min(...zs) + Math.max(...zs) + 1) / 2;
       const sx = (Math.max(...xs) - Math.min(...xs) + 1) / 2;
       const sz = (Math.max(...zs) - Math.min(...zs) + 1) / 2;
-      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, LAWN + 0.02, pz).scale.set(sx, 1, sz);
-      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, LAWN + 0.08, pz, false).scale.set(sx, 1, sz);
+      // (The water itself is the floor kit's, a little below the lawn: v0.55.)
+      const W0 = SURFACES.pond.top;
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
-        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, LAWN + 0.105, pz + Math.sin(a) * r, false);
+        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, W0 + 0.01, pz + Math.sin(a) * r, false);
       }
-      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.3 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.7 + rng() * 0.1, LAWN + 0.17, pz - 0.4 + i * 0.16, false);
+      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.35 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.6 + rng() * 0.1, W0 + 0.2, pz - 0.4 + i * 0.16, false);
     }
   }
 

@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'The darker grass spots on the park lawns no longer flicker and slide around when you turn the camera.',
       "The island's beach isn't a straight strip any more: a sandy shore that curves in and out all round the city, with rocks along the waterline.",
+      'The park got softer too: the gravel paths curve round where they meet, and the ponds have round edges with a grassy bank.',
     ],
   },
   {
