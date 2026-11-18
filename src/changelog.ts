@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.55.0',
+    date: '2026-11-18',
+    title: 'Park touch-ups',
+    items: [
+      'The darker grass spots on the park lawns no longer flicker and slide around when you turn the camera.',
+    ],
+  },
+  {
     version: '0.54.0',
     date: '2026-11-18',
     title: 'A bigger city',

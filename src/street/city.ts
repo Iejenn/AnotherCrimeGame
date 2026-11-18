@@ -7,7 +7,7 @@
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
 import {
-  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, OLD_ROWS,
+  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, onParkPath, OLD_ROWS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
@@ -615,7 +615,21 @@ export function buildCity(scene: THREE.Scene) {
     const LAWN = 0.1;
     const gravel = lam(0x8a8070);
     const stone = lam(0x8e877b, { flatShading: true });
-    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false);
+    // Darker grass patches so the lawn isn't one flat colour (v0.54 fix: they overlapped, almost at the same height,
+    // and flickered as the camera moved). Now each stays inside its own tile (at most one tile across), on every other
+    // tile at most, so they never overlap; none on a path; all at one height, a clear step above the lawn (below the
+    // paths).
+    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31), false);
+    const prng = mulberry32(808);
+    for (const r of PARK_AREA) {
+      if (r === PLAZA) continue;
+      for (let y = r.y0; y <= r.y1; y++)
+        for (let x = r.x0; x <= r.x1; x++) {
+          if (x % 2 !== 0 || (y + (x % 4 === 0 ? 0 : 1)) % 2 !== 0 || onParkPath(x, y) || prng() < 0.3) continue;
+          const s = 0.75 + prng() * 0.25;
+          patch.add(x + 0.5 + (prng() - 0.5) * (1 - s), LAWN + 0.006, y + 0.5 + (prng() - 0.5) * (1 - s), s, 1, s * (0.8 + prng() * 0.2), prng() * 6);
+        }
+    }
     for (const r of PARK_AREA) {
       const X0 = r.x0, Z0 = r.y0, X1 = r.x1 + 1, Z1 = r.y1 + 1;
       const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
@@ -623,9 +637,6 @@ export function buildCity(scene: THREE.Scene) {
       const join = PARK_JOINS.includes(r);
       add(geoBox(X1 - X0 + (join ? 0 : 0.6), LAWN - 0.02, Z1 - Z0 + (join ? 0 : 0.6)), pavement, cx, (LAWN - 0.02) / 2, cz, false);
       add(geoBox(X1 - X0, LAWN, Z1 - Z0), grassMat, cx, LAWN / 2, cz, false);
-      // Darker grass patches so the lawn isn't one flat colour (a little above it, pulled forward: no flicker).
-      const n = Math.round(((X1 - X0) * (Z1 - Z0)) / 1.7);
-      for (let i = 0; i < n; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), LAWN + 0.004 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
       // The paths: a # in a lawn block; a join carries the paths that run through it.
       const vertical = r === PARK_JOINS[0] || r === PARK_JOINS[1];
       if (!join || !vertical) for (const k of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, LAWN + 0.01, (join ? PLAZA.y0 : r.y0) + k + 0.5, false);
