@@ -16,6 +16,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The Superstore opened in the south-east (F-013). Its dumpsters out back are full of crushed cans: Aluminium Salvaging, Scrapping level 21.',
       'Next to the Superstore: a little parking spot with a car to steal from and a meter to pry open. No guard, but only one of each.',
       "The salvage dumpsters got a makeover: proper dumpsters with two lids, in each yard's own colour, with the right junk inside.",
+      'The ground has texture now: grass, cobbled paths, paving stones, rough asphalt, sandy beaches, and water with ripples that drift.',
+      'On a wide screen the chat (and the skills) use the whole width at the bottom.',
     ],
   },
   {

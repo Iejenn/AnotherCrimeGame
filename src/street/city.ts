@@ -7,6 +7,7 @@
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
 import { SURFACES, buildFloor } from './floor';
+import { DETAIL_GAIN, animateWater, groundTexture, waterTexture } from './textures';
 import { SHALLOWS, coastAt } from './coast';
 import {
   BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
@@ -149,7 +150,18 @@ export function buildCity(scene: THREE.Scene) {
   scene.add(buildFloor({ x0: -SHALLOWS - 1, y0: -SHALLOWS - 1, w: W + 2 * SHALLOWS + 2, h: H + 2 * SHALLOWS + 2, at: coastAt }));
   // A low kerb where the streets meet the sand (just below the asphalt, so it only shows around the edge).
   add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.075, H / 2, false);
-  plane(W, H, C.asphalt, 0);
+  {
+    // The streets' asphalt, with a little texture (v0.56): one picture every 2 tiles.
+    const road = plane(W, H, C.asphalt, 0);
+    const map = groundTexture('asphalt', 0.7);
+    if (map) {
+      const m = road.material as THREE.MeshLambertMaterial;
+      m.map = map;
+      m.color.multiplyScalar(DETAIL_GAIN);
+      const uv = road.geometry.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (W / 2), uv.getY(i) * (H / 2));
+    }
+  }
   // Rocks along the waterline: on sand tiles next to the water. (Their own random numbers; the city's shared ones
   // move on as many as the old rocks took, so nothing placed after them moves.)
   for (let i = 0; i < 450; i++) rng();
@@ -211,7 +223,9 @@ export function buildCity(scene: THREE.Scene) {
   zebra.build(scene);
   // Sidewalks: one slab around each block (1.5 tiles out from it), with a lighter curb on the road edge and joints.
   const SW = 1.5;
-  const sidewalkMat = lam(C.pavement);
+  // (v0.56: concrete slabs' texture; the slabs' UVs are in tiles, one picture per tile.)
+  const sidewalkMat = lam(C.pavement, { map: groundTexture('concrete', 0.5) });
+  if (sidewalkMat.map) sidewalkMat.color.multiplyScalar(DETAIL_GAIN);
   const curbMat = lam(0x8a857c);
   const joints = new Batch(geoBox(0.03, 0.004, SW), lam(0x5c5852), false);
   // v0.55: the sidewalks have rounded corners, like real crossings (CORNER: the curb's radius, in tiles): each block's
@@ -648,11 +662,14 @@ export function buildCity(scene: THREE.Scene) {
     // paths).
     const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31), false);
     const prng = mulberry32(808);
+    // (None on the ponds or fountains, or next to them.)
+    const wet = new Set<string>();
+    for (const f of FIXTURES) if (f.kind === 'pond' || f.kind === 'fountain') for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) wet.add(`${f.x + dx},${f.y + dy}`);
     for (const r of PARK_AREA) {
       if (r === PLAZA) continue;
       for (let y = r.y0; y <= r.y1; y++)
         for (let x = r.x0; x <= r.x1; x++) {
-          if (x % 2 !== 0 || (y + (x % 4 === 0 ? 0 : 1)) % 2 !== 0 || onParkPath(x, y) || prng() < 0.3) continue;
+          if (x % 2 !== 0 || (y + (x % 4 === 0 ? 0 : 1)) % 2 !== 0 || onParkPath(x, y) || wet.has(`${x},${y}`) || prng() < 0.3) continue;
           const s = 0.75 + prng() * 0.25;
           patch.add(x + 0.5 + (prng() - 0.5) * (1 - s), LAWN + 0.006, y + 0.5 + (prng() - 0.5) * (1 - s), s, 1, s * (0.8 + prng() * 0.2), prng() * 6);
         }
@@ -670,12 +687,19 @@ export function buildCity(scene: THREE.Scene) {
     );
 
     // The old block's fountain (008): a gravel ring, a low stone basin with water, a pillar and a top bowl.
+    /** Fountain water: its colour and glow, with the drifting ripples (v0.56). */
+    const fountainWater = (color: number, glow: number, strength: number, repeat: number) => {
+      const map = waterTexture(repeat);
+      const m = lam(color, { emissive: glow, emissiveIntensity: strength, map });
+      if (map) m.color.multiplyScalar(DETAIL_GAIN);
+      return m;
+    };
     const fountain = (x: number, z: number, k: number) => {
       add(own(new THREE.CylinderGeometry(1.15 * k, 1.22 * k, 0.3, 12)), stone, x, LAWN + 0.13, z);
-      add(own(new THREE.CylinderGeometry(1.03 * k, 1.03 * k, 0.05, 12)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), x, LAWN + 0.26, z, false);
+      add(own(new THREE.CylinderGeometry(1.03 * k, 1.03 * k, 0.05, 12)), fountainWater(0x2f6f86, 0x1d4a5c, 0.6, 3), x, LAWN + 0.26, z, false);
       add(own(new THREE.CylinderGeometry(0.1 * k, 0.14 * k, 0.62 * k, 8)), stone, x, LAWN + 0.2 + 0.31 * k, z);
       add(own(new THREE.CylinderGeometry(0.34 * k, 0.2 * k, 0.1, 10)), stone, x, LAWN + 0.2 + 0.62 * k, z);
-      add(own(new THREE.CylinderGeometry(0.28 * k, 0.28 * k, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), x, LAWN + 0.26 + 0.62 * k, z, false);
+      add(own(new THREE.CylinderGeometry(0.28 * k, 0.28 * k, 0.03, 10)), fountainWater(0x3f86a0, 0x2a6278, 0.7, 1), x, LAWN + 0.26 + 0.62 * k, z, false);
     };
     {
       const cx = PARK.x0 + 5, cz = PARK.y0 + 5;
@@ -703,7 +727,7 @@ export function buildCity(scene: THREE.Scene) {
       // The big fountain: a wide basin, then a second bowl higher up, water in both.
       fountain(cx, cz, 1.75);
       add(own(new THREE.CylinderGeometry(0.75, 0.45, 0.14, 10)), stone, cx, LAWN + 1.55, cz);
-      add(own(new THREE.CylinderGeometry(0.66, 0.66, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), cx, LAWN + 1.63, cz, false);
+      add(own(new THREE.CylinderGeometry(0.66, 0.66, 0.03, 10)), fountainWater(0x3f86a0, 0x2a6278, 0.7, 1), cx, LAWN + 1.63, cz, false);
       add(own(new THREE.CylinderGeometry(0.06, 0.08, 0.4, 6)), stone, cx, LAWN + 1.8, cz);
       // Planters with a tree in each corner.
       for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inRect(PLAZA, f.x, f.y))) {
@@ -2841,6 +2865,7 @@ export function buildCity(scene: THREE.Scene) {
     },
     /** Call every frame: the barbecue's flames flicker. */
     animate(t: number) {
+      animateWater(t);
       flames.forEach((f, i) => {
         const k = 0.8 + Math.sin(t / 90 + i * 1.7) * 0.2 + Math.sin(t / 37 + i) * 0.1;
         f.scale.set(1, k, 1);

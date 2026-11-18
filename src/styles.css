@@ -602,9 +602,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .game-app input, .game-app textarea { cursor: text !important; }
 
 .hud-panel { flex: 0 0 auto; height: min(36vh, 290px); background: rgba(16, 14, 12, 0.98); border-top: 1px solid #6a6258; overflow-y: auto; overscroll-behavior: contain; }
-.hud-panel > * { max-width: 760px; margin: 0 auto; }
+/* (v0.56: the chat and the skills use the whole width on a wide screen; the bag keeps phone-sized slots, centred.) */
+.hud-panel > * { margin: 0 auto; }
+.hud-panel .skills-panel { max-width: 1100px; }
 .hud-panel.panel-chat { overflow: hidden; }
-.chat.in-panel { position: static; height: 100%; max-height: none; min-height: 0; border-top: none; background: none; }
+.chat.in-panel { position: static; height: 100%; max-height: none; min-height: 0; border-top: none; background: none; width: auto; border-right: none; border-radius: 0; } /* (v0.56: the whole panel's width on wide screens too, not the old floating chat's 560px) */
 .panel-head { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px 4px; }
 .panel-title { font: 600 0.72rem var(--sans); text-transform: uppercase; letter-spacing: 0.12em; color: var(--paper); }
 .panel-head .money { margin-left: auto; }

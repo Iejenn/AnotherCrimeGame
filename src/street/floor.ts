@@ -9,6 +9,7 @@
 //  - merged into one mesh per surface per area of the map (few draw calls, and areas off screen aren't drawn).
 // Walking stays on the tile grid (the server checks tiles): the shapes are only how it looks, close to the tiles.
 import * as THREE from 'three';
+import { DETAIL_GAIN, groundTexture, waterTexture, type GroundTex } from './textures';
 
 export type Surface = 'water' | 'pond' | 'sand' | 'asphalt' | 'concrete' | 'dirt' | 'sidewalk' | 'grass' | 'gravel' | 'paving';
 
@@ -38,6 +39,33 @@ export const SURFACES: Record<Surface, SurfaceLook> = {
   gravel: { color: 0x8a8070, top: 0.11, side: 0x6e665a, corner: 'round', vary: 0.05 },
   paving: { color: 0x9a9286, top: 0.1, side: 0x7a7266, corner: 'square', vary: 0.04 },
 };
+
+/** The detail texture on each surface (v0.56, textures.ts): which picture, how big (tiles per picture), how strong. */
+export const SURFACE_TEX: Partial<Record<Surface, { tex: GroundTex | 'water'; scale: number; strength: number }>> = {
+  water: { tex: 'water', scale: 3, strength: 1 },
+  pond: { tex: 'water', scale: 2, strength: 1 },
+  sand: { tex: 'dirt', scale: 3, strength: 0.35 },
+  asphalt: { tex: 'asphalt', scale: 2, strength: 0.7 },
+  concrete: { tex: 'concrete', scale: 1, strength: 0.55 },
+  dirt: { tex: 'dirt', scale: 2, strength: 0.6 },
+  sidewalk: { tex: 'concrete', scale: 1, strength: 0.5 },
+  grass: { tex: 'grass', scale: 2, strength: 0.7 },
+  gravel: { tex: 'rock', scale: 1, strength: 0.35 },
+  paving: { tex: 'tiles', scale: 1, strength: 0.6 },
+};
+const materials = new Map<Surface, THREE.MeshLambertMaterial>();
+/** One material per surface (shared by every floor): its detail texture, brightened so the colour stays the same. */
+function surfaceMaterial(s: Surface) {
+  let m = materials.get(s);
+  if (m) return m;
+  const t = SURFACE_TEX[s];
+  const map = t ? (t.tex === 'water' ? waterTexture() : groundTexture(t.tex, t.strength)) : null;
+  // (Both sides: flat shading lights a face by its slope on screen, whichever way it was wound.)
+  m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, map });
+  if (map) m.color.setScalar(DETAIL_GAIN);
+  materials.set(s, m);
+  return m;
+}
 
 /** A grid of surfaces: tile (x, y) for x0 ≤ x < x0 + w, y0 ≤ y < y0 + h; null = nothing drawn there. */
 export interface FloorGrid {
@@ -76,11 +104,11 @@ export function buildFloor(grid: FloorGrid): THREE.Group {
   group.name = 'floor';
   const at = (x: number, y: number) => (x >= grid.x0 && y >= grid.y0 && x < grid.x0 + grid.w && y < grid.y0 + grid.h ? grid.at(x, y) : null);
   // Per area and surface: positions and colours (flat shaded, so each triangle has its own vertices).
-  const parts = new Map<string, { pos: number[]; col: number[] }>();
+  const parts = new Map<string, { pos: number[]; col: number[]; s: Surface }>();
   const part = (x: number, y: number, s: Surface) => {
     const k = `${Math.floor(x / AREA)},${Math.floor(y / AREA)},${s}`;
     let p = parts.get(k);
-    if (!p) parts.set(k, (p = { pos: [], col: [] }));
+    if (!p) parts.set(k, (p = { pos: [], col: [], s }));
     return p;
   };
   const shade = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k);
@@ -191,15 +219,22 @@ export function buildFloor(grid: FloorGrid): THREE.Group {
       }
     }
 
-  // (Both sides: flat shading lights a face by its slope on screen, whichever way it was wound.)
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
-  for (const { pos, col } of parts.values()) {
+  for (const { pos, col, s } of parts.values()) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    // Texture coordinates from the ground's own x and z (v0.56): one picture every `scale` tiles, seamless from tile to
+    // tile and from area to area.
+    const scale = SURFACE_TEX[s]?.scale ?? 1;
+    const uv = new Float32Array((pos.length / 3) * 2);
+    for (let i = 0; i < pos.length / 3; i++) {
+      uv[i * 2] = pos[i * 3] / scale;
+      uv[i * 2 + 1] = pos[i * 3 + 2] / scale;
+    }
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     g.computeVertexNormals();
     g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, mat);
+    const m = new THREE.Mesh(g, surfaceMaterial(s));
     m.receiveShadow = true;
     group.add(m);
   }
