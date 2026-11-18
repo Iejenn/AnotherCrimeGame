@@ -10,7 +10,7 @@
 // The server checks every throw with the exact same steps (game.clear_shot, SQL in supabase/migrations/0032_marksman.sql;
 // its wall and enclosure rows are printed from this map by scripts/marksman-sql.ts), all whole numbers, so the game
 // never sends you to a spot the server then refuses.
-import { BUILDINGS, ENCLOSURES, GRID, NEST_GATE, buildBlocked, canStep, gi, inGrid, onMap } from './map';
+import { BUILDINGS, ENCLOSURES, GRID, NEST_GATE, buildBlocked, canStep, gi, inGrid, onBeach, onMap } from './map';
 
 /** The walls a throw can't pass, as rectangles (the buildings' footprints). */
 export const SHOT_WALLS = BUILDINGS.map((b) => ({ x0: b.x, y0: b.y, x1: b.x + b.w - 1, y1: b.y + b.h - 1 }));
@@ -84,7 +84,9 @@ export const walkBit = (dx: number, dy: number) => {
 export function walkMasks(): Uint8Array {
   const blocked = buildBlocked();
   blocked[gi(...NEST_GATE)] = 0;
-  const open = (x: number, y: number) => inGrid(x, y) && !blocked[gi(x, y)];
+  // (Enemies keep off the beach, v0.57: it's only for players. So the walk map the server has is the same as before the
+  // beach was walkable: inside the city and the sewer, x 0 and up, y 0 and up.)
+  const open = (x: number, y: number) => inGrid(x, y) && !blocked[gi(x, y)] && !onBeach(x, y);
   const m = new Uint8Array(GRID.w * GRID.h);
   for (let y = GRID.y0; y < GRID.y0 + GRID.h; y++)
     for (let x = GRID.x0; x < GRID.x0 + GRID.w; x++) {

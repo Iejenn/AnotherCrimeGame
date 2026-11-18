@@ -195,7 +195,8 @@ the game's map). Use those names when talking about places: "F-002-C" is block F
 
 **v0.57: the beach is walkable.** The tile grid everything walks on has a border of 6 tiles round the city
 (`GRID`, `gi()` in map.ts: tiles can be negative now), so the sand round the island is walkable; the rocks along the
-waterline are solid (`COAST_ROCKS`). The server knows the sand tiles (`game.beach`, in `game.on_map`).
+waterline are solid (`COAST_ROCKS`). The server knows the sand (`game.beach`: stretches per row, in `game.on_map`).
+Enemies keep off the sand (it's only for players), so their walk map is the same as before.
 
 **v0.54: the map grew south, and it's laid out by level.** A second row of districts (3×3 blocks each) under the first:
 the island is 160 × 109 tiles (was 160 × 58). The middle column is for levels 1–10, the west column (the Industrial
