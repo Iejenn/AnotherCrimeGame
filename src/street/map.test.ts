@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import zoneWestSql from '../../supabase/migrations/0026_zone_west.sql?raw';
-import { GH, LINKS, ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PARK, PATROL, SPAWN, STAIRS, W, WAKE, WARD, H, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
+import { GH, LINKS, ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PATROL, TOURIST_AREAS, inPark, SPAWN, STAIRS, W, WAKE, WARD, H, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
 import { GUARD_ROUTE } from '../game/watchers';
@@ -39,13 +39,14 @@ it('every placed crime has spots, and nothing stands on a fixture', () => {
   for (const p of NPCS) expect(fixtures.has(`${p.x},${p.y}`), p.id).toBe(p.kind === 'splinter');
 });
 
-it('the three tourists stroll inside the park', () => {
+it('six tourists stroll inside the park, each in its own block (v0.54)', () => {
   const tourists = NODES.filter((n) => n.crimeId === 'pick_tourist');
-  expect(tourists).toHaveLength(3);
-  for (const t of tourists) {
-    expect(t.wanders).toEqual(PARK);
-    expect(inRect(PARK, t.x, t.y)).toBe(true);
-  }
+  expect(tourists).toHaveLength(6);
+  tourists.forEach((t, i) => {
+    expect(t.wanders).toEqual(TOURIST_AREAS[i]);
+    expect(inRect(t.wanders!, t.x, t.y)).toBe(true);
+    expect(inPark(t.x, t.y)).toBe(true);
+  });
 });
 
 it('walled and fenced places can only be entered through their openings', () => {
@@ -160,19 +161,20 @@ describe('the sewer', () => {
   });
 });
 
-it("the rats' patches are still the ones the server has (0028: Splinter's spot is solid since v0.43)", async () => {
+it("the rats' patches are the ones the server has (0037: the sewer moved down with the bigger map)", async () => {
   const { RAT_ZONES } = await import('../game/enemies');
-  const sewerSql = (await import('../../supabase/migrations/0028_copper_enemies_quest.sql?raw')).default;
+  const sewerSql = (await import('../../supabase/migrations/0037_bigger_map.sql?raw')).default;
   const tiles = RAT_ZONES.flat();
   expect(sewerSql).toContain(`px int[] := array[${tiles.map((p) => p[0]).join(',')}];`);
   expect(sewerSql).toContain(`py int[] := array[${tiles.map((p) => p[1]).join(',')}];`);
 });
 
-it('the server has the same cooking stations (0015, 0020)', async () => {
+it('the server has the same cooking stations (0037)', async () => {
   const { STATIONS } = await import('./map');
-  const sql = (await import('../../supabase/migrations/0020_fire_barrel_and_bigger_bag.sql?raw')).default;
+  const sql = (await import('../../supabase/migrations/0037_bigger_map.sql?raw')).default;
   const barrel = STATIONS.find((s) => s.id === 'barrel_0')!;
   expect(sql).toContain(`('barrel_0', '${barrel.kind}', ${barrel.x}, ${barrel.y})`);
+  for (const s of STATIONS) expect(sql).toContain(`('${s.id}', '${s.kind}', ${s.x}, ${s.y})`);
 });
 
 it('every cooking spot, press and workbench can be reached from the spawn (the Factory through its lot)', async () => {

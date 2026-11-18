@@ -291,24 +291,28 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   }
   put(geo.nose, skin, head, 0, -0.012, 0.094);
   put(geo.mouth, shade(skin as THREE.MeshLambertMaterial, 0.6), head, 0, -0.06, 0.084);
+  // The hair on top of the head goes on its own part (v0.54), which setGear() hides under a helmet: it poked through
+  // it (the fringe, the mohawk, the cap). What hangs below the helmet (the back, long hair's sides) stays.
+  const crown = joint(head, 0, 0);
+  crown.name = 'crown';
   switch (look.hair) {
     case 1: // short: a cap of hair with a choppy fringe
       // A short crop: the top, the back down to the neck, a quiff at the front.
-      put(geo.hairTop, hair, head);
+      put(geo.hairTop, hair, crown);
       put(geo.hairBackShort, hair, head);
-      put(geo.fringeLock, hair, head, 0.0, 0.118, 0.07, [1.2, 0, 0], [2.2, 1.0, 1.6]);
+      put(geo.fringeLock, hair, crown, 0.0, 0.118, 0.07, [1.2, 0, 0], [2.2, 1.0, 1.6]);
       break;
     case 2: // long: down the back and over the ears
-      put(geo.hairTop, hair, head);
+      put(geo.hairTop, hair, crown);
       put(geo.hairBackLong, hair, head);
       for (const sd of [-1, 1]) put(geo.hairBack, hair, head, sd * 0.095, -0.03, -0.01, [0, 0, 0], [0.12, 0.85, 1.3]);
       break;
     case 3: // mohawk
-      put(geo.mohawk, hair, head, 0, 0.12, -0.01);
+      put(geo.mohawk, hair, crown, 0, 0.12, -0.01);
       break;
     case 4: // cap
-      put(geo.capTop, hair, head, 0, 0.1, -0.004);
-      put(geo.capBrim, hair, head, 0, 0.06, 0.1);
+      put(geo.capTop, hair, crown, 0, 0.1, -0.004);
+      put(geo.capBrim, hair, crown, 0, 0.06, 0.1);
       break;
     default: // bald
       break;

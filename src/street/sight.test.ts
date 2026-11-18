@@ -32,9 +32,10 @@ describe('line of sight (v0.51)', () => {
     const [lx, ly] = r[r.length - 1];
     expect(Math.max(Math.abs(lx - (PARK.x0 + 6)), Math.abs(ly - (PARK.y0 + 1)))).toBe(1);
     // A rat on the north walkway, you right across the channel: much further than the 6 tiles across.
-    const across = enemyRoute(masks, [18, 66], [18, 72])!;
+    // (Relative to the sewer: it moved down with the bigger map in v0.54.)
+    const a: [number, number] = [SEWER.x0, SEWER.y0 + 2];
+    const across = enemyRoute(masks, a, [SEWER.x0, SEWER.y0 + 8])!;
     expect(across.length).toBeGreaterThan(8);
-    expect(routeMs([18, 66], across)).toBeGreaterThan(3000);
-    expect(SEWER.x0).toBeLessThanOrEqual(18);
+    expect(routeMs(a, across)).toBeGreaterThan(3000);
   });
 });

@@ -4,8 +4,9 @@
 // Enemies are shared by everyone, so where they walk is a FIXED SCHEDULE worked out from the game clock (like the
 // guard, watchers.ts): every phone and the server agree where each Pigeon is. The server has the same function
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
-import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
+import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK_AREA, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
 import { minstd } from './watchers';
+import { addRoamPlace, walkPoint } from './roamPaths';
 
 export interface EnemyKind {
   id: string;
@@ -90,7 +91,7 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
 
 /** Every enemy on the island: its id, kind, and which one of its kind it is (its schedule). */
 export const ENEMIES = [
-  ...[0, 1, 2].map((i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })),
+  ...Array.from({ length: 8 }, (_, i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })), // (v0.54: 8, in the big park)
   ...[0, 1, 2].map((i) => ({ id: `thug_${i}`, kind: 'thug', index: i })),
   ...Array.from({ length: 10 }, (_, i) => ({ id: `rat_${i}`, kind: 'rat', index: i })),
   ...[0, 1, 2, 3].map((i) => ({ id: `dog_${i}`, kind: 'dog', index: i })),
@@ -98,11 +99,12 @@ export const ENEMIES = [
   ...[0, 1, 2].map((i) => ({ id: `biker_${i}`, kind: 'biker', index: i })),
 ];
 
-/** Open park tiles a Pigeon may land on (the park minus hedges, trees, the fountain, benches, the pond, flowers). */
+/** Open park tiles a Pigeon may land on (the park minus hedges, trees, fountains, benches, ponds, flowers; v0.54: all
+ *  of the big park, Plaza included). */
 export const PIGEON_TILES: [number, number][] = (() => {
   const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
   const out: [number, number][] = [];
-  for (let y = PARK.y0; y <= PARK.y1; y++) for (let x = PARK.x0; x <= PARK.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
+  for (const r of PARK_AREA) for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
   return out;
 })();
 
@@ -154,8 +156,8 @@ export function thugAt(index: number, t: number) {
   const [tx, ty] = thugSpot(index, k);
   if (into >= THUG_WALK_MS) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
   const [fx, fy] = thugSpot(index, k - 1);
-  const f = into / THUG_WALK_MS;
-  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+  // (v0.54: round the couch and the barrel, not through them.)
+  return { ...walkPoint([fx, fy], [tx, ty], into / THUG_WALK_MS), flying: false, moving: tx !== fx || ty !== fy };
 }
 
 // ---------- the rats: each scurries around its own patch of a walkway in the sewer ----------
@@ -192,8 +194,7 @@ export function ratAt(index: number, t: number) {
   const [tx, ty] = ratSpot(index, k);
   if (into >= RAT_WALK_MS) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
   const [fx, fy] = ratSpot(index, k - 1);
-  const f = into / RAT_WALK_MS;
-  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+  return { ...walkPoint([fx, fy], [tx, ty], into / RAT_WALK_MS), flying: false, moving: tx !== fx || ty !== fy };
 }
 
 // ---------- v0.43: guard dogs, giant rats, bikers: each roams the open tiles of its place ----------
@@ -226,9 +227,11 @@ export function roamAt(r: Roam, index: number, t: number) {
   const [tx, ty] = spot(k);
   if (into >= r.walkMs) return { x: tx + 0.5, z: ty + 0.5, flying: false, moving: false };
   const [fx, fy] = spot(k - 1);
-  const f = into / r.walkMs;
-  return { x: fx + 0.5 + (tx - fx) * f, z: fy + 0.5 + (ty - fy) * f, flying: false, moving: tx !== fx || ty !== fy };
+  return { ...walkPoint([fx, fy], [tx, ty], into / r.walkMs), flying: false, moving: tx !== fx || ty !== fy };
 }
+
+// The places they stroll in: their walks go round what's in the way (roamPaths.ts, v0.54).
+for (const list of [THUG_TILES, ...RAT_ZONES, ...Object.values(ROAMS).map((r) => r.tiles)]) addRoamPlace(list);
 
 /** Where an enemy of this kind is at time t (game.enemy_at on the server). */
 export function enemyAt(kind: string, index: number, t: number) {
