@@ -1020,6 +1020,10 @@ learned from old-school RuneScape, not copied.
   built (their colours painted on as vertex colours, one shared material): 11 meshes a person (v0.46; was 25), so the
   detail costs few draw calls.
 
+**New props are models** (v0.58): a prop is built as its own model in `props.ts` (standing on the floor at its origin,
+flat-shaded, within its budget) and placed in city.ts, never pieced together from loose boxes in the scene;
+`src/street/props.test.ts` counts their triangles against the budget.
+
 ### Bag icons match the ground (v0.49)
 Food is pictured in the bag from the very model it is on the ground: `scripts/render-icons.cjs` renders each one
 (`scripts/preview/icon.html`, the same tone) into `public/icons/items/<id>.png`. A new food item is added to its list

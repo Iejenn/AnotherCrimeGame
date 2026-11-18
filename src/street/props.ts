@@ -817,3 +817,154 @@ export function buildLoot(item: string): THREE.Group | null {
   }
   return null;
 }
+
+// ---------- the Yard's hangout (v0.58): its props, built to the art rules (docs/design.md §18) ----------
+// Each stands on the floor at its origin, flat-shaded, within the prop budget (300 triangles; the car is a vehicle,
+// 800). props.test.ts counts them.
+
+/** A box with its bottom at y (props stand on their origin). */
+const boxAt = (p: THREE.Object3D, w: number, h: number, d: number, color: number, x: number, y: number, z: number, shadow = true) =>
+  add(p, boxGeo(w, h, d), color, x, y + h / 2, z, shadow);
+
+/**
+ * A shipping container (the gang's clubhouse), its length along x (`len` tiles long, 2 wide): faded blue, ribbed
+ * sides, corner posts, the doors at its +x end swung wide open on their hinges, a dark inside with a TV glowing, a tarp
+ * over half the roof. About 290 triangles.
+ */
+export function buildContainer(len = 4): THREE.Group {
+  const g = new THREE.Group();
+  const L = len - 0.2, D = 1.7, H = 1.35;
+  const blue = 0x2f5a78, dark = 0x24465e;
+  boxAt(g, L, H, D, blue, 0, 0.08, 0);
+  // Corner posts and the frame round the open end.
+  for (const x of [-L / 2, L / 2]) for (const z of [-D / 2, D / 2]) boxAt(g, 0.1, H + 0.04, 0.1, dark, x, 0.06, z);
+  // Ribs down both long sides.
+  const ribs = Math.max(4, Math.round(L * 1.2));
+  for (let i = 1; i < ribs; i++) {
+    const x = -L / 2 + (i * L) / ribs;
+    for (const z of [-D / 2 - 0.02, D / 2 + 0.02]) boxAt(g, 0.06, H - 0.1, 0.04, dark, x, 0.13, z, false);
+  }
+  // The open end: the inside dark, a TV on a crate glowing blue.
+  const inside = new THREE.Mesh(boxGeo(0.02, H - 0.12, D - 0.12), new THREE.MeshLambertMaterial({ color: 0x0e1014, emissive: 0x10203a, emissiveIntensity: 0.6, flatShading: true }));
+  inside.position.set(L / 2 + 0.01, 0.08 + H / 2, 0);
+  g.add(inside);
+  const tv = new THREE.Mesh(boxGeo(0.02, 0.22, 0.32), new THREE.MeshLambertMaterial({ color: 0x5a8ad8, emissive: 0x4a7ad8, emissiveIntensity: 1.4, flatShading: true }));
+  tv.position.set(L / 2 + 0.02, 0.5, 0.3);
+  g.add(tv);
+  // The doors: each hangs on its hinge at a corner of the open end and is swung right round (about 110°), so it lies
+  // against the outside, a little away from the side wall.
+  for (const side of [-1, 1]) {
+    const hinge = new THREE.Group();
+    hinge.position.set(L / 2 + 0.05, 0.08, side * D / 2);
+    hinge.rotation.y = side * -1.92;
+    const door = boxAt(hinge, 0.05, H - 0.02, D / 2, blue, 0, 0.01, -side * D / 4);
+    void door;
+    for (const t of [0.3, 0.75]) boxAt(hinge, 0.07, 0.04, D / 2 - 0.05, dark, 0, t * H, -side * D / 4, false); // the bars
+    g.add(hinge);
+  }
+  // Rust streaks on the side facing +z, and a tarp over the -x half of the roof.
+  for (const [x, w] of [[-L / 3, 0.8], [L / 6, 1.1]]) boxAt(g, w, 0.3, 0.02, 0x8a4a2a, x, 0.45, D / 2 + 0.045, false);
+  boxAt(g, L / 2, 0.04, D + 0.2, 0x3a5a3a, -L / 4, H + 0.08, 0, false).rotation.z = 0.04;
+  return g;
+}
+
+/**
+ * A half-demolished brick wall along x, `len` tiles long: its top broken off in steps (one shape, pushed out to the
+ * wall's thickness), loose bricks at its foot. About 120 triangles.
+ */
+export function buildRuinWall(len = 3, seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  let s = seed;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  // The outline: along the bottom, then back over a jagged top (a step every half tile).
+  const pts = [new THREE.Vector2(-len / 2, 0), new THREE.Vector2(len / 2, 0)];
+  for (let i = len * 2; i >= 0; i--) pts.push(new THREE.Vector2(-len / 2 + i / 2, 0.45 + rnd() * 0.85));
+  const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: 0.3, bevelEnabled: false });
+  geo.translate(0, 0, -0.15);
+  add(g, geo, 0x8a5040, 0, 0, 0);
+  for (let i = 0; i < 6; i++) {
+    const b = boxAt(g, 0.22, 0.09, 0.11, 0x7a4636, -len / 2 + rnd() * len, 0, (rnd() < 0.5 ? -1 : 1) * (0.3 + rnd() * 0.2), false);
+    b.rotation.y = rnd() * 3;
+  }
+  return g;
+}
+
+/** A heap of rubble on one tile: broken brick and concrete (icosahedrons, no subdivision). About 160 triangles. */
+export function buildRubble(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  let s = seed;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const colors = [0x8a5040, 0x7a766e, 0x5a5650];
+  for (let i = 0; i < 8; i++) {
+    const r = 0.1 + rnd() * 0.16;
+    const m = add(g, new THREE.IcosahedronGeometry(r, 0), colors[i % 3], (rnd() - 0.5) * 0.6, r * 0.6 + (i < 3 ? 0.12 : 0), (rnd() - 0.5) * 0.6, i < 4);
+    m.rotation.set(rnd() * 3, rnd() * 3, 0);
+  }
+  return g;
+}
+
+/**
+ * A stripped car on cinder blocks, along x (2 tiles): no wheels, no doors, the hood up, one wheel left lying beside it.
+ * About 200 triangles (vehicle budget 800).
+ */
+export function buildStrippedCar(color = 0x6a6e74): THREE.Group {
+  const g = new THREE.Group();
+  for (const [x, z] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) boxAt(g, 0.22, 0.3, 0.18, 0x8a8680, x, 0, z);
+  boxAt(g, 1.7, 0.36, 0.8, color, 0, 0.3, 0);
+  boxAt(g, 0.9, 0.3, 0.74, color, 0.1, 0.66, 0);
+  boxAt(g, 0.92, 0.22, 0.76, 0x14161a, 0.1, 0.7, 0, false); // the empty windows
+  for (const z of [-0.41, 0.41]) boxAt(g, 0.6, 0.28, 0.02, 0x14161a, 0.1, 0.34, z, false); // where the doors were
+  // The hood, propped up on its hinge at the windscreen.
+  const hinge = new THREE.Group();
+  hinge.position.set(-0.35, 0.66, 0);
+  hinge.rotation.z = -1.0;
+  boxAt(hinge, 0.5, 0.03, 0.78, color, -0.25, 0, 0, false);
+  g.add(hinge);
+  const wheel = add(g, new THREE.TorusGeometry(0.2, 0.09, 6, 8), 0x1a1a1e, 1.2, 0.09, 0.45, false);
+  wheel.rotation.x = -Math.PI / 2;
+  return g;
+}
+
+/** The dice game: a crate for a table, two dice and some bills on it, a bottle. About 100 triangles. */
+export function buildDiceCrate(): THREE.Group {
+  const g = new THREE.Group();
+  boxAt(g, 0.6, 0.5, 0.6, 0x7a5a3a, 0, 0.05, 0).rotation.y = 0.2;
+  boxAt(g, 0.62, 0.02, 0.62, 0x6a4a2e, 0, 0.55, 0, false).rotation.y = 0.2;
+  for (const [x, z] of [[-0.08, 0.05], [0.07, -0.06]]) boxAt(g, 0.07, 0.07, 0.07, 0xf2efe8, x, 0.57, z, false).rotation.y = x * 9;
+  for (let i = 0; i < 3; i++) boxAt(g, 0.16, 0.01, 0.08, 0x5a8a4a, -0.2 + i * 0.12, 0.57, -0.18 + i * 0.05, false).rotation.y = i * 0.7;
+  add(g, cylGeo(0.04, 0.22, 6), 0x3a6a3a, 0.22, 0.68, 0.18, false);
+  return g;
+}
+
+/** The lookout's perch: two pallets stacked, a white plastic chair on top facing -z. About 100 triangles. */
+export function buildLookout(): THREE.Group {
+  const g = new THREE.Group();
+  for (let k = 0; k < 2; k++) boxAt(g, 0.8, 0.14, 0.8, 0x9a7a4e, 0, k * 0.15, 0).rotation.y = k * 0.15;
+  boxAt(g, 0.42, 0.04, 0.4, 0xe8e6de, 0, 0.6, 0);
+  boxAt(g, 0.42, 0.4, 0.04, 0xe8e6de, 0, 0.64, 0.19);
+  for (const [x, z] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) boxAt(g, 0.03, 0.3, 0.03, 0xe8e6de, x, 0.3, z, false);
+  return g;
+}
+
+/**
+ * String lights from a to b (world points; the group sits at a): a sagging wire with bulbs on it (octahedrons, so 8
+ * triangles each), glowing. About 130 triangles for 14 bulbs.
+ */
+export function buildStringLights(a: THREE.Vector3, b: THREE.Vector3, bulbs = 14, sag = 0.35): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(a);
+  const pts = Array.from({ length: bulbs + 1 }, (_, i) => {
+    const t = i / bulbs;
+    return new THREE.Vector3((b.x - a.x) * t, (b.y - a.y) * t - Math.sin(t * Math.PI) * sag, (b.z - a.z) * t);
+  });
+  const wire = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x1e1b18 }));
+  g.add(wire);
+  const glow = new THREE.MeshLambertMaterial({ color: 0xffe0a0, emissive: 0xffc870, emissiveIntensity: 1.6, flatShading: true });
+  const bulbGeo = new THREE.OctahedronGeometry(0.045, 0);
+  for (const p of pts.slice(1, -1)) {
+    const m = new THREE.Mesh(bulbGeo, glow);
+    m.position.set(p.x, p.y - 0.05, p.z);
+    g.add(m);
+  }
+  return g;
+}

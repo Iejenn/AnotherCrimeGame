@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.59.0',
+    date: '2026-11-18',
+    title: 'Yard fixes',
+    items: [
+      "The Yard's props are rebuilt as proper models: the container's doors hang on their hinges now (they were floating), and the wall, rubble, stripped car, dice game, lookout and string lights follow the game's art rules.",
+    ],
+  },
+  {
     version: '0.58.0',
     date: '2026-11-18',
     title: 'The Yard and the bar',
