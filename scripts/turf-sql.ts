@@ -79,7 +79,8 @@ export function turfSql(m0038: string, m0040: string): string {
   const b = buildBlocked();
   const solidRows: [number, string][] = [];
   for (let y = S.y0; y <= S.y1; y++) solidRows.push([y, Array.from({ length: S.x1 - S.x0 + 1 }, (_, i) => (b[gi(S.x0 + i, y)] ? '1' : '0')).join('')]);
-  const solidValues = 'pg_temp.solid s';
+  // (Written out in each statement: a temp table didn't work in Supabase's SQL editor.)
+  const solidValues = `(values ${solidRows.map(([y, r]) => `(${y}, '${r}')`).join(', ')}) s(y, bits)`;
   const out: [number, number] = [YARD_GATES[1][0], YARD_GATES[1][1] + 1];
   const stuck = (t: string, xc: string, yc: string) => `update ${t} t set ${xc} = ${out[0]}, ${yc} = ${out[1]}
 from ${solidValues}
@@ -371,9 +372,7 @@ ${walls.map((r) => `  (${r.x0}, ${r.y0}, ${r.x1}, ${r.y1})`).join(',\n')};
 update game.shot_enclosures set x0 = ${barEncl.rect.x0}, y0 = ${barEncl.rect.y0}, x1 = ${barEncl.rect.x1}, y1 = ${barEncl.rect.y1} where id = 'bar';
 ${walk.map(([y, r]) => `update game.walk_map set masks = '${r}' where y = ${y};`).join('\n')}
 
--- Nobody (and nothing) left inside a wall: the site's solid tiles, a row of 0/1 per y (x from ${S.x0}), for this transaction only.
-create temp table solid (y int primary key, bits text) on commit drop;
-insert into pg_temp.solid values ${solidRows.map(([y, r]) => `(${y}, '${r}')`).join(', ')};
+-- Nobody (and nothing) left inside a wall (the site's solid tiles: a row of 0/1 per y, x from ${S.x0}).
 ${stuck('public.players', 'pos_x', 'pos_y')}
 ${stuck('public.ground_items', 'x', 'y')}
 ${stuck('public.graves', 'x', 'y')}

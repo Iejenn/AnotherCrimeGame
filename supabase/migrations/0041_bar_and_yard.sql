@@ -311,17 +311,15 @@ update game.walk_map set masks = 'd6ffffffffff6b0016df7f1fdf7f1f1f4bd6ffffffffff
 update game.walk_map set masks = 'd6ffffffffff6b0000160b00160b000002f6ffffffffff6b0000000000000200160bf6ffffffffffeb161f5f1f0b00000042000000000042000000000042000000000000d6ffffffffff6b00d0fefbf8fefffb6800d6ffffffffff6b000000000000165f0b00d6ffffffffff6b00000000000000000000d6ffffffffff6b00000000000000420000d6ffffffffff6b00000000000000000000d6ffffffffff6b' where y = 50;
 update game.walk_map set masks = 'd6fffffffffffbf8f8f8f8f8f8f8f8f8fcfefffffffffffbf8f8f8f8f8f8f8f8f8fcfefffffffffffbf9f8faf8f8f8f8f8faf8f8f8f8f8faf8f8f8f8f8faf8f8f8f8f8f8feffffffffff6b00d6ffffffffffff6b00d6fffffffffffbf8f8f8f8f8f8f8faf8f8fefffffffffffbf8f8f8f8f8f8f8f8f8f8fefffffffffffbf8f8f8f8f8f8f8faf8f8fefffffffffffbf8f8f8f8f8f8f8f8f8f8feffffffffff6b' where y = 51;
 
--- Nobody (and nothing) left inside a wall: the site's solid tiles, a row of 0/1 per y (x from 41), for this transaction only.
-create temp table solid (y int primary key, bits text) on commit drop;
-insert into pg_temp.solid values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111');
+-- Nobody (and nothing) left inside a wall (the site's solid tiles: a row of 0/1 per y, x from 41).
 update public.players t set pos_x = 55, pos_y = 51
-from pg_temp.solid s
+from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
 where t.pos_y = s.y and t.pos_x between 41 and 67 and substr(s.bits, t.pos_x - 40, 1) = '1';
 update public.ground_items t set x = 55, y = 51
-from pg_temp.solid s
+from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
 where t.y = s.y and t.x between 41 and 67 and substr(s.bits, t.x - 40, 1) = '1';
 update public.graves t set x = 55, y = 51
-from pg_temp.solid s
+from (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits)
 where t.y = s.y and t.x between 41 and 67 and substr(s.bits, t.x - 40, 1) = '1';
 
 -- ---------- check: should say "ok" in every column ----------
@@ -342,7 +340,7 @@ select
     and (select y from public.stations where id = 'barrel_1') = 44 then 'ok' else 'BAD ROWS' end as rows,
   case when (select count(*) from game.shot_walls) = 300
     and (select y1 - y0 from game.shot_enclosures where id = 'bar') = 9 then 'ok' else 'BAD TABLES' end as tables,
-  case when (select count(*) from public.players t join pg_temp.solid s on t.pos_y = s.y and t.pos_x between 41 and 67
+  case when (select count(*) from public.players t join (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits) on t.pos_y = s.y and t.pos_x between 41 and 67
     and substr(s.bits, t.pos_x - 40, 1) = '1') = 0 then 'ok' else 'SOMEONE STUCK' end as players;
 
 commit;
