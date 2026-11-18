@@ -476,9 +476,12 @@ damage on a hit = random whole number from 1 to max hit
 | Skill | Trains when | XP |
 |---|---|---|
 | Melee | you hit with no weapon or a melee weapon | **1 per damage** |
-| Marksman | you hit with a gun | **1 per damage** |
-| Defense | damage you deal **and** damage you take | **0.5 per damage each way** |
-| Health | you lose health **in combat** | **1 per HP lost** |
+| Marksman | you hit with a ranged weapon (throwing knives) | **1 per damage** |
+| Defense | damage you deal **and** damage you take; an enemy's miss (v0.52) | **0.5 per damage each way; 0.5 per miss** |
+| Health | you lose health **in combat**; an enemy's miss (v0.52) | **1 per HP lost; 0.5 per miss** |
+
+(v0.52: blocked hits train Health and Defense, so Health doesn't stall once your Defense is high and enemies mostly
+miss. Health XP is stored with one decimal, like Defense.)
 
 **Pace (decided):** 1 XP per damage, so combat levels slower than skilling on purpose (~22 minutes to Melee 10 on
 Pigeons; Street Crimes ~7). One number: `COMBAT_XP` in combat.ts.
