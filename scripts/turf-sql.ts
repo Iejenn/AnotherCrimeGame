@@ -67,7 +67,22 @@ function allRows() {
 declare const require: (m: string) => any;
 const md5 = (t: string): string => require('node:crypto').createHash('md5').update(t).digest('hex');
 
+/** v0.58: Supabase's SQL editor mangles comments (it broke a function body twice), so the migration has none: its
+ *  explanation is in supabase/README.md and here. No apostrophes either, outside the strings that need them. */
 export function turfSql(m0038: string, m0040: string): string {
+  return bareSql(turfSqlCommented(m0038, m0040));
+}
+function bareSql(sql: string): string {
+  const out = sql
+    .split('\n')
+    .filter((l) => !/^\s*--/.test(l))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimStart();
+  if (/--/.test(out.replace(/'[^']*'/g, ''))) throw new Error('a comment is left in the migration');
+  return out;
+}
+function turfSqlCommented(m0038: string, m0040: string): string {
   const S = TURF_SITE;
   const walk = changedWalkRows(liveWalkRows(m0038, m0040));
   const walls = SHOT_WALLS.filter((r) => inRect(S, r.x0, r.y0));
@@ -400,11 +415,11 @@ select case when ${samples
 -- Guard: if the walk map, the site's walls, the spots or the walks aren't exactly the game's, stop here (nothing is kept).
 do $$
 begin
-  if (select md5(string_agg(masks, '' order by y)) from game.walk_map) <> '${md5(allRows())}' then raise exception '0041: the walk map is not the game''s'; end if;
-  if (select md5(string_agg(concat_ws(',', x0, y0, x1, y1), ';' order by x0, y0)) from game.shot_walls where x0 between ${S.x0} and ${S.x1} and y0 between ${S.y0} and ${S.y1}) <> '${md5([...walls].sort((p, q) => p.x0 - q.x0 || p.y0 - q.y0).map((r) => [r.x0, r.y0, r.x1, r.y1].join(',')).join(';'))}' then raise exception '0041: the walls are not the game''s'; end if;
-  if (select md5(string_agg(concat_ws(',', id, x, y), ';' order by id)) from public.spots where crime_id = 'pick_drunk') <> '${md5([...drunks].sort((p, q) => (p.id < q.id ? -1 : 1)).map((n) => [n.id, n.x, n.y].join(',')).join(';'))}' then raise exception '0041: the drunks are not the game''s'; end if;
+  if (select md5(string_agg(masks, '' order by y)) from game.walk_map) <> '${md5(allRows())}' then raise exception '0041: walk map differs from the game'; end if;
+  if (select md5(string_agg(concat_ws(',', x0, y0, x1, y1), ';' order by x0, y0)) from game.shot_walls where x0 between ${S.x0} and ${S.x1} and y0 between ${S.y0} and ${S.y1}) <> '${md5([...walls].sort((p, q) => p.x0 - q.x0 || p.y0 - q.y0).map((r) => [r.x0, r.y0, r.x1, r.y1].join(',')).join(';'))}' then raise exception '0041: walls differ from the game'; end if;
+  if (select md5(string_agg(concat_ws(',', id, x, y), ';' order by id)) from public.spots where crime_id = 'pick_drunk') <> '${md5([...drunks].sort((p, q) => (p.id < q.id ? -1 : 1)).map((n) => [n.id, n.x, n.y].join(',')).join(';'))}' then raise exception '0041: drunks differ from the game'; end if;
   if (select count(*) from public.enemies where kind = 'thug') <> ${thugIds.length} or (select y from public.stations where id = '${barrel.id}') <> ${barrel.y} then raise exception '0041: thugs or barrel wrong'; end if;
-  if not (${samples.map((p) => `(select abs(w.x - ${p.x.toFixed(6)}) < 0.001 and abs(w.z - ${p.z.toFixed(6)}) < 0.001 from game.enemy_at('${p.kind}', ${p.idx}, ${p.t}) w)`).join('\n    and ')}) then raise exception '0041: the walks are not the game''s'; end if;
+  if not (${samples.map((p) => `(select abs(w.x - ${p.x.toFixed(6)}) < 0.001 and abs(w.z - ${p.z.toFixed(6)}) < 0.001 from game.enemy_at('${p.kind}', ${p.idx}, ${p.t}) w)`).join('\n    and ')}) then raise exception '0041: walks differ from the game'; end if;
 end $$;
 
 commit;
