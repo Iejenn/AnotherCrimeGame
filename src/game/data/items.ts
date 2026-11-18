@@ -14,6 +14,9 @@ export interface ItemDef {
   value: number;
   /** Quest items: you can't drop or sell them (or trade them, later), and they stay in your bag when you die. */
   quest?: boolean;
+  /** Stacks (v0.51): any number of them take one bag slot (throwing knives). The server has the same flag
+   *  (public.items.stack, used by game.bag_used). */
+  stack?: boolean;
   /** Gear you can wield or wear (docs/design.md §12). Weapons don't wear out. */
   gear?: {
     slot: GearSlot;
@@ -23,15 +26,18 @@ export interface ItemDef {
     speed?: number;
     /** Armour: defence bonus. */
     defence?: number;
+    /** Ranged weapons (v0.51): how far you can throw or shoot it (tiles). Throwing knives are their own ammo: each throw
+     *  uses one up from the stack in your bag. */
+    range?: number;
     /** The skill level you need to use it. */
-    needs?: { skill: 'melee' | 'gunfire' | 'defense'; level: number };
-    /** How a swing looks: a punch (default), a big swing from the side (bats), later a stab (knives). */
-    anim?: 'punch' | 'swing' | 'stab';
+    needs?: { skill: 'melee' | 'marksman' | 'defense'; level: number };
+    /** How an attack looks: a punch (default), a big swing from the side (bats), a stab (knives), a throw. */
+    anim?: 'punch' | 'swing' | 'stab' | 'throw';
   };
 }
 
 // Items are data: a new one is a row here and the same row in public.items on the server (same id, numbers).
-// Nothing stacks in your bag except cash: every item takes a slot of its own.
+// Most things take a slot each; cash and stacking items (`stack`: throwing knives) take one slot for any number.
 export const ITEMS: ItemDef[] = [
   { id: 'candy_bar', name: 'Candy Bar', heal: 1, value: 4 },
   { id: 'sandwich', name: 'Sandwich', heal: 2, value: 8 },
@@ -54,12 +60,15 @@ export const ITEMS: ItemDef[] = [
   ...METAL_ITEMS,
 ];
 
-/** What the shops sell (item id → price in dollars). */
-export const SHOPS: Record<string, { item: string; price: number }[]> = {
+/** What the shops sell: the item, the price in dollars, and how many you get for it (1, or a pack). */
+export const SHOPS: Record<string, { item: string; price: number; amount: number }[]> = {
   // Ray's Arms (v0.49): every metal's weapons, sorted by kind then metal (tin knuckles, copper knuckles, tin bat, …),
-  // at 30 × the metal in them (shopPrice): making them yourself (Scrapping + Tinkering) is far cheaper.
-  weapons: PIECES.filter((p) => p.slot === 'weapon').flatMap((p) => METALS.map((m) => ({ item: `${m.id}_${p.key}`, price: shopPrice(m, p) }))),
+  // at 30 × the metal in them (shopPrice): making them yourself (Scrapping + Tinkering) is far cheaper. Throwing knives
+  // (v0.51) come in packs of 5, what a sheet makes, at the same rule: $150 for 5 tin, $300 for 5 copper.
+  weapons: PIECES.filter((p) => p.slot === 'weapon').flatMap((p) => METALS.map((m) => ({ item: `${m.id}_${p.key}`, price: shopPrice(m, p), amount: p.makes ?? 1 }))),
 };
+/** "Tin Throwing Knife" → "Tin Throwing Knives" (for packs and stacks). */
+export const plural = (name: string) => (name.endsWith('fe') ? `${name.slice(0, -2)}ves` : `${name}s`);
 /** Shops buy things back for this share of what they're worth (decided: 25%, for every item). */
 export const SELL_SHARE = 0.25;
 /** Who buys what: Ray buys weapons and armour, Eddy everything else. */

@@ -1,4 +1,5 @@
-// The 30-slot inventory grid (5 × 6): cash first (the only thing that stacks), then every item in a slot of its own.
+// The 30-slot inventory grid (5 × 6): cash first, then every item in a slot of its own; stacking items (throwing knives,
+// v0.51) all in one slot, with how many.
 // Used by the Inventory tab and by the shops' "Sell" screens.
 import type { GameState } from '../game/types';
 import { ITEM_BY_ID } from '../game/data/items';
@@ -12,7 +13,7 @@ export function bagSlots(s: GameState): Slot[] {
   const items = Object.entries(s.inventory)
     .filter(([id]) => ITEM_BY_ID[id])
     .sort((a, b) => ITEM_BY_ID[b[0]].value - ITEM_BY_ID[a[0]].value)
-    .flatMap(([id, count]) => Array.from({ length: count }, (_, n) => ({ kind: 'loot' as const, id, n, count: 1 })));
+    .flatMap(([id, count]) => (ITEM_BY_ID[id].stack ? [{ kind: 'loot' as const, id, n: 0, count }] : Array.from({ length: count }, (_, n) => ({ kind: 'loot' as const, id, n, count: 1 }))));
   // No cash, no cash slot (after banking it all, say): the items move up. (A slot stays kept for cash: 29 items max.)
   return s.cash > 0 ? [{ kind: 'cash' }, ...items] : items;
 }
@@ -38,6 +39,7 @@ export function Bag({ s, selected, onSelect, compact = false, mini = false }: { 
             <button key={k} className={`bank-slot ${sl.kind === 'cash' ? 'cash' : ''} ${selected === k ? 'selected' : ''}`} onClick={() => onSelect(k)} title={name} aria-label={name}>
               <ItemIcon id={id} />
               {sl.kind === 'cash' && <span className="bank-count">${short(s.cash)}</span>}
+              {sl.kind === 'loot' && sl.count > 1 && <span className="bank-count">{short(sl.count)}</span>}
             </button>
           );
         })}

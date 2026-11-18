@@ -1,4 +1,4 @@
-export type SkillId = 'melee' | 'defense' | 'gunfire' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering';
+export type SkillId = 'melee' | 'defense' | 'marksman' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 

@@ -12,13 +12,13 @@ const odds = (chance: number) => (chance >= 1 ? 'Always' : `1 in ${Math.round(1 
 const dropName = (d: Drop) =>
   d.item === 'cash' ? (d.min === d.max ? fmtMoney(d.min) : `${fmtMoney(d.min)}–${fmtMoney(d.max)}`) : `${ITEM_BY_ID[d.item]?.name ?? d.item}${d.max > 1 ? ` ×${d.min}–${d.max}` : ''}`;
 
-export function EnemyGuide({ skill }: { skill: 'melee' | 'gunfire' }) {
+export function EnemyGuide({ skill }: { skill: 'melee' | 'marksman' }) {
   const [open, setOpen] = useState<string | null>(null);
   const kinds = Object.values(ENEMY_KINDS).sort((a, b) => a.level - b.level);
   return (
     <section className="enemy-guide">
       <h3 className="rule-head">Enemies</h3>
-      {skill === 'gunfire' && <p className="muted small">No guns yet: for now you fight these with your fists or a melee weapon.</p>}
+      {skill === 'marksman' && <p className="muted small">The same enemies: hit them with throwing knives from up to 6 tiles away. They walk up to you meanwhile.</p>}
       <ol className="ledger">
         {kinds.map((k) => (
           <li key={k.id} className="entry">

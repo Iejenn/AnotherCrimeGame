@@ -27,9 +27,11 @@ describe('combat maths (design §12)', () => {
     expect(k.defence ?? 0).toBe(0);
     // Sorted by kind, then metal; 30 × the metal in them.
     expect(SHOPS.weapons).toEqual([
-      { item: 'tin_knuckles', price: 150 }, { item: 'copper_knuckles', price: 300 },
-      { item: 'tin_bat', price: 300 }, { item: 'copper_bat', price: 600 },
-      { item: 'tin_knife', price: 150 }, { item: 'copper_knife', price: 300 },
+      { item: 'tin_knuckles', price: 150, amount: 1 }, { item: 'copper_knuckles', price: 300, amount: 1 },
+      { item: 'tin_bat', price: 300, amount: 1 }, { item: 'copper_bat', price: 600, amount: 1 },
+      { item: 'tin_knife', price: 150, amount: 1 }, { item: 'copper_knife', price: 300, amount: 1 },
+      // v0.51: throwing knives in packs of 5 (one sheet's worth), same rule.
+      { item: 'tin_throwing_knife', price: 150, amount: 5 }, { item: 'copper_throwing_knife', price: 300, amount: 5 },
     ]);
     // The bat: max hit 5, a swing every 3 s; the knife: max hit 1, every 1 s. All tin at level 1.
     const bat = ITEM_BY_ID.tin_bat.gear!;
@@ -40,6 +42,22 @@ describe('combat maths (design §12)', () => {
     expect([ITEM_BY_ID.tin_knuckles.value, ITEM_BY_ID.tin_bat.value, ITEM_BY_ID.tin_vest.value]).toEqual([5, 10, 15]);
     expect([itemPrice('tin_salvage'), itemPrice('tin_bat'), itemPrice('tin_vest')]).toEqual([1, 2, 3]);
     expect([itemPrice('candy_bar'), itemPrice('sandwich'), itemPrice('raw_bird_meat')]).toEqual([1, 2, 1]);
+  });
+
+  it('throwing knives (v0.51): Marksman, 6 tiles, stack in one slot, 5 from a sheet at the metal\'s first level, not worth selling', async () => {
+    const { CRAFT_BY_ID } = await import('./data/metals');
+    const { slotsUsed } = await import('./engine');
+    const t = ITEM_BY_ID.tin_throwing_knife;
+    expect([t.gear!.damage, t.gear!.speed, t.gear!.range, t.gear!.needs, t.gear!.anim, t.stack, t.value]).toEqual([1, 3, 6, { skill: 'marksman', level: 1 }, 'throw', true, 1]);
+    expect(ITEM_BY_ID.copper_throwing_knife.gear!.damage).toBe(2);
+    expect(ITEM_BY_ID.copper_throwing_knife.gear!.needs).toEqual({ skill: 'marksman', level: 11 });
+    expect(CRAFT_BY_ID.tin_throwing_knife).toMatchObject({ level: 1, xp: 3, amount: 5, inputs: { tin_sheet: 1 } });
+    expect(CRAFT_BY_ID.copper_throwing_knife).toMatchObject({ level: 11, amount: 5 });
+    const s = newGame('T', DEFAULT_LOOK, 0);
+    s.inventory = { tin_throwing_knife: 40, tin_sheet: 2 };
+    expect(slotsUsed(s)).toBe(1 + 1 + 2);
+    // Selling a sheet's worth of knives must not beat selling the sheet: a knife sells for nothing.
+    expect(itemPrice('tin_throwing_knife')).toBe(0);
   });
 
   it('tin armour: +2 helmet, +3 leg guards, +4 vest, Defense 1; it adds up in your defence roll', async () => {
@@ -60,9 +78,11 @@ describe('combat maths (design §12)', () => {
     const { CRAFTS } = await import('./data/metals');
     expect(CRAFTS.map((c) => [c.id, c.level, Object.values(c.inputs)[0], c.xp, c.station])).toEqual([
       ['tin_sheet', 1, 1, 1, 'press'], ['tin_knuckles', 2, 1, 3, 'bench'], ['tin_bat', 3, 2, 6, 'bench'], ['tin_knife', 4, 1, 3, 'bench'],
+      ['tin_throwing_knife', 1, 1, 3, 'bench'], // v0.51: 5 from a sheet, from Tinkering 1
       ['tin_helmet', 6, 1, 3, 'bench'], ['tin_legs', 7, 2, 6, 'bench'], ['tin_vest', 8, 3, 9, 'bench'],
       // Copper (v0.43): the same ladder from level 11, twice the XP.
       ['copper_sheet', 11, 1, 2, 'press'], ['copper_knuckles', 12, 1, 6, 'bench'], ['copper_bat', 13, 2, 12, 'bench'], ['copper_knife', 14, 1, 6, 'bench'],
+      ['copper_throwing_knife', 11, 1, 6, 'bench'],
       ['copper_helmet', 16, 1, 6, 'bench'], ['copper_legs', 17, 2, 12, 'bench'], ['copper_vest', 18, 3, 18, 'bench'],
     ]);
   });
@@ -105,8 +125,8 @@ describe('combat maths (design §12)', () => {
   });
 
   it('combat level: a new character is 3; everything at 30 is 30', () => {
-    expect(combatLevel({ melee: 1, gunfire: 1, defense: 1, health: 10 })).toBe(3);
-    expect(combatLevel({ melee: 30, gunfire: 1, defense: 30, health: 30 })).toBe(30);
+    expect(combatLevel({ melee: 1, marksman: 1, defense: 1, health: 10 })).toBe(3);
+    expect(combatLevel({ melee: 30, marksman: 1, defense: 30, health: 30 })).toBe(30);
   });
 
   it('a new character has 10 HP (Health level 10) and fights with fists', () => {

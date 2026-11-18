@@ -77,6 +77,8 @@ export interface EnemyState {
   fightPos: [number, number] | null;
   /** A fight just ended without it dying: it follows `by` for 5 s from `from`, then walks back (10 s in all). */
   returning?: { by: string; from: [number, number]; at: number } | null;
+  /** v0.51: hit from a distance, it walks from `from` up to you (fightPos), arriving at `arriveAt` (game.enemies_json). */
+  approach?: { from: [number, number]; arriveAt: number } | null;
 }
 
 /** One swing in a fight: yours or the enemy's, how much damage (0 = miss), or the enemy dying. */
@@ -112,6 +114,8 @@ const SAY: Record<string, string> = {
   not_enough_cash: "You don't have enough cash.",
   not_in_shop: 'You need to be in the shop to buy that.',
   too_far: "You're too far away.",
+  no_ammo: "You've got nothing left to throw.",
+  no_line_of_sight: "You can't get a clear throw from here.",
   too_fast: 'The server lost track of where you are. Walk there again.',
   empty: "It's empty. Come back in a bit.",
   stunned: "You're still stunned.",
@@ -152,7 +156,8 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     hp: Number(p.hp),
     hpAt: p.hpAt,
     // Every skill the game knows, at 0 XP if the server doesn't send it (yet).
-    skills: Object.fromEntries(SKILL_IDS.map((k) => [k, { xp: Number(p.skills[k]?.xp ?? 0) }])) as GameState['skills'],
+    // (v0.51: Gunfire became Marksman; an older server still calls it 'gunfire'.)
+    skills: Object.fromEntries(SKILL_IDS.map((k) => [k, { xp: Number(((p.skills as Record<string, { xp: number } | undefined>)[k] ?? (k === 'marksman' ? (p.skills as Record<string, { xp: number } | undefined>).gunfire : undefined))?.xp ?? 0) }])) as GameState['skills'],
     player: {
       job: p.job ? { ...p.job, pos: p.job.pos } : null,
       stunnedUntil: p.stunnedUntil,
@@ -383,6 +388,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
           id: string; kind: string; idx: number; hp: number; dead_until: string | null; fighter: string | null;
           fight_x: number | null; fight_y: number | null; fight_seen: string | null;
           left_at: string | null; left_by: string | null; left_x: number | null; left_y: number | null;
+          arrive_at?: string | null; from_x?: number | null; from_y?: number | null;
         };
         const now = gameNow();
         const dead = r.dead_until ? Date.parse(r.dead_until) : 0;
@@ -398,6 +404,10 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
           returning:
             r.left_at && r.left_by && r.left_x !== null && r.left_y !== null && dead <= now && Date.parse(r.left_at) > now - RETURN_MS
               ? { by: r.left_by, from: [r.left_x, r.left_y], at: Date.parse(r.left_at) }
+              : null,
+          approach:
+            fighting && r.arrive_at && r.from_x != null && r.from_y != null && Date.parse(r.arrive_at) > now
+              ? { from: [r.from_x, r.from_y], arriveAt: Date.parse(r.arrive_at) }
               : null,
         };
         enemies.current = [...enemies.current.filter((e) => e.id !== r.id), next];

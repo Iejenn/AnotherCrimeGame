@@ -7,6 +7,7 @@ import { INVENTORY_SLOTS, cantEat, fmtMoney, itemPrice, slotsUsed } from '../gam
 import { gameNow } from '../game/clock';
 import type { GameApi } from '../game/api';
 import { Bag, bagSlots, slotKey } from './Bag';
+import { SKILL_BY_ID } from '../game/data/skills';
 import { ItemIcon } from './ItemIcon';
 import { armourBonus, maxHit, myCombatLevel, weaponStats } from '../game/combat';
 import { skillLevel } from '../game/engine';
@@ -75,7 +76,7 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
             ? `+${def.heal} HP`
             : def.gear
               ? def.gear.slot === 'weapon'
-                ? `max hit +${(def.gear.damage ?? 1) - 1}, ${((def.gear.speed ?? 3) * 0.5).toFixed(1)}s${def.gear.needs && def.gear.needs.level > 1 ? `, Melee ${def.gear.needs.level}` : ''}`
+                ? `max hit +${(def.gear.damage ?? 1) - 1}, ${((def.gear.speed ?? 3) * 0.5).toFixed(1)}s${def.gear.range ? `, ${def.gear.range} tiles` : ''}${def.gear.needs && def.gear.needs.level > 1 ? `, ${SKILL_BY_ID[def.gear.needs.skill].name} ${def.gear.needs.level}` : ''}`
                 : `+${def.gear.defence ?? 0} defence${def.gear.needs && def.gear.needs.level > 1 ? `, Defense ${def.gear.needs.level}` : ''}`
               : def.quest
                 ? 'quest item (kept when you die)'

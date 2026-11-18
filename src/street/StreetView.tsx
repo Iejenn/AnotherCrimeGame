@@ -11,12 +11,14 @@ import { busyReason, canStart, emptyFor, fmtDuration, fmtMoney, hpAt, maxHp, ski
 import type { GameApi } from '../game/api';
 import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
-import { ITEM_BY_ID } from '../game/data/items';
+import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
 import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
-import { WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
+import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
+import { APPROACH_SPEED, clearShot } from './sight';
+import { MELEE_REACH, rangedWeapon } from '../game/combat';
 import { buildCity, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
@@ -76,9 +78,12 @@ function animateEnemy(kind: string, g: THREE.Group, mode: 'peck' | 'walk' | 'fly
 }
 
 /** How a weapon's swing looks (see ItemDef.gear.anim). */
-const weaponAnim = (id: string | undefined): 'punch' | 'swing' | 'stab' => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
-/** How long each attack takes, and how far into it the blow lands (so it lands as the hitsplat shows). */
-const ATTACK_TIMING = { punch: { ms: 420, lead: 160 }, stab: { ms: 520, lead: 230 }, swing: { ms: 900, lead: 380 } } as const;
+const weaponAnim = (id: string | undefined): 'punch' | 'swing' | 'stab' | 'throw' => (id ? ITEM_BY_ID[id]?.gear?.anim : undefined) ?? 'punch';
+/** How long each attack takes, and how far into it the blow lands (so it lands as the hitsplat shows). A throw lets go
+ *  at THROW_RELEASE and the knife then flies (THROW_SPEED): its hitsplat waits for the knife. */
+const ATTACK_TIMING = { punch: { ms: 420, lead: 160 }, stab: { ms: 520, lead: 230 }, swing: { ms: 900, lead: 380 }, throw: { ms: 640, lead: 640 * THROW_RELEASE } } as const;
+/** How fast a thrown knife flies (tiles a second). */
+const THROW_SPEED = 16;
 // Tiles per second (v0.49: 4 → 2.5, a walk rather than a jog; the steps match it, see WALK_PACE). The server allows up
 // to 5 (game.can_reach), so this needs no server change.
 const WALK_SPEED = WALK_PACE;
@@ -578,10 +583,34 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       if (e.fighter && e.fighter !== w.myId) return say(`Someone else is fighting that ${ENEMY_KINDS[e.kind]?.name.toLowerCase() ?? 'thing'}.`);
       const at = enemyAt(e);
       const [ex, ey] = tileOf(at.x, at.z);
+      // Throwing knives (v0.51): walk only as far as a tile you can throw from (in range, nothing in the way), the
+      // nearest one; if you're on one already, throw right away.
+      const rw = rangedWeapon(sRef.current);
+      if (rw) {
+        if (rw.left <= 0) return say(`You have no ${plural(ITEM_BY_ID[rw.id].name).toLowerCase()} left.`);
+        const goals: [number, number][] = [];
+        for (let dy = -rw.range; dy <= rw.range; dy++)
+          for (let dx = -rw.range; dx <= rw.range; dx++) {
+            const [tx, ty] = [ex + dx, ey + dy];
+            if (tx >= 0 && ty >= 0 && tx < W && ty < GH && !blocked[ty * W + tx] && canThrowFrom([tx, ty], at, rw.range)) goals.push([tx, ty]);
+          }
+        if (!goals.length) return say("You can't get a clear throw at that.");
+        if (walkTo(goals, null)) {
+          me.goalEnemy = id;
+          if (!me.path.length) reachEnemy();
+        }
+        return;
+      }
       if (walkTo(beside(ex, ey), null)) {
         me.goalEnemy = id;
         if (!me.path.length) reachEnemy();
       }
+    };
+    /** Can you throw from tile `from` at something at (at.x, at.z)? Close enough for the weapon, and a clear line
+     *  (the same checks as the server's attack(): up to range + ½ tile, walls block, point blank always works). */
+    const canThrowFrom = (from: [number, number], at: { x: number; z: number }, range: number) => {
+      const d = Math.hypot(from[0] + 0.5 - at.x, from[1] + 0.5 - at.z);
+      return d <= range && (d <= MELEE_REACH || clearShot(from[0], from[1], Math.floor(at.x), Math.floor(at.z)));
     };
     /** Arrived next to it: attack, or follow it if it flew off meanwhile. */
     let chases = 0;
@@ -592,7 +621,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const e = worldRef.current?.enemies().find((x) => x.id === id);
       if (!e || e.deadUntil) return;
       const at = enemyAt(e);
-      if (Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
+      const rw = rangedWeapon(sRef.current);
+      if (rw ? !canThrowFrom(tileOf(me.pos.x, me.pos.z), at, rw.range) : Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
         // It moved while you walked: follow it a few times, then give up (instead of a swing the server refuses).
         if (chases++ < 6) return goFight(id);
         chases = 0;
@@ -611,8 +641,17 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           const view = target ? enemyViews.get(target) : undefined;
           if (ev.killed) return; // the fall starts when the enemy's row says it's dead (the same for everyone)
           if (ev.by === 'you') {
+            const anim = weaponAnim(sRef.current.equipment?.weapon);
+            if (anim === 'throw') {
+              // A throw (v0.51): wind up, let go, and the knife flies to it; the hitsplat shows as it lands.
+              const t = ATTACK_TIMING.throw;
+              me.punchAt = performance.now();
+              me.punchUntil = me.punchAt + t.ms;
+              if (view) throwKnife(sRef.current.equipment?.weapon ?? '', view.g.position, me.punchAt + t.lead, ev.dmg ?? 0);
+              return;
+            }
             // Each move lands as the hitsplat shows: a bat swing winds up longest, a knife draws back, a fist is quickest.
-            const t = ATTACK_TIMING[weaponAnim(sRef.current.equipment?.weapon)];
+            const t = ATTACK_TIMING[anim];
             me.punchAt = performance.now() - t.lead;
             me.punchUntil = me.punchAt + t.ms;
             if (view) hitsplat(view.g.position, ev.dmg ?? 0);
@@ -623,6 +662,37 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }, delay);
       }
     });
+    /** Knives in the air (v0.51): each flies from your hand to where the target stands, spinning, then its hitsplat. */
+    const knivesInAir: { g: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; t0: number; t1: number; dmg: number }[] = [];
+    const throwKnife = (weapon: string, target: THREE.Vector3, release: number, dmg: number) => {
+      const g = buildThrowingKnife(METAL_COLORS[weapon.split('_')[0]] ?? 0xb8bcc2);
+      g.visible = false;
+      scene.add(g);
+      const to = target.clone();
+      to.y = floorY(to.x, to.z) + 0.55;
+      const fromPos = me.pos.clone();
+      fromPos.y = floorY(fromPos.x, fromPos.z) + 1.45;
+      const ms = (Math.max(0.6, fromPos.distanceTo(to)) / THROW_SPEED) * 1000;
+      knivesInAir.push({ g, from: fromPos, to, t0: release, t1: release + ms, dmg });
+    };
+    const updateFlying = (now: number) => {
+      for (let i = knivesInAir.length - 1; i >= 0; i--) {
+        const f = knivesInAir[i];
+        if (now < f.t0) continue;
+        const k = Math.min(1, (now - f.t0) / (f.t1 - f.t0));
+        f.g.visible = true;
+        f.g.position.lerpVectors(f.from, f.to, k);
+        f.g.position.y += Math.sin(k * Math.PI) * 0.25; // a slight arc
+        // Point along the flight (the knife's +y), tumbling end over end.
+        f.g.lookAt(f.to);
+        f.g.rotateX(Math.PI / 2 + k * Math.PI * 4);
+        if (k >= 1) {
+          hitsplat(f.to, f.dmg);
+          scene.remove(f.g);
+          knivesInAir.splice(i, 1);
+        }
+      }
+    };
     let lastFoe: string | null = null;
     /** The biker club: when you last asked to be jumped, and who jumped you. */
     let lastJump = 0;
@@ -1396,6 +1466,12 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const attacking = now < me.punchUntil ? weaponAnim(st.equipment?.weapon) : null;
       const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : attacking ?? (working || cooking ? 'work' : 'idle');
       animateCharacter(player, pose, now, 0, pose === 'walk' ? WALK_SPEED : (now - me.punchAt) / (me.punchUntil - me.punchAt));
+      // A thrown knife has left your hand (it's in the air); and with none left there's nothing to hold.
+      const held = player.getObjectByName('weapon');
+      if (held) {
+        const rw = rangedWeapon(st);
+        held.visible = !rw || (rw.left > 0 && !(pose === 'throw' && (now - me.punchAt) / (me.punchUntil - me.punchAt) > THROW_RELEASE));
+      }
       player.rotation.y = me.facing;
 
       // Tourists stroll (unless you're targeting or working one).
@@ -1603,6 +1679,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           }
       }
 
+      updateFlying(now);
       // Enemies: where their schedule (or their fight) puts them, gliding smoothly; hidden while dead.
       for (const e of worldRef.current?.enemies() ?? []) {
         let v = enemyViews.get(e.id);
@@ -1665,6 +1742,15 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               v.pos.add(gap.clampLength(0, Math.max(1.5, gap.length() / left) * dt));
             }
           }
+        } else if (e.approach && e.fightPos && t < e.approach.arriveAt) {
+          // Hit from a distance (v0.51): it walks from where it was up to its fighter, arriving when the server says.
+          const [fx, fy] = e.approach.from;
+          const [tx, ty] = e.fightPos;
+          const dur = (Math.hypot(tx - fx, ty - fy) / APPROACH_SPEED) * 1000;
+          const k = dur > 0 ? Math.min(1, Math.max(0, 1 - (e.approach.arriveAt - t) / dur)) : 1;
+          v.routeKey = '';
+          v.pos.lerp(new THREE.Vector3(fx + 0.5 + (tx - fx) * k, 0, fy + 0.5 + (ty - fy) * k), Math.min(1, dt * 12));
+          flying = false;
         } else {
           v.routeKey = '';
           v.pos.lerp(new THREE.Vector3(at.x, 0, at.z), Math.min(1, dt * 12));
@@ -1755,7 +1841,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         setGear(e.g, o.equipment);
         // Someone else fighting: their swings, stabs or punches loop at the weapon's speed (we don't see their exact timing).
         const swingMs = (ITEM_BY_ID[o.equipment?.weapon ?? '']?.gear?.speed ?? 4) * 500;
-        const attack = pose === 'swing' || pose === 'stab' || pose === 'punch';
+        const attack = pose === 'swing' || pose === 'stab' || pose === 'punch' || pose === 'throw';
         animateCharacter(e.g, pose, now, o.id.charCodeAt(0) * 0.37, pose === 'walk' ? WALK_SPEED : attack ? ((now + o.id.charCodeAt(1) * 97) % swingMs) / Math.min(swingMs, ATTACK_TIMING[pose as keyof typeof ATTACK_TIMING].ms) : 0);
       }
       for (const [id, e] of others)

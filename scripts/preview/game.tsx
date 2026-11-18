@@ -27,7 +27,7 @@ function App() {
     if (q.get('food')) g.inventory = { sandwich: 1, candy_bar: 2, cooked_bird_meat: 3 };
     if (q.get('hp')) g.hp = Number(q.get('hp'));
     if (q.get('hud')) {
-      g.inventory = { sandwich: 1, candy_bar: 2, cooked_rat_meat: 3, tin_salvage: 6, copper_sheet: 4, rat_antidote: 1, tin_bat: 1 };
+      g.inventory = { sandwich: 1, candy_bar: 2, cooked_rat_meat: 3, tin_salvage: 6, copper_sheet: 4, rat_antidote: 1, tin_bat: 1, tin_throwing_knife: 37 };
       g.equipment = { weapon: 'copper_knuckles', head: 'tin_helmet', body: 'copper_vest', legs: 'tin_legs' };
       g.cash = 1234;
     }

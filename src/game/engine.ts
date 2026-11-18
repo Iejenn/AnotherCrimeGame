@@ -37,9 +37,10 @@ export function rankFor(total: number) {
   return { name: RANKS[idx][1], next: RANKS[idx + 1] ?? null, current: RANKS[idx] };
 }
 
-/** Bag slots in use: cash takes one, and every item one of its own (nothing stacks except cash). */
+/** Bag slots in use: cash takes one, every item one of its own, and a stack (throwing knives, v0.51) one for all of
+ *  them. The server counts the same way (game.bag_used). */
 export function slotsUsed(s: GameState) {
-  return 1 + Object.values(s.inventory).reduce((n, c) => n + c, 0);
+  return 1 + Object.entries(s.inventory).reduce((n, [id, c]) => n + (c > 0 && ITEM_BY_ID[id]?.stack ? 1 : c), 0);
 }
 
 
@@ -351,10 +352,11 @@ export function stopJob(s: GameState) {
   s.player.job = null;
 }
 
-/** Add items to your bag, one slot each, as many as fit; returns how many fitted. */
+/** Add items to your bag, one slot each (a stack: all of them in one), as many as fit; returns how many fitted. */
 export function giveItem(s: GameState, id: string, count = 1): number {
   if (!ITEM_BY_ID[id] || count <= 0) return 0;
-  const n = Math.min(count, INVENTORY_SLOTS - slotsUsed(s));
+  const free = INVENTORY_SLOTS - slotsUsed(s);
+  const n = ITEM_BY_ID[id].stack ? (s.inventory[id] || free > 0 ? count : 0) : Math.min(count, free);
   if (n <= 0) return 0;
   s.inventory[id] = (s.inventory[id] ?? 0) + n;
   return n;
@@ -405,6 +407,9 @@ export function eat(s: GameState, id: string, now: number) {
 /** What a shop pays for one: SELL_SHARE of its value, rounded down, but never less than $1 (whole dollars only; v0.41). */
 export const itemPrice = (id: string) => {
   const v = ITEM_BY_ID[id]?.value ?? 0;
+  // Stacking things (throwing knives, $1 each) don't get the $1 minimum: 5 of them would sell for more than the sheet
+  // they're made from, a money printer. So they don't sell at all (v0.51; the server's sell_item does the same).
+  if (ITEM_BY_ID[id]?.stack) return Math.floor(v * SELL_SHARE);
   return v > 0 ? Math.max(1, Math.floor(v * SELL_SHARE)) : 0;
 };
 

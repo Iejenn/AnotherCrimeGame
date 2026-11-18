@@ -10,8 +10,10 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.51.0',
     date: '2026-11-18',
-    title: 'Better skill guides',
+    title: 'Marksman: throwing knives',
     items: [
+      'Gunfire is now Marksman, and it starts with throwing knives: tap an enemy and you throw from up to 6 tiles away. Walls and fences block the throw, so pick your spot. The enemy has to walk up to you first, and you get free throws meanwhile.',
+      'Throwing knives: tin (Marksman 1) and copper (Marksman 11). Make 5 from a sheet at a workbench (Tinkering 1 / 11), or buy a pack of 5 from Ray if you have money to burn. They stack in one bag slot, and every throw uses one up. Run out and you fight on with your fists.',
       'Every skill guide is up to date: Melee explains the bonus damage you get every 8 levels (9, 17, 25…), and Cooking, Scrapping and Tinkering name all their places, not only the first ones.',
       'Cooking lists every recipe with its level, XP and your chance to burn it. Tinkering lists every sheet and piece of gear with its level, what it takes and its XP.',
       'The welcome message in the log explains more than pickpocketing, and points new players to the Skills guides.',

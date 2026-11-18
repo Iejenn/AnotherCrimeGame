@@ -32,7 +32,7 @@ All skills start at level 1. Max level is **30** for now *(tunable)*.
 | Street Crimes | Designed (below) |
 | Melee | Combat (§12, draft) |
 | Defense | Combat (§12, draft) |
-| Gunfire | Combat (§12, draft) |
+| Marksman | Combat (§12, draft) |
 | Health | Combat (§12, draft). Gives +2 max HP per level today; the draft makes it +1. |
 
 ### XP curve (all skills)
@@ -286,7 +286,7 @@ The start screen shows your character file and what's new.
 
 ## 9. Open questions
 
-- **Melee / Defense / Gunfire:** combat with NPCs? Training dummies or gyms? Fights as a crime outcome?
+- **Melee / Defense / Marksman:** combat with NPCs? Training dummies or gyms? Fights as a crime outcome?
   Weapons and armour from shops?
 - **Health:** trained by taking damage, eating, or a gym?
 - **Healing / food:** now part of Street Crimes v2 (candy store and gas station shoplifting, §4). Eating rules: §4 question 6.
@@ -394,7 +394,7 @@ needs step 2 below.
 - Tested end to end with two test accounts in two browsers (both saw each other; crimes decided by the server).
 
 **Order:** (1) accounts + server-side actions (replaces save codes, cross-device) → (2) seeing each other,
-shared spots → (3) chat, trading, fights (Melee/Defense/Gunfire), leaderboards.
+shared spots → (3) chat, trading, fights (Melee/Defense/Marksman), leaderboards.
 
 ## 12. Combat
 
@@ -457,13 +457,14 @@ defence roll  D = (defender's Defense level + 8) × (defence bonus + 64)
 hit chance    = A > D ? 1 − (D + 2) / (2 × (A + 1))   :   A / (2 × (D + 1))
 ```
 
-- "attacker's level" = **Melee** (no weapon or a melee weapon) or **Gunfire** (a gun). Enemies have one attack level.
+- "attacker's level" = **Melee** (no weapon or a melee weapon) or **Marksman** (a ranged weapon). Enemies have one attack level.
+  (v0.51: the skill was called Gunfire; renamed so it starts with a low tier: throwing knives, guns later.)
 - Level 1 unarmed vs a level-1 enemy with 0 defence: **≈ 50–55%**. Ten levels or a good weapon above it: **≈ 75%**.
 
 ### How much damage?
 
 ```
-max hit = weapon damage + floor((your Melee or Gunfire level − 1) / 8)
+max hit = weapon damage + floor((your Melee or Marksman level − 1) / 8)
 damage on a hit = random whole number from 1 to max hit
 ```
 
@@ -475,7 +476,7 @@ damage on a hit = random whole number from 1 to max hit
 | Skill | Trains when | XP |
 |---|---|---|
 | Melee | you hit with no weapon or a melee weapon | **1 per damage** |
-| Gunfire | you hit with a gun | **1 per damage** |
+| Marksman | you hit with a gun | **1 per damage** |
 | Defense | damage you deal **and** damage you take | **0.5 per damage each way** |
 | Health | you lose health **in combat** | **1 per HP lost** |
 
@@ -490,14 +491,14 @@ Pigeons; Street Crimes ~7). One number: `COMBAT_XP` in combat.ts.
 ### Combat level (shown over players and enemies, like OSRS)
 
 ```
-combat level = floor( (Defense + Health) / 4  +  max(Melee, Gunfire) / 2 )
+combat level = floor( (Defense + Health) / 4  +  max(Melee, Marksman) / 2 )
 ```
 A new character (Health 10, the rest 1) is **3**. All 30 → **30**. Shown next to player names: "Iejen (level 3)".
 
 ### Gear
 
 - **Slots:** weapon, head, body, legs, feet *(more later: gloves, off-hand)*.
-- **Every item:** slot, level needed (Melee / Gunfire / Defense), and bonuses: **accuracy**, **damage** (weapons),
+- **Every item:** slot, level needed (Melee / Marksman / Defense), and bonuses: **accuracy**, **damage** (weapons),
   **attack speed** (weapons, in ticks), **defence** (armour). Guns: **range** (tiles) and maybe **ammo**.
 - **Equip** from the bag (tap → Wield / Wear). The Inventory tab gets an **equipment panel** (OSRS "worn equipment")
   with the slots and your total bonuses.
@@ -506,7 +507,7 @@ A new character (Health 10, the rest 1) is **3**. All 30 → **30**. Shown next 
 
 Starter ladders *(examples, to tune)*:
 
-| Lv | Melee (damage / speed) | Gunfire (damage / speed / range) | Armour (defence) |
+| Lv | Melee (damage / speed) | Marksman (damage / speed / range) | Armour (defence) |
 |---|---|---|---|
 | 1 | Fists 1 / 3 · Brass knuckles 2 / 3 | Slingshot 1 / 3 / 4 | Hoodie 2 |
 | 5 | Baseball bat 3 / 4 | BB gun 2 / 3 / 5 | Leather jacket 5 |
@@ -539,7 +540,7 @@ Each enemy type: level, HP, attack level, defence level and bonus, attack speed,
 
 | **Thug** (v0.34) | 5 | The Yard, 007 (3) | 10 | 5 | 2 ticks (1 s) | 2 | 30 s | not aggressive (for now); hooded, with a knife; loot: 1/5 $5–10, 1/20 a **knife** |
 
-**Enemy guide (v0.35):** under Melee and Gunfire in the Skills tab, every enemy by level; tap one for its card (stats,
+**Enemy guide (v0.35):** under Melee and Marksman in the Skills tab, every enemy by level; tap one for its card (stats,
 where it lives, its drops and their chances). It reads ENEMY_KINDS (with each
 kind's `where` and `loot`, a copy of `public.loot`), so new enemies appear on their own.
 
@@ -641,6 +642,24 @@ Outside fights eating still takes half a second.
 - Everything is data: a new drop is a row in `loot`, a new recipe a row in `recipes` (+ the item), a new cooking spot a
   row in `stations` (+ `STATIONS`).
 
+### Ranged fights: Marksman and throwing knives (v0.51)
+
+- **Throwing knives** are every metal's ranged weapon: tin (Marksman 1), copper (Marksman 11). Damage = the knife's
+  (tin 1, copper 2), a throw every 1.5 s, **range 6 tiles** (later weapons get their own: a pistol further).
+- **Ammo is the knife itself.** They **stack** (any number take one bag slot). Wielding them leaves them in your bag;
+  every throw (hit or miss) uses one up on the server. Out of knives mid-fight: you put them away and fight on with
+  your fists. They sell for nothing (five $1 knives would otherwise sell for more than their $5 sheet).
+- **Where they come from:** 5 from a sheet at a workbench (Tinkering 1 for tin, 11 for copper; 3 / 6 XP), or Ray's
+  Arms in packs of 5 at the usual rule (30 × the metal: $150 tin, $300 copper), deliberately expensive.
+- **Line of sight:** a throw needs a straight line with nothing in the way: no building, no wall or fence of an
+  enclosure (you only throw at things on your side of it), no tile off the map (the sewer's walls). Benches, cars and
+  the sewage channel don't block. Within 2 tiles it always works. `src/street/sight.ts` and `game.clear_shot` take the
+  exact same whole-number steps; the server's walls and enclosures are printed from the map (`scripts/marksman-sql.ts`).
+- **The enemy walks up to you** (2.5 tiles/s) to the tile next to you on that line and only starts swinging once
+  there: the free throws meanwhile are what ranged buys you. A melee weapon can't hit it before it arrives (no
+  swapping to a bat mid-approach). Killed on the way, it drops its loot where it fell.
+- The game walks you to the nearest tile you can throw from (in range, clear line), not up to the enemy.
+
 ## 14. Metals, Scrapping, Tinkering and gear (the long-term plan, agreed 2026-11-17)
 
 The master plan for gear, so every tier slots in as **data** later and nothing early has to be rebuilt. Not built yet:
@@ -703,7 +722,7 @@ Three weapons and three pieces of armour per metal (10 tiers = 60 items). Names:
 | +1 | Knuckles (regular) | 1 sheet | weapon, every 3 ticks (1.5 s) | 2 | 12 | 22 | 32 |
 | +2 | Bat (slow) | 2 sheets | weapon, every 6 ticks (3 s) | 3 | 13 | 23 | 33 |
 | +3 | Knife (fast) | 1 sheet | weapon, every 2 ticks (1 s) | 4 | 14 | 24 | 34 |
-| +4 | *Bullet casings (later, with Gunfire)* | | | 5 | 15 | 25 | 35 |
+| +4 | *Bullet casings (later, with Marksman)* | | | 5 | 15 | 25 | 35 |
 | +5 | Helmet | 1 sheet | head | 6 | 16 | 26 | 36 |
 | +6 | Leg guards | 2 sheets | legs | 7 | 17 | 27 | 37 |
 | +7 | Plate vest | 3 sheets | body | 8 | 18 | 28 | 38 |

@@ -5,7 +5,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useBagHandler } from '../components/bagHandler';
 import type { GameState } from '../game/types';
 import type { Npc } from './map';
-import { ITEM_BY_ID, SHOPS, buyerOf } from '../game/data/items';
+import { ITEM_BY_ID, SHOPS, buyerOf, plural } from '../game/data/items';
+import { SKILL_BY_ID } from '../game/data/skills';
 import { ItemIcon } from '../components/ItemIcon';
 import { fmtMoney, itemPrice } from '../game/engine';
 import type { GameApi } from '../game/api';
@@ -40,16 +41,20 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
   const [buySel, setBuySel] = useState<string | null>(null);
   const [buyLine, setBuyLine] = useState('Tap something to hear the price.');
 
-  // Buying: first tap tells you the price, a second tap buys one.
-  const pick = (itemId: string, price: number) => {
+  // Buying: first tap tells you the price, a second tap buys one (or a pack: throwing knives come 5 at a time).
+  const pick = (itemId: string, price: number, amount = 1) => {
     const def = ITEM_BY_ID[itemId];
     if (buySel !== itemId) {
       setBuySel(itemId);
       const g = def.gear;
       const speed = g ? ((g.speed ?? 3) === 3 ? 'same speed' : (g.speed ?? 3) > 3 ? 'but slower' : 'and faster') : '';
-      const needs = g?.needs && g.needs.level > 1 ? ` Needs Melee ${g.needs.level}.` : '';
-      const stats = g ? ` +${(g.damage ?? 1) - 1} damage over your fists, ${speed}.${needs}` : '';
-      return setBuyLine(`${def.name}: ${fmtMoney(price)}.${stats} Tap it again to buy.`);
+      const skill = g?.needs ? SKILL_BY_ID[g.needs.skill].name : '';
+      const needs = g?.needs && g.needs.level > 1 ? ` Needs ${skill} ${g.needs.level}.` : '';
+      const stats = g?.range
+        ? ` Thrown from up to ${g.range} tiles (${skill}), max hit +${(g.damage ?? 1) - 1}. Each throw uses one up.${needs}`
+        : g ? ` +${(g.damage ?? 1) - 1} damage over your fists, ${speed}.${needs}` : '';
+      const what = amount > 1 ? `${amount} ${plural(def.name)}` : def.name;
+      return setBuyLine(`${what}: ${fmtMoney(price)}.${stats} Tap it again to buy.`);
     }
     if (s.cash < price) return setBuyLine(`That's ${fmtMoney(price)}. Come back when you've got the cash.`);
     api.buy(itemId);
@@ -139,11 +144,12 @@ export function NpcDialog({ npc, s, api, onClose }: { npc: Npc; s: GameState; ap
                 <button
                   key={i}
                   className={`bank-slot ${buySel === st.item ? 'selected' : ''}`}
-                  onClick={() => pick(st.item, st.price)}
+                  onClick={() => pick(st.item, st.price, st.amount)}
                   title={`${ITEM_BY_ID[st.item].name} · ${fmtMoney(st.price)}`}
                   aria-label={`${ITEM_BY_ID[st.item].name}, ${fmtMoney(st.price)}`}
                 >
                   <ItemIcon id={st.item} />
+                  {st.amount > 1 && <span className="bank-count">{st.amount}</span>}
                 </button>
               );
             })}

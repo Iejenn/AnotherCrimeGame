@@ -79,7 +79,7 @@ export function SkillGuide({ s, id }: { s: GameState; id: SkillId }) {
         <p className="small">
           <span className="label">How to train</span> {def.howToTrain}
         </p>
-        {(open === 'melee' || open === 'gunfire') && <EnemyGuide skill={open} />}
+        {(open === 'melee' || open === 'marksman') && <EnemyGuide skill={open} />}
         {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 HP per minute.</p>}
         {open === 'cooking' && <RecipeList lvl={lvl} />}
         {open === 'tinkering' && <CraftList lvl={lvl} />}
