@@ -4,7 +4,7 @@ import { ENEMIES, ENEMY_KINDS, PIGEON_FLY_MS, PIGEON_HOP_MS, PIGEON_TILES, pigeo
 import { ITEM_BY_ID, SHOPS } from './data/items';
 import { itemPrice, maxHp, newGame } from './engine';
 import { DEFAULT_LOOK } from '../street/character';
-import { FIXTURES, PARK, inRect } from '../street/map';
+import { FIXTURES, inPark, inRect } from '../street/map';
 
 describe('combat maths (design §12)', () => {
   it('level 1 fists vs a Pigeon hit about 55% of the time; the Pigeon hits you about 50%', () => {
@@ -152,11 +152,11 @@ describe('combat maths (design §12)', () => {
 });
 
 describe('Pigeons (shared, on a fixed schedule)', () => {
-  it('there are three, and they only land on open park tiles', () => {
-    expect(ENEMIES.filter((e) => e.kind === 'pigeon')).toHaveLength(3);
+  it('there are eight (v0.54), and they only land on open park tiles', () => {
+    expect(ENEMIES.filter((e) => e.kind === 'pigeon')).toHaveLength(8);
     const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
     for (const [x, y] of PIGEON_TILES) {
-      expect(inRect(PARK, x, y)).toBe(true);
+      expect(inPark(x, y)).toBe(true);
       expect(solid.has(`${x},${y}`)).toBe(false);
     }
   });

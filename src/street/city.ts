@@ -7,7 +7,7 @@
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
 import {
-  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS,
+  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_JOINS, PLAZA, inPark, OLD_ROWS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
@@ -78,16 +78,34 @@ class Batch {
     m.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotY), new THREE.Vector3(sx, sy, sz));
     this.mats.push(m);
   }
+  /**
+   * One instanced mesh per area of the map (v0.54): a single one over the whole map can't be left out when it's off
+   * screen, so every tree and lamp on the island was drawn every frame, and the bigger map doubled that.
+   */
   build(scene: THREE.Scene) {
-    if (!this.mats.length) return null;
-    const im = new THREE.InstancedMesh(this.geo, this.mat, this.mats.length);
-    this.mats.forEach((m, i) => im.setMatrixAt(i, m));
-    im.castShadow = this.shadow;
-    im.receiveShadow = true;
-    scene.add(im);
-    return im;
+    const areas = new Map<string, THREE.Matrix4[]>();
+    const p = new THREE.Vector3();
+    for (const m of this.mats) {
+      p.setFromMatrixPosition(m);
+      const k = `${Math.floor(p.x / BATCH_AREA)},${Math.floor(p.z / BATCH_AREA)}`;
+      if (!areas.has(k)) areas.set(k, []);
+      areas.get(k)!.push(m);
+    }
+    const out: THREE.InstancedMesh[] = [];
+    for (const list of areas.values()) {
+      const im = new THREE.InstancedMesh(this.geo, this.mat, list.length);
+      list.forEach((m, i) => im.setMatrixAt(i, m));
+      im.computeBoundingSphere();
+      im.castShadow = this.shadow;
+      im.receiveShadow = true;
+      scene.add(im);
+      out.push(im);
+    }
+    return out;
   }
 }
+/** How big (tiles) one area of instanced things is: off-screen areas aren't drawn; fewer, bigger areas, fewer draw calls. */
+const BATCH_AREA = 40;
 
 export function buildCity(scene: THREE.Scene) {
   const disposables: { dispose: () => void }[] = [];
@@ -151,7 +169,15 @@ export function buildCity(scene: THREE.Scene) {
   const zebra = new Batch(geoBox(0.32, 0.01, 2.6), lam(0xd8d2c4), false);
   const inCrossing = (v: number) => v % PITCH < STREET;
   /** On the Factory's site (I-003 + I-006 merged, the street between them included): no road paint, lamps or lights. */
-  const onSite = (x: number, z: number) => x >= FACTORY_SITE.x0 - 0.2 && x <= FACTORY_SITE.x1 + 1.2 && z >= FACTORY_SITE.y0 - 0.2 && z <= FACTORY_SITE.y1 + 1.2;
+  // (v0.54: the park's joins too: they were streets, now they're lawn.)
+  const onSite = (x: number, z: number) =>
+    (x >= FACTORY_SITE.x0 - 0.2 && x <= FACTORY_SITE.x1 + 1.2 && z >= FACTORY_SITE.y0 - 0.2 && z <= FACTORY_SITE.y1 + 1.2) || inPark(Math.floor(x), Math.floor(z));
+  /** Blocks in the order the old map rolled their random numbers (column by column), then the new rows (v0.54). */
+  const blocksInOrder = (bx0: number, bx1: number) => {
+    const out: [number, number][] = [];
+    for (const [r0, r1] of [[0, OLD_ROWS], [OLD_ROWS, BROWS]]) for (let bx = bx0; bx < bx1; bx++) for (let by = r0; by < r1; by++) out.push([bx, by]);
+    return out;
+  };
   for (let k = 0; k <= BCOLS; k++) {
     const x = k * PITCH + STREET / 2; // centre of a north–south street
     for (let z = 0; z < H; z += 1.6) if (!inCrossing(Math.floor(z)) && !inCrossing(Math.floor(z + 0.7))) dash.add(x, 0.006, z + 0.35);
@@ -241,19 +267,20 @@ export function buildCity(scene: THREE.Scene) {
   }
   // Street trees in pits along the sidewalks, a few per block side (never in front of a door or a spot).
   const pit = new Batch(geoBox(0.8, 0.02, 0.8), lam(0x3a2a1e), false);
-  for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) // (no trees in the Industrial zone)
-    for (let by = 0; by < BROWS; by++) {
+  for (const [bx, by] of blocksInOrder(CITY_BX, CITY_BX + CITY_COLS)) { // (no trees in the Industrial zone)
+    {
       const b = blockRect(bx, by);
       const spots: [number, number][] = [];
       for (const t of [1.5, 5, 8.5]) {
         spots.push([b.x0 + t, b.y0 - 0.75], [b.x0 + t, b.y1 + 1.75], [b.x0 - 0.75, b.y0 + t], [b.x1 + 1.75, b.y0 + t]);
       }
       for (const [tx, tz] of spots) {
-        if (rng() < 0.6 || busy.has(`${Math.floor(tx)},${Math.floor(tz)}`)) continue;
+        if (rng() < 0.6 || busy.has(`${Math.floor(tx)},${Math.floor(tz)}`) || onSite(tx, tz)) continue;
         pit.add(tx, 0.075, tz);
         tree(tx, tz, 1.25 + rng() * 0.3);
       }
     }
+  }
   pit.build(scene);
 
   // ---------- street lamps (tall, an arm over the road) and traffic lights at the crossings ----------
@@ -270,8 +297,8 @@ export function buildCity(scene: THREE.Scene) {
   const redDot = new Batch(geoBox(0.07, 0.07, 0.02), lam(0xe0473a, { emissive: 0xe0473a, emissiveIntensity: 0.9 }), false);
   const greenDot = new Batch(geoBox(0.07, 0.07, 0.02), lam(0x5bd06a, { emissive: 0x5bd06a, emissiveIntensity: 0.9 }), false);
   /** A lamp at (x, z) whose arm reaches over the road in direction (dx, dz). */
-  const lamp = (x: number, z: number, dx: number, dz: number) => {
-    if (onSite(x, z)) return;
+  const lamp = (x: number, z: number, dx: number, dz: number, own = false) => {
+    if (!own && onSite(x, z)) return; // (own: a lamp that belongs where it stands, like the park's)
     poles.add(x, 1.15, z);
     const rot = Math.atan2(dx, dz);
     lampHeads.add(x + dx * 0.4, 2.3, z + dz * 0.4, 1, 1, 1, rot);
@@ -303,7 +330,8 @@ export function buildCity(scene: THREE.Scene) {
   const bags = new Batch(own(new THREE.IcosahedronGeometry(0.17, 0)), lam(0x1c1c1f, { flatShading: true }));
   {
     const blocked = buildBlocked();
-    for (const lot of LOTS) {
+    // (The old map's lots first, in their old order, so their dumpsters stay put.)
+    for (const lot of [...LOTS.filter((l) => l.by < OLD_ROWS), ...LOTS.filter((l) => l.by >= OLD_ROWS)]) {
       if (lot.kind !== 'buildings') continue;
       // Free tiles inside the lot (alleys and gaps between its buildings): one in three gets a dumpster.
       const free: [number, number][] = [];
@@ -330,8 +358,8 @@ export function buildCity(scene: THREE.Scene) {
     // Per block side, maybe a hydrant, a bin, a mailbox, newspaper boxes, a bench or a bike rack, on the sidewalk
     // close to the buildings or the curb. Never in front of a door.
     const kinds = [() => L.buildHydrant(), () => L.buildBin(rng() < 0.3), () => L.buildMailbox(), () => L.buildNewsBoxes(), () => L.buildBench(), () => L.buildBikeRack()];
-    for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) // (city streets only)
-      for (let by = 0; by < BROWS; by++) {
+    for (const [bx, by] of blocksInOrder(CITY_BX, CITY_BX + CITY_COLS)) { // (city streets only)
+      {
         const b = blockRect(bx, by);
         const sides = [
           { x: (t: number) => b.x0 + t, z: () => b.y0 - 0.45, rot: Math.PI },
@@ -346,13 +374,15 @@ export function buildCity(scene: THREE.Scene) {
             const z = side.z(t);
             if (busy.has(`${Math.floor(x)},${Math.floor(z)}`)) continue;
             const g = kinds[Math.floor(rng() * kinds.length)]();
+            if (onSite(x, z)) continue; // (none on the park's lawn; after its random pick, so the rest stay put)
             g.position.set(x, 0.07, z);
             g.rotation.y = side.rot;
             scene.add(g);
           }
         }
       }
-    // A bus stop on the park's sidewalk, across from the candy store (where you start).
+    }
+    // A bus stop on the park's sidewalk, across from the candy store.
     const stop = L.buildBusStop();
     stop.position.set(PARK.x0 + 6.5, 0.07, PARK.y0 - 0.55);
     stop.rotation.y = Math.PI;
@@ -520,86 +550,137 @@ export function buildCity(scene: THREE.Scene) {
     fadeables.push({ walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1 });
   }
 
-  // ---------- the big park (Pickpocket Tourists) ----------
-  // Lawn over four blocks and the roads between them; hedges with gaps; gravel paths in a # shape;
-  // a fountain in the middle with benches; a pond with lily pads; trees, flowerbeds and old lamps.
+  // ---------- Central Park (Pickpocket Tourists; v0.54: the big cross, PARK_AREA) ----------
+  // Lawn over five blocks and the joins between them (the streets that were there); hedges along the outside with gaps
+  // where the paths come in; gravel paths in a # in every lawn block, running on through the joins; the old block's
+  // fountain, ponds with lily pads, trees, flowerbeds, benches and old lamps; and in the middle the Plaza: paved, with
+  // a big fountain, benches facing it and a tree in a planter in each corner.
   {
-    const P = PARK;
-    const X0 = P.x0;
-    const Z0 = P.y0;
-    const X1 = P.x1 + 1;
-    const Z1 = P.y1 + 1;
-    const cx = (X0 + X1) / 2;
-    const cz = (Z0 + Z1) / 2;
-    add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
-    add(geoBox(X1 - X0, 0.08, Z1 - Z0), grassMat, cx, 0.04, cz, false);
-    // Darker grass patches so the lawn isn't one flat colour.
-    // (A little above the lawn and pulled forward, polygonOffset, so they don't flicker against it.)
-    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false);
-    for (let i = 0; i < 60; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), 0.084 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
-    patch.build(scene);
-    // Paths in a # shape, through the gaps in the hedges (PARK_PATHS), out to the sidewalks.
+    // (The lawn is a little higher than the sidewalks and curbs it covers in the joins.)
+    const LAWN = 0.1;
     const gravel = lam(0x8a8070);
-    const midZ = cz; // the fountain is in the middle
-    for (const r of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, 0.09, P.y0 + r + 0.5, false);
-    for (const c of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, P.x0 + c + 0.5, 0.091, cz, false);
-    // A gravel square around the fountain, joining the paths.
-    const ringPath = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 12).rotateX(-Math.PI / 2)), gravel);
-    ringPath.position.set(cx, 0.092, midZ);
-    ringPath.receiveShadow = true;
-    scene.add(ringPath);
-    // The fountain: a low stone basin with water, a pillar and a top bowl. The water glows a little.
     const stone = lam(0x8e877b, { flatShading: true });
-    add(own(new THREE.CylinderGeometry(1.15, 1.22, 0.3, 10)), stone, cx, 0.22, midZ);
-    add(own(new THREE.CylinderGeometry(1.03, 1.03, 0.05, 10)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), cx, 0.35, midZ, false);
-    add(own(new THREE.CylinderGeometry(0.1, 0.14, 0.62, 8)), stone, cx, 0.62, midZ);
-    add(own(new THREE.CylinderGeometry(0.34, 0.2, 0.1, 10)), stone, cx, 0.94, midZ);
-    add(own(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), cx, 0.99, midZ, false);
-    // Benches facing the fountain.
+    const patch = new Batch(own(new THREE.CircleGeometry(0.5, 7).rotateX(-Math.PI / 2)), lam(0x3b5a31, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false);
+    for (const r of PARK_AREA) {
+      const X0 = r.x0, Z0 = r.y0, X1 = r.x1 + 1, Z1 = r.y1 + 1;
+      const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
+      if (r === PLAZA) continue; // (paved, below)
+      const join = PARK_JOINS.includes(r);
+      add(geoBox(X1 - X0 + (join ? 0 : 0.6), LAWN - 0.02, Z1 - Z0 + (join ? 0 : 0.6)), pavement, cx, (LAWN - 0.02) / 2, cz, false);
+      add(geoBox(X1 - X0, LAWN, Z1 - Z0), grassMat, cx, LAWN / 2, cz, false);
+      // Darker grass patches so the lawn isn't one flat colour (a little above it, pulled forward: no flicker).
+      const n = Math.round(((X1 - X0) * (Z1 - Z0)) / 1.7);
+      for (let i = 0; i < n; i++) patch.add(X0 + 0.6 + rng() * (X1 - X0 - 1.2), LAWN + 0.004 + i * 0.0002, Z0 + 0.6 + rng() * (Z1 - Z0 - 1.2), 0.6 + rng(), 1, 0.6 + rng(), rng() * 6);
+      // The paths: a # in a lawn block; a join carries the paths that run through it.
+      const vertical = r === PARK_JOINS[0] || r === PARK_JOINS[1];
+      if (!join || !vertical) for (const k of PARK_PATHS.rows) add(geoBox(X1 - X0, 0.02, 0.8), gravel, cx, LAWN + 0.01, (join ? PLAZA.y0 : r.y0) + k + 0.5, false);
+      if (!join || vertical) for (const k of PARK_PATHS.cols) add(geoBox(0.8, 0.02, Z1 - Z0), gravel, (join ? PLAZA.x0 : r.x0) + k + 0.5, LAWN + 0.011, cz, false);
+      if (!join) {
+        // Old park lamps at the inner corners of the paths.
+        for (const [lx, lz] of [[r.x0 + 3.2, r.y0 + 1.8], [r.x0 + 6.8, r.y0 + 1.8], [r.x0 + 3.2, r.y0 + 8.2], [r.x0 + 6.8, r.y0 + 8.2]]) lamp(lx, lz, 0, lz < cz ? 1 : -1, true);
+      }
+    }
+    patch.build(scene);
+
+    // The old block's fountain (008): a gravel ring, a low stone basin with water, a pillar and a top bowl.
+    const fountain = (x: number, z: number, k: number) => {
+      add(own(new THREE.CylinderGeometry(1.15 * k, 1.22 * k, 0.3, 12)), stone, x, LAWN + 0.13, z);
+      add(own(new THREE.CylinderGeometry(1.03 * k, 1.03 * k, 0.05, 12)), lam(0x2f6f86, { emissive: 0x1d4a5c, emissiveIntensity: 0.6 }), x, LAWN + 0.26, z, false);
+      add(own(new THREE.CylinderGeometry(0.1 * k, 0.14 * k, 0.62 * k, 8)), stone, x, LAWN + 0.2 + 0.31 * k, z);
+      add(own(new THREE.CylinderGeometry(0.34 * k, 0.2 * k, 0.1, 10)), stone, x, LAWN + 0.2 + 0.62 * k, z);
+      add(own(new THREE.CylinderGeometry(0.28 * k, 0.28 * k, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), x, LAWN + 0.26 + 0.62 * k, z, false);
+    };
+    {
+      const cx = PARK.x0 + 5, cz = PARK.y0 + 5;
+      const ring = new THREE.Mesh(own(new THREE.CircleGeometry(1.9, 12).rotateX(-Math.PI / 2)), gravel);
+      ring.position.set(cx, LAWN + 0.012, cz);
+      ring.receiveShadow = true;
+      scene.add(ring);
+      fountain(cx, cz, 1);
+    }
+
+    // The Plaza: big square paving stones with joints, the big fountain (two tiers, 4×4 tiles), planters with trees.
+    {
+      const X0 = PLAZA.x0, Z0 = PLAZA.y0, X1 = PLAZA.x1 + 1, Z1 = PLAZA.y1 + 1;
+      const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
+      add(geoBox(X1 - X0, LAWN, Z1 - Z0), lam(0x9a9286), cx, LAWN / 2, cz, false);
+      const seam = new Batch(geoBox(X1 - X0, 0.004, 0.04), lam(0x6e675d), false);
+      for (let i = 1; i < X1 - X0; i += 2) {
+        seam.add(cx, LAWN + 0.002, Z0 + i, 1, 1, 1, 0);
+        seam.add(X0 + i, LAWN + 0.002, cz, 1, 1, 1, Math.PI / 2);
+      }
+      seam.build(scene);
+      // A darker ring of stones round the fountain.
+      const ring = new THREE.Mesh(own(new THREE.CircleGeometry(2.9, 12).rotateX(-Math.PI / 2)), lam(0x7a7266, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      ring.position.set(cx, LAWN + 0.005, cz);
+      scene.add(ring);
+      // The big fountain: a wide basin, then a second bowl higher up, water in both.
+      fountain(cx, cz, 1.75);
+      add(own(new THREE.CylinderGeometry(0.75, 0.45, 0.14, 10)), stone, cx, LAWN + 1.55, cz);
+      add(own(new THREE.CylinderGeometry(0.66, 0.66, 0.03, 10)), lam(0x3f86a0, { emissive: 0x2a6278, emissiveIntensity: 0.7 }), cx, LAWN + 1.63, cz, false);
+      add(own(new THREE.CylinderGeometry(0.06, 0.08, 0.4, 6)), stone, cx, LAWN + 1.8, cz);
+      // Planters with a tree in each corner.
+      for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inRect(PLAZA, f.x, f.y))) {
+        add(geoBox(0.9, 0.35, 0.9), stone, f.x + 0.5, LAWN + 0.17, f.y + 0.5);
+        add(geoBox(0.78, 0.04, 0.78), lam(0x3a2a1e), f.x + 0.5, LAWN + 0.36, f.y + 0.5, false);
+      }
+      // Lamps round the square.
+      for (const [lx, lz] of [[X0 + 2.2, Z0 + 2.2], [X1 - 2.2, Z0 + 2.2], [X0 + 2.2, Z1 - 2.2], [X1 - 2.2, Z1 - 2.2]]) lamp(lx, lz, lx < cx ? 1 : -1, 0, true);
+    }
+
+    // Benches facing the fountains and along the paths: they face away from their back, the side nearest the edge of
+    // their block (or, on the Plaza, the fountain's way).
     const wood = lam(0x6b4a2e);
     const iron = lam(0x2b2b2e);
-    const bench = (x: number, z: number, faceSouth: boolean, len = 0.9) => {
-      const back = faceSouth ? -1 : 1;
-      add(geoBox(len, 0.05, 0.3), wood, x, 0.3, z, true);
-      add(geoBox(len, 0.22, 0.04), wood, x, 0.48, z + back * 0.15, true);
-      for (const dx of [-len / 2 + 0.06, len / 2 - 0.06]) add(geoBox(0.04, 0.3, 0.3), iron, x + dx, 0.15, z, true);
-    };
-    for (const f of FIXTURES.filter((f) => f.kind === 'bench' && inRect(P, f.x, f.y))) bench(f.x + 0.5, f.y + 0.5, f.y < midZ);
-    // Hedges: dark green boxes, slightly uneven.
+    for (const f of FIXTURES.filter((f) => f.kind === 'bench' && inPark(f.x, f.y))) {
+      const b = PARK_BLOCKS.find((r) => inRect(r, f.x, f.y))!;
+      const mx = b.x0 + 5, mz = b.y0 + 5;
+      const dx = f.x + 0.5 - mx, dz = f.y + 0.5 - mz;
+      // The way it faces: towards the middle of its block, along the longer axis.
+      const rot = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? -Math.PI / 2 : Math.PI / 2) : dz > 0 ? Math.PI : 0;
+      // (Plain meshes, not a group: they're merged with the rest of the city, not drawn one by one.)
+      const part = (geo: THREE.BufferGeometry, mat: THREE.Material, lx: number, ly: number, lz: number) => {
+        const c = Math.cos(rot), sn = Math.sin(rot);
+        add(geo, mat, f.x + 0.5 + lx * c + lz * sn, LAWN + ly, f.y + 0.5 - lx * sn + lz * c, true).rotation.y = rot;
+      };
+      part(geoBox(0.9, 0.05, 0.3), wood, 0, 0.3, 0);
+      part(geoBox(0.9, 0.22, 0.04), wood, 0, 0.48, -0.15);
+      for (const lx of [-0.39, 0.39]) part(geoBox(0.04, 0.3, 0.3), iron, lx, 0.15, 0);
+    }
+    // Hedges: dark green boxes, slightly uneven, along the park's outside edge.
     const hedges = new Batch(geoBox(1, 0.5, 0.7), lam(0x2c4a26, { flatShading: true }));
-    for (const f of FIXTURES.filter((f) => f.kind === 'hedge' && inRect(P, f.x, f.y))) {
-      const vertical = f.x === P.x0 || f.x === P.x1;
-      hedges.add(f.x + 0.5, 0.25, f.y + 0.5, 1, 0.85 + rng() * 0.3, 1, vertical ? Math.PI / 2 : 0);
+    for (const f of FIXTURES.filter((f) => f.kind === 'hedge' && inPark(f.x, f.y))) {
+      const sideways = !inPark(f.x - 1, f.y) || !inPark(f.x + 1, f.y);
+      hedges.add(f.x + 0.5, LAWN + 0.2, f.y + 0.5, 1, 0.85 + rng() * 0.3, 1, sideways ? Math.PI / 2 : 0);
     }
     hedges.build(scene);
-    for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inRect(P, f.x, f.y))) tree(f.x + 0.5, f.y + 0.5, 1.15 + rng() * 0.3);
+    for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inPark(f.x, f.y))) tree(f.x + 0.5, f.y + 0.5, 1.15 + rng() * 0.3);
     // Flowerbeds: a stone edge, dark soil and dots of colour.
     const flowerColors = [0xd9473a, 0xf0b13c, 0xe8e2d0, 0x8a5ab8];
-    for (const f of FIXTURES.filter((f) => f.kind === 'flowers' && inRect(P, f.x, f.y))) {
-      add(geoBox(0.9, 0.14, 0.9), stone, f.x + 0.5, 0.11, f.y + 0.5);
-      add(geoBox(0.78, 0.04, 0.78), lam(0x3a2a1e), f.x + 0.5, 0.18, f.y + 0.5, false);
+    for (const f of FIXTURES.filter((f) => f.kind === 'flowers' && inPark(f.x, f.y))) {
+      add(geoBox(0.9, 0.14, 0.9), stone, f.x + 0.5, LAWN + 0.03, f.y + 0.5);
+      add(geoBox(0.78, 0.04, 0.78), lam(0x3a2a1e), f.x + 0.5, LAWN + 0.1, f.y + 0.5, false);
       for (let i = 0; i < 9; i++)
-        add(geoBox(0.12, 0.12, 0.12), lam(flowerColors[i % flowerColors.length]), f.x + 0.2 + (i % 3) * 0.3, 0.25, f.y + 0.2 + Math.floor(i / 3) * 0.3, false);
+        add(geoBox(0.12, 0.12, 0.12), lam(flowerColors[i % flowerColors.length]), f.x + 0.2 + (i % 3) * 0.3, LAWN + 0.17, f.y + 0.2 + Math.floor(i / 3) * 0.3, false);
     }
-    // The pond: a stone rim, dark water with a soft glow, lily pads and a few reeds.
-    const pond = FIXTURES.filter((f) => f.kind === 'pond' && inRect(P, f.x, f.y));
-    if (pond.length) {
-      const px = (Math.min(...pond.map((f) => f.x)) + Math.max(...pond.map((f) => f.x)) + 1) / 2;
-      const pz = (Math.min(...pond.map((f) => f.y)) + Math.max(...pond.map((f) => f.y)) + 1) / 2;
-      // An oval pond, as wide as its tiles (one column between the path and the hedge).
-      const sx = (Math.max(...pond.map((f) => f.x)) - Math.min(...pond.map((f) => f.x)) + 1) / 2;
-      const sz = (Math.max(...pond.map((f) => f.y)) - Math.min(...pond.map((f) => f.y)) + 1) / 2;
-      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, 0.1, pz).scale.set(sx, 1, sz);
-      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, 0.16, pz, false).scale.set(sx, 1, sz);
+    // The ponds (one per lawn block that has one): a stone rim, dark water with a soft glow, lily pads and reeds.
+    for (const b of PARK_BLOCKS) {
+      const pond = FIXTURES.filter((f) => f.kind === 'pond' && inRect(b, f.x, f.y));
+      if (!pond.length) continue;
+      const xs = pond.map((f) => f.x), zs = pond.map((f) => f.y);
+      const px = (Math.min(...xs) + Math.max(...xs) + 1) / 2;
+      const pz = (Math.min(...zs) + Math.max(...zs) + 1) / 2;
+      const sx = (Math.max(...xs) - Math.min(...xs) + 1) / 2;
+      const sz = (Math.max(...zs) - Math.min(...zs) + 1) / 2;
+      add(own(new THREE.CylinderGeometry(0.98, 1.02, 0.14, 12)), stone, px, LAWN + 0.02, pz).scale.set(sx, 1, sz);
+      add(own(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 12)), lam(0x1f4a5a, { emissive: 0x123440, emissiveIntensity: 0.6 }), px, LAWN + 0.08, pz, false).scale.set(sx, 1, sz);
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
-        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, 0.185, pz + Math.sin(a) * r, false);
+        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, LAWN + 0.105, pz + Math.sin(a) * r, false);
       }
-      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.3 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.7 + rng() * 0.1, 0.25, pz - 0.4 + i * 0.16, false);
+      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.3 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.7 + rng() * 0.1, LAWN + 0.17, pz - 0.4 + i * 0.16, false);
     }
-    // Old park lamps at the inner corners of the paths.
-    for (const [lx, lz] of [[P.x0 + 3.2, P.y0 + 1.8], [P.x0 + 6.8, P.y0 + 1.8], [P.x0 + 3.2, P.y0 + 8.2], [P.x0 + 6.8, P.y0 + 8.2]]) lamp(lx, lz, 0, lz < cz ? 1 : -1);
   }
 
   // ---------- the basketball court (Raid Gym Bags) ----------
@@ -2581,8 +2662,7 @@ export function buildCity(scene: THREE.Scene) {
   }
 
   // Build all instanced batches that were filled above.
-  const poolMesh = pools.build(scene);
-  if (poolMesh) poolMesh.receiveShadow = false;
+  for (const m of pools.build(scene)) m.receiveShadow = false;
   for (const b of [poles, lampHeads, lampGlow, lightPole, lightBox, redDot, greenDot]) b.build(scene); // (lightPole was missing: the traffic lights floated)
   trunks.build(scene);
   crowns.forEach((b) => b.build(scene));

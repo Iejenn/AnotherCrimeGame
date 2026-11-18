@@ -1,11 +1,11 @@
-// The server walks the same detours as the game (v0.54): 0036_roam_paths.sql holds exactly the rows roamPaths.ts
-// works out. (If a place's tiles change, print them again: npx vite-node scripts/roam-paths-sql.ts.)
+// The server walks the same detours as the game (v0.54): 0037_bigger_map.sql holds exactly the rows roamPaths.ts
+// works out (0036 had them first; the sewer's moved down since).
 import { expect, test } from 'vitest';
 import { enemyAt, THUG_TILES } from './enemies';
 import { allDetours, walkPoint } from './roamPaths';
 
 test('the migration has every detour, and only those', async () => {
-  const sql = (await import('../../supabase/migrations/0036_roam_paths.sql?raw')).default as string;
+  const sql = (await import('../../supabase/migrations/0037_bigger_map.sql?raw')).default as string;
   const rows = sql.match(/^\(\d+,\d+,\d+,\d+,'\{[\d,]+\}','\{[\d,]+\}'\)/gm) ?? [];
   const want = [...allDetours()].map(([k, w]) => `(${k},'{${w.map((p) => p[0]).join(',')}}','{${w.map((p) => p[1]).join(',')}}')`);
   expect(rows.length).toBe(want.length);

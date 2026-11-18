@@ -10,8 +10,12 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.54.0',
     date: '2026-11-18',
-    title: 'Watch your step',
+    title: 'A bigger city',
     items: [
+      'The city grew: a whole new row of districts to the south. The middle is for levels 1–10, the west for levels 10–20, and the south-east is the start of levels 21–30.',
+      'Central Park is now a big park in the shape of a cross, with the Plaza in the middle: a paved square with a big fountain where everyone meets. New players start there.',
+      'More to go round in the park: eight pigeons and six tourists (were three of each).',
+      "Moved: Eddy's and Ray's Arms are in the Financial district now (north of the Bank), the bar is in the Industrial zone (I-009), and the gas station and the parking lot moved to the new south-east district.",
       'Enemies walk round things now instead of through them: thugs round the couch and the fire barrel, rats round the crates, dogs round the junk, bikers round the furniture.',
       'Helmets fit: your hair no longer pokes through. Whatever is under the helmet stays under it (mohawks and caps too); long hair still hangs out below.',
       'The fire barrels (the Yard and the sewer) are proper rusty oil drums now, with glowing coals, charred wood and taller flames.',

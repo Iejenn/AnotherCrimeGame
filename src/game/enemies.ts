@@ -4,7 +4,7 @@
 // Enemies are shared by everyone, so where they walk is a FIXED SCHEDULE worked out from the game clock (like the
 // guard, watchers.ts): every phone and the server agree where each Pigeon is. The server has the same function
 // (game.pigeon_at in supabase/migrations/0010_combat.sql) and the same list of tiles (scripts/spots-sql.ts prints it).
-import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
+import { CLUB, CLUB_DOOR, FIXTURES, JUNKYARD, JUNKYARD_GATE, NEST, PARK_AREA, SEWER, SEWER_CHANNEL, SPLINTER, YARD, type Rect } from '../street/map';
 import { minstd } from './watchers';
 import { addRoamPlace, walkPoint } from './roamPaths';
 
@@ -91,7 +91,7 @@ export const ENEMY_KINDS: Record<string, EnemyKind> = {
 
 /** Every enemy on the island: its id, kind, and which one of its kind it is (its schedule). */
 export const ENEMIES = [
-  ...[0, 1, 2].map((i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })),
+  ...Array.from({ length: 8 }, (_, i) => ({ id: `pigeon_${i}`, kind: 'pigeon', index: i })), // (v0.54: 8, in the big park)
   ...[0, 1, 2].map((i) => ({ id: `thug_${i}`, kind: 'thug', index: i })),
   ...Array.from({ length: 10 }, (_, i) => ({ id: `rat_${i}`, kind: 'rat', index: i })),
   ...[0, 1, 2, 3].map((i) => ({ id: `dog_${i}`, kind: 'dog', index: i })),
@@ -99,11 +99,12 @@ export const ENEMIES = [
   ...[0, 1, 2].map((i) => ({ id: `biker_${i}`, kind: 'biker', index: i })),
 ];
 
-/** Open park tiles a Pigeon may land on (the park minus hedges, trees, the fountain, benches, the pond, flowers). */
+/** Open park tiles a Pigeon may land on (the park minus hedges, trees, fountains, benches, ponds, flowers; v0.54: all
+ *  of the big park, Plaza included). */
 export const PIGEON_TILES: [number, number][] = (() => {
   const solid = new Set(FIXTURES.map((f) => `${f.x},${f.y}`));
   const out: [number, number][] = [];
-  for (let y = PARK.y0; y <= PARK.y1; y++) for (let x = PARK.x0; x <= PARK.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
+  for (const r of PARK_AREA) for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (!solid.has(`${x},${y}`)) out.push([x, y]);
   return out;
 })();
 

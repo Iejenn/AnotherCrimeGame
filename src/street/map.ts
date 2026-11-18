@@ -24,7 +24,11 @@ export const CITY_COLS = 3;
 /** The Financial district: 3 × 3 blocks east of the city (the bank; v0.42). */
 export const FIN_COLS = 3;
 export const BCOLS = ZONE_COLS + CITY_COLS + FIN_COLS;
-export const BROWS = 3;
+/** v0.54: the map grew a row of districts to the south (3 more block rows: blocks 010–018, I-010–I-018, F-010–F-018).
+ *  The first OLD_ROWS rows are the map as it was: things that roll random numbers per block or lot roll those first,
+ *  in the old order, so the old map comes out exactly the same. */
+export const OLD_ROWS = 3;
+export const BROWS = 6;
 /** The city's first block column. */
 export const CITY_BX = ZONE_COLS;
 /** How far east the city moved when the Industrial zone came in on its west side (v0.41): 3 blocks. */
@@ -59,7 +63,8 @@ export const lotRect = (bx: number, by: number, lx: number, ly: number): Rect =>
 };
 
 // ---------- names, to talk about the map (docs/map.md, docs/map.png) ----------
-// Blocks are numbered row by row from the north-west corner: 001 002 003 / 004 005 006 / 007 008 009.
+// Blocks are numbered row by row from the north-west corner: 001 002 003 / 004 005 006 / 007 008 009, and on south
+// through 010–018 (v0.54).
 // Lots in a block: A = north-west, B = north-east, C = south-west, D = south-east.
 //   A B
 //   C D
@@ -80,7 +85,7 @@ export const lotName = (bx: number, by: number, lx: number, ly: number) => `${bl
 const blockXY = (name: string): [number, number] => {
   const district = name.startsWith('I-') ? 0 : name.startsWith('F-') ? FIN_BX : CITY_BX;
   const n = Number(/^[IF]-/.test(name) ? name.slice(2) : name) - 1;
-  if (!(n >= 0 && n < 9)) throw new Error(`no block ${name}`);
+  if (!(n >= 0 && n < 3 * BROWS)) throw new Error(`no block ${name}`);
   return [(n % 3) + district, Math.floor(n / 3)];
 };
 /** Block "005" and lot "C" → [bx, by, lx, ly]. */
@@ -149,16 +154,52 @@ export function isRoad(x: number, y: number) {
   return x % PITCH < STREET || y % PITCH < STREET;
 }
 
-// ---------- Central Park (Pickpocket Tourists, level 1) ----------
-// A whole block (10×10) of lawn with hedges around the edge, gravel paths in a # shape, a fountain in the middle
-// with benches, a pond, trees and flowerbeds. Three tourists stroll around in it, and the Pigeons live here.
+// ---------- Central Park (Pickpocket Tourists, level 1; the Pigeons) ----------
+// v0.54: a big park in the shape of a cross, the middle of the levels 1–10 district: the old park (008) at the top,
+// 010, 011 and 012 across, 014 at the bottom, and the streets between them turned into park too. In the middle
+// (011) the Plaza: a wide paved square with a big fountain, where new players start and everyone meets. Around it
+// lawns with hedges along the outside, gravel paths in a # in every lawn block (they run on through the joins), ponds,
+// trees, flowerbeds and benches. Six tourists stroll around, and eight Pigeons live here.
+//                008
+//           010  011  012        (the joins between them are park, not street)
+//                014
+/** The old park block (the cross's top arm). */
 export const PARK: Rect = block('008');
-/** The gravel paths: these rows and columns (offsets inside the park). */
+/** The Plaza: the cross's middle block. */
+export const PLAZA: Rect = block('011');
+/** The park's five blocks (the Plaza is the same object as PLAZA). */
+export const PARK_BLOCKS: Rect[] = ['008', '010', '011', '012', '014'].map((b) => (b === '011' ? PLAZA : block(b)));
+/** The four pieces of street between them that are park now (each one block wide, a street deep). */
+export const PARK_JOINS: Rect[] = [
+  { x0: PLAZA.x0, y0: PLAZA.y0 - STREET, x1: PLAZA.x1, y1: PLAZA.y0 - 1 }, // north (to 008)
+  { x0: PLAZA.x0, y0: PLAZA.y1 + 1, x1: PLAZA.x1, y1: PLAZA.y1 + STREET }, // south (to 014)
+  { x0: PLAZA.x0 - STREET, y0: PLAZA.y0, x1: PLAZA.x0 - 1, y1: PLAZA.y1 }, // west (to 010)
+  { x0: PLAZA.x1 + 1, y0: PLAZA.y0, x1: PLAZA.x1 + STREET, y1: PLAZA.y1 }, // east (to 012)
+];
+/** Every tile of the park: its blocks and the joins. */
+export const PARK_AREA: Rect[] = [...PARK_BLOCKS, ...PARK_JOINS];
+export const inPark = (x: number, y: number) => PARK_AREA.some((r) => inRect(r, x, y));
+/** The whole cross's bounding box. */
+export const PARK_BOUNDS: Rect = { x0: PARK_JOINS[2].x0 - BLOCK_SIZE, y0: PARK.y0, x1: PARK_JOINS[3].x1 + BLOCK_SIZE, y1: PARK_JOINS[1].y1 + BLOCK_SIZE };
+/** The gravel paths: these rows and columns (offsets inside a lawn block), out through the gaps in the hedges. */
 export const PARK_PATHS = { rows: [2, 7], cols: [2, 7] };
+/** Is this park tile on a gravel path? (In a lawn block or a join; the Plaza is paved all over.) */
+export function onParkPath(x: number, y: number) {
+  if (!inPark(x, y) || inRect(PLAZA, x, y)) return false;
+  // Paths line up with the blocks' columns and rows: a vertical join carries the column paths, a horizontal one the rows.
+  const cx = (((x - STREET) % PITCH) + PITCH) % PITCH;
+  const cy = (((y - STREET) % PITCH) + PITCH) % PITCH;
+  const join = PARK_JOINS.findIndex((r) => inRect(r, x, y));
+  if (join === 0 || join === 1) return PARK_PATHS.cols.includes(cx);
+  if (join === 2 || join === 3) return PARK_PATHS.rows.includes(cy);
+  return PARK_PATHS.cols.includes(cx) || PARK_PATHS.rows.includes(cy);
+}
+/** The Plaza's fountain: 4×4 tiles in its middle. */
+export const PLAZA_FOUNTAIN: Rect = { x0: PLAZA.x0 + 3, y0: PLAZA.y0 + 3, x1: PLAZA.x0 + 6, y1: PLAZA.y0 + 6 };
 
-/** Where you start (and wake up after dying): in Central Park, on the path just north of the fountain, the benches
- *  right below you. */
-export const SPAWN: [number, number] = [PARK.x0 + 4, PARK.y0 + 2];
+/** Where you start (v0.54: on the Plaza, just north of the fountain, the benches behind you). The server has the same
+ *  tile (game.can_reach, game.world). */
+export const SPAWN: [number, number] = [PLAZA.x0 + 4, PLAZA.y0 + 2];
 
 // ---------- the basketball court (Raid Gym Bags, level 5) ----------
 // A fenced court left of the park. The open (north) side faces the street, with a bench where the
@@ -180,19 +221,19 @@ const room = (id: string, name: string, r: Rect, shop: boolean, rows = 5): Room 
   const y1 = r.y0 + rows - 1;
   return { ...r, y1, id, name, door: [r.x0 + 2, y1], shop };
 };
-/** Eddy's General Store, on the north side of the middle block's street. The server checks you're inside it when
- *  you sell (sell_item). */
-export const STORE = room('store', "Eddy's General Store", lot('002', 'C'), true);
+/** Eddy's General Store (v0.54: moved to the Financial district, F-002). The server checks you're inside it when you
+ *  sell (sell_item). */
+export const STORE = room('store', "Eddy's General Store", lot('F-002', 'C'), true);
 /** The candy store (Shoplift Candy Store, level 10), facing the park. */
 export const CANDY = room('candy', 'Candy store', lot('005', 'C'), true);
-/** The bar (Pickpocket Drunks, level 15), under the basketball court. */
-export const BAR = room('bar', 'The bar', lot('004', 'C'), false);
-/** The gas station shop (Shoplift Gas Station, level 25): the top-left lot of the east block. The shop is its
- *  top four rows; the pumps stand in the row in front of it, under a canopy. */
-export const GAS = room('gas', 'Gas station', lot('006', 'A'), true, 4);
-/** Ray's weapon store (combat, docs/design.md §12), next to Eddy's. The server checks you're inside it when you buy
- *  (buy_item). */
-export const WEAPONS = room('weapons', "Ray's Arms", lot('002', 'D'), true);
+/** The bar (Pickpocket Drunks, level 15; v0.54: moved to the Industrial zone, I-009-C, with the levels 10–20 places). */
+export const BAR = room('bar', 'The bar', lot('I-009', 'C'), false);
+/** The gas station shop (Shoplift Gas Station, level 25; v0.54: moved to F-015, the levels 21–30 district): the
+ *  top-left lot of its block. The shop is its top four rows; the pumps stand in the row in front of it, under a canopy. */
+export const GAS = room('gas', 'Gas station', lot('F-015', 'A'), true, 4);
+/** Ray's weapon store (combat, docs/design.md §12), next to Eddy's (v0.54: F-002). The server checks you're inside it
+ *  when you buy (buy_item). */
+export const WEAPONS = room('weapons', "Ray's Arms", lot('F-002', 'D'), true);
 
 // ---------- the hospital (where you wake up after passing out; docs/design.md §5) ----------
 // A two-storey building on 005-B and 005-D, facing the park. The front half (D) is a tall lobby (open up to the
@@ -247,10 +288,10 @@ export const roomAt = (x: number, y: number) => ROOMS.find((r) => inRect(r, x, y
 //   G G P P P
 //   P P P P P     the two south lots: one long strip
 //   P P P P P
-export const STATION: Rect = block('006');
+export const STATION: Rect = block('F-015'); // (v0.54: was 006)
 /** The north-east parking lot and the long south strip. */
-export const PARKING_NE: Rect = lot('006', 'B');
-export const PARKING_S: Rect = { ...lot('006', 'C'), x1: lot('006', 'D').x1 };
+export const PARKING_NE: Rect = lot('F-015', 'B');
+export const PARKING_S: Rect = { ...lot('F-015', 'C'), x1: lot('F-015', 'D').x1 };
 export const PARKING: Rect[] = [PARKING_NE, PARKING_S];
 /** Where the guard may walk (to catch you, too): the station block and the sidewalks around it. */
 export const PATROL: Rect = { x0: STATION.x0 - 1, y0: STATION.y0 - 1, x1: STATION.x1 + 1, y1: STATION.y1 + 1 };
@@ -263,14 +304,21 @@ const NEW_SPECIAL: [string, LotLetter][] = [
   ['I-007', 'A'], ['I-007', 'B'], ['I-007', 'C'], ['I-007', 'D'], // the Junkyard
   ['I-008', 'A'], ['I-008', 'B'], ['I-008', 'C'], ['I-008', 'D'], // Hotline Plumbing & Heating and its yard
   ['I-002', 'A'], ['I-002', 'B'], // the Biker Club
+  // v0.54: Eddy's and Ray's (F-002), the bar (I-009-C).
+  ['F-002', 'C'], ['F-002', 'D'], ['I-009', 'C'],
 ];
+/** Lots that were special places and are ordinary buildings since v0.54 (Eddy's, Ray's, the bar, the gas station and
+ *  its parking lot moved out). They, and the new rows' lots, roll their buildings after all the others, from their own
+ *  random numbers, so no old building changes. */
+const VACATED: [string, LotLetter][] = [['002', 'C'], ['002', 'D'], ['004', 'C'], ['006', 'A'], ['006', 'B'], ['006', 'C'], ['006', 'D']];
+/** Their tiles (the server moves anyone standing there to the Plaza when the map grows). */
+export const VACATED_RECTS: Rect[] = VACATED.map(([b, l]) => lot(b, l));
 /** Lots that aren't normal buildings. */
 const SPECIAL: [string, LotLetter][] = [
-  ['002', 'C'], ['002', 'D'], // Eddy's, Ray's
-  ['004', 'B'], ['004', 'C'], // the court, the bar
+  ['004', 'B'], // the court
   ['005', 'C'], // the candy store
-  ['006', 'A'], ['006', 'B'], ['006', 'C'], ['006', 'D'], // the gas station and its parking lot
-  ['008', 'A'], ['008', 'B'], ['008', 'C'], ['008', 'D'], // Central Park
+  ['F-015', 'A'], ['F-015', 'B'], ['F-015', 'C'], ['F-015', 'D'], // the gas station and its parking lot (v0.54)
+  ...['008', '010', '011', '012', '014'].flatMap((b) => (['A', 'B', 'C', 'D'] as const).map((l) => [b, l] as [string, LotLetter])), // Central Park
   ['007', 'C'], ['007', 'D'], // the Yard (thugs)
   ['005', 'B'], ['005', 'D'], // the hospital
   ['009', 'C'], ['009', 'D'], // the Thrift Store and its salvage yard
@@ -590,10 +638,16 @@ export const BUILDINGS: Building[] = (() => {
   const out: Building[] = [];
   const rng = mulberry32(42);
   const rerolled = new Set(NEW_SPECIAL.map(([b, l]) => `${b}-${l}`));
-  for (const lot of LOTS) {
+  const late = new Set(VACATED.map(([b, l]) => `${b}-${l}`));
+  const isLate = (lot: Lot) => lot.by >= OLD_ROWS || late.has(lot.name);
+  // The old map's lots first, in their old order with their old random numbers; then the late ones (v0.54).
+  for (const lot of LOTS) if (!isLate(lot)) roll(lot, rng);
+  const lateRng = mulberry32(2054);
+  for (const lot of LOTS) if (isLate(lot)) roll(lot, lateRng);
+  function roll(lot: Lot, rng: () => number) {
     // A lot that became a special place still takes its random numbers (and builds nothing), so the rest don't change.
     const gone = rerolled.has(lot.name);
-    if (lot.kind !== 'buildings' && !gone) continue;
+    if (lot.kind !== 'buildings' && !gone) return;
     const block = blockRect(lot.bx, lot.by);
     const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
     for (const [ox, oy, w, h] of layout) {
@@ -666,28 +720,50 @@ export const FIXTURES: Fixture[] = (() => {
   out.push({ x: S.x0, y: S.y0 + 2, kind: 'counter' }, { x: S.x0 + 1, y: S.y0 + 2, kind: 'counter' });
   out.push({ x: S.x1, y: S.y0 + 2, kind: 'shelf' }, { x: S.x1, y: S.y0 + 3, kind: 'shelf' });
 
-  // Central Park (10×10). Offsets from its top-left corner:
-  //  - hedges all around, with gaps where the paths come in (at 2 and 7 on every side), a tree in each corner;
-  //  - gravel paths in a # shape: rows 2 and 7, columns 2 and 7 (walkable, drawn in city.ts);
-  //  - a 2×2 fountain in the middle (4–5, 4–5) with benches above and below it;
-  //  - a pond in the east (8, 4–5), and trees and flowerbeds in the lawns.
-  const P = PARK;
-  const at = (dx: number, dy: number, kind: FixtureKind) => out.push({ x: P.x0 + dx, y: P.y0 + dy, kind });
-  const N = BLOCK_SIZE;
-  for (let d = 0; d < N; d++) {
-    const corner = d === 0 || d === N - 1;
-    const gap = PARK_PATHS.rows.includes(d);
-    for (const e of [0, N - 1]) {
-      if (corner) at(d, e, 'tree');
-      else if (!PARK_PATHS.cols.includes(d)) at(d, e, 'hedge'); // north and south edges
-      if (!corner && !gap) at(e, d, 'hedge'); // west and east edges
-    }
+  // Central Park (v0.54: the cross, PARK_AREA):
+  //  - hedges along its outside edge, with gaps where the paths come in; a tree on every outside corner;
+  //  - gravel paths in a # in every lawn block (rows and columns 2 and 7), running on through the joins;
+  //  - the old block (008) as it was: a 2×2 fountain with benches above and below it, a pond, trees and flowerbeds;
+  //  - the other lawn blocks: a pond, trees, flowerbeds and benches, each laid out a little differently;
+  //  - the Plaza (011): paved, the big fountain (4×4) in the middle, benches facing it, a tree in each corner.
+  {
+    const parkTile = (x: number, y: number) => inPark(x, y);
+    for (const r of PARK_AREA)
+      for (let y = r.y0; y <= r.y1; y++)
+        for (let x = r.x0; x <= r.x1; x++) {
+          const outside = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => !parkTile(x + dx, y + dy)).length;
+          if (!outside || onParkPath(x, y)) continue;
+          out.push({ x, y, kind: outside >= 2 ? 'tree' : 'hedge' });
+        }
+    const at = (b: Rect, dx: number, dy: number, kind: FixtureKind) => out.push({ x: b.x0 + dx, y: b.y0 + dy, kind });
+    const P = PARK;
+    for (const dx of [4, 5]) for (const dy of [4, 5]) at(P, dx, dy, 'fountain');
+    for (const dx of [4, 5]) at(P, dx, 3, 'bench'), at(P, dx, 6, 'bench');
+    for (const dy of [4, 5]) at(P, 8, dy, 'pond');
+    for (const [dx, dy] of [[1, 4], [4, 8], [8, 1]]) at(P, dx, dy, 'tree');
+    for (const [dx, dy] of [[4, 1], [1, 8], [8, 8]]) at(P, dx, dy, 'flowers');
+    // The west block (010): a pond in the middle with benches round it.
+    const Wb = block('010');
+    for (const dx of [4, 5]) for (const dy of [4, 5]) at(Wb, dx, dy, 'pond');
+    for (const dx of [4, 5]) at(Wb, dx, 3, 'bench'), at(Wb, dx, 6, 'bench');
+    for (const [dx, dy] of [[1, 1], [8, 4], [4, 8], [1, 5]]) at(Wb, dx, dy, 'tree');
+    for (const [dx, dy] of [[8, 1], [1, 8], [8, 8]]) at(Wb, dx, dy, 'flowers');
+    // The east block (012): a grove of trees, flowerbeds, benches along the paths.
+    const E = block('012');
+    for (const [dx, dy] of [[4, 4], [5, 5], [4, 5], [1, 1], [8, 8], [1, 8]]) at(E, dx, dy, 'tree');
+    for (const [dx, dy] of [[5, 4], [8, 1], [4, 1]]) at(E, dx, dy, 'flowers');
+    for (const dx of [4, 5]) at(E, dx, 6, 'bench');
+    // The south block (014): a long pond on the west side, trees and flowers.
+    const S = block('014');
+    for (const dy of [4, 5]) for (const dx of [0, 1]) at(S, dx, dy, 'pond');
+    for (const [dx, dy] of [[4, 4], [5, 5], [8, 1], [4, 8]]) at(S, dx, dy, 'tree');
+    for (const [dx, dy] of [[1, 1], [8, 4], [8, 8]]) at(S, dx, dy, 'flowers');
+    for (const dx of [4, 5]) at(S, dx, 3, 'bench');
+    // The Plaza: the big fountain, a bench on each side facing it, a tree in a planter in each corner.
+    for (let y = PLAZA_FOUNTAIN.y0; y <= PLAZA_FOUNTAIN.y1; y++) for (let x = PLAZA_FOUNTAIN.x0; x <= PLAZA_FOUNTAIN.x1; x++) out.push({ x, y, kind: 'fountain' });
+    for (const d of [4, 5]) at(PLAZA, d, 0, 'bench'), at(PLAZA, d, 9, 'bench'), at(PLAZA, 0, d, 'bench'), at(PLAZA, 9, d, 'bench');
+    for (const [dx, dy] of [[0, 0], [9, 0], [0, 9], [9, 9]]) at(PLAZA, dx, dy, 'tree');
   }
-  for (const dx of [4, 5]) for (const dy of [4, 5]) at(dx, dy, 'fountain');
-  for (const dx of [4, 5]) at(dx, 3, 'bench'), at(dx, 6, 'bench');
-  for (const dy of [4, 5]) at(8, dy, 'pond');
-  for (const [dx, dy] of [[1, 4], [4, 8], [8, 1]]) at(dx, dy, 'tree');
-  for (const [dx, dy] of [[4, 1], [1, 8], [8, 8]]) at(dx, dy, 'flowers');
 
   // Ray's weapon store. Layout (R = weapon rack on the wall, C = counter with the register, D = door):
   //   R R . R R
@@ -785,16 +861,17 @@ export const FIXTURES: Fixture[] = (() => {
   return out;
 })();
 
+/** Where each tourist strolls (v0.54): the old park, the west, east and south blocks, and the Plaza twice. */
+export const TOURIST_AREAS: Rect[] = ['008', '010', '012', '014', '011', '011'].map(block);
+
 export const NODES: StreetNode[] = (() => {
   const out: StreetNode[] = [];
   const node = (id: string, crimeId: string, x: number, y: number, extra: Partial<StreetNode> = {}) => {
     const c = CRIME_BY_ID[crimeId];
     out.push({ id, crimeId, kind: c.spot.kind, label: c.spot.label, x, y, ...extra });
   };
-  // Three tourists strolling around the park.
-  node('tourist_0', 'pick_tourist', PARK.x0 + 2, PARK.y0 + 2, { wanders: PARK });
-  node('tourist_1', 'pick_tourist', PARK.x0 + 7, PARK.y0 + 2, { wanders: PARK });
-  node('tourist_2', 'pick_tourist', PARK.x0 + 2, PARK.y0 + 7, { wanders: PARK });
+  // Six tourists strolling around the park (v0.54: one in each lawn block, two on the Plaza), each in its own block.
+  TOURIST_AREAS.forEach((r, i) => node(`tourist_${i}`, 'pick_tourist', r.x0 + 2, r.y0 + (i === 5 ? 7 : 2), { wanders: r }));
   // Two gym bags on the bench at the court.
   node('bag_0', 'gym_bags', COURT.x0 + 1, COURT.y0, { facing: 0 });
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
@@ -915,23 +992,30 @@ export const PARKED_CARS: ParkedCar[] = (() => {
   const rng = mulberry32(7);
   const colors = [0x8a2f28, 0x2f4562, 0x9a7a2e, 0x35553a, 0xb0aa9c, 0x6a4526, 0x2e5f5b, 0x5a5f66];
   // Each street between two crossings is one block long (10 tiles). About half get a car, in the lane next to one
-  // of the two sidewalks (lane tiles 2 or 4 of the 7-wide street), never in front of the spawn.
-  for (let k = 0; k <= BROWS; k++)
+  // of the two sidewalks (lane tiles 2 or 4 of the 7-wide street). (v0.54: the old map's streets first, with their
+  // old random numbers, then the new rows' from their own; none in the park's joins, which aren't street any more.)
+  const across = (k: number, rng: () => number) => {
     for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) {
       if (rng() < 0.45) continue;
       const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
       // Between the zebra crossings at both ends (they take the first and last 3 tiles of the street).
       const x = bx * PITCH + STREET + 3 + Math.floor(rng() * 2);
-      if (lane === SPAWN[1] || (SPAWN[0] >= x - 1 && SPAWN[0] <= x + 3 && Math.abs(lane - SPAWN[1]) < 3)) continue;
-      out.push({ x, y: lane, along: 'x', color: colors[Math.floor(rng() * colors.length)] });
+      const color = colors[Math.floor(rng() * colors.length)];
+      if (!inPark(x, lane) && !inPark(x + 2, lane)) out.push({ x, y: lane, along: 'x', color });
     }
-  for (let k = CITY_BX; k <= CITY_BX + CITY_COLS; k++)
-    for (let by = 0; by < BROWS; by++) {
-      if (rng() < 0.55) continue;
-      const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
-      const y = by * PITCH + STREET + 3 + Math.floor(rng() * 2);
-      out.push({ x: lane, y, along: 'y', color: colors[Math.floor(rng() * colors.length)] });
-    }
+  };
+  const down = (k: number, by: number, rng: () => number) => {
+    if (rng() < 0.55) return;
+    const lane = k * PITCH + (rng() < 0.5 ? 2 : 4);
+    const y = by * PITCH + STREET + 3 + Math.floor(rng() * 2);
+    const color = colors[Math.floor(rng() * colors.length)];
+    if (!inPark(lane, y) && !inPark(lane, y + 2)) out.push({ x: lane, y, along: 'y', color });
+  };
+  for (let k = 0; k <= OLD_ROWS; k++) across(k, rng);
+  for (let k = CITY_BX; k <= CITY_BX + CITY_COLS; k++) for (let by = 0; by < OLD_ROWS; by++) down(k, by, rng);
+  const more = mulberry32(2055);
+  for (let k = OLD_ROWS + 1; k <= BROWS; k++) across(k, more);
+  for (let k = CITY_BX; k <= CITY_BX + CITY_COLS; k++) for (let by = OLD_ROWS; by < BROWS; by++) down(k, by, more);
   // The car parked along the hospital's side is an ambulance.
   for (const c of out) if (c.along === 'y' && c.x > HOSPITAL.x1 && c.x <= HOSPITAL.x1 + STREET && c.y >= HOSPITAL.y0 && c.y <= HOSPITAL.y1) c.ambulance = true;
   return out;
@@ -1037,8 +1121,8 @@ export const AREAS: Area[] = [
     blurb: 'A public barbecue in the pocket park. Cook raw food here to make it edible (Cooking).',
   },
   {
-    id: 'park', name: 'Central Park', rect: PARK, icon: 'park', crimes: ['pick_tourist'], npcs: [],
-    blurb: 'Lawns, hedges, a fountain and a pond. Tourists stroll around with their wallets in their back pockets.',
+    id: 'park', name: 'Central Park', rect: PARK_BOUNDS, icon: 'park', crimes: ['pick_tourist'], npcs: [],
+    blurb: 'A big park with the Plaza in the middle, where everyone meets. Lawns, ponds and fountains; tourists stroll around with their wallets in their back pockets, and pigeons peck at the paths.',
   },
   {
     id: 'court', name: 'Basketball court', rect: COURT, icon: 'court', crimes: ['gym_bags'], npcs: [],
