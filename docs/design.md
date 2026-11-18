@@ -958,6 +958,13 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
 - **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
   Models stand on the floor at their origin.
 
+### The floor kit (v0.55, `src/street/floor.ts`; preview `scripts/preview/floor.html`)
+The ground, drawn from a grid of surfaces (asphalt, sidewalk, grass, gravel, paving, dirt, concrete, sand, water): each
+at its own height with a side where it stands above its neighbour (curbs, lawn edges, the beach's drop), corners rounded
+where two surfaces meet (outside corners rounded off, inside corners filled round; per surface: round, cut straight, or
+square), a small colour difference per tile, merged into one mesh per surface per 40-tile area. Walking stays on the
+tile grid; the shapes only follow it. Not used in the city yet: next are the coastline, the park and the streets.
+
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |
 |---|---|---|
