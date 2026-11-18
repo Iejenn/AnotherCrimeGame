@@ -33,6 +33,7 @@ import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
 import { QuestDialog, isQuestNpc } from './QuestDialog';
 import { findPath, neighbors } from './pathfind';
+import { getPrefs } from '../game/prefs';
 import { BALL_COLOR, Hoops } from './hoops';
 import { ChatBox } from './ChatBox';
 import type { ChatLink } from '../net/chat';
@@ -1043,7 +1044,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     // spots, shops, NPCs, your grave and you on top. Tapping it walks you there. "N" marks north.
     const mini = miniRef.current!;
     const MINI_SIZE = 132; // CSS pixels across
-    const MINI_TILE = 5.5; // CSS pixels per tile
+    // CSS pixels per tile: 5.5 in the standard view, less when zoomed out in the settings (v0.57: up to 300%).
+    const miniTile = () => 5.5 / getPrefs().minimapZoom;
     const BASE_PX = 12; // canvas pixels per tile in the pre-drawn island
     const dpr = Math.min(window.devicePixelRatio, 2);
     mini.width = MINI_SIZE * dpr;
@@ -1055,6 +1057,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const g = mini.getContext('2d')!;
       const R = MINI_SIZE / 2;
       const yaw = yawRef.current;
+      const MINI_TILE = miniTile();
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, MINI_SIZE, MINI_SIZE);
       g.save();
@@ -1133,8 +1136,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       e.stopPropagation();
       const r = mini.getBoundingClientRect();
       // Undo the minimap's turn and scale to find the tile you tapped.
-      const dx = (e.clientX - r.left - r.width / 2) / MINI_TILE;
-      const dy = (e.clientY - r.top - r.height / 2) / MINI_TILE;
+      const dx = (e.clientX - r.left - r.width / 2) / miniTile();
+      const dy = (e.clientY - r.top - r.height / 2) / miniTile();
       const yaw = yawRef.current;
       const wx = me.pos.x + dx * Math.cos(yaw) + dy * Math.sin(yaw);
       const wz = me.pos.z - dx * Math.sin(yaw) + dy * Math.cos(yaw);

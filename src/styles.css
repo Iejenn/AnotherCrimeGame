@@ -693,3 +693,4 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .game-view .chat-strip { bottom: var(--hud-cover); }
 .game-view .quick-eat { bottom: calc(var(--hud-cover) + 10px); }
 .game-view .npc-dialog { bottom: calc(var(--hud-cover) + 8px); max-height: calc(72% - var(--hud-cover)); }
+.setting-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; } .setting-row input[type=range] { flex: 1; max-width: 220px; accent-color: #d9a441; }

@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'You can walk on the beach now, all the way round the island. Mind the rocks along the waterline.',
       "The Yard's burning barrel is a cooking spot, like the one in the sewer: cook your food there too.",
       "Fixed the Superstore's parking spot: the meter stands at the head of the bay now, and the car is parked nose-in to it (it couldn't have got in before).",
+      'New setting: minimap zoom. In Settings, zoom the minimap out up to 300% to see more of the city around you.',
     ],
   },
   {
