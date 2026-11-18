@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.53.0',
+    date: '2026-11-18',
+    title: 'Steady panels',
+    items: [
+      'Chat, Bag and Skills at the bottom are all the same height now, so the street no longer jumps when you switch between them.',
+    ],
+  },
+  {
     version: '0.52.0',
     date: '2026-11-18',
     title: 'Blocking trains Health',
