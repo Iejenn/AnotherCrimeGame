@@ -817,3 +817,253 @@ export function buildLoot(item: string): THREE.Group | null {
   }
   return null;
 }
+
+// ---------- pixel textures for props (v0.59, docs/design.md §18) ----------
+// Small textures drawn in code (no picture files), 32×32 texels, sampled crisp (nearest): brick, wood, corrugated
+// steel, worn car paint. One texture covers one tile (1 unit) of surface; texMat repeats it to the face's size. Where
+// there's no browser (the tests) a prop falls back to its plain colour.
+type Painter = (g: CanvasRenderingContext2D, rnd: () => number) => void;
+const texCache = new Map<string, THREE.Texture>();
+const texMatCache = new Map<string, THREE.Material>();
+function pixelTex(key: string, paint: Painter): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  let t = texCache.get(key);
+  if (!t) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 32;
+    let seed = [...key].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 2147483647 || 1;
+    paint(c.getContext('2d')!, () => ((seed = (seed * 16807) % 2147483647) / 2147483647));
+    t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.NearestFilter;
+    texCache.set(key, t);
+  }
+  return t;
+}
+/** A flat-shaded material with a pixel texture repeated u × v times over each face (plain `fallback` without a browser). */
+function texMat(key: string, paint: Painter, u: number, v: number, fallback: number): THREE.Material {
+  const base = pixelTex(key, paint);
+  if (!base) return lambert(fallback);
+  const k = `${key}:${u.toFixed(2)}:${v.toFixed(2)}`;
+  let m = texMatCache.get(k);
+  if (!m) {
+    const t = base.clone();
+    t.repeat.set(u, v);
+    t.needsUpdate = true;
+    m = new THREE.MeshLambertMaterial({ map: t, flatShading: true });
+    texMatCache.set(k, m);
+  }
+  return m;
+}
+const px = (g: CanvasRenderingContext2D, col: string, x: number, y: number, w = 1, h = 1) => ((g.fillStyle = col), g.fillRect(x, y, w, h));
+const shade = (hex: number, f: number) => {
+  const r = Math.min(255, Math.round(((hex >> 16) & 255) * f)), gg = Math.min(255, Math.round(((hex >> 8) & 255) * f)), b = Math.min(255, Math.round((hex & 255) * f));
+  return `rgb(${r},${gg},${b})`;
+};
+/** Bricks: four courses a tile, staggered, each brick its own shade, grey mortar, a few chipped and sooty ones. */
+const BRICK: Painter = (g, rnd) => {
+  px(g, '#6e665c', 0, 0, 32, 32);
+  for (let row = 0; row < 4; row++)
+    for (let b = -1; b < 3; b++) {
+      const x = b * 16 + (row % 2) * 8;
+      px(g, shade(0x8a5040, 0.8 + rnd() * 0.35), x + 1, row * 8 + 1, 15, 7);
+      if (rnd() < 0.3) px(g, shade(0x8a5040, 0.6), x + 2 + Math.floor(rnd() * 10), row * 8 + 2, 3, 2);
+      if (rnd() < 0.15) px(g, '#3a2c26', x + 1, row * 8 + 1, 15, 3);
+    }
+};
+/** Wood planks: four boards a tile, grain streaks, dark gaps, nail heads at the ends. */
+const WOOD: Painter = (g, rnd) => {
+  for (let row = 0; row < 4; row++) {
+    px(g, shade(0x7a5a3a, 0.85 + rnd() * 0.3), 0, row * 8, 32, 8);
+    for (let i = 0; i < 4; i++) px(g, shade(0x5a4028, 0.9 + rnd() * 0.2), Math.floor(rnd() * 28), row * 8 + 1 + Math.floor(rnd() * 6), 3 + Math.floor(rnd() * 8), 1);
+    px(g, '#2e2216', 0, row * 8 + 7, 32, 1);
+    for (const x of [2, 29]) px(g, '#1e1a16', x, row * 8 + 3, 1, 1);
+  }
+};
+/** Corrugated steel (the container's blue): ridges every 4 texels, rust bleeding from a few spots, dirt at the bottom. */
+const STEEL: Painter = (g, rnd) => {
+  for (let x = 0; x < 32; x++) px(g, shade(0x2f5a78, [1.05, 1.15, 0.95, 0.8][x % 4]), x, 0, 1, 32);
+  for (let i = 0; i < 4; i++) {
+    const x = Math.floor(rnd() * 30), y = Math.floor(rnd() * 24);
+    px(g, '#8a4a2a', x, y, 2, 2);
+    px(g, '#6a3a22', x, y + 2, 1, 3 + Math.floor(rnd() * 5));
+  }
+  for (let x = 0; x < 32; x++) if (rnd() < 0.6) px(g, '#22303a', x, 29 + Math.floor(rnd() * 3), 1, 3);
+};
+/** Old car paint: faded grey, rust spots, scratches. */
+const PAINT: Painter = (g, rnd) => {
+  px(g, shade(0x6a6e74, 1), 0, 0, 32, 32);
+  for (let i = 0; i < 40; i++) px(g, shade(0x6a6e74, 0.9 + rnd() * 0.2), Math.floor(rnd() * 32), Math.floor(rnd() * 32), 2, 2);
+  for (let i = 0; i < 6; i++) {
+    const x = Math.floor(rnd() * 29), y = Math.floor(rnd() * 29);
+    px(g, '#7a3e22', x, y, 3, 2), px(g, '#9a5a2a', x + 1, y + 1, 2, 2);
+  }
+  for (let i = 0; i < 3; i++) px(g, '#9a9ea4', Math.floor(rnd() * 20), Math.floor(rnd() * 32), 6 + Math.floor(rnd() * 6), 1);
+};
+/** Concrete chunks: grey with darker pits. */
+const CONCRETE: Painter = (g, rnd) => {
+  px(g, '#7a766e', 0, 0, 32, 32);
+  for (let i = 0; i < 60; i++) px(g, rnd() < 0.5 ? '#5a5650' : '#8a867e', Math.floor(rnd() * 32), Math.floor(rnd() * 32));
+};
+/** A mesh with a textured material. */
+function addTex(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, shadow = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = shadow;
+  m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+// ---------- the Yard's hangout (v0.58): its props, built to the art rules (docs/design.md §18) ----------
+// Each stands on the floor at its origin, flat-shaded, within the prop budget (300 triangles; the car is a vehicle,
+// 800). props.test.ts counts them.
+
+/** A box with its bottom at y (props stand on their origin). */
+const boxAt = (p: THREE.Object3D, w: number, h: number, d: number, color: number, x: number, y: number, z: number, shadow = true) =>
+  add(p, boxGeo(w, h, d), color, x, y + h / 2, z, shadow);
+
+/**
+ * A shipping container (the gang's clubhouse), its length along x (`len` tiles long, 2 wide): faded blue, ribbed
+ * sides, corner posts, the doors at its +x end swung wide open on their hinges, a dark inside with a TV glowing, a tarp
+ * over half the roof. About 290 triangles.
+ */
+export function buildContainer(len = 4): THREE.Group {
+  const g = new THREE.Group();
+  const L = len - 0.2, D = 1.7, H = 1.35;
+  const blue = 0x2f5a78, dark = 0x24465e;
+  addTex(g, boxGeo(L, H, D), texMat('steel', STEEL, L, H, blue), 0, 0.08 + H / 2, 0);
+  // Corner posts and the frame round the open end.
+  for (const x of [-L / 2, L / 2]) for (const z of [-D / 2, D / 2]) boxAt(g, 0.1, H + 0.04, 0.1, dark, x, 0.06, z);
+  // Ribs down both long sides.
+  const ribs = Math.max(4, Math.round(L * 1.2));
+  for (let i = 1; i < ribs; i++) {
+    const x = -L / 2 + (i * L) / ribs;
+    for (const z of [-D / 2 - 0.02, D / 2 + 0.02]) boxAt(g, 0.06, H - 0.1, 0.04, dark, x, 0.13, z, false);
+  }
+  // The open end: the inside dark, a TV on a crate glowing blue.
+  const inside = new THREE.Mesh(boxGeo(0.02, H - 0.12, D - 0.12), new THREE.MeshLambertMaterial({ color: 0x0e1014, emissive: 0x10203a, emissiveIntensity: 0.6, flatShading: true }));
+  inside.position.set(L / 2 + 0.01, 0.08 + H / 2, 0);
+  g.add(inside);
+  const tv = new THREE.Mesh(boxGeo(0.02, 0.22, 0.32), new THREE.MeshLambertMaterial({ color: 0x5a8ad8, emissive: 0x4a7ad8, emissiveIntensity: 1.4, flatShading: true }));
+  tv.position.set(L / 2 + 0.02, 0.5, 0.3);
+  g.add(tv);
+  // The doors: each hangs on its hinge at a corner of the open end and is swung right round (about 110°), so it lies
+  // against the outside, a little away from the side wall.
+  for (const side of [-1, 1]) {
+    const hinge = new THREE.Group();
+    hinge.position.set(L / 2 + 0.05, 0.08, side * D / 2);
+    hinge.rotation.y = side * -1.92;
+    addTex(hinge, boxGeo(0.05, H - 0.02, D / 2), texMat('steel', STEEL, D / 2, H, blue), 0, 0.01 + (H - 0.02) / 2, -side * D / 4);
+    for (const t of [0.3, 0.75]) boxAt(hinge, 0.07, 0.04, D / 2 - 0.05, dark, 0, t * H, -side * D / 4, false); // the bars
+    g.add(hinge);
+  }
+  // Rust streaks on the side facing +z, and a tarp over the -x half of the roof.
+  for (const [x, w] of [[-L / 3, 0.8], [L / 6, 1.1]]) boxAt(g, w, 0.3, 0.02, 0x8a4a2a, x, 0.45, D / 2 + 0.045, false);
+  boxAt(g, L / 2, 0.04, D + 0.2, 0x3a5a3a, -L / 4, H + 0.08, 0, false).rotation.z = 0.04;
+  return g;
+}
+
+/**
+ * A half-demolished brick wall along x, `len` tiles long: its top broken off in steps (one shape, pushed out to the
+ * wall's thickness), loose bricks at its foot. About 120 triangles.
+ */
+export function buildRuinWall(len = 3, seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  let s = seed;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  // The outline: along the bottom, then back over a jagged top (a step every half tile).
+  const pts = [new THREE.Vector2(-len / 2, 0), new THREE.Vector2(len / 2, 0)];
+  for (let i = len * 2; i >= 0; i--) pts.push(new THREE.Vector2(-len / 2 + i / 2, 0.45 + rnd() * 0.85));
+  const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: 0.3, bevelEnabled: false });
+  geo.translate(0, 0, -0.15);
+  // (The shape's faces are in world units, so the brick texture repeats once a tile.)
+  addTex(g, geo, texMat('brick', BRICK, 1, 1, 0x8a5040), 0, 0, 0);
+  for (let i = 0; i < 6; i++) {
+    const b = boxAt(g, 0.22, 0.09, 0.11, 0x7a4636, -len / 2 + rnd() * len, 0, (rnd() < 0.5 ? -1 : 1) * (0.3 + rnd() * 0.2), false);
+    b.rotation.y = rnd() * 3;
+  }
+  return g;
+}
+
+/** A heap of rubble on one tile: broken brick and concrete (icosahedrons, no subdivision). About 160 triangles. */
+export function buildRubble(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  let s = seed;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const colors = [0x8a5040, 0x7a766e, 0x5a5650];
+  for (let i = 0; i < 8; i++) {
+    const r = 0.1 + rnd() * 0.16;
+    const mat = i % 3 === 0 ? texMat('brick', BRICK, 0.5, 0.5, colors[0]) : texMat('concrete', CONCRETE, 0.5, 0.5, colors[i % 3]);
+    const m = addTex(g, new THREE.IcosahedronGeometry(r, 0), mat, (rnd() - 0.5) * 0.6, r * 0.6 + (i < 3 ? 0.12 : 0), (rnd() - 0.5) * 0.6, i < 4);
+    m.rotation.set(rnd() * 3, rnd() * 3, 0);
+  }
+  return g;
+}
+
+/**
+ * A stripped car on cinder blocks, along x (2 tiles): no wheels, no doors, the hood up, one wheel left lying beside it.
+ * About 200 triangles (vehicle budget 800).
+ */
+export function buildStrippedCar(color = 0x6a6e74): THREE.Group {
+  const g = new THREE.Group();
+  for (const [x, z] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) boxAt(g, 0.22, 0.3, 0.18, 0x8a8680, x, 0, z);
+  addTex(g, boxGeo(1.7, 0.36, 0.8), texMat('paint', PAINT, 1.7, 0.36, color), 0, 0.48, 0);
+  addTex(g, boxGeo(0.9, 0.3, 0.74), texMat('paint', PAINT, 0.9, 0.3, color), 0.1, 0.81, 0);
+  boxAt(g, 0.92, 0.22, 0.76, 0x14161a, 0.1, 0.7, 0, false); // the empty windows
+  for (const z of [-0.41, 0.41]) boxAt(g, 0.6, 0.28, 0.02, 0x14161a, 0.1, 0.34, z, false); // where the doors were
+  // The hood, propped up on its hinge at the windscreen.
+  const hinge = new THREE.Group();
+  hinge.position.set(-0.35, 0.66, 0);
+  hinge.rotation.z = -1.0;
+  addTex(hinge, boxGeo(0.5, 0.03, 0.78), texMat('paint', PAINT, 0.5, 0.78, color), -0.25, 0.015, 0, false);
+  g.add(hinge);
+  const wheel = add(g, new THREE.TorusGeometry(0.2, 0.09, 6, 8), 0x1a1a1e, 1.2, 0.09, 0.45, false);
+  wheel.rotation.x = -Math.PI / 2;
+  return g;
+}
+
+/** The dice game: a crate for a table, two dice and some bills on it, a bottle. About 100 triangles. */
+export function buildDiceCrate(): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(0.6, 0.5, 0.6), texMat('wood', WOOD, 0.6, 0.5, 0x7a5a3a), 0, 0.3, 0).rotation.y = 0.2;
+  addTex(g, boxGeo(0.62, 0.02, 0.62), texMat('wood', WOOD, 0.62, 0.62, 0x6a4a2e), 0, 0.56, 0, false).rotation.y = 0.2;
+  for (const [x, z] of [[-0.08, 0.05], [0.07, -0.06]]) boxAt(g, 0.07, 0.07, 0.07, 0xf2efe8, x, 0.57, z, false).rotation.y = x * 9;
+  for (let i = 0; i < 3; i++) boxAt(g, 0.16, 0.01, 0.08, 0x5a8a4a, -0.2 + i * 0.12, 0.57, -0.18 + i * 0.05, false).rotation.y = i * 0.7;
+  add(g, cylGeo(0.04, 0.22, 6), 0x3a6a3a, 0.22, 0.68, 0.18, false);
+  return g;
+}
+
+/** The lookout's perch: two pallets stacked, a white plastic chair on top facing -z. About 100 triangles. */
+export function buildLookout(): THREE.Group {
+  const g = new THREE.Group();
+  for (let k = 0; k < 2; k++) addTex(g, boxGeo(0.8, 0.14, 0.8), texMat('wood', WOOD, 0.8, 0.8, 0x9a7a4e), 0, k * 0.15 + 0.07, 0).rotation.y = k * 0.15;
+  boxAt(g, 0.42, 0.04, 0.4, 0xe8e6de, 0, 0.6, 0);
+  boxAt(g, 0.42, 0.4, 0.04, 0xe8e6de, 0, 0.64, 0.19);
+  for (const [x, z] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) boxAt(g, 0.03, 0.3, 0.03, 0xe8e6de, x, 0.3, z, false);
+  return g;
+}
+
+/**
+ * String lights from a to b (world points; the group sits at a): a sagging wire with bulbs on it (octahedrons, so 8
+ * triangles each), glowing. About 130 triangles for 14 bulbs.
+ */
+export function buildStringLights(a: THREE.Vector3, b: THREE.Vector3, bulbs = 14, sag = 0.35): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(a);
+  const pts = Array.from({ length: bulbs + 1 }, (_, i) => {
+    const t = i / bulbs;
+    return new THREE.Vector3((b.x - a.x) * t, (b.y - a.y) * t - Math.sin(t * Math.PI) * sag, (b.z - a.z) * t);
+  });
+  const wire = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x1e1b18 }));
+  g.add(wire);
+  const glow = new THREE.MeshLambertMaterial({ color: 0xffe0a0, emissive: 0xffc870, emissiveIntensity: 1.6, flatShading: true });
+  const bulbGeo = new THREE.OctahedronGeometry(0.045, 0);
+  for (const p of pts.slice(1, -1)) {
+    const m = new THREE.Mesh(bulbGeo, glow);
+    m.position.set(p.x, p.y - 0.05, p.z);
+    g.add(m);
+  }
+  return g;
+}

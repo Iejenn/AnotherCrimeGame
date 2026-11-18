@@ -18,6 +18,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
+import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWall, buildStringLights, buildStrippedCar } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -1494,9 +1495,8 @@ export function buildCity(scene: THREE.Scene) {
     }
     // The burning barrel: a rusty drum with flames and a flickering orange light.
     for (const b of FIXTURES.filter((f) => f.kind === 'barrel')) burningBarrel(b.x + 0.5, 0, b.y + 0.5);
-    // v0.58: the gang's hangout. (Own random numbers, so nothing placed after it moves.)
+    // v0.58: the gang's hangout: its props are models (props.ts, built to the art rules, §18), placed on their tiles.
     {
-      const rnd = mulberry32(5858);
       const tilesOf = (kind: string) => FIXTURES.filter((f) => f.kind === kind && inRect(YARD, f.x, f.y));
       const box = (kind: string) => {
         const t = tilesOf(kind);
@@ -1504,102 +1504,32 @@ export function buildCity(scene: THREE.Scene) {
         const z0 = Math.min(...t.map((f) => f.y)), z1 = Math.max(...t.map((f) => f.y)) + 1;
         return { x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 };
       };
-      // The shipping container (their clubhouse): faded blue, ribbed, the doors at its east end swung open onto a dark
-      // inside lit blue by a TV; a tag on its side, a tarp over part of the roof.
-      {
-        const c = box('container');
-        const L = c.x1 - c.x0 - 0.2, D = c.z1 - c.z0 - 0.3, HC = 1.35;
-        const steel = lam(0x2f5a78, { flatShading: true });
-        add(geoBox(L, HC, D), steel, c.cx - 0.05, HC / 2 + 0.1, c.cz);
-        const rib = lam(0x24465e);
-        const ribs = new Batch(geoBox(0.06, HC - 0.1, 0.03), rib);
-        for (let x = c.x0 + 0.3; x < c.x1 - 0.3; x += 0.28) ribs.add(x, HC / 2 + 0.1, c.cz + D / 2 + 0.015), ribs.add(x, HC / 2 + 0.1, c.cz - D / 2 - 0.015);
-        ribs.build(scene);
-        for (const p of [[0.6, 0.2], [2.4, 0.5]]) add(geoBox(p[1] + 0.6, 0.3, 0.02), lam(0x8a4a2a), c.x0 + p[0] + 0.4, 0.4 + p[1], c.cz + D / 2 + 0.03, false); // rust streaks
-        // The open end: a dark inside, a TV's blue glow, and the two doors swung wide.
-        const ex = c.cx - 0.05 + L / 2;
-        add(geoBox(0.02, HC - 0.15, D - 0.15), lam(0x0e1014, { emissive: 0x10203a, emissiveIntensity: 0.6 }), ex + 0.01, HC / 2 + 0.1, c.cz, false);
-        add(geoBox(0.02, 0.22, 0.32), lam(0x5a8ad8, { emissive: 0x4a7ad8, emissiveIntensity: 1.4 }), ex + 0.02, 0.55, c.cz + 0.3, false);
-        for (const sz of [-1, 1]) {
-          const door = add(geoBox(D / 2, HC - 0.05, 0.05), steel, ex + Math.cos(0.4) * D / 4 + 0.05, HC / 2 + 0.1, c.cz + sz * (D / 2 + Math.sin(0.4) * D / 4));
-          door.rotation.y = sz * -1.15;
-        }
-        const tv = new THREE.PointLight(0x6a9aff, 2.2, 3.5, 1.6);
-        tv.position.set(ex + 0.5, 0.7, c.cz + 0.3);
-        scene.add(tv);
-        // A tarp over the west half of the roof, and a tag on the side facing the yard.
-        add(geoBox(L / 2, 0.04, D + 0.2), lam(0x3a5a3a, { flatShading: true }), c.x0 + L / 4 + 0.1, HC + 0.14, c.cz, false).rotation.z = 0.04;
-        const tag = add(own(new THREE.PlaneGeometry(2.2, 0.82)), paintMat('CREW', '#e8d84a', '#b08a1a'), c.cx - 0.3, 0.75, c.cz + D / 2 + 0.04, false);
-        tag.receiveShadow = false;
-      }
-      // The half-demolished wall: brick, broken off at different heights, loose bricks at its foot.
-      {
-        const brick = lam(0x8a5040, { flatShading: true });
-        const mortar = lam(0x6a3e32, { flatShading: true });
-        for (const f of tilesOf('ruin')) {
-          for (let k = 0; k < 2; k++) {
-            const h = 0.4 + rnd() * 1.0;
-            add(geoBox(0.5, h, 0.3), k ? brick : mortar, f.x + 0.25 + k * 0.5, h / 2, f.y + 0.5);
-          }
-        }
-        const r = box('ruin');
-        for (let i = 0; i < 10; i++) add(geoBox(0.2, 0.08, 0.1), brick, r.x0 + rnd() * (r.x1 - r.x0), 0.14, r.cz + (rnd() < 0.5 ? -1 : 1) * (0.25 + rnd() * 0.2), false).rotation.y = rnd() * 3;
-      }
-      // Rubble: heaps of broken brick and concrete.
-      {
-        const bits = [lam(0x8a5040, { flatShading: true }), lam(0x7a766e, { flatShading: true }), lam(0x5a5650, { flatShading: true })];
-        for (const f of tilesOf('rubble'))
-          for (let i = 0; i < 9; i++) {
-            const s = 0.12 + rnd() * 0.2;
-            const m = add(own(new THREE.DodecahedronGeometry(s, 0)), bits[i % 3], f.x + 0.2 + rnd() * 0.6, 0.1 + s * 0.6 + (i < 3 ? 0.15 : 0), f.y + 0.2 + rnd() * 0.6, i < 4);
-            m.rotation.set(rnd() * 3, rnd() * 3, 0);
-          }
-      }
-      // The stripped car: no wheels, no doors, the hood up, on cinder blocks.
-      {
-        const c = box('stripped');
-        const body = lam(0x6a6e74, { flatShading: true });
-        add(geoBox(1.7, 0.36, 0.8), body, c.cx, 0.48, c.cz);
-        add(geoBox(0.9, 0.3, 0.74), body, c.cx + 0.1, 0.81, c.cz);
-        add(geoBox(0.88, 0.24, 0.76), lam(0x14161a), c.cx + 0.1, 0.81, c.cz, false); // empty windows
-        add(geoBox(0.6, 0.3, 0.02), lam(0x14161a), c.cx + 0.1, 0.5, c.cz + 0.41, false); // the missing doors
-        const hood = add(geoBox(0.5, 0.03, 0.78), body, c.cx - 0.68, 0.86, c.cz, false);
-        hood.rotation.z = -1.0;
-        for (const [dx, dz] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) add(geoBox(0.22, 0.3, 0.18), lam(0x8a8680), c.cx + dx, 0.15, c.cz + dz);
-        add(own(new THREE.TorusGeometry(0.22, 0.09, 6, 10)).rotateX(-Math.PI / 2), lam(0x1a1a1e), c.cx + 1.25, 0.1, c.cz + 0.45, false); // a wheel left lying
-      }
-      // The dice game: a crate for a table, dice and bills on it, a bottle.
-      for (const f of tilesOf('dice')) {
-        add(geoBox(0.6, 0.5, 0.6), lam(0x7a5a3a), f.x + 0.5, 0.3, f.y + 0.5).rotation.y = 0.2;
-        add(geoBox(0.62, 0.02, 0.62), lam(0x6a4a2e), f.x + 0.5, 0.56, f.y + 0.5, false).rotation.y = 0.2;
-        for (const [dx, dz] of [[-0.08, 0.05], [0.07, -0.06]]) add(geoBox(0.07, 0.07, 0.07), lam(0xf2efe8), f.x + 0.5 + dx, 0.6, f.y + 0.5 + dz, false).rotation.y = dx * 9;
-        for (let i = 0; i < 3; i++) add(geoBox(0.16, 0.01, 0.08), lam(0x5a8a4a), f.x + 0.3 + i * 0.12, 0.575, f.y + 0.32 + i * 0.05, false).rotation.y = i * 0.7;
-        add(own(new THREE.CylinderGeometry(0.035, 0.04, 0.22, 6)), lam(0x3a6a3a, { transparent: true, opacity: 0.85 }), f.x + 0.72, 0.68, f.y + 0.68, false);
-      }
-      // The lookout: two pallets stacked, a white plastic chair on top, facing the street.
-      for (const f of tilesOf('lookout')) {
-        const pal = lam(0x9a7a4e);
-        for (let k = 0; k < 2; k++) add(geoBox(0.8, 0.14, 0.8), pal, f.x + 0.5, 0.08 + k * 0.15, f.y + 0.5).rotation.y = k * 0.15;
-        const white = lam(0xe8e6de);
-        add(geoBox(0.42, 0.04, 0.4), white, f.x + 0.5, 0.62, f.y + 0.5);
-        add(geoBox(0.42, 0.4, 0.04), white, f.x + 0.5, 0.84, f.y + 0.3);
-        for (const [dx, dz] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) add(geoBox(0.03, 0.3, 0.03), white, f.x + 0.5 + dx, 0.46, f.y + 0.5 + dz, false);
-      }
-      // String lights from the container to the buildings at the back, over the couch.
-      {
-        const c = box('container');
-        const bulbMat = lam(0xffe0a0, { emissive: 0xffc870, emissiveIntensity: 1.6 });
-        const bulbs = new Batch(own(new THREE.SphereGeometry(0.04, 5, 4)), bulbMat, false);
-        const ax = c.x1, az = c.z0 + 0.2, bx = YARD.x0 + 12, bz = YARD.y0 + 0.05;
-        for (let i = 0; i <= 16; i++) {
-          const t = i / 16;
-          bulbs.add(ax + (bx - ax) * t, 1.75 - Math.sin(t * Math.PI) * 0.35, az + (bz - az) * t);
-        }
-        bulbs.build(scene);
-        const glow = new THREE.PointLight(0xffd090, 2, 6, 1.6);
-        glow.position.set((ax + bx) / 2, 1.3, (az + bz) / 2 + 0.6);
-        scene.add(glow);
-      }
+      const place = (o: THREE.Object3D, x: number, z: number, rotY = 0) => {
+        o.position.set(x, 0.1, z);
+        o.rotation.y = rotY;
+        scene.add(o);
+      };
+      // The container, its doors open at the east end, a TV glowing inside and a tag on its side.
+      const c = box('container');
+      place(buildContainer(c.x1 - c.x0), c.cx, c.cz);
+      const tv = new THREE.PointLight(0x6a9aff, 2.2, 3.5, 1.6);
+      tv.position.set(c.x1 + 0.4, 0.8, c.cz + 0.3);
+      scene.add(tv);
+      const tag = add(own(new THREE.PlaneGeometry(2.2, 0.82)), paintMat('CREW', '#e8d84a', '#b08a1a'), c.cx - 0.3, 0.85, c.cz + 0.9, false);
+      tag.receiveShadow = false;
+      const ruin = box('ruin');
+      place(buildRuinWall(ruin.x1 - ruin.x0, 7), ruin.cx, ruin.cz);
+      tilesOf('rubble').forEach((f, i) => place(buildRubble(11 + i * 7), f.x + 0.5, f.y + 0.5));
+      const car = box('stripped');
+      place(buildStrippedCar(), car.cx, car.cz);
+      for (const f of tilesOf('dice')) place(buildDiceCrate(), f.x + 0.5, f.y + 0.5);
+      for (const f of tilesOf('lookout')) place(buildLookout(), f.x + 0.5, f.y + 0.5);
+      // String lights from the container's corner to the buildings at the back, over the couch and the fire.
+      const from = new THREE.Vector3(c.x1 - 0.1, 1.6, c.z0 + 0.1), to = new THREE.Vector3(YARD.x0 + 12, 1.75, YARD.y0 + 0.05);
+      scene.add(buildStringLights(from, to));
+      const glow = new THREE.PointLight(0xffd090, 2, 6, 1.6);
+      glow.position.set((from.x + to.x) / 2, 1.3, (from.z + to.z) / 2 + 0.6);
+      scene.add(glow);
     }
     // Chain-link fence along the street (kit): a see-through panel and posts on every fence tile.
     for (const f of FIXTURES.filter((x) => x.kind === 'fence')) kit.fence(f.x, f.y + 0.5, f.x + 1, f.y + 0.5, 'chain', { high: 1.1 });

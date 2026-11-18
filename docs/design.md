@@ -981,6 +981,9 @@ tile grid; the shapes only follow it. Not used in the city yet: next are the coa
 Only water has a texture: drawn ripples (no picture files), as grey detail on the water's own colour, drifting slowly
 (the sea's shallows, ponds, fountains). Everything else stays plain colour: we tried ground textures (Kenney's Retro Urban
 Kit) and a tester preferred the plain, basic look.
+**Props may have textures (v0.59):** small pixel textures drawn in code (32×32 texels, sampled crisp, no picture files):
+brick, wood planks, corrugated steel, worn car paint, concrete (`pixelTex`/`texMat` in props.ts; one texture covers a
+tile of surface). The ground stays plain.
 
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |
@@ -1019,6 +1022,13 @@ learned from old-school RuneScape, not copied.
 - About 1,800 triangles, 2,300 in full armour. Each person's parts are merged into **one mesh per joint** when they're
   built (their colours painted on as vertex colours, one shared material): 11 meshes a person (v0.46; was 25), so the
   detail costs few draw calls.
+
+**New props are models** (v0.58): a prop is built as its own model in `props.ts` (standing on the floor at its origin,
+flat-shaded, within its budget) and placed in city.ts, never pieced together from loose boxes in the scene;
+`src/street/props.test.ts` counts their triangles against the budget. **And it gets textures** (v0.59): every surface
+made of a material with a look (brick, wood, steel, paint, concrete, and new ones as needed) uses a pixel texture
+drawn in code (`texMat` in props.ts), not a plain colour; a new material gets its own painter there. Small details
+(dice, bottles, glowing bits) can stay plain.
 
 ### Bag icons match the ground (v0.49)
 Food is pictured in the bag from the very model it is on the ground: `scripts/render-icons.cjs` renders each one
