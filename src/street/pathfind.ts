@@ -1,13 +1,18 @@
 // A* on the tile grid, 8 directions, no cutting corners past walls.
 // `canStep` can forbid moves between two open tiles (e.g. through a store wall).
+// The grid starts at (grid.x0, grid.y0) (v0.57: the beach round the city is at negative tiles): `blocked` is indexed from
+// there; the path comes back in map tiles.
 export function findPath(
   blocked: Uint8Array,
-  w: number,
-  h: number,
-  from: [number, number],
-  goals: [number, number][],
-  canStep: (ax: number, ay: number, bx: number, by: number) => boolean = () => true,
+  grid: { x0: number; y0: number; w: number; h: number },
+  fromMap: [number, number],
+  goalsMap: [number, number][],
+  canStepMap: (ax: number, ay: number, bx: number, by: number) => boolean = () => true,
 ): [number, number][] | null {
+  const { x0, y0, w, h } = grid;
+  const from: [number, number] = [fromMap[0] - x0, fromMap[1] - y0];
+  const goals = goalsMap.map(([x, y]) => [x - x0, y - y0] as [number, number]);
+  const canStep = (ax: number, ay: number, bx: number, by: number) => canStepMap(ax + x0, ay + y0, bx + x0, by + y0);
   const goalSet = new Set(goals.filter(([x, y]) => x >= 0 && y >= 0 && x < w && y < h && !blocked[y * w + x]).map(([x, y]) => y * w + x));
   if (!goalSet.size) return null;
   const start = from[1] * w + from[0];
@@ -32,7 +37,7 @@ export function findPath(
     const cur = open.splice(bi, 1)[0];
     if (goalSet.has(cur)) {
       const path: [number, number][] = [];
-      for (let c = cur; c !== start; c = came[c]) path.unshift([c % w, (c / w) | 0]);
+      for (let c = cur; c !== start; c = came[c]) path.unshift([(c % w) + x0, ((c / w) | 0) + y0]);
       return path;
     }
     closed[cur] = 1;

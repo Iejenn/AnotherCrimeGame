@@ -269,6 +269,8 @@ export const isUpstairs = (x: number, y: number) => inRect(WARD, x, y);
  * Everyone who walks (you, other players, the doctors) stands on this.
  */
 export function floorY(x: number, z: number) {
+  // On the beach (v0.57): the sand, a little below the streets.
+  if (onBeach(Math.floor(x), Math.floor(z))) return -0.08;
   if (z >= H + 2) return -SEWER_DEPTH;
   const tx = Math.floor(x);
   if (tx < HOSPITAL.x0 || tx > HOSPITAL.x1 || z < HOSPITAL.y0 || z >= LOBBY.y0 + 2) return 0;
@@ -468,11 +470,11 @@ ROOMS.push(BANK);
 // (a wide glass front, the sign, shopping carts; you don't go in). Behind it, on B, its walled yard: five dumpsters
 // full of crushed cans and foil, the gate on the east street. On A, a little parking spot of its own: one car and one
 // meter (no guard: one of each makes it slow, so it's fine). (The store's number on the sign is #1217.)
-//   P P P P P | D . D . .     P = parking (m = the meter, c = the car), D = a dumpster, G = the gate (2 wide)
-//   . . m . . | . . . . .
+//   . . . . . | D . D . .     the parking spot (open to the street on the north and west): c = the car (nose-in),
+//   . . . . . | . . . . .     m = the meter at the head of its bay; D = a dumpster, G = the gate (2 wide)
 //   . . c . . | D . . . G
 //   . . c . . | . . . . G
-//   . . . . . | D . D . .
+//   . . m . . | D . D . .
 //   S S S S S   S S S S S     S = the Superstore (front = south)
 const SUPERSTORE_BLOCK = block('F-013');
 export const SUPERSTORE: Rect = { ...lot('F-013', 'C'), x1: lot('F-013', 'D').x1 };
@@ -525,9 +527,18 @@ export const SEWER: Rect = { x0: 18, y0: H + 6, x1: 41, y1: H + 17 };
 /** The channel's rows (offsets) and the bridges' columns (offsets). */
 export const SEWER_CHANNEL = { y0: 4, y1: 7 };
 export const SEWER_BRIDGES = [6, 16];
-/** The grid the game walks on: the island, then the sewer below it. */
+/** The grid the game walks on: the island, then the sewer below it (GRID adds a border round it, for the beach). */
 export const GW = W;
 export const GH = SEWER.y1 + 3;
+// ---------- the tile grid everything walks on (v0.57: with a border round it for the beach) ----------
+/** Tiles of border round the city in the grid (the beach is at most 5 wide). */
+export const GRID_MARGIN = 6;
+/** The grid: from (GRID.x0, GRID.y0), GRID.w × GRID.h tiles: the city with its beach, and the sewer below it. */
+export const GRID = { x0: -GRID_MARGIN, y0: -GRID_MARGIN, w: W + 2 * GRID_MARGIN, h: GH + GRID_MARGIN };
+/** A tile's index in the grid's arrays. */
+export const gi = (x: number, y: number) => (y - GRID.y0) * GRID.w + (x - GRID.x0);
+/** Is the tile in the grid? */
+export const inGrid = (x: number, y: number) => x >= GRID.x0 && y >= GRID.y0 && x < GRID.x0 + GRID.w && y < GRID.y0 + GRID.h;
 
 // ---------- the Rat Nest (giant rats, level 12; v0.43) ----------
 // East of the sewer: from the end of the north walkway a narrow tunnel runs east to a dark chamber where three giant rats
@@ -570,8 +581,50 @@ export const isSewage = (x: number, y: number) => {
   const dy = y - SEWER.y0;
   return inRect(SEWER, x, y) && dy >= SEWER_CHANNEL.y0 && dy <= SEWER_CHANNEL.y1 && !SEWER_BRIDGES.some((b) => dx === b || dx === b + 1);
 };
-/** A tile you could be on: the island, or the sewer. */
-export const onMap = (x: number, y: number) => (x >= 0 && y >= 0 && x < W && y < H) || inSewer(x, y);
+// ---------- the coast (v0.55; v0.57: you can walk on the beach) ----------
+// A sandy beach round the city whose width wobbles (1–4 tiles), round at the corners, then shallow water, then the open
+// sea. Drawn by the floor kit (city.ts), flat on the maps (mapArt.ts). The sand is walkable; rocks along the waterline
+// are solid. The server knows the sand tiles (game.beach).
+/** How far out from the city the shallow water reaches (tiles); beyond it is the open sea. */
+export const SHALLOWS = 9;
+/** How wide the beach is at a point on the coast (tiles): a smooth wobble from the angle round the island. */
+function beachWidth(x: number, y: number) {
+  const a = Math.atan2(y - H / 2, x - W / 2);
+  // Measured along the coast (about the island's size), so the wobble is the same size on every side.
+  const p = a * ((W + H) / Math.PI);
+  return 2.4 + Math.sin(p * 0.21) * 0.9 + Math.sin(p * 0.53 + 1.3) * 0.6 + Math.sin(p * 0.09 + 0.4) * 0.5;
+}
+/** What's on tile (x, y) outside the city: sand, water, or nothing (the city itself, or the open sea). */
+export function coastAt(x: number, y: number): 'sand' | 'water' | null {
+  if (x >= 0 && y >= 0 && x < W && y < H) return null;
+  // How far the tile's middle is from the city (round at the corners).
+  const cx = x + 0.5, cy = y + 0.5;
+  const dx = cx < 0 ? -cx : cx > W ? cx - W : 0;
+  const dy = cy < 0 ? -cy : cy > H ? cy - H : 0;
+  const d = Math.hypot(dx, dy);
+  if (d <= Math.max(1, beachWidth(cx, cy))) return 'sand';
+  // (The shallows end in a straight line, far out in the fog: a circle of tiles there would show as steps.)
+  if (Math.max(dx, dy) <= SHALLOWS) return 'water';
+  return null;
+}
+export const onBeach = (x: number, y: number) => coastAt(x, y) === 'sand';
+/** Rocks along the waterline (v0.57: solid): on sand next to the water, about one in four; and how each looks. */
+export const COAST_ROCKS: { x: number; y: number; ox: number; oz: number; sc: number; sy: number; rot: number }[] = (() => {
+  const out: { x: number; y: number; ox: number; oz: number; sc: number; sy: number; rot: number }[] = [];
+  const rng = mulberry32(99);
+  for (let y = -SHALLOWS; y < H + SHALLOWS; y++)
+    for (let x = -SHALLOWS; x < W + SHALLOWS; x++) {
+      if (coastAt(x, y) !== 'sand' || ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => coastAt(x + dx, y + dy) === 'water')) continue;
+      if (rng() < 0.75) continue;
+      const sc = 0.5 + rng() * 1.1;
+      out.push({ x, y, ox: 0.2 + rng() * 0.6, oz: 0.2 + rng() * 0.6, sc, sy: sc * (0.5 + rng() * 0.4), rot: rng() * 6 });
+    }
+  return out;
+})();
+
+/** A tile you could be on: the island, the beach (v0.57), or the sewer. */
+export const onMap = (x: number, y: number) => (x >= 0 && y >= 0 && x < W && y < H) || inSewer(x, y) || onBeach(x, y);
+
 
 /**
  * Areas with walls or a fence around them. You can only cross their edge through an opening:
@@ -718,6 +771,8 @@ export const STATIONS: Station[] = [
   { id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 },
   // In the sewer: a burning oil drum against the north wall, where a crate stood (so the rats' patches stay the same).
   { id: 'barrel_0', kind: 'bbq', x: SEWER.x0 + 11, y: SEWER.y0, look: 'barrel' },
+  // v0.57: the Yard's burning barrel is a cooking spot too.
+  { id: 'barrel_1', kind: 'bbq', x: YARD.x0 + 3, y: YARD.y0 + 2, look: 'barrel' },
   // The Factory: 3 plate presses along the west wall, 3 workbenches along the east wall (Tinkering).
   ...[2, 5, 8].map((dy, i) => ({ id: `press_${i}`, kind: 'press' as const, x: FACTORY.x0, y: FACTORY.y0 + dy })),
   ...[2, 5, 8].map((dy, i) => ({ id: `bench_${i}`, kind: 'bench' as const, x: FACTORY.x1, y: FACTORY.y0 + dy })),
@@ -835,7 +890,7 @@ export const FIXTURES: Fixture[] = (() => {
 
   // The Yard: an old couch against the back, a burning barrel, and the fence along the street (except the gates).
   out.push({ x: YARD.x0 + 1, y: YARD.y0 + 1, kind: 'couch' }, { x: YARD.x0 + 2, y: YARD.y0 + 1, kind: 'couch' });
-  out.push({ x: YARD.x0 + 3, y: YARD.y0 + 2, kind: 'barrel' });
+  // (The barrel is a cooking station since v0.57: STATIONS, barrel_1.)
   for (let x = YARD.x0; x <= YARD.x1; x++) if (!YARD_GATES.some(([gx]) => gx === x)) out.push({ x, y: YARD.y1, kind: 'fence' });
 
   // The hospital: three beds along each wall of the ward, the reception desk in the lobby (the receptionist stands
@@ -919,8 +974,10 @@ export const NODES: StreetNode[] = (() => {
   // parking spot: one meter, one car nose-in under it.
   SUPERSTORE_DUMPSTERS.forEach(([x, y], i) =>
     node(`al_dumpster_${i}`, 'aluminium_salvage', x, y, { facing: y === SUPERSTORE_YARD.y0 ? 0 : y === SUPERSTORE_YARD.y1 ? Math.PI : Math.PI / 2 }));
-  node('meter_5', 'parking_meter', SUPERSTORE_LOT.x0 + 2, SUPERSTORE_LOT.y0 + 1, { facing: 0 });
-  node('car_4', 'steal_car', SUPERSTORE_LOT.x0 + 2, SUPERSTORE_LOT.y0 + 2, { facing: Math.PI / 2 });
+  // (v0.57: the meter at the head of the bay, by the store's back wall; the car came in from the street on the north,
+  // nose-in to it, like the parking lot's south bays.)
+  node('meter_5', 'parking_meter', SUPERSTORE_LOT.x0 + 2, SUPERSTORE_LOT.y1, { facing: Math.PI });
+  node('car_4', 'steal_car', SUPERSTORE_LOT.x0 + 2, SUPERSTORE_LOT.y1 - 1, { facing: -Math.PI / 2 });
   // Four shelves at the gas station, either side of the fridge.
   [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
@@ -1056,15 +1113,20 @@ export const parkedTiles = (c: ParkedCar): [number, number][] =>
 
 /** Tiles you can't walk through: buildings, fixtures, fixed spots and parked cars. Streets, alleys, parks and shop floors are open. */
 export function buildBlocked(): Uint8Array {
-  const g = new Uint8Array(GW * GH);
-  // Below the island only the sewer's walkways and bridges are open.
-  for (let y = H; y < GH; y++) for (let x = 0; x < GW; x++) if (!inSewer(x, y) || isSewage(x, y)) g[y * W + x] = 1;
+  const g = new Uint8Array(GRID.w * GRID.h);
+  // Outside the island only the beach (v0.57), the sewer's walkways and its bridges are open; rocks on the beach are solid.
+  for (let y = GRID.y0; y < GRID.y0 + GRID.h; y++)
+    for (let x = GRID.x0; x < GRID.x0 + GRID.w; x++) {
+      if (x >= 0 && y >= 0 && x < W && y < H) continue;
+      if (onBeach(x, y) ? false : !inSewer(x, y) || isSewage(x, y)) g[gi(x, y)] = 1;
+    }
+  for (const r of COAST_ROCKS) g[gi(r.x, r.y)] = 1;
   // The Rat Nest's gate is shut (StreetView opens it for players who unlocked it).
-  g[NEST_GATE[1] * W + NEST_GATE[0]] = 1;
-  for (const c of PARKED_CARS) for (const [x, y] of parkedTiles(c)) g[y * W + x] = 1;
-  for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[y * W + x] = 1;
-  for (const f of FIXTURES) g[f.y * W + f.x] = 1;
-  for (const n of NODES) if (!n.wanders) g[n.y * W + n.x] = 1;
+  g[gi(...NEST_GATE)] = 1;
+  for (const c of PARKED_CARS) for (const [x, y] of parkedTiles(c)) g[gi(x, y)] = 1;
+  for (const b of BUILDINGS) for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) g[gi(x, y)] = 1;
+  for (const f of FIXTURES) g[gi(f.x, f.y)] = 1;
+  for (const n of NODES) if (!n.wanders) g[gi(n.x, n.y)] = 1;
   return g;
 }
 

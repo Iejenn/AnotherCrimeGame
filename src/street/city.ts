@@ -8,10 +8,10 @@
 import * as THREE from 'three';
 import { SURFACES, buildFloor } from './floor';
 import { DETAIL_GAIN, animateWater, waterTexture } from './textures';
-import { SHALLOWS, coastAt } from './coast';
+import { COAST_ROCKS, SHALLOWS, coastAt } from './coast';
 import {
   BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
-  PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
+  PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, gi, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SUPERSTORE, SUPERSTORE_GATE, SUPERSTORE_LOT, SUPERSTORE_YARD,
   CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
@@ -154,15 +154,9 @@ export function buildCity(scene: THREE.Scene) {
   // Rocks along the waterline: on sand tiles next to the water. (Their own random numbers; the city's shared ones
   // move on as many as the old rocks took, so nothing placed after them moves.)
   for (let i = 0; i < 450; i++) rng();
-  const rockRng = mulberry32(99);
+  // (v0.57: the map's list, COAST_ROCKS: they're solid, so walking and drawing must agree on where they are.)
   const rocks = new Batch(own(new THREE.DodecahedronGeometry(0.35, 0)), lam(C.rock, { flatShading: true }));
-  for (let y = -SHALLOWS; y < H + SHALLOWS; y++)
-    for (let x = -SHALLOWS; x < W + SHALLOWS; x++) {
-      if (coastAt(x, y) !== 'sand' || ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => coastAt(x + dx, y + dy) === 'water')) continue;
-      if (rockRng() < 0.75) continue;
-      const sc = 0.5 + rockRng() * 1.1;
-      rocks.add(x + 0.2 + rockRng() * 0.6, -0.2, y + 0.2 + rockRng() * 0.6, sc, sc * (0.5 + rockRng() * 0.4), sc, rockRng() * 6);
-    }
+  for (const r of COAST_ROCKS) rocks.add(r.x + r.ox, -0.2, r.y + r.oz, r.sc, r.sy, r.sc, r.rot);
   rocks.build(scene);
 
   // ---------- streets: a road for two cars (dashed centre line), zebra crossings, curbs and sidewalks ----------
@@ -418,7 +412,7 @@ export function buildCity(scene: THREE.Scene) {
       if (lot.kind !== 'buildings') continue;
       // Free tiles inside the lot (alleys and gaps between its buildings): one in three gets a dumpster.
       const free: [number, number][] = [];
-      for (let y = lot.rect.y0; y <= lot.rect.y1; y++) for (let x = lot.rect.x0; x <= lot.rect.x1; x++) if (!blocked[y * W + x]) free.push([x, y]);
+      for (let y = lot.rect.y0; y <= lot.rect.y1; y++) for (let x = lot.rect.x0; x <= lot.rect.x1; x++) if (!blocked[gi(x, y)]) free.push([x, y]);
       if (!free.length || rng() < 0.35) continue;
       const [x, y] = free[Math.floor(rng() * free.length)];
       const rot = rng() < 0.5 ? 0 : Math.PI / 2;
@@ -1799,8 +1793,9 @@ export function buildCity(scene: THREE.Scene) {
     // The parking spot: asphalt, painted bay lines, a wheel stop at the head of the bay with the meter.
     add(geoBox(L.x1 - L.x0 + 1, 0.08, L.y1 - L.y0 + 1), lam(0x34363c), (L.x0 + L.x1 + 1) / 2, 0.04, (L.y0 + L.y1 + 1) / 2, false);
     const paint = lam(0xd8d2c4);
-    for (const dx of [1, 4]) add(geoBox(0.06, 0.01, 3.2), paint, L.x0 + dx + 0.5, 0.085, L.y0 + 2.8, false);
-    add(geoBox(1.2, 0.08, 0.16), lam(0x9a9286), L.x0 + 2.5, 0.1, L.y0 + 1.6, false);
+    // (v0.57: the bay runs from the street on the north to the meter at its head, by the store's wall.)
+    for (const dx of [1, 4]) add(geoBox(0.06, 0.01, 3.2), paint, L.x0 + dx + 0.5, 0.085, L.y1 - 0.6, false);
+    add(geoBox(1.2, 0.08, 0.16), lam(0x9a9286), L.x0 + 2.5, 0.1, L.y1 + 0.2, false);
 
     // The yard.
     const Y = SUPERSTORE_YARD;

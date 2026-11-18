@@ -8,7 +8,7 @@
 // has the same paths, in a table (game.roam_paths, printed by scripts/roam-paths-sql.ts), and walks them the same way
 // (game.path_point), so everyone agrees where an enemy is.
 import { shotLine, walkBit, walkMasks } from '../street/sight';
-import { W } from '../street/map';
+import { gi } from '../street/map';
 
 type Tile = [number, number];
 const key = (a: Tile, b: Tile) => `${a[0]},${a[1]},${b[0]},${b[1]}`;
@@ -26,7 +26,7 @@ function straight(a: Tile, b: Tile, tiles: Set<string>) {
   if (![...line, ...corners].every(([x, y]) => tiles.has(`${x},${y}`))) return false;
   let [px, py] = a;
   for (const [x, y] of line) {
-    if (!(m[py * W + px] & (1 << walkBit(x - px, y - py)))) return false;
+    if (!(m[gi(px, py)] & (1 << walkBit(x - px, y - py)))) return false;
     [px, py] = [x, y];
   }
   return true;
@@ -47,7 +47,7 @@ function bfs(a: Tile, b: Tile, tiles: Set<string>): Tile[] | null {
     }
     dirs.forEach(([dx, dy], i) => {
       const n = `${cx + dx},${cy + dy}`;
-      if (!tiles.has(n) || came.has(n) || !(m[cy * W + cx] & (1 << i))) return;
+      if (!tiles.has(n) || came.has(n) || !(m[gi(cx, cy)] & (1 << i))) return;
       came.set(n, `${cx},${cy}`);
       q.push([cx + dx, cy + dy]);
     });

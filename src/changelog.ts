@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.57.0',
+    date: '2026-11-18',
+    title: 'Beach walks',
+    items: [
+      'You can walk on the beach now, all the way round the island. Mind the rocks along the waterline.',
+      "The Yard's burning barrel is a cooking spot, like the one in the sewer: cook your food there too.",
+      "Fixed the Superstore's parking spot: the meter stands at the head of the bay now, and the car is parked nose-in to it (it couldn't have got in before).",
+    ],
+  },
+  {
     version: '0.56.0',
     date: '2026-11-18',
     title: 'Aluminium',

@@ -13,7 +13,7 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { clearShot, routeMs, routePoint } from './sight';
 import { rangedWeapon } from '../game/combat';
@@ -410,7 +410,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     const strollStep = (tx: number, ty: number, area: { x0: number; y0: number; x1: number; y1: number }, avoid: [number, number][] = []) => {
       const opts = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const)
         .map(([dx, dy]) => [tx + dx, ty + dy] as [number, number])
-        .filter(([x, y]) => inRect(area, x, y) && !blocked[y * W + x] && canStep(tx, ty, x, y) && !avoid.some(([ax, ay]) => ax === x && ay === y));
+        .filter(([x, y]) => inRect(area, x, y) && !blocked[gi(x, y)] && canStep(tx, ty, x, y) && !avoid.some(([ax, ay]) => ax === x && ay === y));
       return opts.length ? opts[Math.floor(Math.random() * opts.length)] : null;
     };
     // The basketball game on the court.
@@ -436,7 +436,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       setTalkingRef.current(null);
       yell(npc.id, crime.yell ?? 'Hey!');
       const [px, py] = tileOf(me.pos.x, me.pos.z);
-      const path = findPath(blocked, W, GH, tileOf(w.pos.x, w.pos.z), neighbors(px, py), canStep) ?? [];
+      const path = findPath(blocked, GRID, tileOf(w.pos.x, w.pos.z), neighbors(px, py), canStep) ?? [];
       const timeLeft = Math.max(0.4, CATCH_SECONDS - (gameNow() - at) / 1000 - 0.3);
       w.mode = 'rush';
       w.path = path;
@@ -522,11 +522,11 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     const findNodeFor = (crimeId: string) => NODES.find((n) => n.crimeId === crimeId && !n.wanders);
     const standSpot = (n: StreetNode) => {
       const [nx, ny] = nodeTile(n);
-      return neighbors(nx, ny).find(([x, y]) => x >= 0 && y >= 0 && x < W && y < GH && !blocked[y * W + x]) ?? SPAWN;
+      return neighbors(nx, ny).find(([x, y]) => inGrid(x, y) && !blocked[gi(x, y)]) ?? SPAWN;
     };
     // Back on the Street (after another tab, or a reload): stand where you were.
     const saved = sRef.current.player.pos;
-    if (saved && saved[0] >= 0 && saved[1] >= 0 && saved[0] < W && saved[1] < GH && !blocked[saved[1] * W + saved[0]]) me.pos = center(...saved);
+    if (saved && inGrid(saved[0], saved[1]) && !blocked[gi(saved[0], saved[1])]) me.pos = center(...saved);
     // Coming back to the Street mid-job: stand where that job happens.
     const myJob = sRef.current.player.job;
     if (myJob) {
@@ -560,7 +560,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const key = `${goal[0]},${goal[1]},${beside}`;
       if (v.routeKey !== key) {
         v.routeKey = key;
-        v.route = findPath(blocked, W, GH, from, beside ? neighbors(...goal) : [goal], canStep) ?? [];
+        v.route = findPath(blocked, GRID, from, beside ? neighbors(...goal) : [goal], canStep) ?? [];
       }
       let budget = speed * dt;
       while (v.route.length && budget > 0) {
@@ -599,7 +599,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         for (let dy = -rw.range; dy <= rw.range; dy++)
           for (let dx = -rw.range; dx <= rw.range; dx++) {
             const [tx, ty] = [ex + dx, ey + dy];
-            if (tx >= 0 && ty >= 0 && tx < W && ty < GH && !blocked[ty * W + tx] && canThrowFrom([tx, ty], at, rw.range)) goals.push([tx, ty]);
+            if (inGrid(tx, ty) && !blocked[gi(tx, ty)] && canThrowFrom([tx, ty], at, rw.range)) goals.push([tx, ty]);
           }
         if (!goals.length) return say("You can't get a clear throw at that.");
         if (walkTo(goals, null)) {
@@ -784,7 +784,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
      *  the yard, not from the street reaching through the fence. */
     const beside = (x: number, y: number) => neighbors(x, y).filter(([nx, ny]) => enclosureAt(nx, ny) === enclosureAt(x, y));
     const walkTo = (goals: [number, number][], goal: StreetNode | null, npc: Npc | null = null) => {
-      const path = findPath(blocked, W, GH, tileOf(me.pos.x, me.pos.z), goals, canStep);
+      const path = findPath(blocked, GRID, tileOf(me.pos.x, me.pos.z), goals, canStep);
       if (!path) {
         say("You can't reach that.");
         return false;
@@ -1022,12 +1022,12 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       // From downstairs, the ward's tiles count as building (you'd only get there by the stairs, on purpose).
       const upHere = isUpstairs(...tileOf(me.pos.x, me.pos.z));
       const below = inSewer(...tileOf(me.pos.x, me.pos.z));
-      const solid = (x: number, y: number) => !onMap(x, y) || !!blocked[y * W + x] || (!upHere && isUpstairs(x, y)) || inSewer(x, y) !== below;
+      const solid = (x: number, y: number) => !onMap(x, y) || !inGrid(x, y) || !!blocked[gi(x, y)] || (!upHere && isUpstairs(x, y)) || inSewer(x, y) !== below;
       for (let r = 1; (!onMap(tx, ty) || solid(tx, ty)) && r <= 6; r++) {
         goals = [];
         for (let y = ty - r; y <= ty + r; y++)
           for (let x = tx - r; x <= tx + r; x++)
-            if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) === r && x >= 0 && y >= 0 && x < W && y < GH && !solid(x, y)) goals.push([x, y]);
+            if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) === r && inGrid(x, y) && !solid(x, y)) goals.push([x, y]);
         if (goals.length) break;
       }
       if (walkTo(goals, null)) {
@@ -1433,7 +1433,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       }
       // The Rat Nest's gate: open (and walkable) only for you, once you unlocked it.
       const gateOpen = !!st.unlocked?.includes('rat_nest');
-      blocked[NEST_GATE[1] * W + NEST_GATE[0]] = gateOpen ? 0 : 1;
+      blocked[gi(...NEST_GATE)] = gateOpen ? 0 : 1;
       city.setGateOpen(gateOpen);
       // The Biker Club: while you're inside and not fighting, a biker jumps you (the server picks a free one). Walk out
       // the door and the fight ends: they don't follow you outside.
@@ -1537,7 +1537,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               // Walk back to where his routine has him now (the bartender's spot, the guard's place on his route).
           const home: [number, number] =
             npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? [npc.area.x0 + bartenderAt(gameNow()).spot, npc.area.y0] : [npc.x, npc.y];
-          w.path = findPath(blocked, W, GH, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
+          w.path = findPath(blocked, GRID, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
             }
           } else if (followPath(w, g, dt)) {
             w.mode = 'normal';
