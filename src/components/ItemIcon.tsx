@@ -147,6 +147,22 @@ const CopperSalvage = () => (
     <path d="M8 19 L24 13" stroke="#e8a070" strokeWidth="0.9" />
   </svg>
 );
+/** Aluminium salvage (v0.56): two crushed soda cans and a crumpled sheet of foil. */
+const AluminiumSalvage = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <path d="M6 30 L10 18 L16 21 L14 25 L18 27 L15 34 Z" fill="#c8ced6" stroke="#5a6068" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M9 24 L15 26" stroke="#ffffff" strokeWidth="0.9" />
+    <g transform="rotate(-25 22 16)">
+      <path d="M15 9 H27 L26 14 L28 18 L26 23 H16 L14 18 L16 14 Z" fill="#b84a4a" stroke="#5a2a2a" strokeWidth="1" strokeLinejoin="round" />
+      <rect x="15" y="7.5" width="12" height="2" rx="0.6" fill="#d8dde2" stroke="#5a6068" strokeWidth="0.7" />
+      <path d="M17 17 L25 15" stroke="#e8e0d8" strokeWidth="1.4" />
+    </g>
+    <g transform="rotate(30 29 28)">
+      <path d="M23 23 H35 L34 27 L35.5 30 L34 34 H24 L22.5 30 L24 27 Z" fill="#3a6aa8" stroke="#1a2a48" strokeWidth="1" strokeLinejoin="round" />
+      <rect x="23" y="21.5" width="12" height="2" rx="0.6" fill="#d8dde2" stroke="#5a6068" strokeWidth="0.7" />
+    </g>
+  </svg>
+);
 /** A little glass vial of green antidote with a cork. */
 const Antidote = () => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
@@ -176,7 +192,7 @@ for (const id of MODEL_ICONS) ICONS[id] = () => <img src={`${import.meta.env.BAS
 // Every metal's items (docs/design.md §14), drawn in the metal's colours. Salvage: tin cans for tin (later metals get
 // their own scrap pictures).
 for (const [metal, t] of Object.entries(TONES)) {
-  ICONS[`${metal}_salvage`] = metal === 'copper' ? CopperSalvage : TinSalvage;
+  ICONS[`${metal}_salvage`] = metal === 'copper' ? CopperSalvage : metal === 'aluminium' ? AluminiumSalvage : TinSalvage;
   ICONS[`${metal}_sheet`] = () => <Sheet t={t} />;
   ICONS[`${metal}_knuckles`] = () => <Knuckles t={t} />;
   ICONS[`${metal}_bat`] = () => <Bat t={t} />;

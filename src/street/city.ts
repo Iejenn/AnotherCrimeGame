@@ -12,7 +12,7 @@ import {
   BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
   PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
-  MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
+  MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SUPERSTORE, SUPERSTORE_GATE, SUPERSTORE_LOT, SUPERSTORE_YARD,
   CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
@@ -1730,6 +1730,87 @@ export function buildCity(scene: THREE.Scene) {
     }
     const tyre = add(own(new THREE.TorusGeometry(0.2, 0.08, 6, 12)), lam(0x1e1e22), Y0 + 1.5, 0.09, Z0 + 3.5);
     tyre.rotation.x = Math.PI / 2;
+  }
+
+  // ---------- the Superstore, its yard and its parking spot (F-013; Scrapping: aluminium; v0.56) ----------
+  // A big supermarket on two lots, its front on the south street: white render with a blue band, a wall of lit shop
+  // windows, glass double doors, the SUPERSTORE sign with a little cloud on it and "STORE #1217" under it, shopping carts.
+  // Behind it on B its yard: concrete, a half-high brick wall with the gate on the east, bales of crushed cans, a loading
+  // door. On A its little parking spot: asphalt with painted bays and a wheel stop (the car and meter are spots).
+  {
+    const X0 = SUPERSTORE.x0, X1 = SUPERSTORE.x1 + 1, Z0 = SUPERSTORE.y0, Z1 = SUPERSTORE.y1 + 1;
+    const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
+    const HT = 2.4;
+    add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
+    const mRender = lam(0xe2ded6);
+    const mBlue = lam(0x2a5a9a);
+    const walls = [add(geoBox(X1 - X0, HT, Z1 - Z0), mRender, cx, HT / 2, cz)];
+    const r = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const props: THREE.Object3D[] = [kit.roof(r, HT, 0x4a4d52, 0.05, 0.08), ...kit.parapet({ x0: X0 - 0.02, z0: Z0 - 0.02, x1: X1 + 0.02, z1: Z1 + 0.02 }, HT + 0.08, 0x2a5a9a)];
+    props.push(...kit.acUnit(X0 + 2, HT + 0.05, Z0 + 1.5, true), ...kit.acUnit(X1 - 2.5, HT + 0.05, Z0 + 1.2, true), ...kit.vent(cx, HT + 0.12, Z0 + 2, 0.14, 0.4));
+    // The front: a blue band along the top, the sign, the windows either side of the doors.
+    const f = face(r, 's');
+    const u = (x: number) => uOf(f, x);
+    props.push(add(geoBox(X1 - X0 + 0.04, 0.42, 0.06), mBlue, cx, HT - 0.32, Z1 + 0.03, false));
+    const sign = kit.sign(f, u(cx), 2.05, { text: 'SUPERSTORE', bg: '#ffffff', fg: '#1e4a8a', w: 4.2, h: 0.62, board: 0x1e3a6a, out: 0.12 });
+    // The little cloud on the sign, left of the name (puffs of white on a blue disc).
+    const cloudAt = (dx: number, dy: number, rr: number) => add(own(new THREE.IcosahedronGeometry(rr, 0)), lam(0xffffff, { emissive: 0xffffff, emissiveIntensity: 0.25 }), cx - 2.5 + dx, 2.05 + dy, Z1 + 0.22, false);
+    add(own(new THREE.CylinderGeometry(0.36, 0.36, 0.05, 10)), mBlue, cx - 2.5, 2.05, Z1 + 0.18, false).rotation.x = Math.PI / 2;
+    for (const [dx, dy, rr] of [[-0.12, -0.03, 0.12], [0.02, 0.05, 0.15], [0.16, -0.03, 0.11]]) cloudAt(dx, dy, rr);
+    const plate = kit.sign(f, u(cx + 3.4), 1.55, { text: 'STORE #1217', bg: '#1e3a6a', fg: '#ffffff', w: 1.3, h: 0.28, board: 0x14284a });
+    kit.door(f, u(cx), { style: 'double', w: 1.4, h: 1.3, color: 0x9ab8c8, frame: 0x8a8f96, step: false });
+    for (const dx of [-3.6, -2.0, 2.0, 3.6]) kit.window(f, u(cx + dx), 0.2, { style: 'shop', w: 1.4, h: 1.05, frame: 0x8a8f96, lit: true });
+    for (const x of [X0 + 0.15, X1 - 0.15]) kit.drainpipe(f, u(x), HT);
+    // A loading door at the back, onto the yard, with a bulb.
+    const fn = face(r, 'n');
+    kit.door(fn, uOf(fn, SUPERSTORE_YARD.x0 + 2.5), { style: 'shutter', w: 1.6, h: 1.4, color: 0xa8adb4, light: 'bulb' });
+    fadeables.push({ walls, mats: [mRender], props: [...props, ...sign, ...plate], opacity: 1 });
+
+    // Shopping carts: a few in a corral at the parking spot, one left out on the sidewalk.
+    const cartMetal = lam(0xb8bcc2);
+    const cartRed = lam(0xc83a32);
+    const cart = (x: number, z: number, rot: number) => {
+      const parts: [number, number, number, number, number, number, THREE.Material][] = [
+        [0.5, 0.03, 0.34, 0, 0.32, 0, cartMetal], // the basket's floor
+        [0.5, 0.26, 0.02, 0, 0.46, -0.17, cartMetal], [0.5, 0.26, 0.02, 0, 0.46, 0.17, cartMetal], // its sides
+        [0.02, 0.26, 0.34, -0.25, 0.46, 0, cartMetal], [0.02, 0.26, 0.34, 0.25, 0.46, 0, cartMetal],
+        [0.04, 0.04, 0.4, 0.31, 0.66, 0, cartRed], // the handle
+        [0.5, 0.02, 0.02, 0, 0.12, -0.15, cartMetal], [0.5, 0.02, 0.02, 0, 0.12, 0.15, cartMetal], // the base
+      ];
+      const c = Math.cos(rot), sn = Math.sin(rot);
+      for (const [w, h, d, lx, ly, lz, m] of parts) add(geoBox(w, h, d), m, x + lx * c + lz * sn, ly, z - lx * sn + lz * c, false).rotation.y = rot;
+      for (const [lx, lz] of [[-0.2, -0.14], [0.2, -0.14], [-0.2, 0.14], [0.2, 0.14]]) add(geoBox(0.05, 0.08, 0.05), lam(0x1e1e22), x + lx * c + lz * sn, 0.04, z - lx * sn + lz * c, false);
+    };
+    const L = SUPERSTORE_LOT;
+    for (let i = 0; i < 3; i++) cart(L.x0 + 0.6 + i * 0.12, L.y1 + 0.5, 0);
+    cart(X1 - 1.2, Z1 + 0.7, 0.6);
+
+    // The parking spot: asphalt, painted bay lines, a wheel stop at the head of the bay with the meter.
+    add(geoBox(L.x1 - L.x0 + 1, 0.08, L.y1 - L.y0 + 1), lam(0x34363c), (L.x0 + L.x1 + 1) / 2, 0.04, (L.y0 + L.y1 + 1) / 2, false);
+    const paint = lam(0xd8d2c4);
+    for (const dx of [1, 4]) add(geoBox(0.06, 0.01, 3.2), paint, L.x0 + dx + 0.5, 0.085, L.y0 + 2.8, false);
+    add(geoBox(1.2, 0.08, 0.16), lam(0x9a9286), L.x0 + 2.5, 0.1, L.y0 + 1.6, false);
+
+    // The yard.
+    const Y = SUPERSTORE_YARD;
+    const Yx0 = Y.x0, Yx1 = Y.x1 + 1, Yz0 = Y.y0, Yz1 = Y.y1 + 1;
+    add(geoBox(Yx1 - Yx0, 0.1, Yz1 - Yz0), lam(0x6a6862), (Yx0 + Yx1) / 2, 0.05, (Yz0 + Yz1) / 2, false);
+    const g0 = SUPERSTORE_GATE[0][1], g1 = SUPERSTORE_GATE[SUPERSTORE_GATE.length - 1][1] + 1;
+    kit.fence(Yx0, Yz0 + 0.1, Yx1, Yz0 + 0.1, 'halfBrick');
+    kit.fence(Yx0 + 0.1, Yz0, Yx0 + 0.1, Yz1, 'halfBrick');
+    kit.fence(Yx1 - 0.1, Yz0, Yx1 - 0.1, Yz1, 'halfBrick', { skip: (i) => Yz0 + i >= g0 && Yz0 + i < g1 });
+    // Bales of crushed cans (silver blocks with coloured flecks), stacked by the wall.
+    const bale = lam(0xc8ced6);
+    for (const [bx, bz, h] of [[Yx0 + 3.5, Yz0 + 2.4, 0], [Yx0 + 3.5, Yz0 + 2.4, 1], [Yx0 + 3.5, Yz0 + 3.3, 0]] as const) {
+      add(geoBox(0.7, 0.45, 0.6), bale, bx, 0.33 + h * 0.46, bz);
+      for (let i = 0; i < 4; i++) add(geoBox(0.12, 0.06, 0.02), lam([0xb84a4a, 0x3a6aa8, 0x4a9a4a, 0xd8b04a][i]), bx - 0.22 + i * 0.15, 0.3 + h * 0.46 + (i % 2) * 0.12, bz + 0.31, false);
+    }
+    // Loose cans on the ground.
+    for (let i = 0; i < 10; i++) {
+      const can = add(own(new THREE.CylinderGeometry(0.035, 0.035, 0.1, 6)), lam([0xd8dde2, 0xb84a4a, 0x3a6aa8][i % 3]), Yx0 + 0.6 + rng() * (Yx1 - Yx0 - 1.2), 0.14, Yz0 + 0.6 + rng() * (Yz1 - Yz0 - 1.2), false);
+      can.rotation.z = Math.PI / 2;
+      can.rotation.y = rng() * 6;
+    }
   }
 
   // ---------- the Factory and its parking lot (Industrial zone, I-003 + I-006; Tinkering) ----------

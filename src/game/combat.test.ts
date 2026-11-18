@@ -27,11 +27,12 @@ describe('combat maths (design §12)', () => {
     expect(k.defence ?? 0).toBe(0);
     // Sorted by kind, then metal; 30 × the metal in them.
     expect(SHOPS.weapons).toEqual([
-      { item: 'tin_knuckles', price: 150, amount: 1 }, { item: 'copper_knuckles', price: 300, amount: 1 },
-      { item: 'tin_bat', price: 300, amount: 1 }, { item: 'copper_bat', price: 600, amount: 1 },
-      { item: 'tin_knife', price: 150, amount: 1 }, { item: 'copper_knife', price: 300, amount: 1 },
+      { item: 'tin_knuckles', price: 150, amount: 1 }, { item: 'copper_knuckles', price: 300, amount: 1 }, { item: 'aluminium_knuckles', price: 600, amount: 1 },
+      { item: 'tin_bat', price: 300, amount: 1 }, { item: 'copper_bat', price: 600, amount: 1 }, { item: 'aluminium_bat', price: 1200, amount: 1 },
+      { item: 'tin_knife', price: 150, amount: 1 }, { item: 'copper_knife', price: 300, amount: 1 }, { item: 'aluminium_knife', price: 600, amount: 1 },
       // v0.51: throwing knives in packs of 10 at one sheet's price.
       { item: 'tin_throwing_knife', price: 150, amount: 10 }, { item: 'copper_throwing_knife', price: 300, amount: 10 },
+      { item: 'aluminium_throwing_knife', price: 600, amount: 10 },
     ]);
     // The bat: max hit 5, a swing every 3 s; the knife: max hit 1, every 1 s. All tin at level 1.
     const bat = ITEM_BY_ID.tin_bat.gear!;
@@ -97,6 +98,10 @@ describe('combat maths (design §12)', () => {
       ['copper_sheet', 11, 1, 2, 'press'], ['copper_knuckles', 12, 1, 6, 'bench'], ['copper_bat', 13, 2, 12, 'bench'], ['copper_knife', 14, 1, 6, 'bench'],
       ['copper_throwing_knife', 11, 1, 6, 'bench'],
       ['copper_helmet', 16, 1, 6, 'bench'], ['copper_legs', 17, 2, 12, 'bench'], ['copper_vest', 18, 3, 18, 'bench'],
+      // Aluminium (v0.56): from level 21, twice copper's XP.
+      ['aluminium_sheet', 21, 1, 4, 'press'], ['aluminium_knuckles', 22, 1, 12, 'bench'], ['aluminium_bat', 23, 2, 24, 'bench'], ['aluminium_knife', 24, 1, 12, 'bench'],
+      ['aluminium_throwing_knife', 21, 1, 12, 'bench'],
+      ['aluminium_helmet', 26, 1, 12, 'bench'], ['aluminium_legs', 27, 2, 24, 'bench'], ['aluminium_vest', 28, 3, 36, 'bench'],
     ]);
   });
 

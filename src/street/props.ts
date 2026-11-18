@@ -119,41 +119,64 @@ export function setSpotEmpty(g: THREE.Object3D, empty: boolean) {
 }
 
 /**
- * A rusty dumpster in the Thrift Store's yard (Scrapping). Full: the lid is flipped open and junk (cans, a pot, scrap)
- * sticks out. Empty (someone just found the salvage): the lid is shut. Opens towards +z. Uses the shelf convention
- * (userData.goods hides when empty, userData.emptyMark shows), so setSpotEmpty works on it.
+ * A salvage dumpster (Scrapping; v0.56 reworked): a real commercial dumpster, its front slanting in at the bottom, a
+ * rim, a rib down each side, fork pockets, four wheels, two black plastic lids. Its paint and what's in
+ * it depend on the metal: tin (a rusty one, cans and a pot), copper (green, pipe offcuts and a coil), aluminium (blue,
+ * the Superstore's: crushed soda cans and foil). Full: both lids thrown open and the junk heaped up; empty (someone just
+ * found the salvage): the lids shut. Opens towards +z. Uses the shelf convention (userData.goods hides when empty,
+ * userData.emptyMark shows), so setSpotEmpty works on it. About 300 triangles (prop budget).
  */
-export function buildScrapDumpster(): THREE.Group {
+export function buildScrapDumpster(metal: 'tin' | 'copper' | 'aluminium' = 'tin'): THREE.Group {
   const g = new THREE.Group();
-  const rust = new THREE.MeshLambertMaterial({ color: 0x8a5a3a, flatShading: true });
-  const dark = lambert(0x4a3a2e);
-  const body = new THREE.Mesh(boxGeo(0.92, 0.62, 0.7), rust);
-  body.position.set(0, 0.36, 0);
+  const paint = { tin: 0x8a5a3a, copper: 0x3a5a3e, aluminium: 0x2f5a8a }[metal];
+  const trim = { tin: 0x5a3a28, copper: 0x24382a, aluminium: 0x1e3a5a }[metal];
+  // The body: a side profile (back straight up, the front slanting in at the bottom) pushed out across its width.
+  const profile = new THREE.Shape([
+    new THREE.Vector2(-0.34, 0.1), new THREE.Vector2(0.2, 0.1), new THREE.Vector2(0.36, 0.7), new THREE.Vector2(-0.34, 0.7),
+  ]);
+  const bodyGeo = new THREE.ExtrudeGeometry(profile, { depth: 0.94, bevelEnabled: false, curveSegments: 1 });
+  bodyGeo.rotateY(-Math.PI / 2);
+  bodyGeo.translate(0.47, 0, 0);
+  const body = new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: paint, flatShading: true }));
   body.castShadow = body.receiveShadow = true;
   g.add(body);
-  // Ribs on the sides, a darker rim, little wheels, a sliding side door.
-  for (const x of [-0.3, 0, 0.3]) add(g, boxGeo(0.05, 0.6, 0.72), 0x6a4430, x, 0.36, 0, false);
-  add(g, boxGeo(0.96, 0.05, 0.74), 0x5a3a28, 0, 0.67, 0, false);
-  for (const [x, z] of [[-0.38, -0.26], [0.38, -0.26], [-0.38, 0.26], [0.38, 0.26]]) add(g, cylGeo(0.05, 0.05, 6), 0x1e1e22, x, 0.05, z, false);
-  add(g, boxGeo(0.3, 0.22, 0.02), 0x6a4430, 0.2, 0.36, 0.36, false);
-  // Full: junk on top and the lid flipped open, hanging down the back.
-  const goods = new THREE.Group();
-  const junk = [0xb8bcc2, 0x9aa0a6, 0x7a7e84, 0xc8a06a, 0x5a5f66];
-  for (let i = 0; i < 7; i++) {
-    const can = add(goods, cylGeo(0.05, 0.12, 8), junk[i % junk.length], -0.3 + (i % 4) * 0.2, 0.7 + (i % 2) * 0.04, -0.18 + Math.floor(i / 4) * 0.3, false);
-    can.rotation.set(i * 0.9, i, i * 0.5);
+  // The rim round the top, a rib down each side, fork pockets, wheels.
+  add(g, boxGeo(0.98, 0.05, 0.74), trim, 0, 0.71, 0.01, false);
+  for (const x of [-0.47, 0.47]) {
+    add(g, boxGeo(0.03, 0.5, 0.05), trim, x * 1.01, 0.42, -0.02, false);
+    add(g, boxGeo(0.06, 0.08, 0.5), 0x2b2b2e, x * 1.03, 0.3, -0.04, false);
   }
-  add(goods, boxGeo(0.3, 0.1, 0.22), 0x3a3d42, 0.05, 0.7, 0.05, false).rotation.y = 0.4;
-  const openLid = new THREE.Mesh(boxGeo(0.94, 0.04, 0.72), dark);
-  openLid.position.set(0, 0.5, -0.38);
-  openLid.rotation.x = -1.35;
-  goods.add(openLid);
+  for (const [x, z] of [[-0.38, -0.26], [0.38, -0.26], [-0.38, 0.14], [0.38, 0.14]]) add(g, boxGeo(0.06, 0.1, 0.1), 0x1e1e22, x, 0.05, z, false);
+  // A stencilled number on the front.
+  add(g, boxGeo(0.22, 0.1, 0.01), 0xd8d2c4, 0.22, 0.48, 0.305, false).rotation.x = -0.26;
+  // Full: both lids thrown back over the rear, the junk heaped up.
+  const goods = new THREE.Group();
+  for (const x of [-0.24, 0.24]) {
+    const lid = add(goods, boxGeo(0.46, 0.04, 0.7), 0x1e1e22, x, 0.6, -0.42, false);
+    lid.rotation.x = -1.7;
+  }
+  const junk = {
+    tin: [0xb8bcc2, 0x9aa0a6, 0x7a7e84, 0xc8a06a],
+    copper: [0xc07040, 0xd88a50, 0x9a5a30, 0xe0a070],
+    aluminium: [0xd8dde2, 0xb84a4a, 0x3a6aa8, 0xe8ecf0],
+  }[metal];
+  for (let i = 0; i < 5; i++) {
+    const x = -0.3 + (i % 3) * 0.28, z = -0.16 + Math.floor(i / 3) * 0.3, y = 0.74 + (i % 3) * 0.04;
+    const piece =
+      metal === 'copper' && i % 2 === 0
+        ? add(goods, cylGeo(0.03, 0.36, 5), junk[i % junk.length], x, y, z, false) // pipe offcuts
+        : metal === 'aluminium' && i % 3 === 2
+          ? add(goods, boxGeo(0.22, 0.03, 0.18), junk[3], x, y, z, false) // crumpled foil
+          : add(goods, cylGeo(0.05, metal === 'aluminium' ? 0.08 : 0.12, 5), junk[i % junk.length], x, y, z, false); // cans
+    piece.rotation.set(i * 0.9 + 0.4, i, i * 0.5);
+  }
+  if (metal === 'copper') add(goods, new THREE.TorusGeometry(0.12, 0.025, 4, 8), junk[0], 0.1, 0.8, 0.05, false).rotation.x = 1.2;
+  else if (metal === 'tin') add(goods, boxGeo(0.3, 0.1, 0.22), 0x3a3d42, 0.05, 0.76, 0.05, false).rotation.y = 0.4;
+  else add(goods, boxGeo(0.34, 0.12, 0.26), 0x8a7a5a, 0.05, 0.78, 0.02, false).rotation.y = -0.3; // a split carton
   g.add(goods);
-  // Empty: the lid shut.
-  const shut = new THREE.Mesh(boxGeo(0.94, 0.05, 0.72), dark);
-  shut.position.set(0, 0.7, 0);
-  shut.rotation.x = -0.05;
-  shut.castShadow = true;
+  // Empty: both lids shut.
+  const shut = new THREE.Group();
+  for (const x of [-0.24, 0.24]) add(shut, boxGeo(0.46, 0.05, 0.74), 0x1e1e22, x, 0.75, 0.01, true).rotation.x = -0.04;
   shut.visible = false;
   g.add(shut);
   g.userData.goods = goods;

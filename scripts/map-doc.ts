@@ -2,7 +2,7 @@
 // lot), from src/street/map.ts, so the map we talk about is always the map in the game.
 // Run: npx vite-node scripts/map-doc.ts
 import { writeFileSync } from 'node:fs';
-import { AREAS, BCOLS, BROWS, BLOCK_SIZE, COURT, H, HOSPITAL, LOTS, PARKING, PLAZA, PARK_JOINS, inPark, ROOMS, SPAWN, STATIONS, W, YARD, blockName, blockRect, inRect, type Lot } from '../src/street/map';
+import { AREAS, BCOLS, BROWS, BLOCK_SIZE, COURT, H, HOSPITAL, LOTS, PARKING, PLAZA, SUPERSTORE, SUPERSTORE_LOT, SUPERSTORE_YARD, PARK_JOINS, inPark, ROOMS, SPAWN, STATIONS, W, YARD, blockName, blockRect, inRect, type Lot } from '../src/street/map';
 
 const PX = 14; // pixels per tile
 const M = 30; // margin
@@ -20,6 +20,9 @@ function describe(lot: Lot): [string, string] {
   if (room) return [AREAS.find((a) => a.id === room.id)?.name ?? room.name, COLORS[room.id] ?? COLORS.buildings];
   if (inRect(COURT, c, r)) return ['Basketball court', COLORS.court];
   if (inRect(YARD, c, r)) return ['The Yard (thugs)', COLORS.yard];
+  if (inRect(SUPERSTORE, c, r)) return ['Superstore', '#2a5a9a'];
+  if (inRect(SUPERSTORE_YARD, c, r)) return ['Superstore yard', '#5f5c56'];
+  if (inRect(SUPERSTORE_LOT, c, r)) return ['Superstore parking', COLORS.parking];
   if (inRect(PLAZA, c, r)) return ['Central Park: the Plaza', '#9a9286'];
   if (inPark(c, r)) return ['Central Park', COLORS.bigpark];
   if (PARKING.some((p) => inRect(p, c, r))) return ['Parking lot', COLORS.parking];

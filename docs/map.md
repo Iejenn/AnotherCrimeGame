@@ -145,10 +145,10 @@ This page and the picture are generated from the game's map: after changing `src
 | F-012-B | Buildings | 148–152 | 58–62 |
 | F-012-C | Buildings | 143–147 | 63–67 |
 | F-012-D | Buildings | 148–152 | 63–67 |
-| F-013-A | Buildings | 109–113 | 75–79 |
-| F-013-B | Buildings | 114–118 | 75–79 |
-| F-013-C | Buildings | 109–113 | 80–84 |
-| F-013-D | Buildings | 114–118 | 80–84 |
+| F-013-A | Superstore parking | 109–113 | 75–79 |
+| F-013-B | Superstore yard | 114–118 | 75–79 |
+| F-013-C | Superstore | 109–113 | 80–84 |
+| F-013-D | Superstore | 114–118 | 80–84 |
 | F-014-A | Buildings | 126–130 | 75–79 |
 | F-014-B | Buildings | 131–135 | 75–79 |
 | F-014-C | Buildings | 126–130 | 80–84 |

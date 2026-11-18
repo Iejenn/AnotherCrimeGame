@@ -714,7 +714,7 @@ aluminium complete; brass and up are members-only, brass sheets included.
 |---|---|---|---|---|
 | 1 | Tin | 1 | free | cans in bins and dumpsters, all over the city |
 | 2 | Copper | 11 | free | AC units and wiring: the **Warehouse** (block 009, 5 crates) |
-| 3 | Aluminium | 21 | free | car parts and rims: a scrapyard (east side) |
+| 3 | Aluminium | 21 | free | **built (v0.56):** the **Superstore** (F-013, a supermarket; store #1217, a nod to the TV show), five dumpsters of crushed cans in its yard: Scrapping 21, 35%, 20 XP. Next to it a little parking spot with one car and one meter (unguarded, slow on purpose). |
 | 4 | Brass | 31 | members | old plumbing, taps: the sewer, old apartments |
 | 5 | Bronze | 41 | members | statues, plaques: a monument square |
 | 6 | Iron | 51 | members | railings, grates, pipes: the docks |

@@ -120,6 +120,14 @@ export const CRIMES: CrimeDef[] = [
     flavor: ['Offcuts of copper pipe.', 'An old boiler coil, still shiny underneath.'],
     failLines: ['You find nothing useful.'],
   },
+  // v0.56: aluminium, from the dumpsters behind the Superstore (F-013). Level 21, 35%, 20 XP (doubling per tier).
+  {
+    id: 'aluminium_salvage', skill: 'scrapping', name: 'Aluminium Salvaging', level: 21, ticks: 4, duration: 0, baseChance: 0.35, xp: 20,
+    cashMin: 0, cashMax: 0, items: ['aluminium_salvage'], failDamage: 0, failStun: 0, refill: 15,
+    spot: { kind: 'dumpster', label: 'Dumpster', where: 'Behind the Superstore (F-013)' },
+    flavor: ['Crushed cans, a whole bag of them.', 'Dented baking trays and a roll of foil.', 'A pallet of dented soda cans. Nobody will miss them.'],
+    failLines: ['You find nothing useful.'],
+  },
 ].map((c) => ({ ...c, skill: c.skill as SkillId, duration: c.ticks * TICK_SECONDS }) as CrimeDef);
 
 export const CRIME_BY_ID: Record<string, CrimeDef> = Object.fromEntries(CRIMES.map((c) => [c.id, c]));

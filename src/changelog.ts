@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.56.0',
+    date: '2026-11-18',
+    title: 'Aluminium',
+    items: [
+      'New metal: aluminium (level 21). Salvage it, press it into sheets and make aluminium knuckles, bats, knives, throwing knives, helmets, leg guards and vests. Ray sells the aluminium weapons too.',
+      'The Superstore opened in the south-east (F-013). Its dumpsters out back are full of crushed cans: Aluminium Salvaging, Scrapping level 21.',
+      'Next to the Superstore: a little parking spot with a car to steal from and a meter to pry open. No guard, but only one of each.',
+      "The salvage dumpsters got a makeover: proper dumpsters with two lids, in each yard's own colour, with the right junk inside.",
+    ],
+  },
+  {
     version: '0.55.0',
     date: '2026-11-18',
     title: 'Curvy shores',
