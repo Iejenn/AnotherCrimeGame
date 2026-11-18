@@ -341,4 +341,23 @@ select case when (select abs(w.x - 48.500000) < 0.001 and abs(w.z - 48.736096) <
   case when (select count(*) from public.players t join (values (41, '101111111111111111111111111'), (42, '101101111111111111111111111'), (43, '101101111001100000010001111'), (44, '101101111000100000000000011'), (45, '101100000000000000000000011'), (46, '101101000000000111100110011'), (47, '000000000001000000000000011'), (48, '101110001000000000000000111'), (49, '000000000000010000000000011'), (50, '000001110111110111110111111')) s(y, bits) on t.pos_y = s.y and t.pos_x between 41 and 67
     and substr(s.bits, t.pos_x - 40, 1) = '1') = 0 then 'ok' else 'SOMEONE STUCK' end as players;
 
+-- Guard: if the walk map, the site's walls, the spots or the walks aren't exactly the game's, stop here (nothing is kept).
+do $$
+begin
+  if (select md5(string_agg(masks, '' order by y)) from game.walk_map) <> '0ddf95369f0f2d595d504f523e29c69e' then raise exception '0041: the walk map is not the game''s'; end if;
+  if (select md5(string_agg(concat_ws(',', x0, y0, x1, y1), ';' order by x0, y0)) from game.shot_walls where x0 between 41 and 67 and y0 between 41 and 50) <> 'da54519299760845a64d6662a5117f90' then raise exception '0041: the walls are not the game''s'; end if;
+  if (select md5(string_agg(concat_ws(',', id, x, y), ';' order by id)) from public.spots where crime_id = 'pick_drunk') <> '206fb63efac8908ba59e68e4f188367e' then raise exception '0041: the drunks are not the game''s'; end if;
+  if (select count(*) from public.enemies where kind = 'thug') <> 8 or (select y from public.stations where id = 'barrel_1') <> 44 then raise exception '0041: thugs or barrel wrong'; end if;
+  if not ((select abs(w.x - 48.500000) < 0.001 and abs(w.z - 48.736096) < 0.001 from game.enemy_at('thug', 4, 1763000000097) w)
+    and (select abs(w.x - 54.500000) < 0.001 and abs(w.z - 44.655000) < 0.001 from game.enemy_at('thug', 1, 1763000000582) w)
+    and (select abs(w.x - 34.183000) < 0.001 and abs(w.z - 125.500000) < 0.001 from game.enemy_at('rat', 8, 1763000065669) w)
+    and (select abs(w.x - 41.500000) < 0.001 and abs(w.z - 116.106763) < 0.001 from game.enemy_at('rat', 4, 1763000105051) w)
+    and (select abs(w.x - 10.065333) < 0.001 and abs(w.z - 46.065333) < 0.001 from game.enemy_at('dog', 3, 1763000001164) w)
+    and (select abs(w.x - 9.030667) < 0.001 and abs(w.z - 45.030667) < 0.001 from game.enemy_at('dog', 3, 1763000001552) w)
+    and (select abs(w.x - 53.931332) < 0.001 and abs(w.z - 117.353003) < 0.001 from game.enemy_at('giant_rat', 0, 1763000000388) w)
+    and (select abs(w.x - 53.504830) < 0.001 and abs(w.z - 117.992755) < 0.001 from game.enemy_at('giant_rat', 0, 1763000000679) w)
+    and (select abs(w.x - 26.568795) < 0.001 and abs(w.z - 10.500000) < 0.001 from game.enemy_at('biker', 2, 1763000000000) w)
+    and (select abs(w.x - 26.996973) < 0.001 and abs(w.z - 10.500000) < 0.001 from game.enemy_at('biker', 2, 1763000000291) w)) then raise exception '0041: the walks are not the game''s'; end if;
+end $$;
+
 commit;

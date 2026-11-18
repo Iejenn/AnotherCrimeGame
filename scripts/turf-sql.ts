@@ -59,6 +59,14 @@ export function detourSamples() {
   return out;
 }
 
+/** Every row of the game's walk map for enemies (y 0 up, x 0 to W), as the server holds them. */
+function allRows() {
+  const m = walkMasks();
+  return Array.from({ length: GH }, (_, y) => Array.from({ length: W }, (_, x) => m[gi(x, y)].toString(16).padStart(2, '0')).join('')).join('');
+}
+declare const require: (m: string) => any;
+const md5 = (t: string): string => require('node:crypto').createHash('md5').update(t).digest('hex');
+
 export function turfSql(m0038: string, m0040: string): string {
   const S = TURF_SITE;
   const walk = changedWalkRows(liveWalkRows(m0038, m0040));
@@ -389,11 +397,20 @@ select case when ${samples
   case when (select count(*) from public.players t join ${solidValues} on t.pos_y = s.y and t.pos_x between ${S.x0} and ${S.x1}
     and substr(s.bits, t.pos_x - ${S.x0 - 1}, 1) = '1') = 0 then 'ok' else 'SOMEONE STUCK' end as players;
 
+-- Guard: if the walk map, the site's walls, the spots or the walks aren't exactly the game's, stop here (nothing is kept).
+do $$
+begin
+  if (select md5(string_agg(masks, '' order by y)) from game.walk_map) <> '${md5(allRows())}' then raise exception '0041: the walk map is not the game''s'; end if;
+  if (select md5(string_agg(concat_ws(',', x0, y0, x1, y1), ';' order by x0, y0)) from game.shot_walls where x0 between ${S.x0} and ${S.x1} and y0 between ${S.y0} and ${S.y1}) <> '${md5([...walls].sort((p, q) => p.x0 - q.x0 || p.y0 - q.y0).map((r) => [r.x0, r.y0, r.x1, r.y1].join(',')).join(';'))}' then raise exception '0041: the walls are not the game''s'; end if;
+  if (select md5(string_agg(concat_ws(',', id, x, y), ';' order by id)) from public.spots where crime_id = 'pick_drunk') <> '${md5([...drunks].sort((p, q) => (p.id < q.id ? -1 : 1)).map((n) => [n.id, n.x, n.y].join(',')).join(';'))}' then raise exception '0041: the drunks are not the game''s'; end if;
+  if (select count(*) from public.enemies where kind = 'thug') <> ${thugIds.length} or (select y from public.stations where id = '${barrel.id}') <> ${barrel.y} then raise exception '0041: thugs or barrel wrong'; end if;
+  if not (${samples.map((p) => `(select abs(w.x - ${p.x.toFixed(6)}) < 0.001 and abs(w.z - ${p.z.toFixed(6)}) < 0.001 from game.enemy_at('${p.kind}', ${p.idx}, ${p.t}) w)`).join('\n    and ')}) then raise exception '0041: the walks are not the game''s'; end if;
+end $$;
+
 commit;
 `;
 }
 void YARD;
-declare const require: (m: string) => { readFileSync(p: string, e: string): string };
 if (!process.env.VITEST) {
   const fs = require('node:fs');
   process.stdout.write(turfSql(fs.readFileSync('supabase/migrations/0038_aluminium.sql', 'utf8'), fs.readFileSync('supabase/migrations/0040_beach.sql', 'utf8')));
