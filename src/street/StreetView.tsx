@@ -13,7 +13,7 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { BAR_FACING, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { clearShot, routeMs, routePoint } from './sight';
 import { rangedWeapon } from '../game/combat';
@@ -1545,7 +1545,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
               w.speed = 1.6;
               // Walk back to where his routine has him now (the bartender's spot, the guard's place on his route).
           const home: [number, number] =
-            npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? [npc.area.x0 + bartenderAt(gameNow()).spot, npc.area.y0] : [npc.x, npc.y];
+            npc.kind === 'guard' ? tileOf(guardAt(gameNow()).x, guardAt(gameNow()).z) : npc.kind === 'bartender' ? barSpot(bartenderAt(gameNow()).spot) : [npc.x, npc.y];
           w.path = findPath(blocked, GRID, tileOf(w.pos.x, w.pos.z), [home], canStep) ?? [];
             }
           } else if (followPath(w, g, dt)) {
@@ -1563,14 +1563,14 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
           // His routine is a fixed schedule (game/watchers.ts): watch the room, then turn his back and
           // polish the bottles at one of three spots. We only draw it; the game rules decide if he saw you.
           const b = bartenderAt(gameNow());
-          if (!b.watching) w.target = center(npc.area.x0 + b.spot, npc.area.y0);
+          if (!b.watching) w.target = center(...barSpot(b.spot)); // (v0.58: along his aisle, which runs north–south)
           const d = w.target.clone().sub(w.pos);
           if (d.length() > 0.02) {
             w.pos.add(d.clampLength(0, 1.6 * dt));
             g.rotation.y = Math.atan2(d.x, d.z);
             w.moving = true;
           } else {
-            g.rotation.y = turnTowards(g.rotation.y, b.watching ? 0 : Math.PI, dt * 6);
+            g.rotation.y = turnTowards(g.rotation.y, b.watching ? BAR_FACING.watch : BAR_FACING.polish, dt * 6);
           }
           g.position.set(w.pos.x, floorY(w.pos.x, w.pos.z) + 0.03, w.pos.z);
           animateCharacter(g, w.moving ? 'walk' : b.watching ? 'idle' : 'work', now, 2.3);

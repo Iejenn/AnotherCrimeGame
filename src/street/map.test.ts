@@ -97,7 +97,7 @@ it("the guard's patrol route is walkable, straight, and stays in his patrol area
   });
 });
 
-it('the Yard: you get in through the two gates, and you can reach every spot a thug stands on', async () => {
+it('the Yard: you get in through the three gates, and you can reach every spot a thug stands on', async () => {
   const { THUG_TILES } = await import('../game/enemies');
   const { YARD, YARD_GATES } = await import('./map');
   const b = buildBlocked();
@@ -169,10 +169,13 @@ it("the rats' patches are the ones the server has (0037: the sewer moved down wi
   expect(sewerSql).toContain(`py int[] := array[${tiles.map((p) => p[1]).join(',')}];`);
 });
 
-it("the server has the same cooking stations (0037, and 0040 for the Yard's barrel)", async () => {
+it("the server has the same cooking stations (0037; the Yard's barrel: 0040, moved in 0041)", async () => {
   const { STATIONS } = await import('./map');
   const sql = (await import('../../supabase/migrations/0037_bigger_map.sql?raw')).default + (await import('../../supabase/migrations/0040_beach.sql?raw')).default;
-  for (const s of STATIONS) expect(sql).toContain(`('${s.id}', '${s.kind}', ${s.x}, ${s.y})`);
+  const turf = (await import('../../supabase/migrations/0041_bar_and_yard.sql?raw')).default;
+  for (const s of STATIONS)
+    if (s.id === 'barrel_1') expect(turf).toContain(`update public.stations set x = ${s.x}, y = ${s.y} where id = 'barrel_1';`);
+    else expect(sql).toContain(`('${s.id}', '${s.kind}', ${s.x}, ${s.y})`);
 });
 
 it('every cooking spot, press and workbench can be reached from the spawn (the Factory through its lot)', async () => {

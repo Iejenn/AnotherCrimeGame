@@ -49,8 +49,8 @@ This page and the picture are generated from the game's map: after changing `src
 | 006-B | Buildings | 97–101 | 24–28 |
 | 006-C | Buildings | 92–96 | 29–33 |
 | 006-D | Buildings | 97–101 | 29–33 |
-| 007-A | Buildings | 58–62 | 41–45 |
-| 007-B | Buildings | 63–67 | 41–45 |
+| 007-A | The Yard (thugs) | 58–62 | 41–45 |
+| 007-B | The Yard (thugs) | 63–67 | 41–45 |
 | 007-C | The Yard (thugs) | 58–62 | 46–50 |
 | 007-D | The Yard (thugs) | 63–67 | 46–50 |
 | 008-A | Central Park | 75–79 | 41–45 |
@@ -201,10 +201,10 @@ This page and the picture are generated from the game's map: after changing `src
 | I-008-B | Buildings | 29–33 | 41–45 |
 | I-008-C | Buildings | 24–28 | 46–50 |
 | I-008-D | Buildings | 29–33 | 46–50 |
-| I-009-A | Buildings | 41–45 | 41–45 |
-| I-009-B | Buildings | 46–50 | 41–45 |
+| I-009-A | The bar | 41–45 | 41–45 |
+| I-009-B | The Yard (thugs) | 46–50 | 41–45 |
 | I-009-C | The bar | 41–45 | 46–50 |
-| I-009-D | Buildings | 46–50 | 46–50 |
+| I-009-D | The Yard (thugs) | 46–50 | 46–50 |
 | I-010-A | Buildings | 7–11 | 58–62 |
 | I-010-B | Buildings | 12–16 | 58–62 |
 | I-010-C | Buildings | 7–11 | 63–67 |

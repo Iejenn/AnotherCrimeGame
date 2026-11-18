@@ -10,8 +10,10 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.58.0',
     date: '2026-11-18',
-    title: 'Minimap fix',
+    title: 'The Yard and the bar',
     items: [
+      "The bar and the Yard are one big site now (the street between them is gone). The bar is twice as big: six drunks at a long counter, a pool table, tables and a jukebox.",
+      'The Yard is about six times bigger: a wide-open lot behind a chain-link fence with three gates, boarded-up buildings round it, and eight thugs hanging around (was three).',
       'The minimap shows the beach and the sea properly now (the south beach showed as a black strip).',
     ],
   },

@@ -226,8 +226,14 @@ const room = (id: string, name: string, r: Rect, shop: boolean, rows = 5): Room 
 export const STORE = room('store', "Eddy's General Store", lot('F-002', 'C'), true);
 /** The candy store (Shoplift Candy Store, level 10), facing the park. */
 export const CANDY = room('candy', 'Candy store', lot('005', 'C'), true);
-/** The bar (Pickpocket Drunks, level 15; v0.54: moved to the Industrial zone, I-009-C, with the levels 10–20 places). */
-export const BAR = room('bar', 'The bar', lot('I-009', 'C'), false);
+/** The bar (Pickpocket Drunks, level 15; v0.54: moved to the Industrial zone, I-009-C, with the levels 10–20 places).
+ *  v0.58: twice as big, the whole west half of I-009 (5 wide, 10 deep), next to the Yard (see TURF_SITE). */
+const BAR_BLOCK = block('I-009');
+export const BAR = room('bar', 'The bar', { x0: BAR_BLOCK.x0, y0: BAR_BLOCK.y0, x1: BAR_BLOCK.x0 + LOT_SIZE - 1, y1: BAR_BLOCK.y1 }, false, BLOCK_SIZE);
+/** Where the bartender stands to polish the bottles, spot 0–2 (watchers.ts): along his aisle behind the counter. */
+export const barSpot = (spot: number): [number, number] => [BAR.x0 + 1, BAR.y0 + spot * 2];
+/** Which way he faces: the room (east) while he watches, the back bar (west) while he polishes. */
+export const BAR_FACING = { watch: Math.PI / 2, polish: -Math.PI / 2 };
 /** The gas station shop (Shoplift Gas Station, level 25; v0.54: moved to F-015, the levels 21–30 district): the
  *  top-left lot of its block. The shop is its top four rows; the pumps stand in the row in front of it, under a canopy. */
 export const GAS = room('gas', 'Gas station', lot('F-015', 'A'), true, 4);
@@ -308,6 +314,8 @@ const NEW_SPECIAL: [string, LotLetter][] = [
   ['I-002', 'A'], ['I-002', 'B'], // the Biker Club
   // v0.54: Eddy's and Ray's (F-002), the bar (I-009-C).
   ['F-002', 'C'], ['F-002', 'D'], ['I-009', 'C'],
+  // v0.58: the bar and the Yard merged into one site (I-009 and 007, the street between them included).
+  ['I-009', 'A'], ['I-009', 'B'], ['I-009', 'D'], ['007', 'A'], ['007', 'B'],
   // v0.56: the Superstore, its yard and its parking spot (F-013).
   ['F-013', 'A'], ['F-013', 'B'], ['F-013', 'C'], ['F-013', 'D'],
 ];
@@ -487,24 +495,32 @@ void SUPERSTORE_BLOCK;
 export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0, 4], [4, 4]].map(([dx, dy]) => [THRIFT_YARD.x0 + dx, THRIFT_YARD.y0 + dy]);
 
 // ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
-// The bottom half of block 007: a building down each side, the 007-A/B buildings behind, and a courtyard between them,
-// open to the south street through two gaps in a chain-link fence. Three thugs with knives hang around in it.
-//   W W . . . . . . E E      W/E = the side buildings, c = an old couch, B = a burning barrel,
-//   W W c c . . . . E E      f = the fence, gaps (entrances) at 1 and 2
-//   W W . . . B . . E E
-//   W W . . . . . . E E
-//   W W f 1 f f 2 f E E
-const YARD_LOTS = { c: lot('007', 'C'), d: lot('007', 'D') };
-export const YARD: Rect = { x0: YARD_LOTS.c.x0 + 2, y0: YARD_LOTS.c.y0, x1: YARD_LOTS.d.x1 - 2, y1: YARD_LOTS.c.y1 };
+// v0.58: the bar's block (I-009) and the Yard's (007) are one site, the street between them included (like the
+// Factory). The bar fills the west half of I-009; everything east of it is the Yard: a big stretch of cracked concrete
+// with boarded-up buildings along the north and east sides and a chain-link fence along the south street, with three
+// gaps (the gates). Eight thugs hang around in it, each pair in its own quarter (THUG_PATCHES).
+//   x 41    45 46                                   65 66 67
+//     bar     | N N N N N N N N N N N N N N N N N N N N E E   y 41–42  N/E = boarded-up buildings
+//             | . . . . . . c c . . . . . . . . . . w w E E   y 43     c = couch, w = a pile of wrecked cars
+//             | . . . . . . . . . . . . . . . . . . . . E E
+//             | . . . . . . . B . . . . . . . . . . . . E E            B = the burning barrel (a cooking spot)
+//             | t . . . . . . . . . . . . . . . . . . . E E            t = tyres
+//             | . . . . . . . . . . . . . . . . . . . t E E
+//             | . . . . . . . . . . . . . . . . . . . . E E   y 49
+//      D      | f f f G f f f f f G f f f f f G f f f f E E   y 50     f = fence, G = a gate, D = the bar's door
+/** The whole site: the bar and the Yard, with the street between I-009 and 007. */
+export const TURF_SITE: Rect = { x0: BAR_BLOCK.x0, y0: BAR_BLOCK.y0, x1: block('007').x1, y1: BAR_BLOCK.y1 };
+/** The Yard's open ground (its south row is the fence). */
+export const YARD: Rect = { x0: BAR.x1 + 1, y0: TURF_SITE.y0 + 2, x1: TURF_SITE.x1 - 2, y1: TURF_SITE.y1 };
+/** The boarded-up buildings round it: a row along the north side (four of them), one along the east side. */
 const YARD_SIDES = [
-  { x: YARD_LOTS.c.x0, y: YARD_LOTS.c.y0, w: 2, h: LOT_SIZE },
-  { x: YARD.x1 + 1, y: YARD_LOTS.c.y0, w: 2, h: LOT_SIZE },
+  ...[[0, 5], [5, 4], [9, 6], [15, 5]].map(([dx, w]) => ({ x: YARD.x0 + dx, y: TURF_SITE.y0, w, h: 2 })),
+  { x: YARD.x1 + 1, y: TURF_SITE.y0, w: 2, h: BLOCK_SIZE },
 ];
-/** The two gaps in the fence (the entrances), on its south row. */
-export const YARD_GATES: [number, number][] = [
-  [YARD.x0 + 1, YARD.y1],
-  [YARD.x1 - 1, YARD.y1],
-];
+/** The three gaps in the fence (the entrances), on its south row. */
+export const YARD_GATES: [number, number][] = [3, 9, 15].map((dx) => [YARD.x0 + dx, YARD.y1]);
+/** Each pair of thugs keeps to its own quarter of the Yard (5 tiles wide), so they stroll about as far as they used to. */
+export const THUG_QUARTERS: Rect[] = [0, 1, 2, 3].map((i) => ({ x0: YARD.x0 + i * 5, y0: YARD.y0, x1: YARD.x0 + i * 5 + 4, y1: YARD.y1 - 1 }));
 
 // ---------- the sewer (rats, level 3; docs/design.md §12) ----------
 // Under the city, reached through a pothole (an open manhole) in the crossing east of the candy shop. Like the hospital's
@@ -749,8 +765,8 @@ export const BUILDINGS: Building[] = (() => {
   out.push({ x: SUPERSTORE.x0, y: SUPERSTORE.y0, w: 2 * LOT_SIZE, h: LOT_SIZE, height: 2.4, color: WALL_COLORS[6], front: 's', custom: true });
   // The Thrift Store fills its lot (drawn in city.ts; it blocks the tiles like any building).
   out.push({ x: THRIFT.x0, y: THRIFT.y0, w: LOT_SIZE, h: LOT_SIZE, height: 2.6, color: WALL_COLORS[3], front: 's', custom: true });
-  // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
-  for (const b of YARD_SIDES) out.push({ ...b, height: 1.5, color: WALL_COLORS[2], front: 's', boarded: true });
+  // The Yard's boarded-up buildings (v0.58: along its north and east sides).
+  YARD_SIDES.forEach((b, i) => out.push({ ...b, height: [1.6, 2.1, 1.4, 1.9, 1.7][i], color: WALL_COLORS[[2, 5, 0, 3, 2][i]], front: 's', boarded: true }));
   return out;
 })();
 
@@ -771,8 +787,8 @@ export const STATIONS: Station[] = [
   { id: 'bbq_0', kind: 'bbq', x: BBQ_PARK.x0 + 2, y: BBQ_PARK.y0 + 2 },
   // In the sewer: a burning oil drum against the north wall, where a crate stood (so the rats' patches stay the same).
   { id: 'barrel_0', kind: 'bbq', x: SEWER.x0 + 11, y: SEWER.y0, look: 'barrel' },
-  // v0.57: the Yard's burning barrel is a cooking spot too.
-  { id: 'barrel_1', kind: 'bbq', x: YARD.x0 + 3, y: YARD.y0 + 2, look: 'barrel' },
+  // v0.57: the Yard's burning barrel is a cooking spot too. (v0.58: in front of the couch, in the bigger Yard.)
+  { id: 'barrel_1', kind: 'bbq', x: YARD.x0 + 7, y: YARD.y0 + 2, look: 'barrel' },
   // The Factory: 3 plate presses along the west wall, 3 workbenches along the east wall (Tinkering).
   ...[2, 5, 8].map((dy, i) => ({ id: `press_${i}`, kind: 'press' as const, x: FACTORY.x0, y: FACTORY.y0 + dy })),
   ...[2, 5, 8].map((dy, i) => ({ id: `bench_${i}`, kind: 'bench' as const, x: FACTORY.x1, y: FACTORY.y0 + dy })),
@@ -862,17 +878,22 @@ export const FIXTURES: Fixture[] = (() => {
   //   . . D . .
   out.push({ x: CANDY.x0, y: CANDY.y0 + 2, kind: 'counter' }, { x: CANDY.x0 + 1, y: CANDY.y0 + 2, kind: 'counter' });
 
-  // The bar. Layout (B = back bar with bottles, J = jukebox, c = bar counter, d = drunk on a stool
-  // (a spot, see NODES), T = table):
-  //   B B B B J
-  //   . . . . .     <- the bartender works back here
-  //   c c c . .
-  //   d d d . T
+  // The bar (v0.58: 5 wide, 10 deep). Layout (B = back bar with bottles, a = the bartender's aisle, c = the counter,
+  // d = a drunk on a stool (a spot, see NODES), J = jukebox, P = pool table, T = table, D = door):
+  //   B a c d J
+  //   B a c d .
+  //   B a c d .
+  //   B a c d .
+  //   B a c d .
+  //   B a c d .     (the aisle opens at its south end: the bartender comes out that way to catch you)
+  //   . . . . .
+  //   T . P P T
+  //   . . . . .
   //   . . D . .
-  for (let dx = 0; dx < 4; dx++) out.push({ x: BAR.x0 + dx, y: BAR.y0, kind: 'backbar' });
+  for (let dy = 0; dy < 6; dy++) out.push({ x: BAR.x0, y: BAR.y0 + dy, kind: 'backbar' }, { x: BAR.x0 + 2, y: BAR.y0 + dy, kind: 'bar' });
   out.push({ x: BAR.x1, y: BAR.y0, kind: 'jukebox' });
-  for (let dx = 0; dx < 3; dx++) out.push({ x: BAR.x0 + dx, y: BAR.y0 + 2, kind: 'bar' });
-  out.push({ x: BAR.x1, y: BAR.y0 + 3, kind: 'table' });
+  out.push({ x: BAR.x1, y: BAR.y0 + 7, kind: 'table' }, { x: BAR.x0, y: BAR.y0 + 7, kind: 'table' });
+  for (const dx of [2, 3]) out.push({ x: BAR.x0 + dx, y: BAR.y0 + 7, kind: 'pool' });
 
   // The gas station shop. Layout (S = shelf you can steal from, F = drinks fridge, K = counter,
   // D = door; P = pump outside under the canopy):
@@ -888,9 +909,12 @@ export const FIXTURES: Fixture[] = (() => {
   // The guard booth in the parking lot's south-west corner.
   out.push({ x: PARKING_S.x0, y: PARKING_S.y1, kind: 'booth' });
 
-  // The Yard: an old couch against the back, a burning barrel, and the fence along the street (except the gates).
-  out.push({ x: YARD.x0 + 1, y: YARD.y0 + 1, kind: 'couch' }, { x: YARD.x0 + 2, y: YARD.y0 + 1, kind: 'couch' });
-  // (The barrel is a cooking station since v0.57: STATIONS, barrel_1.)
+  // The Yard: an old couch against the north buildings with the burning barrel in front of it, a pile of wrecked cars in
+  // the north-east corner, stacks of tyres, and the fence along the street (except the gates). Everything stands along
+  // the sides, so the middle is open ground. (The barrel is a cooking station since v0.57: STATIONS, barrel_1.)
+  out.push({ x: YARD.x0 + 6, y: YARD.y0, kind: 'couch' }, { x: YARD.x0 + 7, y: YARD.y0, kind: 'couch' });
+  out.push({ x: YARD.x1 - 1, y: YARD.y0, kind: 'wreck' }, { x: YARD.x1, y: YARD.y0, kind: 'wreck' });
+  out.push({ x: YARD.x0, y: YARD.y0 + 3, kind: 'tyres' }, { x: YARD.x1, y: YARD.y0 + 4, kind: 'tyres' });
   for (let x = YARD.x0; x <= YARD.x1; x++) if (!YARD_GATES.some(([gx]) => gx === x)) out.push({ x, y: YARD.y1, kind: 'fence' });
 
   // The hospital: three beds along each wall of the ward, the reception desk in the lobby (the receptionist stands
@@ -957,8 +981,8 @@ export const NODES: StreetNode[] = (() => {
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
   // Four candy shelves along the back wall of the candy store.
   [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
-  // Three drunks on stools at the bar, facing the counter.
-  for (let i = 0; i < 3; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + i, BAR.y0 + 3, { facing: Math.PI, seated: true });
+  // Six drunks on stools along the bar, facing the counter (west). (v0.58: was three.)
+  for (let i = 0; i < 6; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + 3, BAR.y0 + i, { facing: -Math.PI / 2, seated: true });
   // Five parking meters: three along the north edge of the north-east lot (facing in), two along the south edge.
   [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', PARKING_NE.x0 + dx, PARKING_NE.y0, { facing: 0 }));
   [2, 6].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', PARKING_S.x0 + dx, PARKING_S.y1, { facing: Math.PI }));
@@ -1035,8 +1059,8 @@ export const NPCS: Npc[] = [
   },
   // The bartender works behind the counter. Every few seconds he turns his back to the room.
   {
-    id: 'bartender', name: 'Bartender', role: 'The bar', kind: 'bartender', x: BAR.x0 + 1, y: BAR.y0 + 1,
-    area: { x0: BAR.x0, y0: BAR.y0 + 1, x1: BAR.x0 + 2, y1: BAR.y0 + 1 }, named: true, catches: ['pick_drunk'],
+    id: 'bartender', name: 'Bartender', role: 'The bar', kind: 'bartender', x: BAR.x0 + 1, y: BAR.y0 + 2,
+    area: { x0: BAR.x0 + 1, y0: BAR.y0, x1: BAR.x0 + 1, y1: BAR.y0 + 4 }, named: true, catches: ['pick_drunk'],
   },
   // The gas station clerk stands behind the counter (and steps out to catch you).
   {
@@ -1215,7 +1239,7 @@ export const AREAS: Area[] = [
   },
   {
     id: 'yard', name: 'The Yard', rect: YARD, icon: 'thugs', crimes: [], npcs: [],
-    blurb: 'A rough courtyard where three thugs hang around with knives (level 5). Fight them for cash, and now and then a tin knife.',
+    blurb: 'A big rough lot behind a chain-link fence, next to the bar, where eight thugs hang around with knives (level 5). Fight them for cash, and now and then a tin knife.',
   },
   {
     id: 'bbq', name: 'The barbecue', rect: BBQ_PARK, icon: 'fire', crimes: [], npcs: [],

@@ -1,7 +1,7 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
 import { coastAt } from './coast';
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PARK_JOINS, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
+import { TURF_SITE, YARD, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PARK_JOINS, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
@@ -64,6 +64,10 @@ export function drawWorld(px: number, withSewer = false, edge = MAP_EDGE): HTMLC
   area(FACTORY, '#7a5a48');
   tile(FACTORY.x0 + 0.3, FACTORY.y0 + 0.3, FACTORY.x1 - FACTORY.x0 + 0.4, FACTORY.y1 - FACTORY.y0 + 0.4, '#6a6a66');
   area(FACTORY_LOT, '#3e4046');
+  // v0.58: the bar and the Yard: one site (the street between I-009 and 007 is part of it), the Yard's cracked concrete.
+  tile(TURF_SITE.x0 - 1.5, TURF_SITE.y0 - 1.5, TURF_SITE.x1 - TURF_SITE.x0 + 4, TURF_SITE.y1 - TURF_SITE.y0 + 4, '#66625b');
+  area(YARD, '#55524d');
+  for (const r of ROOMS) if (r.id === 'bar') area(r, ROOM_COLORS[r.id] ?? '#6a5f52');
   // The Thrift Store (brick) and its yard (concrete) with the dumpsters.
   area(THRIFT, '#8a5040');
   area(THRIFT_YARD, '#5a5852');
