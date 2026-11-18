@@ -306,6 +306,8 @@ const NEW_SPECIAL: [string, LotLetter][] = [
   ['I-002', 'A'], ['I-002', 'B'], // the Biker Club
   // v0.54: Eddy's and Ray's (F-002), the bar (I-009-C).
   ['F-002', 'C'], ['F-002', 'D'], ['I-009', 'C'],
+  // v0.56: the Superstore, its yard and its parking spot (F-013).
+  ['F-013', 'A'], ['F-013', 'B'], ['F-013', 'C'], ['F-013', 'D'],
 ];
 /** Lots that were special places and are ordinary buildings since v0.54 (Eddy's, Ray's, the bar, the gas station and
  *  its parking lot moved out). They, and the new rows' lots, roll their buildings after all the others, from their own
@@ -461,6 +463,25 @@ export const BANK_COUNTER_Y = BANK.y0 + 2;
 export const BANK_SLOTS = 50;
 ROOMS.push(BANK);
 
+// ---------- the Superstore (Scrapping: aluminium salvage, level 21; v0.56) ----------
+// F-013, in the levels 21–30 district. A big supermarket on the two south lots (C + D), its front on the south street
+// (a wide glass front, the sign, shopping carts; you don't go in). Behind it, on B, its walled yard: five dumpsters
+// full of crushed cans and foil, the gate on the east street. On A, a little parking spot of its own: one car and one
+// meter (no guard: one of each makes it slow, so it's fine). (The store's number on the sign is #1217.)
+//   P P P P P | D . D . .     P = parking (m = the meter, c = the car), D = a dumpster, G = the gate (2 wide)
+//   . . m . . | . . . . .
+//   . . c . . | D . . . G
+//   . . c . . | . . . . G
+//   . . . . . | D . D . .
+//   S S S S S   S S S S S     S = the Superstore (front = south)
+const SUPERSTORE_BLOCK = block('F-013');
+export const SUPERSTORE: Rect = { ...lot('F-013', 'C'), x1: lot('F-013', 'D').x1 };
+export const SUPERSTORE_YARD: Rect = lot('F-013', 'B');
+export const SUPERSTORE_LOT: Rect = lot('F-013', 'A');
+export const SUPERSTORE_GATE: [number, number][] = [[SUPERSTORE_YARD.x1, SUPERSTORE_YARD.y0 + 2], [SUPERSTORE_YARD.x1, SUPERSTORE_YARD.y0 + 3]];
+export const SUPERSTORE_DUMPSTERS: [number, number][] = [[0, 0], [2, 0], [0, 2], [0, 4], [2, 4]].map(([dx, dy]) => [SUPERSTORE_YARD.x0 + dx, SUPERSTORE_YARD.y0 + dy]);
+void SUPERSTORE_BLOCK;
+
 export const THRIFT_DUMPSTERS: [number, number][] = [[2, 0], [0, 2], [4, 2], [0, 4], [4, 4]].map(([dx, dy]) => [THRIFT_YARD.x0 + dx, THRIFT_YARD.y0 + dy]);
 
 // ---------- the Yard (thugs, level 5; docs/design.md §12) ----------
@@ -587,6 +608,8 @@ export const ENCLOSURES: Enclosure[] = [
   { id: 'hotline_yard', rect: HOTLINE_YARD, openings: HOTLINE_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
   { id: 'junkyard', rect: JUNKYARD, openings: JUNKYARD_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
   { id: 'club', rect: CLUB, openings: CLUB_DOOR.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x, y - 1] as [number, number] })) },
+  // The Superstore's yard (v0.56): a wall all round, the gate (2 wide) on the east side.
+  { id: 'superstore_yard', rect: SUPERSTORE_YARD, openings: SUPERSTORE_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
   // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
   { id: 'thrift_yard', rect: THRIFT_YARD, openings: [{ inside: THRIFT_GATE, outside: [THRIFT_GATE[0], THRIFT_GATE[1] + 1] }] },
   { id: 'ward', rect: WARD, openings: STAIRS.map((s) => ({ inside: [s.x, WARD.y1] as [number, number], outside: s.top })) },
@@ -669,6 +692,8 @@ export const BUILDINGS: Building[] = (() => {
   }
   // Hotline Plumbing & Heating fills the west half of I-008 (drawn in city.ts).
   out.push({ x: HOTLINE.x0, y: HOTLINE.y0, w: LOT_SIZE, h: BLOCK_SIZE, height: 2.4, color: WALL_COLORS[0], front: 's', custom: true });
+  // The Superstore fills its two lots (drawn in city.ts; it blocks the tiles like any building).
+  out.push({ x: SUPERSTORE.x0, y: SUPERSTORE.y0, w: 2 * LOT_SIZE, h: LOT_SIZE, height: 2.4, color: WALL_COLORS[6], front: 's', custom: true });
   // The Thrift Store fills its lot (drawn in city.ts; it blocks the tiles like any building).
   out.push({ x: THRIFT.x0, y: THRIFT.y0, w: LOT_SIZE, h: LOT_SIZE, height: 2.6, color: WALL_COLORS[3], front: 's', custom: true });
   // The Yard's two side buildings (007-C and 007-D), with the courtyard between them.
@@ -890,6 +915,12 @@ export const NODES: StreetNode[] = (() => {
   // Five dumpsters in Hotline's yard (Scrapping: copper salvage), facing into the yard.
   HOTLINE_DUMPSTERS.forEach(([x, y], i) =>
     node(`cu_dumpster_${i}`, 'copper_salvage', x, y, { facing: y === HOTLINE_YARD.y0 ? 0 : y === HOTLINE_YARD.y1 ? Math.PI : -Math.PI / 2 }));
+  // v0.56: five dumpsters in the Superstore's yard (Scrapping: aluminium salvage), facing into the yard; and its little
+  // parking spot: one meter, one car nose-in under it.
+  SUPERSTORE_DUMPSTERS.forEach(([x, y], i) =>
+    node(`al_dumpster_${i}`, 'aluminium_salvage', x, y, { facing: y === SUPERSTORE_YARD.y0 ? 0 : y === SUPERSTORE_YARD.y1 ? Math.PI : Math.PI / 2 }));
+  node('meter_5', 'parking_meter', SUPERSTORE_LOT.x0 + 2, SUPERSTORE_LOT.y0 + 1, { facing: 0 });
+  node('car_4', 'steal_car', SUPERSTORE_LOT.x0 + 2, SUPERSTORE_LOT.y0 + 2, { facing: Math.PI / 2 });
   // Four shelves at the gas station, either side of the fridge.
   [0, 1, 3, 4].forEach((dx, i) => node(`gas_${i}`, 'gas_station', GAS.x0 + dx, GAS.y0, { facing: 0 }));
   return out;
@@ -1099,6 +1130,14 @@ export const AREAS: Area[] = [
   {
     id: 'factory', name: 'The Factory', rect: FACTORY_SITE, icon: 'factory', crimes: [], npcs: [],
     blurb: 'An abandoned factory in the Industrial zone. Press salvage into sheets and make weapons and armour at the workbenches (Tinkering).',
+  },
+  {
+    id: 'superstore', name: 'Superstore', rect: { x0: SUPERSTORE.x0, y0: SUPERSTORE_YARD.y0, x1: SUPERSTORE_YARD.x1, y1: SUPERSTORE.y1 }, icon: 'scrap', crimes: ['aluminium_salvage'], npcs: [],
+    blurb: "Store #1217. Aisles of soda, canned food and foil trays; behind it, a walled yard where the dumpsters fill up with crushed cans (Scrapping 21).",
+  },
+  {
+    id: 'superstore_lot', name: 'Superstore parking', rect: SUPERSTORE_LOT, icon: 'lot', crimes: ['parking_meter', 'steal_car'], npcs: [],
+    blurb: 'A few parking spaces next to the Superstore: one meter, one car. Nobody guards it.',
   },
   {
     id: 'thrift', name: 'Thrift Store', rect: { x0: THRIFT.x0, y0: THRIFT.y0, x1: THRIFT_YARD.x1, y1: THRIFT_YARD.y1 }, icon: 'scrap', crimes: ['tin_salvage'], npcs: [],

@@ -335,7 +335,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       } else if (n.kind === 'meter') {
         g = buildMeter();
       } else if (n.kind === 'dumpster') {
-        g = buildScrapDumpster();
+        // (v0.56: each yard's own paint and junk.)
+        g = buildScrapDumpster(n.crimeId === 'copper_salvage' ? 'copper' : n.crimeId === 'aluminium_salvage' ? 'aluminium' : 'tin');
       } else {
         g = buildShelf([0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8, 0xe86aa0], n.x * 3 + n.y);
       }
@@ -2257,7 +2258,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
   );
   if (!hud) return street;
   return (
-    <div className="game-view">
+    // (v0.56: the panel and the icon bar float over the street; the street is always the whole screen.)
+    <div className={`game-view ${hud.panel ? 'panel-open' : ''}`}>
       {street}
       {hud.panel && (
         <div className={`hud-panel panel-${hud.panel}`} onPointerDown={(e) => e.stopPropagation()}>

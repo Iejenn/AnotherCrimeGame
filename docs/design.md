@@ -714,7 +714,7 @@ aluminium complete; brass and up are members-only, brass sheets included.
 |---|---|---|---|---|
 | 1 | Tin | 1 | free | cans in bins and dumpsters, all over the city |
 | 2 | Copper | 11 | free | AC units and wiring: the **Warehouse** (block 009, 5 crates) |
-| 3 | Aluminium | 21 | free | car parts and rims: a scrapyard (east side) |
+| 3 | Aluminium | 21 | free | **built (v0.56):** the **Superstore** (F-013, a supermarket; store #1217, a nod to the TV show), five dumpsters of crushed cans in its yard: Scrapping 21, 35%, 20 XP. Next to it a little parking spot with one car and one meter (unguarded, slow on purpose). |
 | 4 | Brass | 31 | members | old plumbing, taps: the sewer, old apartments |
 | 5 | Bronze | 41 | members | statues, plaques: a monument square |
 | 6 | Iron | 51 | members | railings, grates, pipes: the docks |
@@ -964,6 +964,11 @@ at its own height with a side where it stands above its neighbour (curbs, lawn e
 where two surfaces meet (outside corners rounded off, inside corners filled round; per surface: round, cut straight, or
 square), a small colour difference per tile, merged into one mesh per surface per 40-tile area. Walking stays on the
 tile grid; the shapes only follow it. Not used in the city yet: next are the coastline, the park and the streets.
+
+### Water ripples (v0.56, `src/street/textures.ts`)
+Only water has a texture: drawn ripples (no picture files), as grey detail on the water's own colour, drifting slowly
+(the sea's shallows, ponds, fountains). Everything else stays plain colour: we tried ground textures (Kenney's Retro Urban
+Kit) and a tester preferred the plain, basic look.
 
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |
