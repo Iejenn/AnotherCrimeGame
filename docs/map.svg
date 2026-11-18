@@ -55,6 +55,14 @@
 <rect x="2011" y="821" width="182" height="182" fill="#6d6962"/>
 <rect x="2011" y="1059" width="182" height="182" fill="#6d6962"/>
 <rect x="2011" y="1297" width="182" height="182" fill="#6d6962"/>
+<rect x="1059" y="744" width="21" height="98" fill="#6d6962"/>
+<rect x="1220" y="744" width="21" height="98" fill="#6d6962"/>
+<rect x="1059" y="982" width="21" height="98" fill="#6d6962"/>
+<rect x="1220" y="982" width="21" height="98" fill="#6d6962"/>
+<rect x="982" y="821" width="98" height="21" fill="#6d6962"/>
+<rect x="982" y="982" width="98" height="21" fill="#6d6962"/>
+<rect x="1220" y="821" width="98" height="21" fill="#6d6962"/>
+<rect x="1220" y="982" width="98" height="21" fill="#6d6962"/>
 <rect x="1080" y="744" width="140" height="98" fill="#4f7a44"/>
 <rect x="1080" y="982" width="140" height="98" fill="#4f7a44"/>
 <rect x="982" y="842" width="98" height="140" fill="#4f7a44"/>

@@ -1,6 +1,6 @@
 // The island drawn flat, from above: used by the round minimap (which shows a moving piece of it)
 // and by the world map (which shows all of it). Drawn once into a canvas, then reused.
-import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
+import { BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, COURT, FIXTURES, GAS, GH, H, HOSPITAL, LOTS, MANHOLE, THRIFT, FACTORY, FACTORY_LOT, FACTORY_SITE, THRIFT_DUMPSTERS, THRIFT_YARD, PARKING, PARK_AREA, PARK_JOINS, PLAZA, onParkPath, ROOMS, SEWER, W, blockRect, isSewage, inSewer, UNDER, NEST_GATE, HOTLINE, HOTLINE_YARD, HOTLINE_DUMPSTERS, JUNKYARD, type Rect } from './map';
 
 /** Tiles of sea drawn around the island. */
 export const MAP_EDGE = 3;
@@ -33,6 +33,11 @@ export function drawWorld(px: number, withSewer = false): HTMLCanvasElement {
       const b = blockRect(bx, by);
       tile(b.x0 - 1.5, b.y0 - 1.5, BLOCK_SIZE + 3, BLOCK_SIZE + 3, '#66625b');
     }
+  // (v0.54: the sidewalk runs on along both sides of the park's joins.)
+  PARK_JOINS.forEach((j, i) => {
+    if (i < 2) for (const x of [j.x0 - 1.5, j.x1 + 1]) tile(x, j.y0, 1.5, j.y1 - j.y0 + 1, '#66625b');
+    else for (const y of [j.y0 - 1.5, j.y1 + 1]) tile(j.x0, y, j.x1 - j.x0 + 1, 1.5, '#66625b');
+  });
   for (const lot of LOTS) if (lot.kind === 'park') area(lot.rect, '#45663a');
   // Central Park (v0.54: the cross): lawn, gravel paths, the paved Plaza; then hedges, fountains and ponds.
   for (const r of PARK_AREA) for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) tile(x, y, 1, 1, onParkPath(x, y) ? '#8a8070' : '#45663a');

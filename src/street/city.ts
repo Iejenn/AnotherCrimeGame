@@ -7,7 +7,7 @@
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
 import {
-  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_JOINS, PLAZA, inPark, OLD_ROWS,
+  BAR, BCOLS, BEACH, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PARK_JOINS, PLAZA, inPark, OLD_ROWS,
   PARKING, PARKING_NE, PARKING_S, PARK_PATHS, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD,
@@ -212,8 +212,10 @@ export function buildCity(scene: THREE.Scene) {
       const cz = b.y0 + BLOCK_SIZE / 2;
       const size = BLOCK_SIZE + 2 * SW;
       add(geoBox(size, 0.07, size), sidewalkMat, cx, 0.035, cz, false);
-      for (const [w, d, dx, dz] of [[size, 0.12, 0, -size / 2], [size, 0.12, 0, size / 2], [0.12, size, -size / 2, 0], [0.12, size, size / 2, 0]] as const)
-        add(geoBox(w, 0.09, d), curbMat, cx + dx, 0.045, cz + dz, false);
+      // (The park's blocks get one curb round the whole cross instead, below.)
+      if (!inPark(b.x0, b.y0))
+        for (const [w, d, dx, dz] of [[size, 0.12, 0, -size / 2], [size, 0.12, 0, size / 2], [0.12, size, -size / 2, 0], [0.12, size, size / 2, 0]] as const)
+          add(geoBox(w, 0.09, d), curbMat, cx + dx, 0.045, cz + dz, false);
       for (let t = -size / 2 + 1; t < size / 2; t += 1) {
         joints.add(cx + t, 0.072, b.y0 - SW / 2, 1, 1, 1, 0);
         joints.add(cx + t, 0.072, b.y1 + 1 + SW / 2, 1, 1, 1, 0);
@@ -221,6 +223,51 @@ export function buildCity(scene: THREE.Scene) {
         joints.add(b.x1 + 1 + SW / 2, 0.072, cz + t, 1, 1, 1, Math.PI / 2);
       }
     }
+  // v0.54: the sidewalk runs on along both sides of the park's joins (where a street became park), so one sidewalk
+  // wraps the whole cross and turns its inner corners; one curb runs round its outside edge (traced on a half-tile grid:
+  // wherever sidewalk meets road).
+  {
+    const slabs: { x0: number; z0: number; x1: number; z1: number }[] = [];
+    for (const r of PARK_BLOCKS) slabs.push({ x0: r.x0 - SW, z0: r.y0 - SW, x1: r.x1 + 1 + SW, z1: r.y1 + 1 + SW });
+    PARK_JOINS.forEach((j, i) => {
+      const along = i < 2; // the north and south joins run north–south
+      const sides = along
+        ? [{ x0: j.x0 - SW, z0: j.y0, x1: j.x0, z1: j.y1 + 1 }, { x0: j.x1 + 1, z0: j.y0, x1: j.x1 + 1 + SW, z1: j.y1 + 1 }]
+        : [{ x0: j.x0, z0: j.y0 - SW, x1: j.x1 + 1, z1: j.y0 }, { x0: j.x0, z0: j.y1 + 1, x1: j.x1 + 1, z1: j.y1 + 1 + SW }];
+      for (const r of sides) {
+        slabs.push(r);
+        add(geoBox(r.x1 - r.x0, 0.07, r.z1 - r.z0), sidewalkMat, (r.x0 + r.x1) / 2, 0.035, (r.z0 + r.z1) / 2, false);
+      }
+    });
+    const G = 0.5;
+    const walk = (x: number, z: number) => slabs.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || inPark(Math.floor(x), Math.floor(z));
+    const B = PARK_BOUNDS;
+    // Edges between a sidewalk cell and a road cell, run together into straight pieces of curb.
+    for (const dir of ['x', 'z'] as const) {
+      const lines = new Map<number, number[]>();
+      for (let x = B.x0 - 3; x < B.x1 + 4; x += G)
+        for (let z = B.y0 - 3; z < B.y1 + 4; z += G) {
+          const a = walk(x + G / 2, z + G / 2);
+          const b = dir === 'x' ? walk(x + G / 2, z - G / 2) : walk(x - G / 2, z + G / 2);
+          if (a === b) continue;
+          // An edge along x at height z (dir x), or along z at x (dir z).
+          const key = dir === 'x' ? z : x;
+          if (!lines.has(key)) lines.set(key, []);
+          lines.get(key)!.push(dir === 'x' ? x : z);
+        }
+      for (const [k, starts] of lines) {
+        starts.sort((p, q) => p - q);
+        for (let i = 0; i < starts.length; ) {
+          let j = i;
+          while (j + 1 < starts.length && Math.abs(starts[j + 1] - starts[j] - G) < 1e-6) j++;
+          const from = starts[i], to = starts[j] + G;
+          if (dir === 'x') add(geoBox(to - from + 0.12, 0.09, 0.12), curbMat, (from + to) / 2, 0.045, k, false);
+          else add(geoBox(0.12, 0.09, to - from + 0.12), curbMat, k, 0.045, (from + to) / 2, false);
+          i = j + 1;
+        }
+      }
+    }
+  }
   joints.build(scene);
 
   // ---------- pavements, parks, trees ----------

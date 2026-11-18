@@ -42,7 +42,13 @@ for (let bx = 0; bx < BCOLS; bx++)
     const b = blockRect(bx, by);
     out.push(`<rect x="${X(b.x0 - 1.5)}" y="${X(b.y0 - 1.5)}" width="${(BLOCK_SIZE + 3) * PX}" height="${(BLOCK_SIZE + 3) * PX}" fill="${COLORS.sidewalk}"/>`);
   }
-// The park's joins (v0.54: streets that became park).
+// The park's joins (v0.54: streets that became park), with the sidewalk running on along both sides.
+PARK_JOINS.forEach((j, i) => {
+  const strips = i < 2
+    ? [[j.x0 - 1.5, j.y0, 1.5, j.y1 - j.y0 + 1], [j.x1 + 1, j.y0, 1.5, j.y1 - j.y0 + 1]]
+    : [[j.x0, j.y0 - 1.5, j.x1 - j.x0 + 1, 1.5], [j.x0, j.y1 + 1, j.x1 - j.x0 + 1, 1.5]];
+  for (const [x, y, w, h] of strips) out.push(`<rect x="${X(x)}" y="${X(y)}" width="${w * PX}" height="${h * PX}" fill="${COLORS.sidewalk}"/>`);
+});
 for (const r of PARK_JOINS) out.push(`<rect x="${X(r.x0)}" y="${X(r.y0)}" width="${(r.x1 - r.x0 + 1) * PX}" height="${(r.y1 - r.y0 + 1) * PX}" fill="${COLORS.bigpark}"/>`);
 for (const lot of LOTS) {
   const [, color] = describe(lot);
