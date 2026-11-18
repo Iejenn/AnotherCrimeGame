@@ -10,7 +10,7 @@
 // The server checks every throw with the exact same steps (game.clear_shot, SQL in supabase/migrations/0032_marksman.sql;
 // its wall and enclosure rows are printed from this map by scripts/marksman-sql.ts), all whole numbers, so the game
 // never sends you to a spot the server then refuses.
-import { BUILDINGS, ENCLOSURES, GH, NEST_GATE, W, buildBlocked, canStep, onMap } from './map';
+import { BUILDINGS, ENCLOSURES, GRID, NEST_GATE, buildBlocked, canStep, gi, inGrid, onBeach, onMap } from './map';
 
 /** The walls a throw can't pass, as rectangles (the buildings' footprints). */
 export const SHOT_WALLS = BUILDINGS.map((b) => ({ x0: b.x, y0: b.y, x1: b.x + b.w - 1, y1: b.y + b.h - 1 }));
@@ -77,17 +77,19 @@ export const walkBit = (dx: number, dy: number) => {
 };
 
 /**
- * For every tile (y * W + x), which of the 8 moves an enemy can make from it (bit i = WALK_DIRS[i]): onto an open
+ * For every tile (gi(x, y): v0.57, the grid has a border round the city), which of the 8 moves an enemy can make from it (bit i = WALK_DIRS[i]): onto an open
  * tile, not cutting a corner past a blocked one, and only through an enclosure's openings (canStep, like you). The
  * Rat Nest's gate counts as open: only players who unlocked it fight on either side of it.
  */
 export function walkMasks(): Uint8Array {
   const blocked = buildBlocked();
-  blocked[NEST_GATE[1] * W + NEST_GATE[0]] = 0;
-  const open = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < GH && !blocked[y * W + x];
-  const m = new Uint8Array(W * GH);
-  for (let y = 0; y < GH; y++)
-    for (let x = 0; x < W; x++) {
+  blocked[gi(...NEST_GATE)] = 0;
+  // (Enemies keep off the beach, v0.57: it's only for players. So the walk map the server has is the same as before the
+  // beach was walkable: inside the city and the sewer, x 0 and up, y 0 and up.)
+  const open = (x: number, y: number) => inGrid(x, y) && !blocked[gi(x, y)] && !onBeach(x, y);
+  const m = new Uint8Array(GRID.w * GRID.h);
+  for (let y = GRID.y0; y < GRID.y0 + GRID.h; y++)
+    for (let x = GRID.x0; x < GRID.x0 + GRID.w; x++) {
       if (!open(x, y)) continue;
       WALK_DIRS.forEach(([dx, dy], i) => {
         const nx = x + dx;
@@ -95,7 +97,7 @@ export function walkMasks(): Uint8Array {
         if (!open(nx, ny)) return;
         if (dx && dy && (!open(nx, y) || !open(x, ny))) return;
         if (!canStep(x, y, nx, ny)) return;
-        m[y * W + x] |= 1 << i;
+        m[gi(x, y)] |= 1 << i;
       });
     }
   return m;
@@ -108,26 +110,28 @@ export function walkMasks(): Uint8Array {
  */
 export function enemyRoute(masks: Uint8Array, from: [number, number], to: [number, number]): [number, number][] | null {
   // "Next to you": one step away AND a step it could take onto your tile (not across a fence or a wall corner).
-  const next = (x: number, y: number) => Math.max(Math.abs(x - to[0]), Math.abs(y - to[1])) === 1 && !!(masks[y * W + x] & (1 << walkBit(to[0] - x, to[1] - y)));
+  const next = (x: number, y: number) => Math.max(Math.abs(x - to[0]), Math.abs(y - to[1])) === 1 && !!(masks[gi(x, y)] & (1 << walkBit(to[0] - x, to[1] - y)));
   if (next(...from)) return [];
-  const start = from[1] * W + from[0];
-  const came = new Int32Array(W * GH).fill(-1);
+  // (Grid indices from here: v0.57, the grid has a border round the city.)
+  const W = GRID.w;
+  const start = gi(...from);
+  const came = new Int32Array(GRID.w * GRID.h).fill(-1);
   came[start] = start;
   const q = [start];
   for (let h = 0; h < q.length; h++) {
     const c = q[h];
-    const cx = c % W;
-    const cy = (c / W) | 0;
+    const cx = (c % W) + GRID.x0;
+    const cy = ((c / W) | 0) + GRID.y0;
     for (let i = 0; i < 8; i++) {
       if (!(masks[c] & (1 << i))) continue;
-      const n = (cy + WALK_DIRS[i][1]) * W + cx + WALK_DIRS[i][0];
+      const n = gi(cx + WALK_DIRS[i][0], cy + WALK_DIRS[i][1]);
       if (came[n] >= 0) continue;
       came[n] = c;
-      const nx = n % W;
-      const ny = (n / W) | 0;
+      const nx = (n % W) + GRID.x0;
+      const ny = ((n / W) | 0) + GRID.y0;
       if (next(nx, ny)) {
         const route: [number, number][] = [];
-        for (let k = n; k !== start; k = came[k]) route.unshift([k % W, (k / W) | 0]);
+        for (let k = n; k !== start; k = came[k]) route.unshift([(k % W) + GRID.x0, ((k / W) | 0) + GRID.y0]);
         return route;
       }
       q.push(n);

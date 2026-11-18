@@ -9,6 +9,7 @@ import { animateCharacter, buildCharacter } from '../street/character';
 import { setGear } from '../street/props';
 import { Equipment } from './InventoryTab';
 import { CHANGELOG } from '../changelog';
+import { getPrefs, setPrefs } from '../game/prefs';
 
 export type Panel = 'chat' | 'bag' | 'skills';
 export type PopupId = 'worn' | 'quests' | 'highscores' | 'settings';
@@ -166,6 +167,27 @@ export function WornPopup({ s, api, onClose }: { s: GameState; api: GameApi; onC
 }
 
 // ---------- settings ----------
+/** How far the minimap is zoomed out (v0.57): from the standard view (100%) to three times as much ground (300%). Kept
+ *  on this device. */
+function MinimapZoom() {
+  const [zoom, setZoom] = useState(() => getPrefs().minimapZoom);
+  return (
+    <label className="setting-row">
+      <span className="small">Minimap zoom</span>
+      <input
+        type="range" min={100} max={300} step={25} value={Math.round(zoom * 100)}
+        onChange={(e) => {
+          const z = Number(e.target.value) / 100;
+          setZoom(z);
+          setPrefs({ minimapZoom: z });
+        }}
+        aria-label="Minimap zoom"
+      />
+      <span className="mono small">{Math.round(zoom * 100)}%</span>
+    </label>
+  );
+}
+
 export function SettingsPopup({ account, onClose }: { account: { email: string; onSignOut: () => void }; onClose: () => void }) {
   const app = useInstall();
   const [iosHelp, setIosHelp] = useState(false);
@@ -188,6 +210,7 @@ export function SettingsPopup({ account, onClose }: { account: { email: string; 
           Log out
         </button>
       </div>
+      <MinimapZoom />
       {iosHelp && (
         <p className="small install-help">
           In Safari, tap <strong>Share</strong> (the square with an arrow), then <strong>Add to Home Screen</strong>.
