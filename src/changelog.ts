@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Yard fixes',
     items: [
       "The Yard's props are rebuilt as proper models: the container's doors hang on their hinges now (they were floating), and the wall, rubble, stripped car, dice game, lookout and string lights follow the game's art rules.",
+      'And they have textures now: corrugated steel with rust on the container, bricks on the broken wall and rubble, planks on the crates and pallets, worn paint on the stripped car.',
     ],
   },
   {

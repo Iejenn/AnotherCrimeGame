@@ -981,6 +981,9 @@ tile grid; the shapes only follow it. Not used in the city yet: next are the coa
 Only water has a texture: drawn ripples (no picture files), as grey detail on the water's own colour, drifting slowly
 (the sea's shallows, ponds, fountains). Everything else stays plain colour: we tried ground textures (Kenney's Retro Urban
 Kit) and a tester preferred the plain, basic look.
+**Props may have textures (v0.59):** small pixel textures drawn in code (32×32 texels, sampled crisp, no picture files):
+brick, wood planks, corrugated steel, worn car paint, concrete (`pixelTex`/`texMat` in props.ts; one texture covers a
+tile of surface). The ground stays plain.
 
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |
