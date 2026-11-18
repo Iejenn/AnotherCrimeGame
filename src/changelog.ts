@@ -12,7 +12,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-18',
     title: 'Marksman: throwing knives',
     items: [
-      'Gunfire is now Marksman, and it starts with throwing knives: tap an enemy and you throw from up to 6 tiles away. Walls and fences block the throw, so pick your spot. The enemy has to walk up to you first, and you get free throws meanwhile.',
+      'Gunfire is now Marksman, and it starts with throwing knives: tap an enemy and you throw from up to 6 tiles away. Walls and fences block the throw, so pick your spot. The enemy has to walk the real way round to you first (over a bridge, through a gate), and you get free throws meanwhile.',
       'Throwing knives: tin (Marksman 1) and copper (Marksman 11). Make 5 from a sheet at a workbench (Tinkering 1 / 11), or buy a pack of 10 from Ray if you have money to burn ($150 tin, $300 copper). They stack up to 1,000 in a bag slot.',
       'Ready your throwing knives into the new Marksman slot (next to your weapon), then switch between throwing and melee with the button next to quick-eat. Every throw uses a knife; about 1 in 3 lands where it hit, so go pick them up. Throw your last one and you switch to melee.',
       'Every skill guide is up to date: Melee explains the bonus damage you get every 8 levels (9, 17, 25…), and Cooking, Scrapping and Tinkering name all their places, not only the first ones.',

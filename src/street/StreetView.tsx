@@ -15,8 +15,8 @@ import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
 import { CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, GH, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, W, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
-import { APPROACH_SPEED, clearShot } from './sight';
-import { MELEE_REACH, rangedWeapon } from '../game/combat';
+import { clearShot, routeMs, routePoint } from './sight';
+import { rangedWeapon } from '../game/combat';
 import { buildCity, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
@@ -613,10 +613,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       }
     };
     /** Can you throw from tile `from` at something at (at.x, at.z)? Close enough for the weapon, and a clear line
-     *  (the same checks as the server's attack(): up to range + ½ tile, walls block, point blank always works). */
+     *  (the same checks as the server's attack(): up to range + ½ tile, walls and fences block however close). */
     const canThrowFrom = (from: [number, number], at: { x: number; z: number }, range: number) => {
       const d = Math.hypot(from[0] + 0.5 - at.x, from[1] + 0.5 - at.z);
-      return d <= range && (d <= MELEE_REACH || clearShot(from[0], from[1], Math.floor(at.x), Math.floor(at.z)));
+      return d <= range && clearShot(from[0], from[1], Math.floor(at.x), Math.floor(at.z));
     };
     /** Arrived next to it: attack, or follow it if it flew off meanwhile. */
     let chases = 0;
@@ -1749,13 +1749,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
             }
           }
         } else if (e.approach && e.fightPos && t < e.approach.arriveAt) {
-          // Hit from a distance (v0.51): it walks from where it was up to its fighter, arriving when the server says.
-          const [fx, fy] = e.approach.from;
-          const [tx, ty] = e.fightPos;
-          const dur = (Math.hypot(tx - fx, ty - fy) / APPROACH_SPEED) * 1000;
-          const k = dur > 0 ? Math.min(1, Math.max(0, 1 - (e.approach.arriveAt - t) / dur)) : 1;
+          // Hit from a distance (v0.51): it walks the server's route (the real way round: over a bridge, through a gate)
+          // up to its fighter, arriving when the server says.
+          const route = e.approach.route?.length ? e.approach.route : [e.fightPos];
+          const dur = routeMs(e.approach.from, route);
+          const p = routePoint(e.approach.from, route, dur > 0 ? 1 - (e.approach.arriveAt - t) / dur : 1);
           v.routeKey = '';
-          v.pos.lerp(new THREE.Vector3(fx + 0.5 + (tx - fx) * k, 0, fy + 0.5 + (ty - fy) * k), Math.min(1, dt * 12));
+          v.pos.lerp(new THREE.Vector3(p.x, 0, p.z), Math.min(1, dt * 12));
           flying = false;
         } else {
           v.routeKey = '';

@@ -79,8 +79,9 @@ export interface EnemyState {
   fightPos: [number, number] | null;
   /** A fight just ended without it dying: it follows `by` for 5 s from `from`, then walks back (10 s in all). */
   returning?: { by: string; from: [number, number]; at: number } | null;
-  /** v0.51: hit from a distance, it walks from `from` up to you (fightPos), arriving at `arriveAt` (game.enemies_json). */
-  approach?: { from: [number, number]; arriveAt: number } | null;
+  /** v0.51: hit from a distance, it walks from `from` along `route` (the real way round, ending next to you: fightPos),
+   *  arriving at `arriveAt` (game.enemies_json). */
+  approach?: { from: [number, number]; arriveAt: number; route?: [number, number][] | null } | null;
 }
 
 /** One swing in a fight: yours or the enemy's, how much damage (0 = miss), or the enemy dying. */
@@ -120,6 +121,7 @@ const SAY: Record<string, string> = {
   too_far: "You're too far away.",
   no_ammo: "You've got nothing left to throw.",
   no_line_of_sight: "You can't get a clear throw from here.",
+  no_route: "It couldn't get to you from there. Find another spot.",
   too_fast: 'The server lost track of where you are. Walk there again.',
   empty: "It's empty. Come back in a bit.",
   stunned: "You're still stunned.",
@@ -395,7 +397,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
           id: string; kind: string; idx: number; hp: number; dead_until: string | null; fighter: string | null;
           fight_x: number | null; fight_y: number | null; fight_seen: string | null;
           left_at: string | null; left_by: string | null; left_x: number | null; left_y: number | null;
-          arrive_at?: string | null; from_x?: number | null; from_y?: number | null;
+          arrive_at?: string | null; from_x?: number | null; from_y?: number | null; route?: [number, number][] | null;
         };
         const now = gameNow();
         const dead = r.dead_until ? Date.parse(r.dead_until) : 0;
@@ -414,7 +416,7 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
               : null,
           approach:
             fighting && r.arrive_at && r.from_x != null && r.from_y != null && Date.parse(r.arrive_at) > now
-              ? { from: [r.from_x, r.from_y], arriveAt: Date.parse(r.arrive_at) }
+              ? { from: [r.from_x, r.from_y], arriveAt: Date.parse(r.arrive_at), route: r.route ?? [] }
               : null,
         };
         enemies.current = [...enemies.current.filter((e) => e.id !== r.id), next];

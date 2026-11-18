@@ -658,10 +658,14 @@ Outside fights eating still takes half a second.
   expensive way to fight, paid for by the range.
 - **Line of sight:** a throw needs a straight line with nothing in the way: no building, no wall or fence of an
   enclosure (you only throw at things on your side of it), no tile off the map (the sewer's walls). Benches, cars and
-  the sewage channel don't block. Within 2 tiles it always works. `src/street/sight.ts` and `game.clear_shot` take the
+  the sewage channel don't block. However close: no throwing through a fence from next to it. `src/street/sight.ts` and `game.clear_shot` take the
   exact same whole-number steps; the server's walls and enclosures are printed from the map (`scripts/marksman-sql.ts`).
-- **The enemy walks up to you** (2.5 tiles/s) to the tile next to you on that line and only starts swinging once
-  there: the free throws meanwhile are what ranged buys you. A melee weapon can't hit it before it arrives (no
+- **The enemy walks up to you** (2.5 tiles/s) the real way round, like you'd walk: only floors and roads, round the
+  sewage channel (over a bridge), walls, fences and objects, through doors and gates (`enemyRoute` in sight.ts and
+  `game.enemy_route` take the same steps over the same walk map). It stops on a tile it could step onto yours from
+  and only starts swinging once there: the free throws meanwhile are what ranged buys you. If it has no way to reach
+  you at all, you can't throw (no safespot). Measured over every spot you can throw from: the longest walk is 16
+  tiles (a sewer rat going round via a bridge), most are under 8. A melee weapon can't hit it before it arrives (no
   swapping to a bat mid-approach). Killed on the way, it drops its loot where it fell.
 - The game walks you to the nearest tile you can throw from (in range, clear line), not up to the enemy.
 
