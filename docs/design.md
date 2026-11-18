@@ -965,11 +965,10 @@ where two surfaces meet (outside corners rounded off, inside corners filled roun
 square), a small colour difference per tile, merged into one mesh per surface per 40-tile area. Walking stays on the
 tile grid; the shapes only follow it. Not used in the city yet: next are the coastline, the park and the streets.
 
-### Ground textures (v0.56, `src/street/textures.ts`)
-The ground (the floor kit's surfaces, the streets' asphalt, the sidewalks, fountain water) carries a little texture, so it
-isn't flat colour: Kenney's Retro Urban Kit ground pictures (CC0, `public/textures/ground/`, 64 × 64: asphalt, concrete,
-dirt, grass, tiles, rock), used only as **grey detail** multiplied with our own colours (the palette stays ours), crisp
-texels up close. Water has its own drawn ripples, drifting slowly. Buildings and props stay flat-shaded colour.
+### Water ripples (v0.56, `src/street/textures.ts`)
+Only water has a texture: drawn ripples (no picture files), as grey detail on the water's own colour, drifting slowly
+(the sea's shallows, ponds, fountains). Everything else stays plain colour: we tried ground textures (Kenney's Retro Urban
+Kit) and a tester preferred the plain, basic look.
 
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |

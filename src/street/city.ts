@@ -7,7 +7,7 @@
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
 import { SURFACES, buildFloor } from './floor';
-import { DETAIL_GAIN, animateWater, groundTexture, waterTexture } from './textures';
+import { DETAIL_GAIN, animateWater, waterTexture } from './textures';
 import { SHALLOWS, coastAt } from './coast';
 import {
   BAR, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
@@ -150,18 +150,7 @@ export function buildCity(scene: THREE.Scene) {
   scene.add(buildFloor({ x0: -SHALLOWS - 1, y0: -SHALLOWS - 1, w: W + 2 * SHALLOWS + 2, h: H + 2 * SHALLOWS + 2, at: coastAt }));
   // A low kerb where the streets meet the sand (just below the asphalt, so it only shows around the edge).
   add(geoBox(W + 0.3, 0.12, H + 0.3), lam(C.quay), W / 2, -0.075, H / 2, false);
-  {
-    // The streets' asphalt, with a little texture (v0.56): one picture every 2 tiles.
-    const road = plane(W, H, C.asphalt, 0);
-    const map = groundTexture('asphalt', 0.7);
-    if (map) {
-      const m = road.material as THREE.MeshLambertMaterial;
-      m.map = map;
-      m.color.multiplyScalar(DETAIL_GAIN);
-      const uv = road.geometry.attributes.uv as THREE.BufferAttribute;
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (W / 2), uv.getY(i) * (H / 2));
-    }
-  }
+  plane(W, H, C.asphalt, 0);
   // Rocks along the waterline: on sand tiles next to the water. (Their own random numbers; the city's shared ones
   // move on as many as the old rocks took, so nothing placed after them moves.)
   for (let i = 0; i < 450; i++) rng();
@@ -223,9 +212,7 @@ export function buildCity(scene: THREE.Scene) {
   zebra.build(scene);
   // Sidewalks: one slab around each block (1.5 tiles out from it), with a lighter curb on the road edge and joints.
   const SW = 1.5;
-  // (v0.56: concrete slabs' texture; the slabs' UVs are in tiles, one picture per tile.)
-  const sidewalkMat = lam(C.pavement, { map: groundTexture('concrete', 0.5) });
-  if (sidewalkMat.map) sidewalkMat.color.multiplyScalar(DETAIL_GAIN);
+  const sidewalkMat = lam(C.pavement);
   const curbMat = lam(0x8a857c);
   const joints = new Batch(geoBox(0.03, 0.004, SW), lam(0x5c5852), false);
   // v0.55: the sidewalks have rounded corners, like real crossings (CORNER: the curb's radius, in tiles): each block's

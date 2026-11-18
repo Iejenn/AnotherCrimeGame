@@ -9,7 +9,7 @@
 //  - merged into one mesh per surface per area of the map (few draw calls, and areas off screen aren't drawn).
 // Walking stays on the tile grid (the server checks tiles): the shapes are only how it looks, close to the tiles.
 import * as THREE from 'three';
-import { DETAIL_GAIN, groundTexture, waterTexture, type GroundTex } from './textures';
+import { DETAIL_GAIN, waterTexture } from './textures';
 
 export type Surface = 'water' | 'pond' | 'sand' | 'asphalt' | 'concrete' | 'dirt' | 'sidewalk' | 'grass' | 'gravel' | 'paving';
 
@@ -40,18 +40,11 @@ export const SURFACES: Record<Surface, SurfaceLook> = {
   paving: { color: 0x9a9286, top: 0.1, side: 0x7a7266, corner: 'square', vary: 0.04 },
 };
 
-/** The detail texture on each surface (v0.56, textures.ts): which picture, how big (tiles per picture), how strong. */
-export const SURFACE_TEX: Partial<Record<Surface, { tex: GroundTex | 'water'; scale: number; strength: number }>> = {
-  water: { tex: 'water', scale: 3, strength: 1 },
-  pond: { tex: 'water', scale: 2, strength: 1 },
-  sand: { tex: 'dirt', scale: 3, strength: 0.35 },
-  asphalt: { tex: 'asphalt', scale: 2, strength: 0.7 },
-  concrete: { tex: 'concrete', scale: 1, strength: 0.55 },
-  dirt: { tex: 'dirt', scale: 2, strength: 0.6 },
-  sidewalk: { tex: 'concrete', scale: 1, strength: 0.5 },
-  grass: { tex: 'grass', scale: 2, strength: 0.7 },
-  gravel: { tex: 'rock', scale: 1, strength: 0.35 },
-  paving: { tex: 'tiles', scale: 1, strength: 0.6 },
+/** The water's drifting ripples (v0.56, textures.ts): how big (tiles per picture). Everything else is plain colour (a
+ *  tester preferred it to the ground textures we tried). */
+export const SURFACE_TEX: Partial<Record<Surface, { tex: 'water'; scale: number }>> = {
+  water: { tex: 'water', scale: 3 },
+  pond: { tex: 'water', scale: 2 },
 };
 const materials = new Map<Surface, THREE.MeshLambertMaterial>();
 /** One material per surface (shared by every floor): its detail texture, brightened so the colour stays the same. */
@@ -59,7 +52,7 @@ function surfaceMaterial(s: Surface) {
   let m = materials.get(s);
   if (m) return m;
   const t = SURFACE_TEX[s];
-  const map = t ? (t.tex === 'water' ? waterTexture() : groundTexture(t.tex, t.strength)) : null;
+  const map = t ? waterTexture() : null;
   // (Both sides: flat shading lights a face by its slope on screen, whichever way it was wound.)
   m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, map });
   if (map) m.color.setScalar(DETAIL_GAIN);

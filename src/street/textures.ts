@@ -1,10 +1,7 @@
-// Ground textures (v0.56): a little surface detail on the floor, the streets and the sidewalks, so they aren't flat
-// colour. The pictures are Kenney's Retro Urban Kit ground textures (CC0, public/textures/ground/, 64 × 64): we use only
-// their light and dark (grey "detail"), multiplied with our own colours, so the dusk palette stays ours. Water gets its
-// own drawn ripples, which drift slowly (animateWater).
+// Water's ripples (v0.56): drawn here (no picture files), as grey detail multiplied with the water's own colour, drifting
+// slowly (animateWater). (We tried ground textures too, from Kenney's Retro Urban Kit; a tester preferred the plain
+// colours, so only the water has texture.)
 import * as THREE from 'three';
-
-export type GroundTex = 'asphalt' | 'concrete' | 'dirt' | 'grass' | 'tiles' | 'rock';
 
 /** A detail texture averages DETAIL (not 1: it can't go brighter than white), so colours under it are made brighter by
  *  DETAIL_GAIN to stay the same on average. */
@@ -24,40 +21,6 @@ function blank(size: number) {
   t.colorSpace = THREE.SRGBColorSpace;
   t.magFilter = THREE.NearestFilter; // (crisp texels, like the low-poly look; mipmaps when it's far off)
   return { c, t };
-}
-
-/**
- * A ground texture as grey detail (`strength`: how much of its contrast to keep, 0–1). It loads in the background: the
- * surface is plain until it has.
- */
-export function groundTexture(name: GroundTex, strength = 0.6): THREE.Texture | null {
-  const key = `${name}:${strength}`;
-  if (cache.has(key)) return cache.get(key)!;
-  const b = blank(64);
-  if (!b) return null;
-  const g = b.c.getContext('2d')!;
-  g.fillStyle = `rgb(${Math.round(DETAIL * 255)}, ${Math.round(DETAIL * 255)}, ${Math.round(DETAIL * 255)})`;
-  g.fillRect(0, 0, 64, 64);
-  const img = new Image();
-  img.onload = () => {
-    g.drawImage(img, 0, 0, 64, 64);
-    const d = g.getImageData(0, 0, 64, 64);
-    const px = d.data;
-    let sum = 0;
-    for (let i = 0; i < px.length; i += 4) sum += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11;
-    const mean = sum / (px.length / 4) || 1;
-    for (let i = 0; i < px.length; i += 4) {
-      const lum = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / mean;
-      const v = Math.max(0, Math.min(255, Math.round(DETAIL * 255 * (1 + (lum - 1) * strength))));
-      px[i] = px[i + 1] = px[i + 2] = v;
-      px[i + 3] = 255;
-    }
-    g.putImageData(d, 0, 0);
-    b.t.needsUpdate = true;
-  };
-  img.src = `${import.meta.env.BASE_URL}textures/ground/${name}.png`;
-  cache.set(key, b.t);
-  return b.t;
 }
 
 /** Water: soft ripples (light streaks on darker water), as grey detail; it drifts (animateWater). `repeat`: how many
