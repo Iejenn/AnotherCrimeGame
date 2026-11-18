@@ -1,5 +1,6 @@
-// Skills: the five skills (levels 1–30 for now). Tap one for its guide: how to train it and,
-// for Street Crimes, every crime with its level and where to find it.
+// Skills: every skill (levels 1–30 for now). Tap one for its guide: how to train it, and its list from the game data
+// (v0.51: so the numbers never go stale): crimes (Street Crimes, Scrapping), enemies (Melee, Gunfire), recipes
+// (Cooking) or crafts (Tinkering).
 import type { GameState, SkillId } from '../game/types';
 import { SKILLS, SKILL_BY_ID } from '../game/data/skills';
 import { crimesForSkill } from '../game/data/crimes';
@@ -11,6 +12,8 @@ import { ITEM_BY_ID } from '../game/data/items';
 import type { CrimeDef } from '../game/data/crimes';
 import { NODES } from '../street/map';
 import { EnemyGuide } from './EnemyGuide';
+import { RECIPES, burnChance } from '../game/data/recipes';
+import { CRAFTS } from '../game/data/metals';
 
 /** Crimes that already have a place on the Street (v2 is built step by step). */
 const PLACED = new Set(NODES.map((n) => n.crimeId));
@@ -78,6 +81,8 @@ export function SkillGuide({ s, id }: { s: GameState; id: SkillId }) {
         </p>
         {(open === 'melee' || open === 'gunfire') && <EnemyGuide skill={open} />}
         {open === 'health' && <p className="small">Max health right now: {maxHp(s)} HP. Health also comes back on its own, 1 HP per minute.</p>}
+        {open === 'cooking' && <RecipeList lvl={lvl} />}
+        {open === 'tinkering' && <CraftList lvl={lvl} />}
         {crimes.length > 0 && (
           <ol className="ledger">
             {crimes.map((crime) => {
@@ -110,5 +115,62 @@ export function SkillGuide({ s, id }: { s: GameState; id: SkillId }) {
         )}
       </section>
     </div>
+  );
+}
+
+const itemName = (id: string) => ITEM_BY_ID[id]?.name ?? id;
+
+/** Cooking: every recipe, its level and XP, and (once you can) your chance to burn it. */
+function RecipeList({ lvl }: { lvl: number }) {
+  const rows = [...RECIPES].sort((a, b) => a.level - b.level);
+  return (
+    <ol className="ledger">
+      {rows.map((r) => {
+        const can = lvl >= r.level;
+        return (
+          <li key={r.from} className={`entry ${can ? '' : 'locked'}`}>
+            <div className="entry-main">
+              <div className="entry-title">
+                <span className="mono small lvl-col">{r.level}</span>
+                <span className="entry-name">{itemName(r.to)}</span>
+              </div>
+              <dl className="entry-stats">
+                <div><dt>From</dt><dd>{itemName(r.from)}</dd></div>
+                <div><dt>XP</dt><dd>{r.xp}</dd></div>
+                {can && <div><dt>Burn</dt><dd>{pct(burnChance(r, lvl))}</dd></div>}
+                <div><dt>No burns</dt><dd>Lv {r.stopBurn}</dd></div>
+              </dl>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Tinkering: every sheet and piece of gear, in level order, with what it takes and where you make it. */
+function CraftList({ lvl }: { lvl: number }) {
+  const rows = [...CRAFTS].sort((a, b) => a.level - b.level);
+  return (
+    <ol className="ledger">
+      {rows.map((c) => {
+        const can = lvl >= c.level;
+        return (
+          <li key={c.id} className={`entry ${can ? '' : 'locked'}`}>
+            <div className="entry-main">
+              <div className="entry-title">
+                <span className="mono small lvl-col">{c.level}</span>
+                <span className="entry-name">{itemName(c.id)}</span>
+              </div>
+              <dl className="entry-stats">
+                <div><dt>Where</dt><dd>{c.station === 'press' ? 'A press' : 'A workbench'}</dd></div>
+                <div><dt>Needs</dt><dd>{Object.entries(c.inputs).map(([id, n]) => `${n} × ${itemName(id)}`).join(', ')}</dd></div>
+                <div><dt>XP</dt><dd>{c.xp}</dd></div>
+              </dl>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

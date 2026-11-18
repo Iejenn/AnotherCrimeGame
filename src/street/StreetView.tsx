@@ -195,7 +195,9 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
   // The log always starts with the welcome (time 0, so it sorts above everything else), then the how-to line.
   const [msgs, setMsgs] = useState<Msg[]>([
     { t: 0, text: 'Welcome to Underworld.' },
-    { t: 1, text: 'Tap to walk. Tap a tourist in the park to pick their pocket. Drag to turn the camera, pinch to zoom.' },
+    // v0.51: the how-to covers more than pickpocketing now (fighting, talking, cooking) and points to the Skills guides.
+    { t: 1, text: 'Tap to walk. Tap people and things to act on them: pick a pocket, fight, talk, cook. Drag to turn the camera, pinch or scroll to zoom.' },
+    { t: 2, text: 'New here? Pick tourists\' pockets in the park or fight the Pigeons. Tap a skill in Skills to see how to train it.' },
   ]);
   const sayRef = useRef((text: string) => setMsgs((m) => [...m.slice(-20), { t: gameNow(), text }]));
   // Which NPC you're talking to (opens the chat window). Set from the 3D scene when you reach them.
