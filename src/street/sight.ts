@@ -131,6 +131,16 @@ export function enemyChase(masks: Uint8Array, from: [number, number], to: [numbe
   return { route, reached: true };
 }
 
+/**
+ * Is `a` right next to `b` (8 directions) with nothing in between: one step on the walk map (no fence, wall or cut
+ * corner)? A melee fighter only hits from there (v0.62; the server's game.enemy_adjacent is the same check).
+ */
+export function adjacent(masks: Uint8Array, a: [number, number], b: [number, number]) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1 || !inGrid(a[0], a[1])) return false;
+  return !!(masks[gi(a[0], a[1])] & (1 << walkBit(dx, dy)));
+}
+
 /** Where an enemy is (tile centre) after walking `frac` (0–1) of its route from `from`, by distance. */
 export function routePoint(from: [number, number], route: [number, number][], frac: number) {
   const pts = [from, ...route];

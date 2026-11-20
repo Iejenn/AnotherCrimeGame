@@ -590,6 +590,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .quest-status { color: #c8c0b0; }
 .quest.active .quest-status { color: #e8c040; }
 .quest.done .quest-status { color: #6ac86a; }
+/* v0.62: advised levels on a quest: green when you have them, amber when you're below. */
+.quest-advice .ok { color: #6ac86a; }
+.quest-advice .low { color: #e8a040; }
 .use-hint { color: #e8c040; margin: 6px 0; }
 
 /* ---------- v0.44: the full-screen HUD ---------- */

@@ -184,7 +184,17 @@ const SewerKey = () => (
   </svg>
 );
 
-const ICONS: Record<string, () => JSX.Element> = { rat_antidote: Antidote, sewer_key: SewerKey, cash: Cash };
+/** The Pipe Elbow (v0.62, "Pipe Dreams"): a bent tin pipe, an L with a collar at each end. */
+const PipeElbow = () => (
+  <svg viewBox="0 0 40 40" aria-hidden="true">
+    <path d="M8 26 H22 Q28 26 28 20 V8 H20 V18 H8 Z" fill="#c8ccd0" stroke="#4a4e54" strokeWidth="1.2" strokeLinejoin="round" />
+    <rect x="5" y="17" width="4" height="10" rx="1" fill="#a8acb0" stroke="#4a4e54" strokeWidth="1" />
+    <rect x="19" y="5" width="10" height="4" rx="1" fill="#a8acb0" stroke="#4a4e54" strokeWidth="1" />
+    <path d="M11 20 H20 Q25 20 25 15 V10" stroke="#f2f4f6" strokeWidth="1.3" fill="none" />
+  </svg>
+);
+
+const ICONS: Record<string, () => JSX.Element> = { rat_antidote: Antidote, sewer_key: SewerKey, pipe_elbow: PipeElbow, cash: Cash };
 /** Food is pictured from the very model it is on the ground (v0.49): rendered by scripts/render-icons.cjs into
  *  public/icons/items/, so the bag and the street always show the same thing. */
 const MODEL_ICONS = new Set(['raw_bird_meat', 'cooked_bird_meat', 'raw_rat_meat', 'cooked_rat_meat', 'raw_giant_rat_meat', 'cooked_giant_rat_meat', 'candy_bar', 'sandwich', 'cooked_rat_antidote']);

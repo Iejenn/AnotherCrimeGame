@@ -9,7 +9,7 @@
 import { withModel } from './models';
 import * as THREE from 'three';
 import { surfaceMat } from './surfaces';
-import { boxGeo, buildLoot, lambert } from './props';
+import { boxGeo, buildLoot, crownClump, lambert } from './props';
 
 const cyl = (rt: number, rb: number, h: number, seg = 10) => new THREE.CylinderGeometry(rt, rb, h, seg);
 
@@ -36,63 +36,137 @@ function canvas(w: number, h: number, draw: (g: CanvasRenderingContext2D) => voi
 
 // ---------------- on the pavement ----------------
 
-/** A street lamp: a pole with an arm and a warm head over the road. */
+/** A street lamp (v0.62, the quality bar): a stepped base, a tapered pole with a collar, an arm curving out over the
+ *  road, a lantern hanging from it: a cap, glass panes glowing warm, a bottom finial. About 200 tris. */
 export function buildStreetLamp() {
   const g = new THREE.Group();
-  put(g, cyl(0.04, 0.06, 2.3, 8), 0x2b2b2e, 0, 1.15, 0);
-  put(g, boxGeo(0.06, 0.06, 0.6), 0x2b2b2e, 0, 2.28, 0.28);
-  put(g, boxGeo(0.22, 0.08, 0.26), 0x2b2b2e, 0, 2.24, 0.55);
-  put(g, boxGeo(0.18, 0.03, 0.22), glow(0xffd9a0, 2), 0, 2.19, 0.55, false);
+  const iron = 0x2b2b2e;
+  put(g, cyl(0.1, 0.12, 0.12, 8), iron, 0, 0.06, 0);
+  put(g, cyl(0.07, 0.09, 0.14, 8), iron, 0, 0.18, 0);
+  put(g, cyl(0.035, 0.055, 2.1, 8), iron, 0, 1.3, 0);
+  put(g, cyl(0.06, 0.06, 0.05, 8), iron, 0, 1.0, 0); // the collar
+  const arm = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 2.3, 0), new THREE.Vector3(0, 2.42, 0.18), new THREE.Vector3(0, 2.38, 0.45), new THREE.Vector3(0, 2.3, 0.55)]);
+  put(g, new THREE.TubeGeometry(arm, 6, 0.025, 5), iron, 0, 0, 0);
+  put(g, new THREE.ConeGeometry(0.16, 0.1, 6), iron, 0, 2.24, 0.55); // the lantern's cap
+  put(g, cyl(0.1, 0.07, 0.2, 6), glow(0xffd9a0, 1.8), 0, 2.09, 0.55, false); // its glass
+  put(g, new THREE.ConeGeometry(0.04, 0.06, 6).rotateX(Math.PI), iron, 0, 1.96, 0.55, false);
   return g;
 }
 
-/** A red fire hydrant. */
+/** A fire hydrant (v0.62): a base flange, the barrel with two bands, a domed bonnet with its nut, two side nozzles with
+ *  caps and a bigger one at the front. Two reds. About 290 tris. */
 export function buildHydrant() {
   const g = new THREE.Group();
-  put(g, cyl(0.1, 0.12, 0.42), 0xb8282a, 0, 0.21, 0);
-  put(g, new THREE.SphereGeometry(0.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0xb8282a, 0, 0.42, 0);
-  put(g, cyl(0.04, 0.04, 0.3, 8).rotateZ(Math.PI / 2), 0xb8282a, 0, 0.3, 0);
-  put(g, cyl(0.13, 0.13, 0.04), 0x8a1e1e, 0, 0.03, 0);
+  const red = 0xb8282a, dark = 0x8a1e1e;
+  put(g, cyl(0.14, 0.15, 0.05, 8), dark, 0, 0.025, 0);
+  put(g, cyl(0.1, 0.11, 0.38, 8), red, 0, 0.24, 0);
+  put(g, cyl(0.115, 0.115, 0.03, 8), dark, 0, 0.38, 0, false); // the band under the bonnet
+  put(g, new THREE.SphereGeometry(0.105, 8, 3, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, 0.43, 0);
+  put(g, cyl(0.025, 0.03, 0.05, 5), dark, 0, 0.54, 0, false); // the nut on top (a pentagon, like the real ones)
+  for (const x of [-1, 1]) {
+    put(g, cyl(0.04, 0.04, 0.1, 6).rotateZ(Math.PI / 2), red, x * 0.12, 0.3, 0, false);
+    put(g, cyl(0.05, 0.05, 0.03, 6).rotateZ(Math.PI / 2), dark, x * 0.175, 0.3, 0, false);
+  }
+  put(g, cyl(0.055, 0.055, 0.08, 6).rotateX(Math.PI / 2), red, 0, 0.27, 0.12, false);
+  put(g, cyl(0.065, 0.065, 0.03, 6).rotateX(Math.PI / 2), dark, 0, 0.27, 0.17, false);
   return g;
 }
 
-/** A blue mailbox on legs. */
+/** A mailbox (v0.62): its arched body (the profile pushed out), a pull-down slot with a handle, a white stripe and
+ *  plate, on two splayed legs. About 120 tris. */
 export function buildMailbox() {
   const g = new THREE.Group();
-  put(g, boxGeo(0.42, 0.5, 0.38), 0x2f4f8a, 0, 0.62, 0);
-  put(g, cyl(0.21, 0.21, 0.38, 12).rotateX(Math.PI / 2), 0x2f4f8a, 0, 0.87, 0);
-  for (const x of [-0.16, 0.16]) put(g, boxGeo(0.05, 0.38, 0.05), 0x22385f, x, 0.19, 0);
-  put(g, boxGeo(0.26, 0.04, 0.02), 0x14223a, 0, 0.78, 0.2, false);
+  const prof = new THREE.Shape();
+  prof.moveTo(-0.21, 0);
+  prof.lineTo(0.21, 0);
+  prof.lineTo(0.21, 0.42);
+  prof.quadraticCurveTo(0.21, 0.66, 0, 0.66);
+  prof.quadraticCurveTo(-0.21, 0.66, -0.21, 0.42);
+  prof.closePath();
+  const body = new THREE.ExtrudeGeometry(prof, { depth: 0.38, bevelEnabled: false, curveSegments: 3 });
+  body.translate(0, 0.38, -0.19);
+  put(g, body, surfaceMat('metal', 0x2f4f8a), 0, 0, 0);
+  put(g, boxGeo(0.3, 0.07, 0.03), 0x22385f, 0, 0.88, 0.2, false); // the slot's flap
+  put(g, boxGeo(0.1, 0.02, 0.03), 0xb0b4b8, 0, 0.85, 0.22, false); // its handle
+  put(g, boxGeo(0.43, 0.03, 0.39), 0xe8e2d0, 0, 0.6, 0, false); // the white stripe
+  put(g, boxGeo(0.16, 0.08, 0.01), 0xe8e2d0, 0, 0.5, 0.195, false); // the plate
+  for (const x of [-1, 1]) put(g, boxGeo(0.05, 0.4, 0.05), 0x22385f, x * 0.15, 0.19, 0).rotation.z = x * -0.08;
   return g;
 }
 
-/** A metal trash can, sometimes overflowing. */
+/** A street bin (v0.62): ribbed steel tapering down, a rim, a domed lid with a handle; full, rubbish spilling over it
+ *  (a black bag, crumpled paper, a coffee cup). About 200 tris. */
 export function buildBin(full = false) {
   const g = new THREE.Group();
-  put(g, cyl(0.17, 0.15, 0.5, 12), surfaceMat('metal', 0x5f6366), 0, 0.25, 0);
-  put(g, cyl(0.19, 0.19, 0.05, 12), 0x4a4d50, 0, 0.52, 0);
-  if (full) put(g, new THREE.SphereGeometry(0.16, 8, 6), 0x2b2b2e, 0.05, 0.6, 0.02);
+  put(g, cyl(0.17, 0.14, 0.5, 10), surfaceMat('metal', 0x5f6366), 0, 0.25, 0);
+  for (const y of [0.12, 0.38]) put(g, cyl(0.175, 0.17, 0.025, 10), 0x4a4d50, 0, y, 0, false); // ribs
+  put(g, cyl(0.19, 0.19, 0.04, 10), 0x4a4d50, 0, 0.52, 0);
+  if (!full) {
+    put(g, new THREE.SphereGeometry(0.18, 10, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.35, 1), 0x55595c, 0, 0.54, 0);
+    put(g, boxGeo(0.12, 0.03, 0.03), 0x2b2b2e, 0, 0.62, 0, false);
+  } else {
+    put(g, new THREE.IcosahedronGeometry(0.15, 0).scale(1, 0.75, 1), 0x1e1e22, 0.03, 0.62, 0); // a black bag
+    put(g, new THREE.IcosahedronGeometry(0.05, 0), 0xe8e2d0, -0.12, 0.62, 0.08, false); // crumpled paper
+    put(g, new THREE.IcosahedronGeometry(0.04, 0), 0xd8d0b8, 0.13, 0.58, 0.1, false);
+    const cup = put(g, cyl(0.035, 0.025, 0.09, 6), 0xf2efe8, -0.06, 0.66, -0.1, false);
+    cup.rotation.z = 0.7;
+  }
   return g;
 }
 
-/** A newspaper box (coin-operated), a bright one and a dull one side by side. */
+/** Two newspaper boxes (v0.62): a sloped top, a window with the day's front page behind it, a coin slot, on a
+ *  pedestal; a bright one and a dull one. About 160 tris. */
 export function buildNewsBoxes() {
   const g = new THREE.Group();
-  [0xd9473a, 0x3a6ea5].forEach((c, i) => {
+  const page = typeof document === 'undefined' ? null : canvas(64, 64, (c) => {
+    c.fillStyle = '#e8e2d0';
+    c.fillRect(0, 0, 64, 64);
+    c.fillStyle = '#1e1e22';
+    c.fillRect(6, 6, 52, 10); // the masthead
+    for (let y = 22; y < 60; y += 6) c.fillRect(6, y, y < 40 ? 52 : 24, 2);
+    c.fillStyle = '#8a8f96';
+    c.fillRect(34, 40, 24, 18); // a photo
+  });
+  [0xd9473a, 0x3a6ea5].forEach((col, i) => {
     const x = i * 0.42 - 0.21;
-    put(g, boxGeo(0.36, 0.5, 0.32), surfaceMat('metal', c), x, 0.5, 0);
-    put(g, boxGeo(0.28, 0.18, 0.02), glow(0xe8e2d0, 0.3), x, 0.6, 0.17, false);
-    put(g, boxGeo(0.06, 0.25, 0.06), 0x2b2b2e, x, 0.13, 0);
+    put(g, boxGeo(0.36, 0.46, 0.32), surfaceMat('metal', col), x, 0.48, 0);
+    const top = put(g, boxGeo(0.38, 0.04, 0.36), surfaceMat('metal', col), x, 0.73, -0.01);
+    top.rotation.x = 0.18;
+    put(g, boxGeo(0.28, 0.2, 0.02), page ? new THREE.MeshLambertMaterial({ map: page, emissive: 0x302820, emissiveIntensity: 0.4 }) : 0xe8e2d0, x, 0.55, 0.17, false);
+    put(g, boxGeo(0.06, 0.04, 0.02), 0xb0b4b8, x + 0.1, 0.36, 0.17, false); // the coin slot
+    put(g, boxGeo(0.07, 0.25, 0.07), 0x2b2b2e, x, 0.13, 0);
+    put(g, boxGeo(0.24, 0.03, 0.2), 0x2b2b2e, x, 0.015, 0);
   });
   return g;
 }
 
-/** A bench (two people fit). */
+/** A park bench (v0.62, the quality bar): wooden slats with gaps (three to sit on, two at the back), on curved
+ *  cast-iron frames (a side profile pushed out) with armrests. Two people fit. About 210 tris. */
 export function buildBench(len = 1.3) {
   const g = new THREE.Group();
-  put(g, boxGeo(len, 0.06, 0.36), surfaceMat('wood', 0x6b4a2e), 0, 0.42, 0);
-  put(g, boxGeo(len, 0.3, 0.05), surfaceMat('wood', 0x6b4a2e), 0, 0.66, -0.17);
-  for (const x of [-len / 2 + 0.08, len / 2 - 0.08]) put(g, boxGeo(0.05, 0.42, 0.36), 0x2b2b2e, x, 0.21, 0);
+  const wood = surfaceMat('wood', 0x6b4a2e);
+  for (let i = 0; i < 3; i++) put(g, boxGeo(len, 0.04, 0.1), wood, 0, 0.42, -0.12 + i * 0.12);
+  for (let i = 0; i < 2; i++) put(g, boxGeo(len, 0.09, 0.03), wood, 0, 0.56 + i * 0.13, -0.19 - i * 0.025).rotation.x = -0.18;
+  // The frame: a leg, the seat rail and the back post in one curved outline, and an armrest on top.
+  const f = new THREE.Shape();
+  f.moveTo(0.16, 0);
+  f.lineTo(0.2, 0);
+  f.quadraticCurveTo(0.16, 0.24, 0.18, 0.4);
+  f.lineTo(-0.18, 0.4);
+  f.lineTo(-0.23, 0.8);
+  f.lineTo(-0.27, 0.79);
+  f.lineTo(-0.22, 0.36);
+  f.quadraticCurveTo(-0.2, 0.2, -0.24, 0);
+  f.lineTo(-0.2, 0);
+  f.quadraticCurveTo(-0.16, 0.2, -0.17, 0.34);
+  f.lineTo(0.14, 0.34);
+  f.quadraticCurveTo(0.12, 0.2, 0.16, 0);
+  const frame = new THREE.ExtrudeGeometry(f, { depth: 0.04, bevelEnabled: false, curveSegments: 2 });
+  frame.rotateY(Math.PI / 2);
+  for (const x of [-len / 2 + 0.06, len / 2 - 0.1]) {
+    put(g, frame, 0x2b2b2e, x, 0, 0);
+    put(g, boxGeo(0.06, 0.03, 0.34), 0x2b2b2e, x + 0.02, 0.6, 0.0);
+  }
   return g;
 }
 
@@ -148,7 +222,7 @@ export function buildBikeRack() {
   return g;
 }
 
-/** A young tree in a square pit with a little iron fence. */
+/** A young tree in a square pit with a little iron fence (v0.62: a bark trunk, leafy lumpy crowns like the park's). */
 export function buildTreePit(rng = Math.random) {
   const g = new THREE.Group();
   put(g, boxGeo(0.8, 0.03, 0.8), 0x3a2a1e, 0, 0.02, 0, false);
@@ -156,23 +230,43 @@ export function buildTreePit(rng = Math.random) {
     const f = put(g, boxGeo(0.78, 0.18, 0.02), 0x2b2b2e, x, 0.09, z);
     f.rotation.y = r ? Math.PI / 2 : 0;
   }
-  put(g, cyl(0.05, 0.07, 1.6, 6), 0x4a3423, 0, 0.8, 0);
+  put(g, cyl(0.05, 0.07, 1.6, 6), surfaceMat('bark', 0x4a3423), 0, 0.8, 0);
   const leaves = [0x355a2c, 0x3f6834, 0x2e4f27];
   for (let i = 0; i < 3; i++) {
     const s = 0.45 + rng() * 0.2;
-    put(g, new THREE.IcosahedronGeometry(s, 0), new THREE.MeshLambertMaterial({ color: leaves[i], flatShading: true }), (rng() - 0.5) * 0.4, 1.7 + i * 0.25, (rng() - 0.5) * 0.4);
+    const m = surfaceMat('leaves', leaves[i]).clone();
+    m.vertexColors = true;
+    put(g, crownClump(i + 1).scale(s / 0.42, s / 0.42, s / 0.42), m, (rng() - 0.5) * 0.4, 1.7 + i * 0.25, (rng() - 0.5) * 0.4);
   }
   return g;
 }
 
-/** A big green dumpster with a lid half open, and bags next to it. */
+/** A big alley dumpster (v0.62): the body wider at the top (a side profile pushed out), ribs down the sides, fork
+ *  pockets, wheels, one lid shut and one thrown back, black bags piled beside it. About 270 tris. */
 export function buildDumpster() {
   const g = new THREE.Group();
-  put(g, boxGeo(1.4, 0.8, 0.8), surfaceMat('metal', 0x2e5a3a), 0, 0.45, 0);
-  const lid = put(g, boxGeo(1.42, 0.05, 0.82), 0x24482e, 0, 0.88, -0.1);
-  lid.rotation.x = -0.35;
-  for (const x of [-0.55, 0.55]) put(g, cyl(0.06, 0.06, 0.05, 8).rotateX(Math.PI / 2), 0x1e1e22, x, 0.06, 0.38);
-  for (let i = 0; i < 3; i++) put(g, new THREE.SphereGeometry(0.2, 8, 6), 0x1e1e22, 0.9 + (i % 2) * 0.25, 0.18, 0.1 + i * 0.22);
+  const prof = new THREE.Shape([new THREE.Vector2(-0.36, 0.08), new THREE.Vector2(0.3, 0.08), new THREE.Vector2(0.4, 0.85), new THREE.Vector2(-0.4, 0.85)]);
+  const body = new THREE.ExtrudeGeometry(prof, { depth: 1.4, bevelEnabled: false, curveSegments: 1 });
+  body.rotateY(-Math.PI / 2);
+  body.translate(0.7, 0, 0);
+  put(g, body, surfaceMat('metal', 0x2e5a3a), 0, 0, 0);
+  for (const x of [-0.45, 0, 0.45]) put(g, boxGeo(0.05, 0.7, 0.04), 0x24482e, x, 0.46, 0.38, false); // ribs at the front
+  put(g, boxGeo(1.44, 0.05, 0.84), 0x24482e, 0, 0.86, 0, false); // the rim
+  for (const x of [-0.72, 0.72]) put(g, boxGeo(0.04, 0.1, 0.5), 0x1e1e22, x, 0.32, 0, false); // fork pockets
+  put(g, boxGeo(0.7, 0.05, 0.84), 0x1e3a26, -0.35, 0.9, 0); // a lid, shut
+  // The other thrown back: hinged at the back edge of the rim, swung over past upright, hanging down behind.
+  const hinge = new THREE.Group();
+  hinge.position.set(0.35, 0.9, -0.42);
+  hinge.rotation.x = -2.7;
+  put(hinge, boxGeo(0.7, 0.05, 0.84), 0x1e3a26, 0, 0, 0.42);
+  g.add(hinge);
+  for (const [x, z] of [[-0.55, -0.3], [0.55, -0.3], [-0.55, 0.3], [0.55, 0.3]]) put(g, cyl(0.06, 0.06, 0.05, 6).rotateX(Math.PI / 2), 0x1e1e22, x, 0.06, z, false);
+  // Bags piled beside it: lumpy, with a knot on top.
+  for (let i = 0; i < 3; i++) {
+    const bag = put(g, new THREE.IcosahedronGeometry(0.2, 0).scale(1, 0.85 + (i % 2) * 0.2, 0.9), 0x1e1e22, 0.95 + (i % 2) * 0.22, 0.17, 0.05 + i * 0.22);
+    bag.rotation.y = i;
+    put(g, new THREE.ConeGeometry(0.04, 0.08, 4), 0x2b2b2e, 0.95 + (i % 2) * 0.22, 0.38 + (i % 2) * 0.03, 0.05 + i * 0.22, false);
+  }
   return g;
 }
 

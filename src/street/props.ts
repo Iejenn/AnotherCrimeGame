@@ -1112,3 +1112,735 @@ export function buildStringLights(a: THREE.Vector3, b: THREE.Vector3, bulbs = 14
   }
   return g;
 }
+
+// ---------- Hotline Plumbing & Heating and the quest "Pipe Dreams" (v0.62) ----------
+// Built to the art rules (docs/design.md §18): low-poly, flat-shaded, 6–12-sided round things, pixel textures on the
+// materials, each within the prop budget (300 triangles). props.test.ts counts them. Each stands on its origin.
+
+/** Galvanised pipe metal: brushed grey, a few darker joints. */
+const PIPE_METAL: Painter = (g, rnd) => {
+  px(g, '#9aa0a6', 0, 0, 32, 32);
+  for (let x = 0; x < 32; x++) if (rnd() < 0.4) px(g, shade(0x9aa0a6, 0.88 + rnd() * 0.2), x, 0, 1, 32);
+  for (let i = 0; i < 3; i++) px(g, '#6e737a', 0, Math.floor(rnd() * 30), 32, 2);
+};
+/** Old iron pipe: rust in streaks and blotches over dark brown, a pale tide line of scale. */
+const RUST_PIPE: Painter = (g, rnd) => {
+  px(g, '#6a3a22', 0, 0, 32, 32);
+  for (let i = 0; i < 40; i++) px(g, rnd() < 0.5 ? '#8a4a2a' : '#4a2a1a', Math.floor(rnd() * 30), Math.floor(rnd() * 30), 2 + Math.floor(rnd() * 3), 1 + Math.floor(rnd() * 2));
+  for (let x = 0; x < 32; x++) if (rnd() < 0.5) px(g, '#a8784a', x, 20, 1, 1);
+};
+/** Enamel (a water heater's white, a toolbox's red): a sheen streak, a few chips and scuffs. */
+const ENAMEL = (c: number): Painter => (g, rnd) => {
+  px(g, shade(c, 1), 0, 0, 32, 32);
+  px(g, shade(c, 1.12), 4, 0, 3, 32);
+  for (let i = 0; i < 8; i++) px(g, shade(c, 0.78), Math.floor(rnd() * 31), Math.floor(rnd() * 31), 2, 1);
+};
+
+/**
+ * The water main (the bar's): a red handwheel on a cast-iron riser coming up out of a concrete pad, a flange, a blue
+ * "W" plate, a lid in the pad. `userData.wheel` turns (StreetView: shut while you have the water off). About 200 tris.
+ */
+export function buildWaterMain(): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(0.62, 0.08, 0.62), texMat('concrete', CONCRETE, 1, 1, 0x7a766e), 0, 0.04, 0);
+  boxAt(g, 0.26, 0.015, 0.26, 0x3a3d42, 0.12, 0.08, 0.12, false); // the lid of the meter box
+  const iron = texMat('pipemetal', PIPE_METAL, 1, 1, 0x5a5e64);
+  addTex(g, cylGeo(0.06, 0.42, 8), iron, -0.08, 0.08 + 0.21, -0.08);
+  add(g, cylGeo(0.1, 0.05, 8), 0x4a4e54, -0.08, 0.14, -0.08); // the flange at the bottom
+  add(g, cylGeo(0.085, 0.06, 8), 0x4a4e54, -0.08, 0.44, -0.08); // the valve body
+  const wheel = new THREE.Group();
+  wheel.position.set(-0.08, 0.53, -0.08);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 4, 10), lambert(0xc8322a));
+  rim.rotation.x = Math.PI / 2;
+  wheel.add(rim);
+  for (const r of [0, Math.PI / 2]) {
+    const spoke = new THREE.Mesh(boxGeo(0.26, 0.02, 0.025), lambert(0xa82a24));
+    spoke.rotation.y = r;
+    wheel.add(spoke);
+  }
+  add(wheel, cylGeo(0.03, 0.04, 6), 0x8a2620, 0, 0, 0, false);
+  g.add(wheel);
+  g.userData.wheel = wheel;
+  // A small blue plate on the riser: W for water.
+  const plate = boxAt(g, 0.1, 0.1, 0.01, 0x2e5f8a, -0.08, 0.24, -0.015, false);
+  boxAt(plate, 0.06, 0.012, 0.012, 0xe8e2d4, 0, -0.006, 0.006, false);
+  return g;
+}
+
+/**
+ * The bar's burst pipe, old-school RuneScape style (the wall is at -x): a rusty pipe along the wall up high with a tee
+ * coming into the room, broken off; a stream of water arcing out of it to the floor (a faceted ribbon, a paler core),
+ * white bits splashing where it lands (animateBurstPipe), an irregular puddle with two smaller ones. `userData`:
+ * `spray` (the stream and the splash: water on, still broken), `puddle`, `cracked` (the broken end), `fixed` (a new
+ * shiny elbow and cap). StreetView shows them by your step in the quest. About 280 tris.
+ */
+export function buildBurstPipe(): THREE.Group {
+  const g = new THREE.Group();
+  const rust = texMat('rustpipe', RUST_PIPE, 1, 1, 0x8a4a2a);
+  const run = addTex(g, cylGeo(0.06, 1.9, 6), rust, -0.42, 1.55, 0); // along the wall
+  run.rotation.x = Math.PI / 2;
+  const tee = addTex(g, cylGeo(0.06, 0.2, 6), rust, -0.32, 1.55, 0); // the tee into the room
+  tee.rotation.z = Math.PI / 2;
+  const cracked = new THREE.Group();
+  const jag = add(cracked, cylGeo(0.07, 0.07, 6), 0x5a3020, -0.2, 1.55, 0); // the broken-off end
+  jag.rotation.z = Math.PI / 2 + 0.25;
+  g.add(cracked);
+  const fixed = new THREE.Group();
+  const elbow = add(fixed, cylGeo(0.075, 0.16, 6), 0xd0d4d8, -0.18, 1.55, 0); // the new Pipe Elbow, shiny tin
+  elbow.rotation.z = Math.PI / 2;
+  add(fixed, cylGeo(0.08, 0.04, 6), 0xb0b4b8, -0.1, 1.55, 0, false).rotation.z = Math.PI / 2; // its cap
+  fixed.visible = false;
+  g.add(fixed);
+  // The stream: a tube along an arc from the break to the floor, flat-shaded so its facets catch the light like the
+  // reference; a thinner, whiter core inside it.
+  const spray = new THREE.Group();
+  const land = new THREE.Vector3(0.75, 0.14, 0.12);
+  const arc = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.2, 1.55, 0),
+    new THREE.Vector3(0.2, 1.6, 0.03),
+    new THREE.Vector3(0.55, 1.05, 0.08),
+    land.clone(),
+  ]);
+  const blue = new THREE.MeshLambertMaterial({ color: 0x9cc8ec, emissive: 0x2a5a8a, emissiveIntensity: 0.55, transparent: true, opacity: 0.85, flatShading: true });
+  const white = new THREE.MeshLambertMaterial({ color: 0xf2f8ff, emissive: 0x8ab0d0, emissiveIntensity: 0.6, flatShading: true });
+  const stream = new THREE.Mesh(new THREE.TubeGeometry(arc, 8, 0.075, 5), blue);
+  stream.scale.set(1, 1, 1.4); // a ribbon, wider than it is deep
+  spray.add(stream);
+  spray.add(new THREE.Mesh(new THREE.TubeGeometry(arc, 5, 0.035, 3), white));
+  // The splash: white bits (tetrahedra) flying up and out where it lands.
+  const splash = new THREE.Group();
+  splash.position.copy(land);
+  const bit = new THREE.TetrahedronGeometry(0.035, 0);
+  for (let i = 0; i < 12; i++) {
+    const m = new THREE.Mesh(bit, white);
+    m.userData = { a: (i / 12) * Math.PI * 2 + (i % 3) * 0.4, r: 0.2 + (i % 4) * 0.08, h: 0.18 + (i % 3) * 0.08, p: (i * 0.37) % 1 };
+    splash.add(m);
+  }
+  spray.add(splash);
+  spray.userData.splash = splash;
+  g.add(spray);
+  // The puddle: an irregular flat shape (a jagged ring of points), two little ones beside it. Paler where it's shallow.
+  const puddle = new THREE.Group();
+  const pool = (cx: number, cz: number, r: number, n: number, seed: number) => {
+    const s = new THREE.Shape();
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const k = r * (0.75 + 0.35 * Math.abs(Math.sin(seed * 7.3 + i * 2.1)));
+      i === 0 ? s.moveTo(Math.cos(a) * k, Math.sin(a) * k) : s.lineTo(Math.cos(a) * k, Math.sin(a) * k);
+    }
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshLambertMaterial({ color: 0x6aa8e8, emissive: 0x2a6aa8, emissiveIntensity: 0.6, transparent: true, opacity: 0.95, flatShading: true }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(cx, 0.135, cz);
+    puddle.add(m);
+  };
+  pool(land.x, land.z, 0.5, 10, 1);
+  pool(land.x + 0.55, land.z + 0.4, 0.17, 6, 2);
+  pool(land.x + 0.2, land.z - 0.55, 0.13, 6, 3);
+  g.add(puddle);
+  g.userData = { spray, puddle, cracked, fixed };
+  return g;
+}
+/** The burst pipe's splash: each bit flies up and out from where the water lands, and falls back (`t`: seconds). */
+export function animateBurstPipe(g: THREE.Group, t: number) {
+  const splash = (g.userData.spray as THREE.Object3D | undefined)?.userData.splash as THREE.Group | undefined;
+  if (!splash || !(g.userData.spray as THREE.Object3D).visible) return;
+  for (const m of splash.children) {
+    const { a, r, h, p } = m.userData as { a: number; r: number; h: number; p: number };
+    const k = (t * 1.6 + p) % 1;
+    m.position.set(Math.cos(a) * r * k, h * 4 * k * (1 - k), Math.sin(a) * r * k);
+    m.rotation.set(k * 6, k * 4, 0);
+  }
+}
+
+/** A shelf of plumbing fittings against a wall (the wall at -z): bins of elbows and tees, a coil of copper. ~260 tris. */
+export function buildFittingsShelf(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  const steel = surfaceMat('metal', 0x6a7078);
+  addTex(g, boxGeo(0.95, 1.5, 0.08), steel, 0, 0.75, -0.38);
+  for (let level = 0; level < 3; level++) addTex(g, boxGeo(0.95, 0.03, 0.4), steel, 0, 0.3 + level * 0.45, -0.2, false);
+  const bins = [0xc8322a, 0x2e5f8a, 0xe0b23a];
+  for (let level = 0; level < 3; level++)
+    for (let i = 0; i < 3; i++) {
+      boxAt(g, 0.26, 0.14, 0.3, bins[(seed + level + i) % 3], -0.3 + i * 0.3, 0.315 + level * 0.45, -0.2, false);
+      if (i === (seed + level) % 3) add(g, cylGeo(0.025, 0.08, 6), 0xb0b4b8, -0.3 + i * 0.3, 0.48 + level * 0.45, -0.2, false); // a fitting peeking out
+    }
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 3, 8), lambert(0xc07040));
+  coil.position.set(0.25, 1.57, -0.2);
+  coil.rotation.x = Math.PI / 2;
+  g.add(coil);
+  return g;
+}
+
+/** A water heater (white enamel, a dial, pipes on top). `tall`: the big hot-water tank in the workshop. ~150 tris. */
+export function buildWaterHeater(tall = false): THREE.Group {
+  const g = new THREE.Group();
+  const h = tall ? 1.55 : 1.15, r = tall ? 0.3 : 0.24;
+  addTex(g, cylGeo(r, h, 10), texMat('enamel_white', ENAMEL(0xe8e4dc), 1, 1, 0xe8e4dc), 0, 0.05 + h / 2, 0);
+  add(g, cylGeo(r + 0.02, 0.05, 10), 0x8a8f96, 0, 0.025, 0); // the base ring
+  add(g, cylGeo(r * 0.85, 0.06, 10), 0xd0ccc4, 0, 0.05 + h + 0.03, 0, false); // the domed top
+  for (const dx of [-0.08, 0.08]) add(g, cylGeo(0.03, 0.22, 6), dx < 0 ? 0xc8322a : 0x2e5f8a, dx, 0.05 + h + 0.14, 0, false); // hot and cold
+  add(g, cylGeo(0.05, 0.02, 8), 0x3a3d42, 0, 0.05 + h * 0.35, r + 0.005, false).rotation.x = Math.PI / 2; // the dial
+  if (!tall) boxAt(g, 0.14, 0.08, 0.01, 0xf2d27a, 0, 0.05 + h * 0.65, r + 0.004, false); // a price tag
+  return g;
+}
+
+/** A shop counter, `len` long along x: a wood top over a steel front, a till and a bell. ~120 tris. */
+export function buildShopCounter(len = 1, till = false): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(len, 0.85, 0.6), surfaceMat('metal', 0x2e5f8a), 0, 0.425, 0);
+  addTex(g, boxGeo(len + 0.04, 0.05, 0.66), texMat('wood', WOOD, len, 1, 0x7a5a3a), 0, 0.875, 0, false);
+  if (till) {
+    boxAt(g, 0.3, 0.14, 0.24, 0x3a3d42, -0.15, 0.9, 0.05, false);
+    boxAt(g, 0.22, 0.1, 0.02, 0x7ac88a, -0.15, 1.04, -0.05, false).rotation.x = -0.4;
+    add(g, new THREE.ConeGeometry(0.05, 0.05, 8), 0xd0b040, 0.25, 0.925, 0.1, false); // the bell
+  }
+  return g;
+}
+
+/** A plumber's workbench (along z, 2 tiles): a wood top, a vice, a pipe in it, tools on a pegboard. ~220 tris. */
+export function buildPlumbBench(): THREE.Group {
+  const g = new THREE.Group();
+  const wood = texMat('wood', WOOD, 1, 2, 0x7a5a3a);
+  addTex(g, boxGeo(0.7, 0.06, 1.9), wood, 0, 0.82, 0);
+  for (const dz of [-0.85, 0.85]) for (const dx of [-0.28, 0.28]) boxAt(g, 0.06, 0.8, 0.06, 0x3a3d42, dx, 0, dz);
+  addTex(g, boxGeo(0.62, 0.04, 1.8), wood, 0, 0.3, 0, false); // the shelf below
+  boxAt(g, 0.18, 0.14, 0.12, 0x2e5f8a, -0.1, 0.85, -0.5); // the vice
+  add(g, cylGeo(0.035, 0.8, 8), 0xb0b4b8, -0.1, 0.95, -0.5, false).rotation.x = Math.PI / 2;
+  boxAt(g, 0.04, 0.9, 1.6, 0x8a6a4a, 0.33, 0.88, 0, false); // the pegboard
+  for (const [dz, c] of [[-0.5, 0xc8322a], [0, 0x3a3d42], [0.45, 0xe0b23a]] as const) boxAt(g, 0.03, 0.3, 0.08, c, 0.3, 1.25, dz, false);
+  return g;
+}
+
+/** A rack of pipes along x: two frames, lengths of pipe lying across them in two rows. ~240 tris. */
+export function buildPipeRack(len = 2): THREE.Group {
+  const g = new THREE.Group();
+  for (const dx of [-len / 2 + 0.2, len / 2 - 0.2]) {
+    boxAt(g, 0.06, 0.9, 0.06, 0x3a3d42, dx, 0, -0.2);
+    boxAt(g, 0.06, 0.9, 0.06, 0x3a3d42, dx, 0, 0.2);
+    for (const y of [0.35, 0.75]) boxAt(g, 0.06, 0.04, 0.46, 0x3a3d42, dx, y, 0, false);
+  }
+  const iron = texMat('pipemetal', PIPE_METAL, len, 1, 0x9aa0a6);
+  for (const y of [0.42, 0.82])
+    for (let i = 0; i < 3; i++) {
+      const copper = (i + (y > 0.5 ? 1 : 0)) % 3 === 0;
+      const p = copper ? add(g, cylGeo(0.04, len - 0.1, 6), 0xc07040, 0, y, -0.14 + i * 0.14, false) : addTex(g, cylGeo(0.04, len - 0.1, 6), iron, 0, y, -0.14 + i * 0.14, false);
+      p.rotation.z = Math.PI / 2;
+    }
+  return g;
+}
+
+/** A red toolbox on a crate, its lid open, a wrench on top. ~90 tris. */
+export function buildToolbox(): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(0.6, 0.4, 0.5), texMat('wood', WOOD, 1, 1, 0x7a5a3a), 0, 0.2, 0);
+  addTex(g, boxGeo(0.45, 0.2, 0.22), texMat('enamel_red', ENAMEL(0xc8322a), 1, 1, 0xc8322a), 0, 0.5, 0);
+  const lid = boxAt(g, 0.45, 0.02, 0.22, 0xa82a24, 0, 0.6, -0.12, false);
+  lid.rotation.x = -1.1;
+  const wrench = boxAt(g, 0.32, 0.02, 0.05, 0x9aa0a6, 0.02, 0.61, 0.04, false);
+  wrench.rotation.y = 0.3;
+  return g;
+}
+
+/** The Pipe Elbow (the quest's part, a tin sheet bent into an L): for the bag and the ground. ~70 tris. */
+export function buildPipeElbow(): THREE.Group {
+  const g = new THREE.Group();
+  const tin = texMat('pipemetal', PIPE_METAL, 1, 1, 0xc8ccd0);
+  addTex(g, cylGeo(0.07, 0.24, 8), tin, 0, 0.12 + 0.07, 0).rotation.z = Math.PI / 2;
+  addTex(g, cylGeo(0.07, 0.2, 8), tin, 0.12, 0.17 + 0.1, 0);
+  add(g, cylGeo(0.085, 0.04, 8), 0xa8acb0, -0.12, 0.19, 0, false).rotation.z = Math.PI / 2;
+  add(g, cylGeo(0.085, 0.04, 8), 0xa8acb0, 0.12, 0.37, 0, false);
+  return g;
+}
+
+// ---------- fire (v0.62, the quality bar: docs/design.md §18) ----------
+/**
+ * A fire (the burning barrels, the barbecue): teardrop flame tongues in three tones (deep orange outside, orange, a
+ * yellow core), each bent like a real flame and flickering on its own (animateFire), embers rising out of it, a wisp of
+ * dark smoke. `size` 1 is a barrel's fire (about 0.6 tall). Stands at its origin (the base of the flames). ~270 tris.
+ */
+export function buildFire(size = 1): THREE.Group {
+  const g = new THREE.Group();
+  const tongue = (r: number, h: number, bend: number) => {
+    // A teardrop profile (fat low down, a long tip), turned round (5 sides), then bent sideways towards the tip.
+    const pts = [[0.55, 0], [1, 0.22], [0.5, 0.62], [0, 1]].map(([a, b]) => new THREE.Vector2(a * r, b * h));
+    const geo = new THREE.LatheGeometry(pts, 5);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) + bend * (pos.getY(i) / h) ** 2);
+    geo.computeVertexNormals();
+    return geo;
+  };
+  const mat = (c: number, e: number, o: number) => new THREE.MeshLambertMaterial({ color: c, emissive: e, emissiveIntensity: 1.6, transparent: true, opacity: o, flatShading: true, depthWrite: false });
+  const layers: [number, number, number, number, number, number][] = [
+    // [count, radius, height, colour, emissive, opacity]
+    [3, 0.12, 0.55, 0xe8501a, 0xd8380a, 0.85],
+    [2, 0.09, 0.45, 0xff8a22, 0xff6a10, 0.9],
+    [1, 0.06, 0.32, 0xffe070, 0xffc030, 0.95],
+  ];
+  const flames: THREE.Mesh[] = [];
+  layers.forEach(([n, r, h, c, e, o], li) => {
+    const m = mat(c, e, o);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + li;
+      const f = new THREE.Mesh(tongue(r * size, h * size * (0.85 + ((i * 37) % 10) / 30), 0.08 * size * (i % 2 ? 1 : -1)), m);
+      f.position.set(Math.cos(a) * 0.07 * size * (li === 2 ? 0 : 1), 0, Math.sin(a) * 0.07 * size * (li === 2 ? 0 : 1));
+      f.rotation.y = a;
+      f.userData.phase = li * 1.3 + i * 2.1;
+      f.renderOrder = 2 + li;
+      flames.push(f);
+      g.add(f);
+    }
+  });
+  // Embers: little sparks drifting up and out, and smoke: dark puffs rising slowly above the flames.
+  const ember = new THREE.MeshLambertMaterial({ color: 0xffd080, emissive: 0xffa030, emissiveIntensity: 2, flatShading: true });
+  const embers: THREE.Mesh[] = [];
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(new THREE.TetrahedronGeometry(0.018 * size, 0), ember);
+    m.userData = { a: i * 1.9, p: i / 6 };
+    embers.push(m);
+    g.add(m);
+  }
+  const smoke = new THREE.MeshLambertMaterial({ color: 0x3a3634, transparent: true, opacity: 0.35, flatShading: true, depthWrite: false });
+  const puffs: THREE.Mesh[] = [];
+  for (let i = 0; i < 3; i++) {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 * size, 0), smoke.clone());
+    m.userData = { p: i / 3 };
+    puffs.push(m);
+    g.add(m);
+  }
+  g.userData = { flames, embers, puffs, size };
+  animateFire(g, 0);
+  return g;
+}
+/** A fire's flicker: each tongue stretches and sways on its own beat, embers rise and drift, smoke puffs climb, grow
+ *  and fade (`t`: seconds). */
+export function animateFire(g: THREE.Group, t: number) {
+  const { flames, embers, puffs, size } = g.userData as { flames: THREE.Mesh[]; embers: THREE.Mesh[]; puffs: THREE.Mesh[]; size: number };
+  for (const f of flames) {
+    const p = f.userData.phase as number;
+    const k = 0.82 + Math.sin(t * 9 + p) * 0.12 + Math.sin(t * 23 + p * 2) * 0.06;
+    f.scale.set(1 + (1 - k) * 0.6, k, 1 + (1 - k) * 0.6);
+    f.rotation.z = Math.sin(t * 5 + p) * 0.12;
+  }
+  embers.forEach((m) => {
+    const k = (t * 0.7 + (m.userData.p as number)) % 1;
+    const a = (m.userData.a as number) + k * 2;
+    m.position.set(Math.cos(a) * 0.12 * size * k, (0.25 + k * 0.75) * size, Math.sin(a) * 0.12 * size * k);
+    m.visible = k < 0.9;
+  });
+  puffs.forEach((m) => {
+    const k = (t * 0.25 + (m.userData.p as number)) % 1;
+    m.position.set(Math.sin(k * 3) * 0.06 * size, (0.55 + k * 0.9) * size, Math.cos(k * 2) * 0.05 * size);
+    m.scale.setScalar(0.6 + k * 1.4);
+    (m.material as THREE.MeshLambertMaterial).opacity = 0.35 * (1 - k);
+  });
+}
+
+/**
+ * The park's brick barbecue (v0.62, the quality bar): a brick base with an arched firebox in its front (+z) glowing with
+ * coals, stone ledges either side, a grill on top with three sausages on it, a chimney with a cap at the back, a bag of
+ * charcoal leaning on it. The fire itself is buildFire, placed on the grill by city.ts. About 260 tris.
+ */
+export function buildBarbecue(): THREE.Group {
+  const g = new THREE.Group();
+  const brick = texMat('brick', BRICK, 1, 1, 0x8a5040);
+  addTex(g, boxGeo(0.95, 0.6, 0.7), brick, 0, 0.3, 0);
+  // The firebox: an arch cut into the front (a dark opening with glowing coals at its bottom).
+  const arch = new THREE.Shape();
+  arch.moveTo(-0.22, 0);
+  arch.lineTo(0.22, 0);
+  arch.lineTo(0.22, 0.2);
+  arch.quadraticCurveTo(0, 0.36, -0.22, 0.2);
+  arch.closePath();
+  const hole = new THREE.Mesh(new THREE.ShapeGeometry(arch, 3), lambert(0x1a1210));
+  hole.position.set(0, 0.06, 0.352);
+  g.add(hole);
+  const coals = new THREE.MeshLambertMaterial({ color: 0x3a1a10, emissive: 0xff5a1a, emissiveIntensity: 1.4, flatShading: true });
+  for (let i = 0; i < 3; i++) {
+    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.055, 0), coals);
+    c.position.set(-0.11 + i * 0.11, 0.09, 0.32);
+    g.add(c);
+  }
+  // Stone ledges either side of the grill, and the grill: a dark frame, bars across, glowing coals under them.
+  const stone = texMat('concrete', CONCRETE, 1, 1, 0x7a766e);
+  for (const x of [-0.39, 0.39]) addTex(g, boxGeo(0.2, 0.06, 0.76), stone, x, 0.63, 0);
+  boxAt(g, 0.58, 0.02, 0.6, 0x2a1a14, 0, 0.6, 0, false);
+  const glow = new THREE.Mesh(boxGeo(0.54, 0.01, 0.56), coals);
+  glow.position.set(0, 0.625, 0);
+  g.add(glow);
+  for (let i = 0; i < 4; i++) boxAt(g, 0.02, 0.025, 0.58, 0x3a3d42, -0.21 + i * 0.14, 0.66, 0, false);
+  // Three sausages browning on the grill.
+  for (let i = 0; i < 3; i++) {
+    const s = add(g, cylGeo(0.03, 0.2, 6), [0x8a3a22, 0x9a4a2a, 0x7a3220][i], -0.15 + i * 0.13, 0.7, 0.12, false);
+    s.rotation.z = Math.PI / 2;
+    s.rotation.y = 0.15 * (i - 1);
+  }
+  // The chimney at the back, with a cap; the charcoal bag.
+  addTex(g, boxGeo(0.3, 0.65, 0.22), brick, 0, 0.6 + 0.325, -0.26);
+  addTex(g, boxGeo(0.38, 0.05, 0.3), stone, 0, 1.28, -0.26);
+  const bag = boxAt(g, 0.26, 0.36, 0.14, 0x4a3a2a, 0.62, 0, 0.22);
+  bag.rotation.y = -0.3;
+  boxAt(bag, 0.18, 0.08, 0.01, 0xe0b23a, 0, 0.06, 0.075, false); // its label
+  return g;
+}
+
+// ---------- water (v0.62, the quality bar) ----------
+/**
+ * A stream of water (or sludge) pouring along +x: out of its origin, up by `rise`, then down `drop` to land `reach`
+ * away, with splash bits (animatePour) and a ring of foam where it lands. `pipe`: a rusty pipe stub it comes out of.
+ * `core`: a paler core inside the stream. Used for the fountains' and the sewer's pours. About 70–130 tris.
+ */
+export function buildPour(o: { reach: number; drop: number; rise?: number; r?: number; color?: number; glow?: number; pipe?: boolean; core?: boolean; bits?: number; wide?: number }): THREE.Group {
+  const { reach, drop, rise = 0.05, r = 0.05, color = 0x9cc8ec, glow = 0x2a5a8a, pipe = false, core = true, bits = 6, wide = 1.4 } = o;
+  const g = new THREE.Group();
+  if (pipe) addTex(g, cylGeo(r * 1.5, 0.3, 6), texMat('rustpipe', RUST_PIPE, 1, 1, 0x6a3a22), -0.12, 0, 0).rotation.z = Math.PI / 2;
+  const land = new THREE.Vector3(reach, -drop, 0);
+  const arc = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(reach * 0.35, rise, 0), new THREE.Vector3(reach * 0.75, -drop * 0.45, 0), land.clone()]);
+  const water = new THREE.MeshLambertMaterial({ color, emissive: glow, emissiveIntensity: 0.55, transparent: true, opacity: 0.85, flatShading: true });
+  const white = new THREE.MeshLambertMaterial({ color: 0xf2f8ff, emissive: 0x8ab0d0, emissiveIntensity: 0.6, flatShading: true });
+  const spray = new THREE.Group();
+  // (`wide`: how much wider the stream is than deep: a fountain's overflow is a sheet of water.)
+  const stream = new THREE.Mesh(new THREE.TubeGeometry(arc, 6, r, 4), water);
+  stream.scale.set(1, 1, wide);
+  spray.add(stream);
+  if (core) {
+    const c = new THREE.Mesh(new THREE.TubeGeometry(arc, 5, r * 0.45, 3), white);
+    c.scale.set(1, 1, Math.max(1, wide * 0.7));
+    spray.add(c);
+  }
+  const splash = new THREE.Group();
+  splash.position.copy(land);
+  const bit = new THREE.TetrahedronGeometry(r * 0.6, 0);
+  for (let i = 0; i < bits; i++) {
+    const m = new THREE.Mesh(bit, color === 0x9cc8ec ? white : water);
+    m.userData = { a: (i / bits) * Math.PI * 2 + (i % 3) * 0.4, r: r * 3 + (i % 3) * r, h: r * 3 + (i % 2) * r * 2, p: (i * 0.37) % 1 };
+    splash.add(m);
+  }
+  const foam = new THREE.Mesh(new THREE.RingGeometry(r * 1.2, r * (2 + wide), 7), new THREE.MeshLambertMaterial({ color: color === 0x9cc8ec ? 0xe8f2fa : color, emissive: glow, emissiveIntensity: 0.3, transparent: true, opacity: 0.7, flatShading: true, side: THREE.DoubleSide }));
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.y = 0.005;
+  splash.add(foam);
+  spray.add(splash);
+  spray.userData.splash = splash;
+  g.add(spray);
+  g.userData.spray = spray;
+  return g;
+}
+/** A pour's splash (the same as the burst pipe's). */
+export const animatePour = (g: THREE.Group, t: number) => animateBurstPipe(g, t);
+
+/** A pond's lily pad: a disc with its notch, two greens, sometimes a pink flower on it. About 20–60 tris. */
+export function buildLilyPad(r = 0.13, flower = false): THREE.Group {
+  const g = new THREE.Group();
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(r, 8, 0.35, Math.PI * 2 - 0.5), lambert(0x3f7a3a));
+  pad.rotation.x = -Math.PI / 2;
+  g.add(pad);
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(r * 0.55, 6, 0.35, Math.PI * 2 - 0.5), lambert(0x5a9a4a));
+  inner.rotation.x = -Math.PI / 2;
+  inner.position.y = 0.004;
+  g.add(inner);
+  if (flower) {
+    for (let i = 0; i < 5; i++) {
+      const p = add(g, new THREE.ConeGeometry(0.03, 0.07, 4), i % 2 ? 0xf2a8c8 : 0xe878a8, Math.cos(i * 1.26) * 0.025, 0.035, Math.sin(i * 1.26) * 0.025, false);
+      p.rotation.set(Math.sin(i * 1.26) * 0.6, 0, -Math.cos(i * 1.26) * 0.6);
+    }
+    add(g, new THREE.IcosahedronGeometry(0.018, 0), 0xf2d27a, 0, 0.05, 0, false);
+  }
+  return g;
+}
+
+/** A clump of reeds at the water's edge: tapered blades leaning out, three with brown cattail heads. About 110 tris. */
+export function buildReeds(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  const blade = (h: number) => new THREE.ConeGeometry(0.025, h, 3);
+  for (let i = 0; i < 7; i++) {
+    const h = 0.4 + ((seed * 13 + i * 7) % 10) / 30;
+    const a = i * 0.9 + seed;
+    const m = add(g, blade(h), i % 2 ? 0x4a6a32 : 0x5a7a3a, Math.cos(a) * 0.06, h / 2, Math.sin(a) * 0.06, false);
+    m.rotation.set(Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25);
+    if (i < 3) add(g, cylGeo(0.025, 0.1, 5), 0x6a4a2a, Math.cos(a) * 0.06 - Math.cos(a) * h * 0.24, h * 0.95, Math.sin(a) * 0.06 + Math.sin(a) * h * 0.24, false);
+  }
+  return g;
+}
+
+/** Sewage: thick green sludge with lighter scum streaks and dark clots, as a pixel texture that drifts along the
+ *  channel (animateSludge). `len` × `wide` tiles. */
+const SLUDGE: Painter = (g, rnd) => {
+  // Olive-brown, in long streaks along the flow (x), scum patches floating, dark eddies: never speckled like grass.
+  px(g, '#3e4a2c', 0, 0, 32, 32);
+  for (let i = 0; i < 14; i++) px(g, rnd() < 0.5 ? '#4a5632' : '#343e26', Math.floor(rnd() * 24), Math.floor(rnd() * 32), 8 + Math.floor(rnd() * 12), 1);
+  for (let i = 0; i < 5; i++) px(g, '#6a6a3e', Math.floor(rnd() * 28), Math.floor(rnd() * 30), 3 + Math.floor(rnd() * 3), 2); // scum
+  for (let i = 0; i < 3; i++) px(g, '#5a4a2e', Math.floor(rnd() * 29), Math.floor(rnd() * 30), 3, 2); // brown clots
+  for (let i = 0; i < 4; i++) px(g, '#242c1a', Math.floor(rnd() * 26), Math.floor(rnd() * 32), 5 + Math.floor(rnd() * 5), 1); // eddies
+};
+const sludgeMats: THREE.MeshLambertMaterial[] = [];
+export function sludgeMaterial(len: number, wide: number): THREE.MeshLambertMaterial {
+  const base = pixelTex('sludge', SLUDGE);
+  const map = base ? base.clone() : null;
+  if (map) (map.repeat.set(len, wide), (map.needsUpdate = true));
+  // (Dimmed: murky, not lawn-green.)
+  const m = new THREE.MeshLambertMaterial({ color: map ? 0xa8a890 : 0x3e4a2c, map, emissive: 0x141a0a, emissiveIntensity: 0.5, flatShading: true });
+  sludgeMats.push(m);
+  return m;
+}
+/** The sewage flows (east), slowly. */
+export function animateSludge(t: number) {
+  for (const m of sludgeMats) if (m.map) m.map.offset.x = -t * 0.06;
+}
+
+/** A clot of floating muck: an irregular flat blob (a jagged outline), sometimes with junk in it (a can, a bottle). */
+export function buildMuck(seed: number): THREE.Group {
+  const g = new THREE.Group();
+  const s = new THREE.Shape();
+  const n = 7;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const k = 0.18 * (0.6 + 0.5 * Math.abs(Math.sin(seed * 5.1 + i * 2.3)));
+    i === 0 ? s.moveTo(Math.cos(a) * k, Math.sin(a) * k) : s.lineTo(Math.cos(a) * k, Math.sin(a) * k);
+  }
+  const blob = new THREE.Mesh(new THREE.ShapeGeometry(s), lambert(seed % 2 ? 0x5a6a2a : 0x5a5236));
+  blob.rotation.x = -Math.PI / 2;
+  g.add(blob);
+  if (seed % 3 === 0) add(g, cylGeo(0.035, 0.1, 6), 0xb84a4a, 0.03, 0.02, 0, false).rotation.z = Math.PI / 2; // a can
+  if (seed % 3 === 1) add(g, new THREE.CylinderGeometry(0.012, 0.03, 0.14, 6), 0x2a6a3a, -0.02, 0.025, 0.02, false).rotation.x = Math.PI / 2; // a bottle
+  return g;
+}
+
+/**
+ * A flowerbed (v0.62, the quality bar): a stone edge round dark soil with lumps, ten flowers on stems (five-petal heads
+ * with a yellow middle, in the bed's colours), tufts of leaves between them. One tile. About 260 tris.
+ */
+export function buildFlowerbed(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  const stone = texMat('concrete', CONCRETE, 1, 1, 0x8e877b);
+  for (const [x, z, w, d] of [[0, -0.42, 0.92, 0.08], [0, 0.42, 0.92, 0.08], [-0.42, 0, 0.08, 0.76], [0.42, 0, 0.08, 0.76]]) addTex(g, boxGeo(w, 0.14, d), stone, x, 0.07, z);
+  boxAt(g, 0.76, 0.06, 0.76, 0x3a2a1e, 0, 0.03, 0, false);
+  const colours = [[0xd9473a, 0xf06a5a], [0xf0b13c, 0xf8d070], [0xe8e2d0, 0xffffff], [0x8a5ab8, 0xb88ae0]];
+  const [c0, c1] = colours[seed % colours.length];
+  const [d0] = colours[(seed + 1) % colours.length];
+  for (let i = 0; i < 10; i++) {
+    const x = -0.28 + (i % 4) * 0.19 + ((i * 37) % 7) / 100, z = -0.28 + Math.floor(i / 4) * 0.27 + ((i * 53) % 7) / 100;
+    const h = 0.16 + ((i * 29) % 10) / 100;
+    add(g, new THREE.ConeGeometry(0.012, h, 3), 0x3a6a2a, x, 0.06 + h / 2, z, false); // the stem
+    const head = new THREE.Mesh(new THREE.CircleGeometry(0.055, 5), lambert(i % 3 === 2 ? d0 : i % 2 ? c1 : c0));
+    head.material.side = THREE.DoubleSide;
+    head.rotation.set(-Math.PI / 2 + 0.3, 0, i);
+    head.position.set(x, 0.06 + h, z);
+    g.add(head);
+    add(g, new THREE.TetrahedronGeometry(0.018, 0), 0xf2d27a, x, 0.07 + h, z, false); // the middle
+  }
+  for (let i = 0; i < 6; i++) {
+    const t = add(g, new THREE.ConeGeometry(0.05, 0.12, 3), 0x4a7a3a, -0.25 + (i % 3) * 0.25, 0.12, -0.15 + Math.floor(i / 3) * 0.3, false);
+    t.rotation.y = i;
+  }
+  return g;
+}
+
+/**
+ * A tree crown's clump (v0.62): an icosahedron with its corners pushed in and out (`seed` picks the shape; a corner
+ * shared by faces moves with them, so it stays closed), a bit flattened, with vertex colours darker underneath and
+ * lighter on top (for a material with vertexColors and the leaves texture). Radius about 0.42. 20 tris.
+ */
+export function crownClump(seed: number): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(0.42, 0);
+  const pos = g.attributes.position;
+  const col: number[] = [];
+  const v = new THREE.Vector3();
+  const bump = (p: THREE.Vector3) => 0.85 + 0.3 * Math.abs(Math.sin(seed * 3.1 + p.x * 9.7 + p.y * 5.3 + p.z * 7.1));
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    v.multiplyScalar(bump(v));
+    v.y *= 0.85;
+    pos.setXYZ(i, v.x, v.y, v.z);
+    const k = 0.6 + 0.8 * ((v.y / 0.36 + 1) / 2) ** 1.3;
+    col.push(k, k, k);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** A wooden crate (v0.62): planked sides in the wood texture, darker edge boards framing each face, a diagonal brace
+ *  on the front and back, nail heads. `s`: its size (1 = 0.6 across). About 150 tris. */
+export function buildCrate(s = 1): THREE.Group {
+  const g = new THREE.Group();
+  const w = 0.6 * s;
+  addTex(g, boxGeo(w, w, w), texMat('wood', WOOD, 1, 1, 0x7a5a3a), 0, w / 2, 0);
+  const edge = 0x4a3220;
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) boxAt(g, 0.06 * s, w + 0.02, 0.06 * s, edge, (x * w) / 2, -0.01, (z * w) / 2, false);
+  for (const y of [0, w - 0.05 * s]) for (const z of [-1, 1]) boxAt(g, w, 0.05 * s, 0.03 * s, edge, 0, y, (z * w) / 2, false);
+  for (const z of [-1, 1]) {
+    const brace = boxAt(g, w * 1.25, 0.05 * s, 0.025 * s, edge, 0, w / 2 - 0.025 * s, (z * (w + 0.03 * s)) / 2, false);
+    brace.rotation.z = Math.PI / 4;
+  }
+  return g;
+}
+
+// ---------- the Junkyard's crane (v0.62, the quality bar) ----------
+/** Worn machine yellow: the paint in uneven patches, rust bleeding down from bolts, grime along the bottom. */
+const MACHINE_YELLOW: Painter = (g, rnd) => {
+  px(g, '#d8a02a', 0, 0, 32, 32);
+  for (let i = 0; i < 30; i++) px(g, rnd() < 0.5 ? '#c8902a' : '#e0ac3a', Math.floor(rnd() * 30), Math.floor(rnd() * 30), 2 + Math.floor(rnd() * 3), 2);
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rnd() * 30), y = Math.floor(rnd() * 16);
+    px(g, '#8a4a22', x, y, 2, 2);
+    px(g, '#9a5a2a', x, y + 2, 1, 4 + Math.floor(rnd() * 8));
+  }
+  for (let x = 0; x < 32; x++) if (rnd() < 0.7) px(g, '#5a4a2a', x, 28 + Math.floor(rnd() * 3), 1, 4);
+};
+/** Hazard stripes (a counterweight's back): yellow and black diagonals. */
+const HAZARD: Painter = (g) => {
+  px(g, '#d8a02a', 0, 0, 32, 32);
+  for (let k = -32; k < 32; k += 8) for (let y = 0; y < 32; y++) px(g, '#1e1e22', k + y, y, 4, 1);
+};
+/** Crawler tread: plates across, dark rubber and steel. */
+const TREAD: Painter = (g) => {
+  px(g, '#2a2a2e', 0, 0, 32, 32);
+  for (let x = 0; x < 32; x += 4) px(g, '#45454a', x, 0, 2, 32);
+};
+
+/**
+ * A scrapyard crawler crane (a vehicle: 800 tris at most): two crawler tracks (a rounded outline pushed out, tread
+ * texture, wheels), a turntable, the cab in worn machine yellow with dark windows and an exhaust stack, a hazard-striped
+ * counterweight at the back, a lattice boom (two chords, zig-zag bracing) reaching up and out over -x, a cable down to a
+ * scrap magnet holding a crushed car. Its tracks run along x; it stands on its origin, about 2 tiles square. ~620 tris.
+ */
+export function buildCrane(): THREE.Group {
+  const g = new THREE.Group();
+  const yellow = texMat('machineyellow', MACHINE_YELLOW, 1, 1, 0xd8a02a);
+  const steel = 0x3a3d42;
+  // The tracks: a stadium outline (round ends) pushed out to the track's width; three wheels showing on the outside.
+  const track = new THREE.Shape();
+  const L = 0.8, R = 0.17;
+  track.moveTo(-L, 0);
+  track.lineTo(L, 0);
+  track.absarc(L, R, R, -Math.PI / 2, Math.PI / 2, false);
+  track.lineTo(-L, 2 * R);
+  track.absarc(-L, R, R, Math.PI / 2, Math.PI * 1.5, false);
+  const trackGeo = new THREE.ExtrudeGeometry(track, { depth: 0.36, bevelEnabled: false, curveSegments: 3 });
+  for (const z of [-0.72, 0.36]) {
+    addTex(g, trackGeo, texMat('tread', TREAD, 1, 1, 0x2a2a2e), 0, 0, z);
+    for (const x of [-0.75, 0, 0.75]) add(g, cylGeo(0.12, 0.04, 6).rotateX(Math.PI / 2), steel, x, R, z < 0 ? z - 0.02 : z + 0.38, false);
+  }
+  // The turntable, the cab (a house with a sloped back), its windows, the counterweight, the exhaust.
+  add(g, cylGeo(0.5, 0.12, 8), steel, 0, 0.4, 0);
+  const cab = new THREE.Shape([new THREE.Vector2(-0.55, 0), new THREE.Vector2(0.6, 0), new THREE.Vector2(0.6, 0.55), new THREE.Vector2(0.15, 0.85), new THREE.Vector2(-0.55, 0.85)]);
+  const cabGeo = new THREE.ExtrudeGeometry(cab, { depth: 0.95, bevelEnabled: false, curveSegments: 1 });
+  addTex(g, cabGeo, yellow, 0, 0.46, -0.48);
+  const glass = new THREE.MeshLambertMaterial({ color: 0x2a3a46, emissive: 0x0a1a2a, emissiveIntensity: 0.4, flatShading: true });
+  const window1 = new THREE.Mesh(boxGeo(0.4, 0.3, 0.02), glass);
+  window1.position.set(-0.25, 1.05, 0.48);
+  g.add(window1);
+  const window2 = new THREE.Mesh(boxGeo(0.02, 0.28, 0.6), glass);
+  window2.position.set(-0.56, 1.05, 0);
+  g.add(window2);
+  addTex(g, boxGeo(0.35, 0.6, 1.0), texMat('hazard', HAZARD, 1, 1, 0xd8a02a), 0.78, 0.76, 0); // the counterweight
+  add(g, cylGeo(0.04, 0.45, 6), 0x2b2b2e, 0.4, 1.45, -0.35, false); // the exhaust
+  add(g, cylGeo(0.05, 0.06, 6), 0x1e1e22, 0.4, 1.7, -0.35, false);
+  // The boom: from a foot on the cab's front, up and out over -x. Two chords and zig-zag bracing between them.
+  const boom = new THREE.Group();
+  boom.position.set(-0.5, 0.95, 0);
+  boom.rotation.z = 0.75; // tilted out over -x
+  const BL = 3.4;
+  for (const z of [-0.13, 0.13]) {
+    for (const x of [-0.1, 0.1]) addTex(boom, boxGeo(0.05, BL, 0.05), yellow, x, BL / 2, z);
+  }
+  for (let i = 0; i < 8; i++) {
+    const y = 0.2 + i * 0.4;
+    const brace = boxAt(boom, 0.03, 0.42, 0.03, 0xb8862a, 0, y, (i % 2 ? 1 : -1) * 0.13, false);
+    brace.rotation.z = i % 2 ? 0.45 : -0.45;
+    const cross = boxAt(boom, 0.03, 0.26, 0.03, 0xb8862a, (i % 2 ? 1 : -1) * 0.1, y, 0, false);
+    cross.rotation.x = Math.PI / 2;
+  }
+  add(boom, cylGeo(0.08, 0.3, 8).rotateX(Math.PI / 2), steel, 0, BL, 0); // the sheave at the tip
+  g.add(boom);
+  // The cable from the tip down to the magnet, and a crushed car hanging under it.
+  boom.updateMatrix();
+  const tip = new THREE.Vector3(0, BL, 0).applyMatrix4(boom.matrix);
+  const drop = tip.y - 1.05;
+  add(g, boxGeo(0.02, drop, 0.02), 0x1a1a1e, tip.x, tip.y - drop / 2, 0, false);
+  add(g, cylGeo(0.32, 0.14, 10), 0x2b2b2e, tip.x, 1.0, 0);
+  add(g, cylGeo(0.26, 0.03, 10), 0x8a8f96, tip.x, 0.92, 0, false);
+  const car = addTex(g, boxGeo(0.9, 0.3, 0.55), texMat('paint', PAINT, 1, 1, 0x6a6e74), tip.x, 0.72, 0);
+  car.rotation.set(0.15, 0.4, 0.1);
+  return g;
+}
+
+/** A painted name board (a dog house's): dark letters on cream, a little faded. */
+function nameBoard(text: string): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 20;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#e8d8b0';
+  g.fillRect(0, 0, 64, 20);
+  g.fillStyle = '#3a2216';
+  g.font = 'bold 15px sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 32, 11);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/** Shingles: rows of red tabs, staggered, each a little different, a dark line under each row. */
+const SHINGLE: Painter = (g, rnd) => {
+  px(g, '#5a1e18', 0, 0, 32, 32);
+  for (let row = 0; row < 4; row++)
+    for (let b = -1; b < 5; b++) px(g, shade(0x8a2f28, 0.8 + rnd() * 0.35), b * 8 + (row % 2) * 4 + 1, row * 8, 7, 7);
+};
+
+/**
+ * The Junkyard's dog house (v0.62, the quality bar): plank walls (a house outline with an arched doorway cut out,
+ * pushed out to its depth), a gable roof of red shingles overhanging it, "REX" on a board over the door, straw inside,
+ * a chain from a ring to a stake, a food bowl with kibble, a chewed bone. Its door faces +z. About 290 tris.
+ */
+export function buildDogHouse(): THREE.Group {
+  const g = new THREE.Group();
+  const W = 0.8, H = 0.5, P = 0.28, D = 0.75;
+  const outline = new THREE.Shape([new THREE.Vector2(-W / 2, 0), new THREE.Vector2(W / 2, 0), new THREE.Vector2(W / 2, H), new THREE.Vector2(0, H + P), new THREE.Vector2(-W / 2, H)]);
+  const door = new THREE.Path();
+  door.moveTo(-0.15, 0.04);
+  door.lineTo(0.15, 0.04);
+  door.lineTo(0.15, 0.28);
+  door.absarc(0, 0.28, 0.15, 0, Math.PI, false);
+  door.lineTo(-0.15, 0.04);
+  const front = new THREE.Shape(outline.getPoints());
+  front.holes.push(door);
+  const wood = texMat('wood', WOOD, 1, 1, 0x7a5a3a);
+  // The front wall with its doorway, the back wall, and the two sides.
+  const frontGeo = new THREE.ExtrudeGeometry(front, { depth: 0.05, bevelEnabled: false, curveSegments: 2 });
+  addTex(g, frontGeo, wood, 0, 0, D / 2 - 0.05);
+  addTex(g, new THREE.ExtrudeGeometry(outline, { depth: 0.05, bevelEnabled: false }), wood, 0, 0, -D / 2);
+  for (const x of [-1, 1]) addTex(g, boxGeo(0.05, H, D - 0.1), wood, (x * (W - 0.05)) / 2, H / 2, 0);
+  // Dark inside, straw on the floor, seen through the door.
+  boxAt(g, W - 0.12, 0.01, D - 0.12, 0xc8a85a, 0, 0.01, 0, false);
+  const back = boxAt(g, W - 0.12, H, 0.01, 0x1a1210, 0, 0.02, -D / 2 + 0.07, false);
+  back.castShadow = false;
+  // The roof: two shingled panels meeting at the ridge, overhanging all round, and a ridge board.
+  const slope = Math.hypot(W / 2 + 0.1, P);
+  const ang = Math.atan2(P, W / 2 + 0.1);
+  const shingles = texMat('shingle', SHINGLE, 1, 1, 0x8a2f28);
+  for (const x of [-1, 1]) {
+    const panel = addTex(g, boxGeo(slope, 0.04, D + 0.16), shingles, (x * (W / 2 + 0.1)) / 2, H + P / 2 + 0.03, 0);
+    panel.rotation.z = -x * ang;
+  }
+  // The name board over the door.
+  const board = new THREE.Mesh(boxGeo(0.26, 0.08, 0.02), typeof document === 'undefined' ? lambert(0xe8d8b0) : new THREE.MeshLambertMaterial({ map: nameBoard('REX') }));
+  board.position.set(0, H + 0.07, D / 2 + 0.005);
+  g.add(board);
+  // The chain: links from a ring on the wall to a stake in the ground.
+  const link = new THREE.TorusGeometry(0.04, 0.009, 3, 4);
+  for (let i = 0; i < 3; i++) {
+    const t = i / 2;
+    const l = add(g, link, 0x8a8f96, W / 2 + 0.03 + t * 0.35, 0.25 - t * 0.2 + Math.sin(t * Math.PI) * -0.04, 0.15 + t * 0.15, false);
+    l.rotation.set(i % 2 ? Math.PI / 2 : 0, 0.6, 0);
+  }
+  add(g, cylGeo(0.02, 0.18, 4), 0x5a5e64, W / 2 + 0.4, 0.06, 0.32, false);
+  // The food bowl with kibble, and a chewed bone.
+  add(g, new THREE.CylinderGeometry(0.15, 0.12, 0.08, 10, 1, true), 0x8a8f96, 0.55, 0.04, D / 2 + 0.25, false).material.side = THREE.DoubleSide;
+  for (let i = 0; i < 3; i++) add(g, new THREE.TetrahedronGeometry(0.03, 0), 0x6a4a2a, 0.5 + (i % 2) * 0.08, 0.06, D / 2 + 0.22 + Math.floor(i / 2) * 0.06, false);
+  const bone = add(g, cylGeo(0.022, 0.2, 4), 0xe8e0c8, -0.3, 0.025, D / 2 + 0.25, false);
+  bone.rotation.set(0, 0.6, Math.PI / 2);
+  for (const e of [-1, 1]) add(g, new THREE.OctahedronGeometry(0.035, 0), 0xe8e0c8, -0.3 + e * 0.08, 0.03, D / 2 + 0.25 - e * 0.055, false);
+  return g;
+}

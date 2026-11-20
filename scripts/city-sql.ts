@@ -138,7 +138,8 @@ commit;
   return sql;
 }
 
-if (!process.env.VITEST) {
+// (Only when run itself: v0.62's pipe-sql.ts imports its helpers.)
+if (!process.env.VITEST && ((process as unknown as { argv: string[] }).argv[1] ?? '').endsWith('city-sql.ts')) {
   const fs = require('node:fs');
   const read = (f: string) => fs.readFileSync(`supabase/migrations/${f}`, 'utf8');
   process.stdout.write(citySql(read('0038_aluminium.sql'), read('0040_beach.sql'), read('0041_bar_and_yard.sql')));

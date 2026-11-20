@@ -234,6 +234,11 @@ export const BAR = room('bar', 'The bar', { x0: BAR_BLOCK.x0, y0: BAR_BLOCK.y0, 
 export const barSpot = (spot: number): [number, number] => [BAR.x0 + 1, BAR.y0 + spot * 2];
 /** Which way he faces: the room (east) while he watches, the back bar (west) while he polishes. */
 export const BAR_FACING = { watch: Math.PI / 2, polish: -Math.PI / 2 };
+/** v0.62 ("Pipe Dreams"): the bar's burst pipe, on the west wall past the end of the back bar (you stand on the tile
+ *  to fix it; it doesn't block), and the water main: a valve on the sidewalk across the street from the bar, a little
+ *  west (behind it the ground is open, so the game's camera sees it: behind the bar's door there's a building). */
+export const BAR_LEAK: [number, number] = [BAR.x0, BAR.y0 + 6];
+export const WATER_MAIN: [number, number] = [BAR.x0 - 1, BAR.y1 + STREET];
 /** The gas station shop (Shoplift Gas Station, level 25; v0.54: moved to F-015, the levels 21–30 district): the
  *  top-left lot of its block. The shop is its top four rows; the pumps stand in the row in front of it, under a canopy. */
 export const GAS = room('gas', 'Gas station', lot('F-015', 'A'), true, 4);
@@ -405,6 +410,26 @@ export const HOTLINE: Rect = { x0: HOTLINE_BLOCK.x0, y0: HOTLINE_BLOCK.y0, x1: H
 export const HOTLINE_YARD: Rect = { x0: HOTLINE_BLOCK.x0 + LOT_SIZE, y0: HOTLINE_BLOCK.y0, x1: HOTLINE_BLOCK.x1, y1: HOTLINE_BLOCK.y1 };
 export const HOTLINE_GATE: [number, number][] = [[HOTLINE_YARD.x1, HOTLINE_YARD.y0 + 4], [HOTLINE_YARD.x1, HOTLINE_YARD.y0 + 5]];
 export const HOTLINE_DUMPSTERS: [number, number][] = [[1, 0], [3, 0], [4, 2], [4, 7], [2, 9]].map(([dx, dy]) => [HOTLINE_YARD.x0 + dx, HOTLINE_YARD.y0 + dy]);
+/**
+ * v0.62 (the quest "Pipe Dreams"): you can go inside now. A room with its door on the WEST side (the office door,
+ * from the sidewalk). The shop at the front: a counter in an L round the corner where Gus stands (north-east), shelves
+ * of fittings and two water heaters for sale along the north wall. The workshop at the back: a workbench, a pipe rack,
+ * a toolbox, a hot-water tank.
+ *   s s s h h     y 41   s = shelves of fittings, h = water heaters (for sale)
+ *   . . c G G            c = the counter, G = where Gus stands (behind it)
+ *   . . c G G
+ *   . . c G G
+ *   D . c c c     y 45   D = the door (west)
+ *   . . . . T            T = a hot-water tank
+ *   . . . . B            B = the workbench
+ *   . . . . B
+ *   . . . . .
+ *   . . r r x     y 50   r = the pipe rack, x = a toolbox
+ */
+export const HOTLINE_ROOM: Room = { ...HOTLINE, id: 'hotline', name: 'Hotline Plumbing & Heating', door: [HOTLINE.x0, HOTLINE.y0 + 4], shop: false };
+ROOMS.push(HOTLINE_ROOM);
+/** Where you talk to Gus from: in front of the counter. */
+export const GUS_TALK: [number, number][] = [1, 2, 3].map((dy) => [HOTLINE.x0 + 1, HOTLINE.y0 + dy]);
 
 // ---------- the Junkyard (guard dogs, level 8; v0.43) ----------
 // The whole of I-007, across the street from Hotline: a tall corrugated fence all round with one gate (2 wide) on the
@@ -655,7 +680,7 @@ export interface Enclosure {
   openings: { inside: [number, number]; outside: [number, number] }[];
 }
 export const ENCLOSURES: Enclosure[] = [
-  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory' && r.id !== 'bank' && r.id !== 'club').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
+  ...ROOMS.filter((r) => r !== LOBBY && r.id !== 'factory' && r.id !== 'bank' && r.id !== 'club' && r.id !== 'hotline').map((r) => ({ id: r.id, rect: r as Rect, openings: [{ inside: r.door, outside: [r.door[0], r.door[1] + 1] as [number, number] }] })),
   // The hospital: a wide entrance (3 tiles), and the stairs are the only way between the lobby and the ward.
   {
     id: 'hospital',
@@ -680,6 +705,8 @@ export const ENCLOSURES: Enclosure[] = [
   { id: 'hotline_yard', rect: HOTLINE_YARD, openings: HOTLINE_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
   { id: 'junkyard', rect: JUNKYARD, openings: JUNKYARD_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
   { id: 'club', rect: CLUB, openings: CLUB_DOOR.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x, y - 1] as [number, number] })) },
+  // Hotline (v0.62): its office door, on the west side.
+  { id: 'hotline', rect: HOTLINE, openings: [{ inside: HOTLINE_ROOM.door, outside: [HOTLINE_ROOM.door[0] - 1, HOTLINE_ROOM.door[1]] }] },
   // The Superstore's yard (v0.56): a wall all round, the gate (2 wide) on the east side.
   { id: 'superstore_yard', rect: SUPERSTORE_YARD, openings: SUPERSTORE_GATE.map(([x, y]) => ({ inside: [x, y] as [number, number], outside: [x + 1, y] as [number, number] })) },
   // The Thrift Store's yard: chain-link fence all round, one gate on the street side.
@@ -764,8 +791,7 @@ export const BUILDINGS: Building[] = (() => {
       if (!gone) out.push(b);
     }
   }
-  // Hotline Plumbing & Heating fills the west half of I-008 (drawn in city.ts).
-  out.push({ x: HOTLINE.x0, y: HOTLINE.y0, w: LOT_SIZE, h: BLOCK_SIZE, height: 2.4, color: WALL_COLORS[0], front: 's', custom: true });
+  // (Hotline Plumbing & Heating, the west half of I-008, is a room since v0.62: drawn in city.ts, walls, not a block.)
   // The Superstore fills its two lots (drawn in city.ts; it blocks the tiles like any building).
   out.push({ x: SUPERSTORE.x0, y: SUPERSTORE.y0, w: 2 * LOT_SIZE, h: LOT_SIZE, height: 2.4, color: WALL_COLORS[6], front: 's', custom: true });
   // The Thrift Store fills its lot (drawn in city.ts; it blocks the tiles like any building).
@@ -802,6 +828,7 @@ export const STATIONS: Station[] = [
 // ---------- fixtures: solid things you walk around (drawn in city.ts) ----------
 export type FixtureKind = 'shelf' | 'counter' | 'hedge' | 'tree' | 'fountain' | 'bench' | 'flowers' | 'pond' | 'backbar' | 'bar' | 'table' | 'jukebox' | 'booth' | 'fridge' | 'pump' | 'rack' | 'bbq' | 'couch' | 'barrel' | 'fence' | 'bed' | 'desk' | 'crate' | 'trash' | 'ladder' | 'manhole' | 'press' | 'bench' | 'bankcounter' | 'vault' | 'pillar'
   | 'container' | 'ruin' | 'rubble' | 'stripped' | 'dice' | 'lookout'
+  | 'fittings' | 'heater' | 'hcounter' | 'hwtank' | 'hbench' | 'piperack' | 'toolbox' | 'watermain'
   | 'pipes' | 'wreck' | 'junktruck' | 'lottruck' | 'pallets' | 'tyres' | 'crane' | 'doghouse' | 'clubbar' | 'pool' | 'clubtable' | 'clubjuke' | 'motorbike' | 'mound' | 'splinter';
 export interface Fixture {
   x: number;
@@ -950,6 +977,16 @@ export const FIXTURES: Fixture[] = (() => {
   // The columns along the front stand on the step row, either side of the doors.
   for (const dx of [2, 3, 6, 7]) out.push({ x: BANK.x0 + dx, y: BANK.y1 + 1, kind: 'pillar' });
 
+  // Hotline's inside (v0.62, see HOTLINE_ROOM): shelves, water heaters, the counter (an L), the hot-water tank, the
+  // workbench, the pipe rack and a toolbox.
+  for (const [dx, dy, kind] of [
+    [0, 0, 'fittings'], [1, 0, 'fittings'], [2, 0, 'fittings'], [3, 0, 'heater'], [4, 0, 'heater'],
+    [2, 1, 'hcounter'], [2, 2, 'hcounter'], [2, 3, 'hcounter'], [2, 4, 'hcounter'], [3, 4, 'hcounter'], [4, 4, 'hcounter'],
+    [4, 5, 'hwtank'], [4, 6, 'hbench'], [4, 7, 'hbench'], [2, 9, 'piperack'], [3, 9, 'piperack'], [4, 9, 'toolbox'],
+  ] as const)
+    out.push({ x: HOTLINE.x0 + dx, y: HOTLINE.y0 + dy, kind });
+  // The water main for the bar (v0.62, "Pipe Dreams"): a valve on the sidewalk across the street.
+  out.push({ x: WATER_MAIN[0], y: WATER_MAIN[1], kind: 'watermain' });
   // Hotline's yard: stacks of old pipe in the corners by the store's back wall.
   for (const dy of [0, 9]) out.push({ x: HOTLINE_YARD.x0, y: HOTLINE_YARD.y0 + dy, kind: 'pipes' });
   // The Junkyard.
@@ -1043,7 +1080,7 @@ export function canStep(ax: number, ay: number, bx: number, by: number) {
 }
 
 // ---------- NPCs ----------
-export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor' | 'banker' | 'doorman' | 'splinter';
+export type NpcKind = 'shopkeeper' | 'baller' | 'clerk' | 'bartender' | 'guard' | 'receptionist' | 'doctor' | 'banker' | 'doorman' | 'splinter' | 'plumber';
 export interface Npc {
   id: string;
   name: string;
@@ -1091,6 +1128,8 @@ export const NPCS: Npc[] = [
   // (v0.43: the doctors have names: Elliot (long hair, green scrubs) and JD (short hair, light blue); Elliot helps with "Sewer Problems".)
   { id: 'doctor_0', name: 'Elliot', role: 'Doctor', kind: 'doctor', x: WARD.x0 + 2, y: WARD.y0 + 1, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
   { id: 'doctor_1', name: 'JD', role: 'Doctor', kind: 'doctor', x: WARD.x1 - 1, y: WARD.y0 + 3, area: { x0: WARD.x0 + 1, y0: WARD.y0, x1: WARD.x1 - 1, y1: WARD.y1 - 1 }, named: true },
+  // Gus, the boss at Hotline Plumbing & Heating (v0.62), behind his counter, rubbing his back (the quest "Pipe Dreams").
+  { id: 'gus', name: 'Gus', role: 'Hotline Plumbing & Heating', kind: 'plumber', x: HOTLINE.x0 + 3, y: HOTLINE.y0 + 2, area: { x0: HOTLINE.x0 + 3, y0: HOTLINE.y0 + 1, x1: HOTLINE.x0 + 4, y1: HOTLINE.y0 + 3 }, named: true },
   // Splinter, sitting against the sewer's north wall by the tunnel (he gives the quest "Sewer Problems").
   { id: 'splinter', name: 'Splinter', role: 'The sewer', kind: 'splinter', x: SPLINTER[0], y: SPLINTER[1], area: { x0: SPLINTER[0], y0: SPLINTER[1], x1: SPLINTER[0], y1: SPLINTER[1] }, named: true },
   // The Bank: three bankers behind the counter (talk to one to open your bank) and a guard by the door.
@@ -1212,8 +1251,8 @@ export interface Area {
 
 export const AREAS: Area[] = [
   {
-    id: 'hotline', name: 'Hotline Plumbing & Heating', rect: { x0: HOTLINE.x0, y0: HOTLINE.y0, x1: HOTLINE_YARD.x1, y1: HOTLINE_YARD.y1 }, icon: 'scrap', crimes: ['copper_salvage'], npcs: [],
-    blurb: 'A plumbing and heating company in the Industrial zone. The dumpsters in its walled yard are full of copper offcuts (Scrapping 11).',
+    id: 'hotline', name: 'Hotline Plumbing & Heating', rect: { x0: HOTLINE.x0, y0: HOTLINE.y0, x1: HOTLINE_YARD.x1, y1: HOTLINE_YARD.y1 }, icon: 'scrap', crimes: ['copper_salvage'], npcs: ['gus'],
+    blurb: 'A plumbing and heating company in the Industrial zone. Gus runs the shop (quest: Pipe Dreams). The dumpsters in its walled yard are full of copper offcuts (Scrapping 11).',
   },
   {
     id: 'junkyard', name: 'The Junkyard', rect: JUNKYARD, icon: 'dog', crimes: [], npcs: [],

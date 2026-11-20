@@ -54,6 +54,8 @@ export const ITEMS: ItemDef[] = [
   { id: 'rat_antidote', name: 'Rat Antidote', heal: 0, value: 0, quest: true },
   { id: 'cooked_rat_antidote', name: 'Cooked Rat Antidote', heal: 0, value: 0, quest: true },
   { id: 'sewer_key', name: 'Sewer Key', heal: 0, value: 0, quest: true },
+  // The quest "Pipe Dreams" (v0.62): a tin sheet bent into an elbow at a workbench, for the bar's burst pipe.
+  { id: 'pipe_elbow', name: 'Pipe Elbow', heal: 0, value: 0, quest: true },
   // The metals (docs/design.md §14): every metal's salvage, sheet, three weapons and three pieces of armour, from the
   // formulas in metals.ts. Tin is the first: Ray sells the tin weapons, thugs drop the tin knife, the rest you make.
   // (The old brass knuckles, baseball bat and knife became Tin Knuckles, Tin Bat and Tin Knife in v0.41.)

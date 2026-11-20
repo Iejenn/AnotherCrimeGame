@@ -6,6 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SURFACES, buildFloor } from './floor';
 import { DETAIL_GAIN, animateWater, waterTexture } from './textures';
 import { COAST_ROCKS, SHALLOWS, coastAt } from './coast';
@@ -14,11 +15,11 @@ import {
   PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, gi, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SUPERSTORE, SUPERSTORE_GATE, SUPERSTORE_LOT, SUPERSTORE_YARD,
-  CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
+  CLUB, CLUB_DOOR, HOTLINE, HOTLINE_ROOM, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWall, buildStringLights, buildStrippedCar } from './props';
+import { buildDogHouse, buildCrane, crownClump, buildCrate, animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -317,17 +318,38 @@ export function buildCity(scene: THREE.Scene) {
   joints.build(scene);
 
   // ---------- pavements, parks, trees ----------
-  const trunks = new Batch(own(new THREE.CylinderGeometry(0.06, 0.08, 0.5, 6)), lam(C.trunk));
-  const crownGeo = own(new THREE.IcosahedronGeometry(0.42, 0));
-  const crowns = C.leaves.map((c) => new Batch(crownGeo, lam(c, { flatShading: true })));
+  // v0.62 (the quality bar, docs/design.md §18): trees still drawn in batches (hundreds of them), but shaped like
+  // trees: a tapered trunk with a root flare and two branches forking off it, in bark; crowns of lumpy clumps (three
+  // shapes, each an icosahedron pushed in and out), lighter on top and darker underneath, in a leafy pixel texture.
+  const trunkGeo = own(
+    mergeGeometries([
+      new THREE.CylinderGeometry(0.06, 0.1, 0.8, 6).translate(0, 0.4, 0),
+      new THREE.CylinderGeometry(0.16, 0.12, 0.08, 6).translate(0, 0.04, 0),
+      new THREE.CylinderGeometry(0.025, 0.045, 0.4, 5).translate(0, 0.2, 0).rotateZ(0.7).translate(0.04, 0.5, 0),
+      new THREE.CylinderGeometry(0.025, 0.045, 0.35, 5).translate(0, 0.18, 0).rotateZ(-0.6).rotateY(2.2).translate(-0.03, 0.55, 0.02),
+    ].map((g) => g.toNonIndexed()), false)!,
+  );
+  const trunks = new Batch(trunkGeo, surfaceMat('bark', C.trunk));
+  const crownGeos = [1, 2, 3].map((n) => own(crownClump(n))); // (props.ts: the tree pits' crowns too)
+  const leafMats = C.leaves.map((c) => {
+    const m = surfaceMat('leaves', c).clone();
+    m.vertexColors = true;
+    return own(m);
+  });
+  const crowns = leafMats.flatMap((m) => crownGeos.map((g) => new Batch(g, m)));
   const tree = (x: number, z: number, size = 1) => {
-    trunks.add(x, 0.25 * size, z, size, size, size);
+    trunks.add(x, 0, z, size, size, size, (x * 7 + z * 3) % 6);
     const n = 2 + Math.floor(rng() * 2);
     for (let i = 0; i < n; i++) {
       const s = size * (0.75 + rng() * 0.45);
-      crowns[Math.floor(rng() * crowns.length)].add(x + (rng() - 0.5) * 0.35 * size, (0.68 + i * 0.2) * size, z + (rng() - 0.5) * 0.35 * size, s, s, s, rng() * 6);
+      const pick = Math.floor(rng() * C.leaves.length) * crownGeos.length + ((i + Math.round(x + z)) % crownGeos.length);
+      crowns[pick].add(x + (rng() - 0.5) * 0.35 * size, (0.85 + i * 0.2) * size, z + (rng() - 0.5) * 0.35 * size, s, s, s, rng() * 6);
     }
   };
+  /** v0.62: water pouring (fountains, the sewer's outflows), muck drifting in the sewage, bubbles popping. */
+  const pours: THREE.Group[] = [];
+  const drift: { o: THREE.Object3D; x0: number; len: number; x: number }[] = [];
+  const bubbles: THREE.Mesh[] = [];
   const pavement = lam(C.pavement);
   const grassMat = slam('grass', C.grass); // (v0.60: textured, the lots' lawns too)
   /** Marks lying flat on the ground (stains, cracks, painted lines): pulled towards the camera so they never flicker
@@ -714,12 +736,37 @@ export function buildCity(scene: THREE.Scene) {
       if (map) m.color.multiplyScalar(DETAIL_GAIN);
       return m;
     };
-    const fountain = (x: number, z: number, k: number) => {
+    /** v0.62 (the quality bar): water pouring over a bowl's rim (`n` streams round it, from radius `r0` at height
+     *  `y0` down to `y1`), and a jet spouting up from its middle at `yj`. props.ts buildPour; splashes animated. */
+    const pourRound = (x: number, z: number, n: number, r0: number, y0: number, y1: number, reach: number, scale: number) => {
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + 0.4;
+        const p = buildPour({ reach, drop: y0 - y1, rise: 0.04 * scale, r: 0.035 * scale, core: true, bits: 5, wide: 5 });
+        p.position.set(x + Math.cos(a) * r0, y0, z + Math.sin(a) * r0);
+        p.rotation.y = -a;
+        scene.add(p);
+        pours.push(p);
+      }
+    };
+    const jet = (x: number, z: number, y: number, h: number, scale: number) => {
+      for (const a of [0, Math.PI]) {
+        const p = buildPour({ reach: 0.16 * scale, drop: 0.02, rise: h, r: 0.04 * scale, core: true, bits: 3, wide: 1.6 });
+        p.position.set(x, y, z);
+        p.rotation.y = a;
+        scene.add(p);
+        pours.push(p);
+      }
+    };
+    const fountain = (x: number, z: number, k: number, pour = true) => {
       add(own(new THREE.CylinderGeometry(1.15 * k, 1.22 * k, 0.3, 12)), stone, x, LAWN + 0.13, z);
       add(own(new THREE.CylinderGeometry(1.03 * k, 1.03 * k, 0.05, 12)), fountainWater(0x2f6f86, 0x1d4a5c, 0.6, 3), x, LAWN + 0.26, z, false);
       add(own(new THREE.CylinderGeometry(0.1 * k, 0.14 * k, 0.62 * k, 8)), stone, x, LAWN + 0.2 + 0.31 * k, z);
       add(own(new THREE.CylinderGeometry(0.34 * k, 0.2 * k, 0.1, 10)), stone, x, LAWN + 0.2 + 0.62 * k, z);
       add(own(new THREE.CylinderGeometry(0.28 * k, 0.28 * k, 0.03, 10)), fountainWater(0x3f86a0, 0x2a6278, 0.7, 1), x, LAWN + 0.26 + 0.62 * k, z, false);
+      if (pour) {
+        pourRound(x, z, 4, 0.32 * k, LAWN + 0.24 + 0.62 * k, LAWN + 0.27, 0.45 * k, k);
+        jet(x, z, LAWN + 0.3 + 0.62 * k, 0.3 * k, k);
+      }
     };
     {
       const cx = PARK.x0 + 5, cz = PARK.y0 + 5;
@@ -745,10 +792,13 @@ export function buildCity(scene: THREE.Scene) {
       ring.position.set(cx, LAWN + 0.005, cz);
       scene.add(ring);
       // The big fountain: a wide basin, then a second bowl higher up, water in both.
-      fountain(cx, cz, 1.75);
+      fountain(cx, cz, 1.75, false);
       add(own(new THREE.CylinderGeometry(0.75, 0.45, 0.14, 10)), stone, cx, LAWN + 1.55, cz);
       add(own(new THREE.CylinderGeometry(0.66, 0.66, 0.03, 10)), fountainWater(0x3f86a0, 0x2a6278, 0.7, 1), cx, LAWN + 1.63, cz, false);
       add(own(new THREE.CylinderGeometry(0.06, 0.08, 0.4, 6)), stone, cx, LAWN + 1.8, cz);
+      // (v0.62) Water pours over the top bowl's rim down past the middle one into the basin, a jet on the spout.
+      pourRound(cx, cz, 6, 0.74, LAWN + 1.62, LAWN + 0.27, 0.95, 1.4);
+      jet(cx, cz, LAWN + 2.0, 0.45, 1.3);
       // Planters with a tree in each corner.
       for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inRect(PLAZA, f.x, f.y))) {
         add(geoBox(0.9, 0.35, 0.9), stone, f.x + 0.5, LAWN + 0.17, f.y + 0.5);
@@ -776,7 +826,14 @@ export function buildCity(scene: THREE.Scene) {
       for (const lx of [-0.39, 0.39]) part(geoBox(0.04, 0.3, 0.3), iron, lx, 0.15, 0);
     }
     // Hedges: dark green boxes, slightly uneven, along the park's outside edge.
-    const hedges = new Batch(geoBox(1, 0.5, 0.7), surfaceMat('grass', 0x2c4a26)); // (v0.60: leafy, not flat green)
+    // (v0.60: leafy, not flat green. v0.62: a lumpy top, three squashed clumps along it, in the leaf texture.)
+    const hedgeGeo = own(
+      mergeGeometries([
+        new THREE.BoxGeometry(1, 0.42, 0.7).translate(0, -0.04, 0).toNonIndexed(),
+        ...[-0.32, 0, 0.32].map((x, i) => new THREE.IcosahedronGeometry(0.3, 0).scale(1, 0.55, 1.15).rotateY(i).translate(x, 0.16, 0)),
+      ], false)!,
+    );
+    const hedges = new Batch(hedgeGeo, surfaceMat('leaves', 0x2c4a26));
     for (const f of FIXTURES.filter((f) => f.kind === 'hedge' && inPark(f.x, f.y))) {
       const sideways = !inPark(f.x - 1, f.y) || !inPark(f.x + 1, f.y);
       hedges.add(f.x + 0.5, LAWN + 0.2, f.y + 0.5, 1, 0.85 + rng() * 0.3, 1, sideways ? Math.PI / 2 : 0);
@@ -784,13 +841,12 @@ export function buildCity(scene: THREE.Scene) {
     hedges.build(scene);
     for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inPark(f.x, f.y))) tree(f.x + 0.5, f.y + 0.5, 1.15 + rng() * 0.3);
     // Flowerbeds: a stone edge, dark soil and dots of colour.
-    const flowerColors = [0xd9473a, 0xf0b13c, 0xe8e2d0, 0x8a5ab8];
-    for (const f of FIXTURES.filter((f) => f.kind === 'flowers' && inPark(f.x, f.y))) {
-      add(geoBox(0.9, 0.14, 0.9), stone, f.x + 0.5, LAWN + 0.03, f.y + 0.5);
-      add(geoBox(0.78, 0.04, 0.78), lam(0x3a2a1e), f.x + 0.5, LAWN + 0.1, f.y + 0.5, false);
-      for (let i = 0; i < 9; i++)
-        add(geoBox(0.12, 0.12, 0.12), lam(flowerColors[i % flowerColors.length]), f.x + 0.2 + (i % 3) * 0.3, LAWN + 0.17, f.y + 0.2 + Math.floor(i / 3) * 0.3, false);
-    }
+    // (v0.62: a props.ts model: stems, petals, leaves; it was cubes.)
+    FIXTURES.filter((f) => f.kind === 'flowers' && inPark(f.x, f.y)).forEach((f, i) => {
+      const bed = buildFlowerbed(i);
+      bed.position.set(f.x + 0.5, LAWN - 0.04, f.y + 0.5);
+      scene.add(bed);
+    });
     // The ponds (one per lawn block that has one): a stone rim, dark water with a soft glow, lily pads and reeds.
     for (const b of PARK_BLOCKS) {
       const pond = FIXTURES.filter((f) => f.kind === 'pond' && inRect(b, f.x, f.y));
@@ -805,9 +861,18 @@ export function buildCity(scene: THREE.Scene) {
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
-        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, W0 + 0.01, pz + Math.sin(a) * r, false);
+        // (v0.62: lily pads with their notch, two greens, some flowering; reeds with cattails.)
+        const pad = buildLilyPad(0.1 + (i % 3) * 0.03, i % 3 === 0);
+        pad.position.set(px + Math.cos(a) * r, W0 + 0.01, pz + Math.sin(a) * r);
+        pad.rotation.y = a * 2;
+        scene.add(pad);
       }
-      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.35 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.6 + rng() * 0.1, W0 + 0.2, pz - 0.4 + i * 0.16, false);
+      for (let i = 0; i < 6; i++) rng(); // (the old reeds' heights: drawn still, so nothing after moves)
+      for (const [dz, seed] of [[-0.3, 1], [0.25, 2]] as const) {
+        const reeds = buildReeds(seed);
+        reeds.position.set(px + sx * 0.62, W0, pz + dz);
+        scene.add(reeds);
+      }
     }
   }
 
@@ -1388,19 +1453,18 @@ export function buildCity(scene: THREE.Scene) {
   shopFronts();
 
   // Fires that flicker (the Yard's barrel, the barbecue): animate() moves them every frame.
-  const flames: THREE.Mesh[] = [];
+  const fires: THREE.Group[] = [];
   const fireLights: THREE.PointLight[] = [];
 
   /**
    * A burning oil drum (the Yard's, and the sewer's for cooking). v0.54, reworked: a rusty steel drum with a rolled rim
    * and two bulging hoops, rust patches and soot round the top, glowing coals and charred sticks inside, tall layered
-   * flames (orange outside, yellow inside) with a few sparks, and a flickering light. About 290 triangles (prop budget: 300).
+   * flames (v0.62: buildFire, props.ts), and a flickering light.
    */
   const burningBarrel = (x: number, y0: number, z: number) => {
     // (Its own random numbers: the city's shared ones stay as they were, so nothing placed after it moves; the old drum
     // used 10.)
     for (let i = 0; i < 10; i++) rng();
-    const rnd = mulberry32(Math.round(x * 97 + z * 13));
     const steel = lam(0x8a5232, { side: THREE.DoubleSide });
     const rim = lam(0x5a3420);
     // The drum, open at the top (you look into the fire), the rolled rim and the two hoops standing out from it.
@@ -1423,16 +1487,11 @@ export function buildCity(scene: THREE.Scene) {
       const s = add(geoBox(0.05, 0.42, 0.05), stick, x + Math.sin(a) * 0.12, y0 + 0.88, z + Math.cos(a) * 0.12, false);
       s.rotation.set(Math.cos(a) * tilt, 0, -Math.sin(a) * tilt);
     }
-    // The flames: three tall orange ones round the edge, two yellow ones in the middle; and sparks above them.
-    const outer = lam(0xff7a22, { emissive: 0xff5a10, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 });
-    const inner = lam(0xffd04a, { emissive: 0xffb020, emissiveIntensity: 1.8, transparent: true, opacity: 0.95 });
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.1 + rnd() * 0.6;
-      flames.push(add(own(new THREE.ConeGeometry(0.11, 0.5 + rnd() * 0.15, 6)), outer, x + Math.sin(a) * 0.1, y0 + 1.0, z + Math.cos(a) * 0.1, false));
-    }
-    for (let i = 0; i < 2; i++) flames.push(add(own(new THREE.ConeGeometry(0.07, 0.34, 6)), inner, x + (i - 0.5) * 0.08, y0 + 0.92, z + (rnd() - 0.5) * 0.08, false));
-    const spark = lam(0xffe08a, { emissive: 0xffc040, emissiveIntensity: 2 });
-    for (let i = 0; i < 2; i++) flames.push(add(own(new THREE.OctahedronGeometry(0.02, 0)), spark, x + (rnd() - 0.5) * 0.3, y0 + 1.35 + i * 0.2, z + (rnd() - 0.5) * 0.3, false));
+    // The flames (v0.62: the quality bar, props.ts buildFire): layered tongues, embers and smoke, flickering.
+    const fire = buildFire(1.25);
+    fire.position.set(x, y0 + 0.74, z);
+    scene.add(fire);
+    fires.push(fire);
     const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
     light.position.set(x, y0 + 1.2, z);
     scene.add(light);
@@ -2080,10 +2139,18 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Inside: the plate presses (west wall) and workbenches (east wall) are the stations (drawn below), crates at the
     // back, oil drums, and lamps hanging from the roof.
-    const wood = slam('wood', 0x7a5a3a); // (v0.60: wood grain)
     for (const f of FIXTURES.filter((x) => x.kind === 'crate' && inRect(FACTORY, x.x, x.y))) {
-      add(geoBox(0.85, 0.7, 0.85), wood, f.x + 0.5, 0.45, f.y + 0.5).rotation.y = rng() * 0.3;
-      if (rng() < 0.6) add(geoBox(0.7, 0.5, 0.7), wood, f.x + 0.5, 1.05, f.y + 0.5).rotation.y = rng() * 0.6;
+      // (v0.62: props.ts crates, planked and braced; same random numbers as the boxes they replace.)
+      const c = buildCrate(1.4);
+      c.position.set(f.x + 0.5, 0.1, f.y + 0.5);
+      c.rotation.y = rng() * 0.3;
+      scene.add(c);
+      if (rng() < 0.6) {
+        const top = buildCrate(1.1);
+        top.position.set(f.x + 0.5, 0.1 + 0.84, f.y + 0.5);
+        top.rotation.y = rng() * 0.6;
+        scene.add(top);
+      }
     }
     for (const [dx, dz] of [[0.4, 11.3], [9.5, 11.3]]) add(own(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 10)), lam(0x2e4a5a), X0 + dx, 0.4, Z0 + dz);
     const lampMat = lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.6 });
@@ -2241,8 +2308,11 @@ export function buildCity(scene: THREE.Scene) {
   };
 
   // Hotline: a long two-tone workshop (brick below, cream render above), its front on the WEST side: a big sign, a
-  // roll-up door for the vans, an office door, pipes stacked against the wall. Its yard behind it has a half-high brick
-  // wall with one opening on the east, stacks of old pipe and copper coils lying around (the dumpsters are spots).
+  // roll-up door for the vans, pipes stacked against the wall. Its yard behind it has a half-high brick wall with one
+  // opening on the east, stacks of old pipe and copper coils lying around (the dumpsters are spots).
+  // v0.62 ("Pipe Dreams"): a room you can go into, by the office door (HOTLINE_ROOM in map.ts): the walls fade and the
+  // roof lifts while you're inside. The shop at the front (the counter in an L round Gus's corner, shelves of fittings,
+  // water heaters for sale), the workshop at the back (a workbench, a pipe rack, a toolbox, a hot-water tank).
   {
     const X0 = HOTLINE.x0;
     const X1 = HOTLINE.x1 + 1;
@@ -2251,29 +2321,73 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
     const HT = 2.4;
+    const t = 0.2;
     add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
+    // The floor: smooth concrete in the shop, the same with oil stains in the workshop.
+    const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.3, Z1 - Z0 - 0.3)), slam('stone', 0x8a867e, 1, 1, false));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0.07, cz);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    statics.push(floor);
+    for (const [x, z, r] of [[X0 + 2.2, Z0 + 7.5, 0.35], [X0 + 1.4, Z0 + 8.6, 0.25]] as const)
+      add(own(new THREE.CircleGeometry(r, 8)), lam(0x3a3630, DECAL), x, 0.075, z, false).rotation.x = -Math.PI / 2;
+    // The walls (two-tone: brick to waist height, cream render above), the door opening in the west wall.
     const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
     const mRender = slam('plaster', 0xd8ceb4, 1, 1, false);
-    const walls = [add(geoBox(X1 - X0, 1.2, Z1 - Z0), mBrick, cx, 0.6, cz), add(geoBox(X1 - X0, HT - 1.2, Z1 - Z0), mRender, cx, 1.2 + (HT - 1.2) / 2, cz)];
     const hr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const fw = face(hr, 'w');
+    const [, dy] = HOTLINE_ROOM.door;
+    const door = { u0: uOf(fw, dy), u1: uOf(fw, dy + 1), top: 1.5 };
+    const walls = [...kit.walls(hr, 1.2, t, mBrick, { w: [{ ...door, top: 1.2 }] })];
+    const upper = kit.walls(hr, HT - 1.2, t, mRender, { w: [{ ...door, top: 0.3 }] });
+    for (const w of upper) w.position.y += 1.2;
+    walls.push(...upper);
     const props: THREE.Object3D[] = [kit.roof(hr, HT, 0x3a3d42, 0.1, 0.12)];
     props.push(add(geoBox(1.2, 0.5, 0.8), lam(0xb8bcc2), cx + 0.5, HT + 0.35, Z0 + 2)); // a boiler flue box on the roof
     props.push(...kit.vent(cx - 1, HT + 0.12, Z1 - 2, 0.12, 1.0, 0x8a8f96));
-    // The front faces WEST (kit): the sign on its board, the roll-up door for the vans, an office door with a bulb,
-    // windows in the cream upper half down both long sides.
-    const fw = face(hr, 'w');
+    // The front (west): the sign on its board, the roll-up door for the vans, the office door (open: the way in) with
+    // a bulb, windows in the cream upper half down both long sides.
     const fx = X0 - 0.01;
     const sign = kit.sign(fw, uOf(fw, cz), 1.95, { text: 'HOTLINE PLUMBING & HEATING', bg: '#1e4a7a', fg: '#f2e8d0', w: 4.2, h: 0.7, board: 0x1a2a3e });
     kit.door(fw, uOf(fw, cz + 2.2), { style: 'shutter', w: 2.0, h: 1.45, color: 0xa8adb4 });
-    kit.door(fw, uOf(fw, cz - 1.0), { style: 'office', w: 0.8, h: 1.25, color: 0x2e5f8a, light: 'bulb' });
+    kit.door(fw, uOf(fw, dy + 0.5), { style: 'frame', w: 1, h: 1.5, frame: 0x2e5f8a, light: 'bulb' });
     for (const side of ['n', 's'] as const) props.push(...kit.windowRow(face(hr, side), 0.6, X1 - X0 - 0.6, 1.3, 1.5, { style: 'office', w: 0.7, h: 0.5, frame: 0x6a6a62, litChance: 0.5, rng: brng }));
     add(own(new THREE.ConeGeometry(0.16, 0.42, 6)), lam(0xe8641e, { emissive: 0x8a3010, emissiveIntensity: 0.6 }), fx - 0.1, 1.95, cz - 2.4, false);
-    // Copper pipes stacked against the front wall, and a bare bulb over the office door.
+    // Copper pipes stacked against the front wall.
     const copper = lam(0xc07040);
     for (let i = 0; i < 6; i++) {
-      const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz - 3.6 + (i % 3) * 0.12, false);
+      const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz + 3.4 + (i % 3) * 0.12, false);
       pipe.rotation.x = Math.PI / 2;
     }
+    // Inside (props.ts models): the fittings shelves and heaters along the north wall, the counter, the workshop.
+    const placed = (o: THREE.Object3D, x: number, z: number, ry = 0) => {
+      o.position.set(x, 0.07, z);
+      o.rotation.y = ry;
+      o.traverse((c) => ((c as THREE.Mesh).castShadow = true));
+      scene.add(o);
+      return o;
+    };
+    const fx0 = FIXTURES.filter((f) => inRect(HOTLINE, f.x, f.y));
+    fx0.filter((f) => f.kind === 'fittings').forEach((f, i) => placed(buildFittingsShelf(i), f.x + 0.5, f.y + 0.5));
+    fx0.filter((f) => f.kind === 'heater').forEach((f) => placed(buildWaterHeater(), f.x + 0.5, f.y + 0.45));
+    fx0.filter((f) => f.kind === 'hwtank').forEach((f) => placed(buildWaterHeater(true), f.x + 0.5, f.y + 0.5));
+    const counter = fx0.filter((f) => f.kind === 'hcounter');
+    const ax = counter.filter((f) => f.x === counter[0].x); // the long arm (north-south), and the short one (east-west)
+    const az = counter.filter((f) => f.x !== counter[0].x);
+    if (ax.length) placed(buildShopCounter(ax.length, true), ax[0].x + 0.5, (Math.min(...ax.map((f) => f.y)) + Math.max(...ax.map((f) => f.y)) + 1) / 2, Math.PI / 2);
+    if (az.length) placed(buildShopCounter(az.length), (Math.min(...az.map((f) => f.x)) + Math.max(...az.map((f) => f.x)) + 1) / 2, az[0].y + 0.5);
+    const bench = fx0.filter((f) => f.kind === 'hbench');
+    if (bench.length) placed(buildPlumbBench(), bench[0].x + 0.55, (bench[0].y + bench[bench.length - 1].y + 1) / 2);
+    const rack = fx0.filter((f) => f.kind === 'piperack');
+    if (rack.length) placed(buildPipeRack(rack.length), (rack[0].x + rack[rack.length - 1].x + 1) / 2, rack[0].y + 0.5);
+    fx0.filter((f) => f.kind === 'toolbox').forEach((f) => placed(buildToolbox(), f.x + 0.5, f.y + 0.5, 0.4));
+    // A warm light over the counter, a cold one over the bench.
+    const shopLight = new THREE.PointLight(0xffd8a0, 3, 6, 1.5);
+    shopLight.position.set(X0 + 2.5, HT - 0.4, Z0 + 2.5);
+    const benchLight = new THREE.PointLight(0xd8e8ff, 2.5, 5, 1.5);
+    benchLight.position.set(X0 + 3.5, HT - 0.4, Z0 + 7);
+    scene.add(shopLight, benchLight);
     // v0.60: offices on top (one storey).
     const flats = apartments({ x0: X0, z0: Z0, x1: X1, z1: Z1 }, HT + 0.12, 1, 0x7a4a3a, 0x5a3a2a);
     const fade: Fadeable = {
@@ -2281,6 +2395,7 @@ export function buildCity(scene: THREE.Scene) {
       cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
     };
     fadeables.push(fade);
+    rooms.set(HOTLINE_ROOM.id, fade);
 
     // The yard: cracked concrete, a half-high brick wall with a coping, one opening on the east.
     const Y0 = HOTLINE_YARD.x0;
@@ -2325,9 +2440,53 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
     // (A bit higher than the block's pavement, so the two don't flicker through each other.)
-    add(geoBox(X1 - X0, 0.12, Z1 - Z0), lam(0x5a4a38), cx, 0.06, cz, false);
+    // (v0.62: the pixel dirt texture, laid by world position; oil stains as irregular puddles with a dull sheen.)
+    add(geoBox(X1 - X0, 0.12, Z1 - Z0), slam('dirt', 0x5a4a38), cx, 0.06, cz, false);
+    const oilMat = lam(0x1a1612, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    // Tyre tracks: two ruts curving in from the gate past the crane, darker packed dirt with tread marks across.
+    {
+      const tread = own(
+        canvasTex(16, 16, (g) => {
+          g.fillStyle = '#3a2c20';
+          g.fillRect(0, 0, 16, 16);
+          g.fillStyle = '#261c14';
+          for (let y = 0; y < 16; y += 4) g.fillRect(0, y, 16, 2);
+        }),
+      );
+      const rutMat = lam(0xc8c0b8, { map: tread, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      const path = new THREE.CatmullRomCurve3([new THREE.Vector3(X1, 0, Z0 + 4.6), new THREE.Vector3(X0 + 6.5, 0, Z0 + 4.2), new THREE.Vector3(X0 + 4.2, 0, Z0 + 2.6), new THREE.Vector3(X0 + 3.5, 0, Z0 + 1.2)]);
+      for (const off of [-0.32, 0.32]) {
+        const pts = path.getPoints(24);
+        const pos: number[] = [], uv: number[] = [];
+        pts.forEach((p, i) => {
+          const t = path.getTangent(i / 24);
+          const nx = -t.z, nz = t.x;
+          for (const side of [-0.09, 0.09]) {
+            pos.push(p.x + nx * (off + side), 0.123, p.z + nz * (off + side));
+            uv.push(side < 0 ? 0 : 1, i * 0.6);
+          }
+        });
+        const idx: number[] = [];
+        for (let i = 0; i < 24; i++) idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        const rut = new THREE.Mesh(own(geo), rutMat);
+        rut.receiveShadow = true;
+        scene.add(rut);
+      }
+    }
     for (let i = 0; i < 9; i++) {
-      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
+      const r = 0.2 + rng() * 0.35;
+      const sh = new THREE.Shape();
+      for (let k = 0; k <= 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const q = r * (0.7 + 0.45 * Math.abs(Math.sin(i * 4.7 + k * 2.3)));
+        k === 0 ? sh.moveTo(Math.cos(a) * q, Math.sin(a) * q) : sh.lineTo(Math.cos(a) * q, Math.sin(a) * q);
+      }
+      const oil = add(own(new THREE.ShapeGeometry(sh)), oilMat, X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
       oil.rotation.x = -Math.PI / 2;
     }
     // A tall corrugated fence all round (kit; every fourth sheet rusty), with the gate on the east.
@@ -2380,11 +2539,11 @@ export function buildCity(scene: THREE.Scene) {
           t.rotation.x = -Math.PI / 2;
         }
       } else if (f.kind === 'doghouse') {
-        add(geoBox(0.8, 0.55, 0.7), lam(0x6a4a2e), x, 0.3, z);
-        const roof = add(own(new THREE.ConeGeometry(0.62, 0.4, 4)), lam(0x8a2f28, { flatShading: true }), x, 0.77, z);
-        roof.rotation.y = Math.PI / 4;
-        add(geoBox(0.32, 0.36, 0.02), lam(0x141210), x, 0.2, z + 0.36, false);
-        add(own(new THREE.CylinderGeometry(0.15, 0.13, 0.08, 10)), lam(0x8a8f96), x + 0.6, 0.05, z + 0.4, false); // the food bowl
+        // (v0.62, the quality bar: a props.ts model with its chain, bowl and bone.)
+        const house = buildDogHouse();
+        house.position.set(x, 0.04, z);
+        house.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+        scene.add(house);
       }
     }
     // v0.45: two old trucks among the wrecks (Kenney's Retro Urban Kit): one rusting on its side by the north fence, one
@@ -2410,20 +2569,16 @@ export function buildCity(scene: THREE.Scene) {
       m.position.set(f.x + 0.5 + dx, 0.1, f.y + 0.5 + dz);
       scene.add(m);
     }
-    // The crane: one model on its four tiles (a cab on tracks, a lattice boom up and over, a hook).
+    // The crane: one model on its four tiles (a crawler crane with a lattice boom and a scrap magnet).
     const crane = FIXTURES.filter((f) => f.kind === 'crane');
     if (crane.length) {
       const x = (Math.min(...crane.map((f) => f.x)) + Math.max(...crane.map((f) => f.x)) + 1) / 2;
       const z = (Math.min(...crane.map((f) => f.y)) + Math.max(...crane.map((f) => f.y)) + 1) / 2;
-      const yellow = lam(0xd8a02a, { flatShading: true });
-      for (const dz of [-0.6, 0.6]) add(geoBox(1.8, 0.35, 0.4), lam(0x2a2a2e), x, 0.18, z + dz);
-      add(geoBox(1.3, 0.9, 1.1), yellow, x, 0.8, z);
-      add(geoBox(0.5, 0.45, 0.04), lam(0x2a3a46), x + 0.3, 1.0, z + 0.56, false);
-      const boom = add(geoBox(0.22, 3.6, 0.22), yellow, x - 0.6, 2.4, z);
-      boom.rotation.z = 0.55;
-      const tip = new THREE.Vector3(x - 0.6 - Math.sin(0.55) * 1.8, 2.4 + Math.cos(0.55) * 1.8, z);
-      add(geoBox(0.02, 1.6, 0.02), lam(0x1a1a1e), tip.x, tip.y - 0.8, z, false);
-      add(geoBox(0.2, 0.25, 0.08), lam(0x3a3d42), tip.x, tip.y - 1.7, z, false);
+      // (v0.62, the quality bar: a props.ts model.)
+      const c = buildCrane();
+      c.position.set(x, 0.04, z);
+      c.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+      scene.add(c);
     }
   }
 
@@ -2706,19 +2861,37 @@ export function buildCity(scene: THREE.Scene) {
     walkway(CH1, Z1);
     // The channel: a dark bed, murky green sewage with a sheen, and floating muck.
     add(geoBox(X1 - X0, 0.2, CH1 - CH0), lam(0x1a2018), cx, D - 1.2, (CH0 + CH1) / 2, false);
-    const sewage = new THREE.Mesh(
-      own(new THREE.PlaneGeometry(X1 - X0, CH1 - CH0)),
-      lam(0x3a5a34, { emissive: 0x12301a, emissiveIntensity: 0.7, transparent: true, opacity: 0.92 }),
-    );
+    // (v0.62: sludge that flows east, a pixel texture: animateSludge.)
+    const sewage = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0, CH1 - CH0)), sludgeMaterial(X1 - X0, CH1 - CH0));
     sewage.rotation.x = -Math.PI / 2;
     sewage.position.set(cx, D - 0.55, (CH0 + CH1) / 2);
     sewage.receiveShadow = true;
     scene.add(sewage);
+    // Floating muck (v0.62: jagged clots, some with a can or a bottle in them) drifting east with the flow, bubbles
+    // coming up and popping, and two outflow pipes pouring more in from under the north walkway.
     for (let i = 0; i < 16; i++) {
-      const muck = new THREE.Mesh(own(new THREE.CircleGeometry(0.12 + rng() * 0.18, 6)), lam(rng() < 0.5 ? 0x4f6a2a : 0x5a5236));
-      muck.rotation.x = -Math.PI / 2;
+      const k = 0.8 + rng() * 0.9;
+      rng();
+      const muck = buildMuck(i);
+      muck.scale.setScalar(k);
       muck.position.set(X0 + 0.5 + rng() * (X1 - X0 - 1), D - 0.54, CH0 + 0.4 + rng() * (CH1 - CH0 - 0.8));
+      muck.rotation.y = i * 1.7;
       scene.add(muck);
+      drift.push({ o: muck, x0: X0, len: X1 - X0, x: muck.position.x - X0 });
+    }
+    for (let i = 0; i < 5; i++) {
+      const b = new THREE.Mesh(own(new THREE.IcosahedronGeometry(0.06, 0)), lam(0x6a8a4a, { emissive: 0x1a3a12, emissiveIntensity: 0.5 }));
+      b.position.set(X0 + 2 + i * ((X1 - X0 - 4) / 4), D - 0.55, CH0 + 0.5 + ((i * 0.37) % 1) * (CH1 - CH0 - 1));
+      b.userData.phase = i * 0.29;
+      scene.add(b);
+      bubbles.push(b);
+    }
+    for (const fx of [X0 + 4.5, X1 - 6.5]) {
+      const outflow = buildPour({ reach: 0.45, drop: 0.42, rise: 0.06, r: 0.06, color: 0x6a6a3a, glow: 0x1a2010, pipe: true, core: false, bits: 5, wide: 1.2 });
+      outflow.position.set(fx, D - 0.12, CH0 + 0.02);
+      outflow.rotation.y = -Math.PI / 2;
+      scene.add(outflow);
+      pours.push(outflow);
     }
     // The grate bridges, with a rail on each side.
     const grateTex = own(
@@ -2825,12 +2998,12 @@ export function buildCity(scene: THREE.Scene) {
       links.push(lad);
     }
     // Crates and rubbish bags (the walkways' fixtures), and some junk lying about.
-    const wood = slam('wood', 0x6a4a2e); // (v0.60: wood grain)
     for (const f of FIXTURES) {
       if (f.kind === 'crate') {
-        const c = add(geoBox(0.72, 0.6, 0.72), wood, f.x + 0.5, D + 0.3, f.y + 0.5);
+        const c = buildCrate(1.15); // (v0.62: a props.ts crate)
+        c.position.set(f.x + 0.5, D, f.y + 0.5);
         c.rotation.y = rng() * 0.5 - 0.25;
-        add(geoBox(0.74, 0.06, 0.74), lam(0x4a3220), f.x + 0.5, D + 0.32, f.y + 0.5, false).rotation.y = c.rotation.y;
+        scene.add(c);
       } else if (f.kind === 'trash') {
         for (let i = 0; i < 3; i++) {
           const bag = add(own(new THREE.IcosahedronGeometry(0.22 + rng() * 0.06, 0)), lam(0x1e2022, { flatShading: true }), f.x + 0.3 + rng() * 0.4, D + 0.2, f.y + 0.3 + rng() * 0.4);
@@ -2980,20 +3153,21 @@ export function buildCity(scene: THREE.Scene) {
       continue;
     }
     add(own(new THREE.CircleGeometry(1.4, 12).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
-    const brick = lam(0x8a4434, { flatShading: true });
-    add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);
-    add(geoBox(0.96, 0.06, 0.76), lam(0x6a3428), x, 0.6, z);
-    add(geoBox(0.7, 0.04, 0.5), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 0.9 }), x, 0.63, z, false); // coals
-    for (let i = 0; i < 7; i++) add(geoBox(0.02, 0.02, 0.5), lam(0x3a3d42), x - 0.3 + i * 0.1, 0.68, z, false); // grill bars
-    for (let i = 0; i < 4; i++) {
-      const f = add(own(new THREE.ConeGeometry(0.06 + rng() * 0.03, 0.22, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.6, transparent: true, opacity: 0.9 }), x - 0.22 + i * 0.15, 0.76, z + (rng() - 0.5) * 0.25, false);
-      flames.push(f);
+    // v0.62 (the quality bar): the barbecue is a props.ts model, with two small fires licking up through its grill.
+    // (The old one took 8 random numbers: drawn here still, so nothing placed after it moves.)
+    for (let i = 0; i < 8; i++) rng();
+    const bbq = buildBarbecue();
+    bbq.position.set(x, 0.1, z);
+    bbq.traverse((c) => ((c as THREE.Mesh).castShadow = true));
+    scene.add(bbq);
+    for (const dx of [-0.18, 0.16]) {
+      const fire = buildFire(0.5);
+      fire.position.set(x + dx, 0.74, z - 0.08);
+      scene.add(fire);
+      fires.push(fire);
     }
-    // A chimney stack at the back, and a bag of charcoal.
-    add(geoBox(0.3, 0.6, 0.2), brick, x, 0.9, z - 0.26);
-    add(geoBox(0.3, 0.35, 0.18), lam(0x4a3a2a), x + 0.7, 0.25, z + 0.3);
-    const light = new THREE.PointLight(0xff8a3a, 4, 5, 1.6);
-    light.position.set(x, 1.0, z);
+    const light = new THREE.PointLight(0xff8a3a, 3, 5, 1.6);
+    light.position.set(x, 1.4, z + 0.6);
     scene.add(light);
     fireLights.push(light);
   }
@@ -3005,7 +3179,6 @@ export function buildCity(scene: THREE.Scene) {
   crowns.forEach((b) => b.build(scene));
 
   // Merge everything static into a few meshes per area and colour (and per building, for the ones that fade).
-  flames.forEach((f) => keep.add(f)); // (they flicker)
   // v0.60: textures laid by world position (surfaces.ts) before the meshes are merged.
   for (const m of statics) if (wantsWorldUV(m)) worldUV(m);
   mergeStatic(scene, statics, fadeables, keep, own);
@@ -3021,13 +3194,17 @@ export function buildCity(scene: THREE.Scene) {
     setGateOpen(open: boolean) {
       if (gate) gate.rotation.y = open ? -Math.PI / 2 : 0;
     },
-    /** Call every frame: the barbecue's flames flicker. */
+    /** Call every frame: the fires flicker (barrels, barbecues), the water ripples. */
     animate(t: number) {
       animateWater(t);
-      flames.forEach((f, i) => {
-        const k = 0.8 + Math.sin(t / 90 + i * 1.7) * 0.2 + Math.sin(t / 37 + i) * 0.1;
-        f.scale.set(1, k, 1);
-      });
+      fires.forEach((f) => animateFire(f, t / 1000));
+      pours.forEach((p) => animatePour(p, t / 1000));
+      animateSludge(t / 1000);
+      for (const d of drift) d.o.position.x = d.x0 + 0.3 + ((d.x + (t / 1000) * 0.06) % (d.len - 0.6));
+      for (const b of bubbles) {
+        const k = ((t / 1000) * 0.5 + (b.userData.phase as number)) % 1;
+        b.scale.set(k < 0.8 ? k * 1.2 : 0, k < 0.8 ? k * 0.7 : 0, k < 0.8 ? k * 1.2 : 0);
+      }
       fireLights.forEach((l, i) => (l.intensity = 3.5 + Math.sin(t / 70 + i) * 0.6 + Math.sin(t / 23) * 0.3));
     },
     /** Room id → its walls/roof, so the Street view can fade a room while you're inside. */

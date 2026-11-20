@@ -167,7 +167,10 @@ timing) in `src/game/data/crimes.ts`.
 - **Dying (built, v0.18):** at 0 HP you die. **All your cash and items drop into a grave** on the tile where you
   died, and you wake up at the start with **half your max health** (not full, so dying isn't a free heal).
   Walk back and tap the grave to get everything back (items that don't fit stay in it). The grave lasts
-  **5 minutes** (real time), then it crumbles and the stuff is gone. Dying again while you have a grave
+  **an hour of time online** (v0.62; it was 5 minutes of real time), then it crumbles and the stuff is gone.
+  Online means the game is open and talking to the server (also in a background tab); a gap of more than 30 s
+  since the server last heard from you doesn't count (`game.grave_tick` pushes the grave's `expires_at` back by it,
+  wherever the grave is read: 0046). Dying again while you have a grave
   replaces it (the old one's contents are lost). Tuning: `GRAVE_MINUTES`, `RESPAWN_HP` in `engine.ts`.
 - **Passing out and the hospital (v0.36):** at 0 HP the screen fades to black ("You passed out") and back in, and
   you wake up in the **hospital** (005-B + 005-D, facing the park), in the ward upstairs next to a bed
@@ -424,6 +427,14 @@ shared spots → (3) chat, trading, fights (Melee/Defense/Marksman), leaderboard
 > **Status: v1 built (v0.27).** The Pigeon, fists and brass knuckles, Ray's weapon store. No drops yet. Based on the
 > designer's sheet. Decisions are listed at the end; numbers live in `src/game/combat.ts`, `src/game/enemies.ts`,
 > `src/game/data/items.ts` and the same tables on the server (`supabase/migrations/0010_combat.sql`).
+
+### Reach: only next to each other (v0.62)
+
+Every enemy fights melee. It only swings at you when it stands **right next to you** (8 directions) **with nothing in
+between**: one step on the enemies' walk map, so no fence, wall or cut corner (`game.enemy_adjacent`, the same as
+`adjacent` in `src/street/sight.ts`). Checked on every swing in `fight_step`: not next to you, it waits a swing. Your
+melee attack needs the same (the game walks you up to it; the server refuses otherwise); a throw doesn't. A biker who
+jumps you takes a free tile next to you, on his side.
 
 ### The enemy ladder (v0.43)
 
@@ -926,6 +937,20 @@ keeps your step (`players.quests`, e.g. `{"sewer_problems": 2}`) and decides eve
 the id of the line to show. The **Quests tab** lists every quest: not started / in progress / complete, and the current
 log line.
 
+**Advised levels (v0.62):** a quest can list the levels we advise (`advised`: a skill, or `combat` for your combat
+level). The quest log shows them ("Advised: Combat level 5"), green when you have them, amber when you're below. Never
+required. Sewer Problems advises combat 5: you fight a rat for its meat, and a brand-new character (combat 3, fists)
+wins only about 5 in 6 (simulated); at combat 4, about 49 in 50.
+
+### How we write quests (the owner's rules, v0.62)
+
+- **The game doesn't take itself too seriously.** Dialogue should be fun to read: a little joke or pun now and then (not
+  in every line), characters with a bit of personality. Splinter and the hospital's doctors are the tone.
+- **No plain fetch quests.** Never just "get me X, bring it back, done".
+- **Several steps that use the game.** Even when the heart of it is simple, the steps go through different people,
+  places and skills, like Sewer Problems: talk to Splinter → the hospital → kill a rat → cook the meat → use the
+  antidote on it → bring it back. Each step should be a different kind of thing to do.
+
 ### Sewer Problems (the first quest)
 
 | Step | What happens | Quest log |
@@ -947,6 +972,23 @@ log line.
 - **Giant rat meat:** the giant rats always drop it; cook it (Cooking 10, 15 XP, never burns from 30): heals 3 HP.
 
 
+
+### Pipe Dreams (v0.62; no fighting)
+
+Gus runs **Hotline Plumbing & Heating** (now a room you walk into by the office door, west: shelves of fittings, water
+heaters, an L-shaped counter round his corner, a workshop with a bench, a pipe rack, a toolbox and a hot-water tank).
+His back's gone and the bar has a burst pipe. Each step is a different kind of thing to do:
+1. **Gus** (talk to him across the counter): accept.
+2. **The bartender** (only on this quest you can talk to him, across the bar) shows you the leak.
+3. **The water main**: a valve with a red wheel on the sidewalk across the street from the bar, a little west. Turn it off.
+4. **A Pipe Elbow**: tin salvage from the Thrift Store's yard (Scrapping) → a tin sheet at the Factory's press → a Pipe
+   Elbow at a workbench (a quest-only craft: 1 tin sheet, Tinkering 1, 10 XP; a quest item, can't be dropped or sold).
+5. **The leak** (the bar's west wall, past the end of the bar): fit the elbow.
+6. **The water main** again: turn it on. **Gus**: +50 Scrapping XP, +50 Tinkering XP, $50.
+
+No timer, no fail: people nag with jokes instead. The server decides every step (`game.pipe_dreams`, from `quest_talk`,
+0047); the words are in `quests.ts`. The burst pipe (an arcing stream, splash and puddle, OSRS style) and the main's
+wheel show as they are for you.
 ## 17. The screen (v0.44)
 
 The street fills the screen, in portrait too. No header or tab bar any more (no name, no ranks: your name shows when you
@@ -993,6 +1035,38 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
 - **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
   Models stand on the floor at their origin.
 
+### The quality bar (v0.62, the owner: "this is the quality we need")
+The burst pipe in the bar (`buildBurstPipe`, props.ts) is the reference. Low-poly still, but never flat and boxy:
+- **Real shapes, not stand-ins.** Follow the thing's actual form (a curved stream along an arc, not cones; a jagged
+  puddle outline, not a disc). Use the right three.js geometry: tubes along curves, extruded or lathed shapes, shapes
+  with irregular outlines.
+- **Layers.** Build something from a few parts that read together: the stream plus a paler core, a big puddle plus two
+  small ones, a pipe with its break and a cap.
+- **Colour that reads.** Saturated, with a little emissive so it holds up in dim rooms; a lighter and a darker tone of
+  the same colour rather than one flat fill. Check it under the scene's real light (a screenshot), not in isolation.
+- **Movement where things move.** Water splashes, smoke rises, lights flicker: a small animate function, cheap.
+- **Look at a reference** (old-school RuneScape screenshots) before building, and compare the screenshot with it.
+
+### The model catalogue (reuse these before building new ones)
+Every model is a function that returns a `THREE.Group` standing on its origin; `props.test.ts` keeps each within its
+budget. See them side by side: `scripts/preview/gallery.html?set=street` or `?set=props`.
+- **Fire and water** (`props.ts`): `buildFire(size)` + `animateFire` (any fire: barrels, barbecues, braziers);
+  `buildPour({reach, drop, rise, r, wide, color, pipe, core})` + `animatePour` (any pouring liquid: fountains, outflow
+  pipes, leaks); `buildBurstPipe` + `animateBurstPipe`; `buildLilyPad`, `buildReeds`; `sludgeMaterial` +
+  `animateSludge` (flowing sewage); `buildMuck` (floating junk).
+- **Nature**: `crownClump(seed)` (a tree crown's lumpy clump, for the leaves texture with vertexColors);
+  `buildFlowerbed(seed)`; the park's trees and hedges in city.ts use these.
+- **Street** (`streetLife.ts`): `buildStreetLamp`, `buildHydrant`, `buildMailbox`, `buildBin(full)`, `buildNewsBoxes`,
+  `buildBench(len)`, `buildDumpster`, `buildTreePit`, `buildBusStop`, `buildBikeRack`.
+- **Props** (`props.ts`): `buildCrate(size)`, `buildBarbecue`, `buildCrane` (a vehicle), `buildDogHouse`, `buildWaterMain`,
+  `buildShopCounter(len, till)`, `buildFittingsShelf`, `buildWaterHeater(tall)`, `buildPlumbBench`, `buildPipeRack`,
+  `buildToolbox`, `buildPipeElbow`, `buildShelf('candy'|'gas')`, `buildScrapDumpster(metal)`; the Yard's
+  `buildContainer`, `buildRuinWall`, `buildRubble`, `buildStrippedCar`, `buildDiceCrate`, `buildLookout`,
+  `buildStringLights`.
+- **Pixel textures**: `surfaceMat(kind, colour)` (surfaces.ts: brick, plaster, wood, roof, stone, metal, grass, leaves,
+  bark, dirt; no straight lines in a ground texture, they repeat every tile into a grid) and the painters in props.ts (`texMat`: BRICK, WOOD, STEEL, PAINT, CONCRETE, PIPE_METAL, RUST_PIPE, ENAMEL,
+  MACHINE_YELLOW, HAZARD, TREAD, SLUDGE, SHINGLE).
+
 ### The floor kit (v0.55, `src/street/floor.ts`; preview `scripts/preview/floor.html`)
 The ground, drawn from a grid of surfaces (asphalt, sidewalk, grass, gravel, paving, dirt, concrete, sand, water): each
 at its own height with a side where it stands above its neighbour (curbs, lawn edges, the beach's drop), corners rounded
@@ -1006,7 +1080,7 @@ Only water has a texture: drawn ripples (no picture files), as grey detail on th
 Kit) and a tester preferred the plain, basic look.
 **Props may have textures (v0.59):** small pixel textures drawn in code (32×32 texels, sampled crisp, no picture files):
 brick, wood planks, corrugated steel, worn car paint, concrete (`pixelTex`/`texMat` in props.ts; one texture covers a
-tile of surface). The ground stays plain, except grass (lawns and hedges: the pixel grass, one a tile; the owner found plain green flat) and water.
+tile of surface). The ground stays plain, except grass (lawns and hedges: the pixel grass, one a tile; the owner found plain green flat), dirt (v0.62) and water.
 **Surfaces (v0.60, `src/street/surfaces.ts`):** grey pixel textures for what the city is built of (brick, plaster,
 wood, roof felt, stone, metal), multiplied by each material's own colour (one texture for every brick wall), laid by
 world position before the city is merged (one texture a tile, never stretched). In city.ts `slam(kind, colour)`
