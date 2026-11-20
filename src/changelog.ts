@@ -15,6 +15,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Enemies only hit you when they stand right next to you, with nothing in between: no more thugs hitting you from a tile away or through the Yard\'s fence.',
       'To fight up close you walk right up to it (it used to start from two tiles away).',
       'A biker who jumps you in the club always comes to a free spot right next to you.',
+      'Your grave lasts an hour now (it was 5 minutes), and only while you\'re online: log out and its clock stops until you\'re back.',
+      'Quests show the levels we advise (never required): Sewer Problems advises combat level 5. Green when you have it, amber when you\'re below.',
     ],
   },
   {

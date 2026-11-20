@@ -1,7 +1,7 @@
 // Quests (docs/design.md §16). A quest is data: its steps (the server keeps your step in players.quests), the line in
 // your quest log for each step, and what its people say. The server decides every step (quest_talk) and answers with the
 // id of the line to show; the words live here.
-import type { GameState } from '../types';
+import type { GameState, SkillId } from '../types';
 
 export interface Quest {
   id: string;
@@ -13,6 +13,8 @@ export interface Quest {
   /** The step at which it's done. */
   done: number;
   reward: string;
+  /** Levels we advise before you start (v0.62): shown in the quest log, never required. 'combat' is your combat level. */
+  advised?: { skill: SkillId | 'combat'; level: number }[];
 }
 
 /** Do you have this item, in your bag or your bank? */
@@ -33,6 +35,9 @@ export const QUESTS: Quest[] = [
     },
     done: 3,
     reward: '+50 Cooking XP and the Sewer Key (it opens the gate to the Rat Nest).',
+    // You fight a rat for its meat: a brand-new character (combat 3, fists) wins only about 5 in 6; at combat 4 about
+    // 49 in 50 (simulated, v0.62).
+    advised: [{ skill: 'combat', level: 5 }],
   },
 ];
 export const QUEST_BY_ID: Record<string, Quest> = Object.fromEntries(QUESTS.map((q) => [q.id, q]));

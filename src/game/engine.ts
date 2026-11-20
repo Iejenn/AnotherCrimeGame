@@ -22,7 +22,7 @@ const HP_REGEN_PER_MIN = 1;
 /** Below this much health you're "badly hurt": you get a warning (you can still work: the risk is dying). */
 export const LOW_HP = 3;
 /** When you die, your stuff waits in a grave this long (real minutes). */
-export const GRAVE_MINUTES = 5;
+export const GRAVE_MINUTES = 60; // (v0.62: an hour, of time online: game.grave_tick, 0046)
 /** You come back with this share of your max health (not full: dying shouldn't be a free heal). */
 export const RESPAWN_HP = 0.5;
 

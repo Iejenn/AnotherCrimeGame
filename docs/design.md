@@ -167,7 +167,10 @@ timing) in `src/game/data/crimes.ts`.
 - **Dying (built, v0.18):** at 0 HP you die. **All your cash and items drop into a grave** on the tile where you
   died, and you wake up at the start with **half your max health** (not full, so dying isn't a free heal).
   Walk back and tap the grave to get everything back (items that don't fit stay in it). The grave lasts
-  **5 minutes** (real time), then it crumbles and the stuff is gone. Dying again while you have a grave
+  **an hour of time online** (v0.62; it was 5 minutes of real time), then it crumbles and the stuff is gone.
+  Online means the game is open and talking to the server (also in a background tab); a gap of more than 30 s
+  since the server last heard from you doesn't count (`game.grave_tick` pushes the grave's `expires_at` back by it,
+  wherever the grave is read: 0046). Dying again while you have a grave
   replaces it (the old one's contents are lost). Tuning: `GRAVE_MINUTES`, `RESPAWN_HP` in `engine.ts`.
 - **Passing out and the hospital (v0.36):** at 0 HP the screen fades to black ("You passed out") and back in, and
   you wake up in the **hospital** (005-B + 005-D, facing the park), in the ward upstairs next to a bed
@@ -933,6 +936,11 @@ A quest is data (`src/game/data/quests.ts`): its steps, the quest-log line for e
 keeps your step (`players.quests`, e.g. `{"sewer_problems": 2}`) and decides every step (`quest_talk`); it answers with
 the id of the line to show. The **Quests tab** lists every quest: not started / in progress / complete, and the current
 log line.
+
+**Advised levels (v0.62):** a quest can list the levels we advise (`advised`: a skill, or `combat` for your combat
+level). The quest log shows them ("Advised: Combat level 5"), green when you have them, amber when you're below. Never
+required. Sewer Problems advises combat 5: you fight a rat for its meat, and a brand-new character (combat 3, fists)
+wins only about 5 in 6 (simulated); at combat 4, about 49 in 50.
 
 ### Sewer Problems (the first quest)
 

@@ -49,3 +49,10 @@ test('0045 is melee reach as the game does it', async () => {
   const sql = (await import('../../supabase/migrations/0045_melee_reach.sql?raw')).default as string;
   expect(sql === reachSql()).toBe(true);
 });
+
+// v0.62: the grave's hour of online time (0046) is exactly what scripts/grave-sql.ts prints.
+test('0046 is the grave hour as the game has it', async () => {
+  const { graveSql } = await import('../../scripts/grave-sql');
+  const sql = (await import('../../supabase/migrations/0046_grave_hour.sql?raw')).default as string;
+  expect(sql === graveSql()).toBe(true);
+});
