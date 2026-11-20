@@ -14,7 +14,9 @@ const sun = new THREE.DirectionalLight(0xffe0c0, 1.5);
 sun.position.set(-3, 6, 4);
 scene.add(sun);
 [0, 0.3, 0.5, 0.75].forEach((p, i) => {
-  const g = buildCharacter({ skin: 1, hair: 1, hairColor: 1, top: 0, bottom: 1 });
+  // (?hair=0–4, ?hood=1: a thug's hoodie, to check the hair stays under the hood.)
+  const q = new URLSearchParams(location.search);
+  const g = buildCharacter({ skin: 1, hair: Number(q.get('hair') ?? 1), hairColor: 1, top: 0, bottom: 1 }, q.get('hood') ? { hood: 0x4a4d52 } : undefined);
   setGear(g, { weapon });
   animateCharacter(g, 'swing', 0, 0, p);
   g.position.set(i * 1.6 - 2.4, 0, 0);

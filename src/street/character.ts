@@ -295,7 +295,9 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   // it (the fringe, the mohawk, the cap). What hangs below the helmet (the back, long hair's sides) stays.
   const crown = joint(head, 0, 0);
   crown.name = 'crown';
-  switch (look.hair) {
+  // (v0.60: under a hood there's no hair at all: the hood is a dome over the head like a helmet, and the hair poked
+  // through it. setGear only hides hair under a helmet, and a thug never wears one.)
+  switch (extra?.hood !== undefined ? 0 : look.hair) {
     case 1: // short: a cap of hair with a choppy fringe
       // A short crop: the top, the back down to the neck, a quiff at the front.
       put(geo.hairTop, hair, crown);

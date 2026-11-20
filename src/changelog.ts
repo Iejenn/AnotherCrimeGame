@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.60.0',
+    date: '2026-11-20',
+    title: 'Fixes',
+    items: [
+      'Throwing knives in the bag show their real stats now (max hit, speed, range and the Marksman level they need), not "+0 defence, Defense 11", and you Wield them instead of Wear.',
+      "Thugs' hair no longer pokes through their hoods.",
+    ],
+  },
+  {
     version: '0.59.0',
     date: '2026-11-18',
     title: 'Yard fixes',
