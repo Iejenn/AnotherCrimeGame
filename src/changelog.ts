@@ -12,6 +12,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-20',
     title: 'Fixes',
     items: [
+      'Dexterity is now called Fitness (same skill, same levels).',
       'The grass texture is calmer: a soft grain of short blades that fits with the bricks, boards and roofs, instead of a busy speckle.',
     ],
   },

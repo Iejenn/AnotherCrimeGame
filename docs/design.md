@@ -959,18 +959,18 @@ log in and in chat).
 - **The bag** uses bank-sized slots, 10 across; tap an item and its buttons (Wield, Eat, Use, Drop) show in one line.
 - The normal arrow cursor everywhere (no hand).
 
-## 17b. Running, stamina and Dexterity (v0.60)
+## 17b. Running, stamina and Fitness (v0.60; called Dexterity until v0.61, still `dexterity` in the code and database)
 
 - **The button:** a circle at the bottom right of the minimap (a running man) toggles running; a ring round it shows
   stamina. Your choice is kept (prefs `runOn`). At 0 stamina it switches itself off.
 - **Speed:** running is 2× walking (`RUN_MULT`, `src/game/stamina.ts`), with its own animation (pose `run`).
-- **Stamina** (0–100): a full bar runs 60 tiles at Dexterity 1; each level +1% range, 200% at level 100
+- **Stamina** (0–100): a full bar runs 60 tiles at Fitness 1; each level +1% range, 200% at level 100
   (`runRange`). It comes back on its own: full in 6 minutes while walking, 3 minutes standing still.
-- **Dexterity:** 1 XP for every 75 tiles walked or run (level 2 after about 15 minutes of walking).
+- **Fitness:** 1 XP for every 75 tiles walked or run (level 2 after about 15 minutes of walking).
 - **Server (0044):** `game.move_check` works out from your last saved position and time how many tiles you must have
   run (walking at up to 3 tiles/s is free, running at up to 5.5 tiles/s, 3 tiles of leeway), and what that leaves of
   your stamina. Every action's speed check (`game.can_reach`) uses it: faster than running, or running on an empty bar
-  (below −5), is refused. A trigger on `players` applies stamina and Dexterity XP whenever your position changes.
+  (below −5), is refused. A trigger on `players` applies stamina and Fitness XP whenever your position changes.
   Teleports (climbing, waking up) count nothing. The client keeps its own stamina and shows the lower of it and the
   server's.
 
