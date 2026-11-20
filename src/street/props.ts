@@ -1,5 +1,6 @@
 // Small models: cars, gym bags, shop shelves and parking meters. Chunky low-poly, muted dusk colours.
 import * as THREE from 'three';
+import { surfaceMat } from './surfaces';
 import { limb, loft, spikes } from './loft';
 
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
@@ -75,18 +76,54 @@ export function buildGymBag(color: number): THREE.Group {
 }
 
 /**
- * A shop shelf full of goods, against a wall behind it. `userData.goods` holds the goods, which are
- * hidden while the shelf is empty (you stole from it; it refills after a while).
+ * A shop shelf you steal from (v0.60: stocked with what the shop sells, built to the art rules, under 300 triangles):
+ * a wooden shelf unit with three boards. The candy store's: wrapped candy bars in bright wrappers, a jar of gumballs
+ * and lollipops on top. The gas station's: soda bottles, bags of chips and wrapped sandwiches. The goods hide when the
+ * shelf has been emptied (userData.goods, see setSpotEmpty).
  */
-export function buildShelf(colors: number[], seed: number): THREE.Group {
+export function buildShelf(kind: 'candy' | 'gas', seed: number): THREE.Group {
   const g = new THREE.Group();
-  add(g, boxGeo(0.9, 1.0, 0.42), 0x6b4a2e, 0, 0.5, -0.24);
+  const wood = texMat('wood', WOOD, 1, 1, 0x6b4a2e);
+  addTex(g, boxGeo(0.9, 1.0, 0.1), wood, 0, 0.5, -0.4);
+  for (let level = 0; level < 3; level++) addTex(g, boxGeo(0.92, 0.03, 0.44), wood, 0, 0.18 + level * 0.32, -0.22, false);
   const goods = new THREE.Group();
-  for (let level = 0; level < 3; level++) {
-    add(g, boxGeo(0.92, 0.03, 0.44), 0x8a6235, 0, 0.18 + level * 0.32, -0.22, false);
+  const pick = (list: number[], i: number) => list[(seed * 7 + i * 5) % list.length];
+  if (kind === 'candy') {
+    const wrappers = [0xd9473a, 0xf0b13c, 0x3a6ea5, 0x8a5ab8, 0xe86aa0, 0x4fa04a];
+    for (let level = 0; level < 3; level++)
+      for (let i = 0; i < 3; i++) {
+        const c = pick(wrappers, level * 3 + i);
+        const bar = addTex(goods, boxGeo(0.22, 0.05, 0.1), texMat(`wrap${c}`, wrapper(c), 1, 1, c), -0.27 + i * 0.27, 0.22 + level * 0.32, -0.15 + (i % 2) * 0.06, false);
+        bar.rotation.y = ((seed + i) % 3) * 0.15 - 0.15;
+      }
+    // A glass jar of gumballs, and three lollipops stuck in a jar, on top.
+    const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.18, 8, 1, true), new THREE.MeshLambertMaterial({ color: 0xcfe8f0, transparent: true, opacity: 0.45, flatShading: true, side: THREE.DoubleSide }));
+    jar.position.set(-0.22, 1.1, -0.25);
+    goods.add(jar);
+    add(goods, new THREE.IcosahedronGeometry(0.07, 0), 0xe86aa0, -0.22, 1.06, -0.25, false);
+    for (let i = 0; i < 3; i++) {
+      add(goods, cylGeo(0.008, 0.2, 3), 0xf2efe8, 0.17 + i * 0.03, 1.13, -0.25 + (i - 1) * 0.02, false);
+      const pop = add(goods, cylGeo(0.06, 0.02, 6), pick(wrappers, i + 2), 0.17 + i * 0.03, 1.25, -0.25 + (i - 1) * 0.02, false);
+      pop.rotation.x = Math.PI / 2;
+    }
+  } else {
+    const bottles = [0x2a6a3a, 0x8a2a24, 0x3a5a8a, 0xc8a83a];
+    // Top board: soda bottles. Middle: bags of chips. Bottom: sandwiches in their wedges.
     for (let i = 0; i < 4; i++) {
-      const c = colors[(seed + level * 3 + i * 7) % colors.length];
-      add(goods, boxGeo(0.15, 0.17, 0.14), c, -0.3 + i * 0.2, 0.29 + level * 0.32, -0.12, false);
+      const c = pick(bottles, i);
+      // (One tapered cylinder: the bottle and its neck.)
+      add(goods, new THREE.CylinderGeometry(0.02, 0.045, 0.24, 6), c, -0.3 + i * 0.2, 0.84 + 0.12, -0.15, false);
+    }
+    const bags = [0xe0b23a, 0xd9473a, 0x3a6ea5];
+    for (let i = 0; i < 3; i++) {
+      const c = pick(bags, i);
+      const bag = addTex(goods, boxGeo(0.2, 0.22, 0.08), texMat(`wrap${c}`, wrapper(c), 1, 1, c), -0.26 + i * 0.26, 0.52 + 0.11, -0.16, false);
+      bag.rotation.x = -0.15;
+    }
+    const wedge = new THREE.CylinderGeometry(0.12, 0.12, 0.08, 3);
+    for (let i = 0; i < 3; i++) {
+      const s = add(goods, wedge, 0xe8dcc0, -0.26 + i * 0.26, 0.2 + 0.06, -0.15, false);
+      s.rotation.set(Math.PI / 2, 0, Math.PI / 2);
     }
   }
   g.add(goods);
@@ -137,7 +174,8 @@ export function buildScrapDumpster(metal: 'tin' | 'copper' | 'aluminium' = 'tin'
   const bodyGeo = new THREE.ExtrudeGeometry(profile, { depth: 0.94, bevelEnabled: false, curveSegments: 1 });
   bodyGeo.rotateY(-Math.PI / 2);
   bodyGeo.translate(0.47, 0, 0);
-  const body = new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: paint, flatShading: true }));
+  // (v0.60: brushed paint over steel; the shape's sides are in world units, so the texture's 1 a tile.)
+  const body = new THREE.Mesh(bodyGeo, surfaceMat('metal', paint));
   body.castShadow = body.receiveShadow = true;
   g.add(body);
   // The rim round the top, a rib down each side, fork pockets, wheels.
@@ -905,6 +943,13 @@ const PAINT: Painter = (g, rnd) => {
 const CONCRETE: Painter = (g, rnd) => {
   px(g, '#7a766e', 0, 0, 32, 32);
   for (let i = 0; i < 60; i++) px(g, rnd() < 0.5 ? '#5a5650' : '#8a867e', Math.floor(rnd() * 32), Math.floor(rnd() * 32));
+};
+/** A wrapper in colour `c`: a lighter band across the middle with a dark logo blob, crinkled ends. */
+const wrapper = (c: number): Painter => (g) => {
+  px(g, shade(c, 1), 0, 0, 32, 32);
+  px(g, shade(c, 1.35), 0, 11, 32, 10);
+  px(g, shade(c, 0.45), 11, 13, 10, 6);
+  for (const x of [0, 30]) for (let y = 0; y < 32; y += 4) px(g, shade(c, 0.75), x, y, 2, 2);
 };
 /** A mesh with a textured material. */
 function addTex(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, shadow = true) {

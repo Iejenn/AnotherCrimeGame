@@ -22,6 +22,7 @@ import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWal
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
+import { SURFACE_GAIN, surfaceMat, surfaceTexture, worldUV, wantsWorldUV, type SurfaceKind } from './surfaces';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
 const C = {
@@ -52,7 +53,13 @@ export interface Fadeable {
   opacity: number;
   /** Fade regardless of the camera (the store, while you're inside it). */
   force?: boolean;
+  /** v0.60: the cut-away. While the building stands on the camera's side of you (low on the screen), it's cut down to
+   *  its ground floor: `main` (if any) squashed to `keep` high, `upper` (floors above, their windows, the roof edge and
+   *  clutter, a shop's apartments) hidden. */
+  cut?: { main?: THREE.Mesh; height: number; keep: number; center: THREE.Vector3; upper: THREE.Object3D[]; on: boolean };
 }
+/** The lowest point of an object (for picking what's above a building's ground floor). */
+export const minY = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o).min.y;
 
 /** A soft orange circle for the light pool under each street lamp. */
 const lightPoolTex = () =>
@@ -119,6 +126,24 @@ export function buildCity(scene: THREE.Scene) {
   };
   const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra }));
   const geoBox = (w: number, h: number, d: number) => own(new THREE.BoxGeometry(w, h, d));
+  /**
+   * v0.60: a material with a surface's pixel texture (surfaces.ts), laid by world position (one texture a tile,
+   * `su` × `sv` more), its colour as the tint. `shared`: one material for every use of this look (furniture); a
+   * building that fades on its own needs its own (false).
+   */
+  const surfMats = new Map<string, THREE.MeshLambertMaterial>();
+  const slam = (kind: SurfaceKind, color: number, su = 1, sv = 1, shared = true) => {
+    const key = `${kind}|${color}|${su}|${sv}`;
+    const known = shared ? surfMats.get(key) : undefined;
+    if (known) return known;
+    const base = surfaceTexture(kind);
+    const map = base ? own(base.clone()) : undefined;
+    if (map) (map.repeat.set(su, sv), (map.needsUpdate = true));
+    const m = lam(color, map ? { map } : {});
+    if (map) m.color.multiplyScalar(SURFACE_GAIN), (m.userData.worldUV = true);
+    if (shared) surfMats.set(key, m);
+    return m;
+  };
   const rng = mulberry32(2024);
   let ironMat: THREE.Material | null = null;
   const iron2 = () => (ironMat ??= lam(0x3a3d42));
@@ -304,7 +329,7 @@ export function buildCity(scene: THREE.Scene) {
     }
   };
   const pavement = lam(C.pavement);
-  const grassMat = lam(C.grass);
+  const grassMat = slam('grass', C.grass); // (v0.60: textured, the lots' lawns too)
   /** Marks lying flat on the ground (stains, cracks, painted lines): pulled towards the camera so they never flicker
    *  against the ground they lie on. */
   const DECAL = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
@@ -405,7 +430,7 @@ export function buildCity(scene: THREE.Scene) {
     }
 
   // ---------- grime: dumpsters and trash bags in the alleys between buildings ----------
-  const dumpsters = new Batch(geoBox(1.1, 0.7, 0.62), lam(0x2f4a36));
+  const dumpsters = new Batch(geoBox(1.1, 0.7, 0.62), surfaceMat('metal', 0x2f4a36));
   const dumpLids = new Batch(geoBox(1.12, 0.05, 0.64), lam(0x1f2a22));
   const bags = new Batch(own(new THREE.IcosahedronGeometry(0.17, 0)), lam(0x1c1c1f, { flatShading: true }));
   {
@@ -487,8 +512,10 @@ export function buildCity(scene: THREE.Scene) {
     }),
   );
   // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
-  // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
-  const FLOOR = 1.45;
+  // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows.
+  // v0.60: 1.9 (was 1.45, barely taller than a person: the houses looked like dolls' houses next to people and the
+  // bar). About 1.6 people a floor, 2 to 4 floors.
+  const FLOOR = 1.9;
   // ---------- the Industrial zone: corrugated-metal sheds and workshops ----------
   /** Corrugated metal: vertical ribs with streaks of rust. */
   const corrugated = own(
@@ -510,7 +537,7 @@ export function buildCity(scene: THREE.Scene) {
   // windows and awnings, a parapet, roof clutter. Their own random numbers, so they don't shift the rest of the city.
   const brng = mulberry32(4711);
   // How many floors stand on each tile (a wall above a lower neighbour's roof is open air too).
-  const floorsOf = (b: (typeof BUILDINGS)[number]) => (b.industrial ? 1 : b.height > 1.8 ? 3 : 2);
+  const floorsOf = (b: (typeof BUILDINGS)[number]) => (b.industrial ? 1 : 2 + (b.height > 1.4 ? 1 : 0) + (b.height > 2.0 ? 1 : 0));
   const solid = new Map<string, number>();
   for (const b of BUILDINGS) for (let x = b.x; x < b.x + b.w; x++) for (let y = b.y; y < b.y + b.h; y++) solid.set(`${x},${y}`, floorsOf(b));
   /** The tiles along one side of a building, each with how many floors of the neighbour cover it (0: open air). */
@@ -574,9 +601,11 @@ export function buildCity(scene: THREE.Scene) {
       t.needsUpdate = true;
       return t;
     };
-    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : lam(wall);
+    // (v0.60: the rest are brick or render too, picked by where they stand, not by the random numbers; roofs felt.)
+    const look: SurfaceKind = (b.x * 31 + b.y * 17) % 3 === 2 ? 'plaster' : 'brick';
+    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : slam(look, wall, look === 'brick' ? 1.5 : 1, look === 'brick' ? 1.5 : 1, false);
     const mZ = b.boarded ? lam(wall, { map: brick(b.h) }) : mX;
-    const mRoof = lam(C.roof);
+    const mRoof = slam('roof', C.roof, 1, 1, false);
     const mTrim = lam(trim);
     const bw = b.w - 0.1;
     const bd = b.h - 0.1;
@@ -607,27 +636,34 @@ export function buildCity(scene: THREE.Scene) {
       for (const tile of sideTiles(b, side)) {
         const u = uOf(f, side === 'n' || side === 's' ? tile.x : tile.z);
         for (let fl = tile.covered; fl < floors; fl++) {
-          const y = fl * FLOOR + 0.42;
+          const y = fl * FLOOR + 0.55;
           if (b.boarded) {
-            if (fl > 0) props.push(...kit.window(f, u, y, { style: 'boarded', w: 0.5, h: 0.7 }));
+            if (fl > 0) props.push(...kit.window(f, u, y, { style: 'boarded', w: 0.6, h: 0.9 }));
             continue;
           }
           if (fl === 0 && side === frontSide && (Math.abs(tile.x - doorX) < 0.6 || (shop && Math.abs(tile.x - gx) < gw / 2 + 0.3))) continue;
           const lit = brng() < 0.3;
-          props.push(...kit.window(f, u, y, { lit, frame: fl === 0 ? trim : 0x3a3430, behind: lit && brng() < 0.35 ? CURTAINS[Math.floor(brng() * CURTAINS.length)] : undefined }));
+          props.push(...kit.window(f, u, y, { w: 0.6, h: 0.85, lit, frame: fl === 0 ? trim : 0x3a3430, behind: lit && brng() < 0.35 ? CURTAINS[Math.floor(brng() * CURTAINS.length)] : undefined }));
         }
       }
     }
     // Every building has a front door at person size, with a step and a lamp: so you can tell how big it is, and that
     // people live there.
-    props.push(...kit.door(front, uOf(front, doorX), { color: 0x3a2a20, frame: trim, step: true, light: 'lamp' }));
+    // (v0.60: a door you'd fit through, taller than a person.)
+    props.push(...kit.door(front, uOf(front, doorX), { w: 0.75, h: 1.5, color: 0x3a2a20, frame: trim, step: true, light: 'lamp' }));
     if (shop) {
-      props.push(...kit.window(front, uOf(front, gx), 0.15, { style: 'shop', w: gw, h: 0.8, frame: trim }));
+      props.push(...kit.window(front, uOf(front, gx), 0.2, { style: 'shop', w: gw, h: 1.1, frame: trim }));
       const stripe = `#${C.trims[Math.floor(brng() * C.trims.length)].toString(16).padStart(6, '0')}`;
-      props.push(...kit.awning(front, uOf(front, cx), 1.42, Math.max(0.7, bw - 0.3), { color: stripe, light: '#b8b0a0', depth: 0.45 }));
+      props.push(...kit.awning(front, uOf(front, cx), 1.75, Math.max(0.7, bw - 0.3), { color: stripe, light: '#b8b0a0', depth: 0.5 }));
     }
-    if (brng() < 0.5) props.push(...kit.drainpipe(front, brng() < 0.5 ? 0.08 : front.len - 0.08, height));
-    fadeables.push({ walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1 });
+    const pipe = brng() < 0.5 ? kit.drainpipe(front, brng() < 0.5 ? 0.08 : front.len - 0.08, height) : [];
+    props.push(...pipe);
+    // (The drainpipe runs from the ground to the roof: it goes with the floors above when the building is cut.)
+    const upper = [...trimBand, ...pipe, ...props.filter((p) => minY(p) >= FLOOR - 0.25)];
+    fadeables.push({
+      walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1,
+      cut: { main: walls, height, keep: FLOOR, center: new THREE.Vector3(cx, 0, cz), upper, on: false },
+    });
   }
 
   // ---------- Central Park (Pickpocket Tourists; v0.54: the big cross, PARK_AREA) ----------
@@ -722,7 +758,7 @@ export function buildCity(scene: THREE.Scene) {
 
     // Benches facing the fountains and along the paths: they face away from their back, the side nearest the edge of
     // their block (or, on the Plaza, the fountain's way).
-    const wood = lam(0x6b4a2e);
+    const wood = slam('wood', 0x6b4a2e); // (v0.60: wood grain)
     const iron = lam(0x2b2b2e);
     for (const f of FIXTURES.filter((f) => f.kind === 'bench' && inPark(f.x, f.y))) {
       const b = PARK_BLOCKS.find((r) => inRect(r, f.x, f.y))!;
@@ -740,7 +776,7 @@ export function buildCity(scene: THREE.Scene) {
       for (const lx of [-0.39, 0.39]) part(geoBox(0.04, 0.3, 0.3), iron, lx, 0.15, 0);
     }
     // Hedges: dark green boxes, slightly uneven, along the park's outside edge.
-    const hedges = new Batch(geoBox(1, 0.5, 0.7), lam(0x2c4a26, { flatShading: true }));
+    const hedges = new Batch(geoBox(1, 0.5, 0.7), surfaceMat('grass', 0x2c4a26)); // (v0.60: leafy, not flat green)
     for (const f of FIXTURES.filter((f) => f.kind === 'hedge' && inPark(f.x, f.y))) {
       const sideways = !inPark(f.x - 1, f.y) || !inPark(f.x + 1, f.y);
       hedges.add(f.x + 0.5, LAWN + 0.2, f.y + 0.5, 1, 0.85 + rng() * 0.3, 1, sideways ? Math.PI / 2 : 0);
@@ -847,7 +883,7 @@ export function buildCity(scene: THREE.Scene) {
     fence(X0 + 0.03, (Z0 + Z1) / 2 + 0.5, Z1 - Z0 - 1, false); // west (the gap at the front is the way in)
     fence(X1 - 0.03, (Z0 + Z1) / 2 + 0.5, Z1 - Z0 - 1, false); // east
     // The bench along the street side, three tiles long.
-    const wood = lam(0x6b4a2e);
+    const wood = slam('wood', 0x6b4a2e); // (v0.60: wood grain)
     const bz = Z0 + 0.5;
     add(geoBox(2.8, 0.05, 0.34), wood, cx, 0.28, bz);
     add(geoBox(2.8, 0.2, 0.04), wood, cx, 0.45, bz - 0.17);
@@ -883,10 +919,40 @@ export function buildCity(scene: THREE.Scene) {
     /** Warm light inside. */
     light: number;
     height?: number;
+    /** v0.60: what the walls are (default render). */
+    surface?: SurfaceKind;
+    /** v0.60: storeys of apartments on top (0: none, like the gas station's kiosk). */
+    flats?: number;
     /** How much higher the floor is (v0.58: the bar stands on its site's sidewalk slab, which is higher than a lot's). */
     lift?: number;
   }
   const rooms = new Map<string, Fadeable>();
+  /**
+   * v0.60: apartments on top of a one-storey building (the shops): `floors` storeys of flats over the rect, from
+   * `base` up: brick walls (the pixel texture), a window on every tile of every side on every floor (some lit, some
+   * with curtains; `skipFront` leaves the front's first floor clear for a shop sign), a roof and its parapet, air-con
+   * units. Returns the meshes (they hide with the roof when the shop fades, and with the cut-away).
+   */
+  const flatsRng = mulberry32(6060);
+  const apartments = (b: { x0: number; z0: number; x1: number; z1: number }, base: number, floors: number, color: number, trim: number, skipFront = 0) => {
+    const W = b.x1 - b.x0, D = b.z1 - b.z0, h = floors * FLOOR;
+    const before = scene.children.length;
+    const mWall = slam('brick', color, 1.5, 1.5);
+    const mRoof = slam('roof', C.roof);
+    add(geoBox(W - 0.04, h, D - 0.04), [mWall, mWall, mRoof, mRoof, mWall, mWall], (b.x0 + b.x1) / 2, base + h / 2, (b.z0 + b.z1) / 2);
+    kit.parapet({ x0: b.x0 - 0.03, z0: b.z0 - 0.03, x1: b.x1 + 0.03, z1: b.z1 + 0.03 }, base + h + 0.02, lam(trim));
+    for (const side of ['n', 's', 'e', 'w'] as const) {
+      const f = face(b, side);
+      for (let fl = 0; fl < floors; fl++)
+        for (let u = 0.5; u < f.len; u += 1) {
+          if (side === 's' && fl === 0 && Math.abs(u - f.len / 2) < skipFront / 2) continue;
+          const lit = flatsRng() < 0.3;
+          kit.window(f, u, base + fl * FLOOR + 0.6, { w: 0.6, h: 0.85, lit, frame: 0x3a3430, behind: lit && flatsRng() < 0.4 ? CURTAINS[Math.floor(flatsRng() * CURTAINS.length)] : undefined });
+        }
+    }
+    for (let i = 0; i < 1 + Math.floor(W * D / 20); i++) kit.acUnit(b.x0 + 0.6 + flatsRng() * (W - 1.2), base + h, b.z0 + 0.6 + flatsRng() * (D - 1.2));
+    return scene.children.slice(before) as THREE.Mesh[];
+  };
   const shopShell = (r: Room, st: ShopStyle) => {
     const X0 = r.x0;
     const Z0 = r.y0;
@@ -900,14 +966,14 @@ export function buildCity(scene: THREE.Scene) {
     const t = 0.12; // wall thickness
     const [doorX] = r.door;
     add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
-    const mWall = lam(st.wall);
+    const mWall = slam(st.surface ?? 'plaster', st.wall, 1.5, 1.5, false);
     const mTrim = lam(st.trim);
     // Kit parts (v0.47): walls with the doorway cut out, the roof and its parapet, shop windows either side of the
     // door (lit from inside), the door frame, a striped awning, the sign on its board, air-con units, a drainpipe.
     const box = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
     const fs = face(box, 's');
     const walls = kit.walls(box, sh, t, mWall, { s: [{ u0: doorX - X0, u1: doorX + 1 - X0, top: DOOR }] });
-    const roof = kit.roof(box, sh, C.roof);
+    const roof = kit.roof(box, sh, slam('roof', C.roof));
     const trimBand = kit.parapet({ x0: X0 - 0.03, z0: Z0 - 0.03, x1: X1 + 0.03, z1: Z1 + 0.03 }, sh + 0.06, mTrim);
     const front = [
       ...kit.window(fs, 1, 0.255, { style: 'shop', w: 1.3, h: 0.85, frame: st.trim }),
@@ -916,8 +982,10 @@ export function buildCity(scene: THREE.Scene) {
       ...kit.awning(fs, (X1 - X0) / 2, DOOR + 0.3, X1 - X0 - 0.8, { color: st.stripe[0], light: st.stripe[1] }),
       ...kit.sign(fs, (X1 - X0) / 2, sh + 0.42, { text: st.sign, bg: st.signBg, fg: st.signFg, w: 3.2, h: 0.6, board: st.trim }),
       ...kit.drainpipe(fs, X1 - X0 - 0.08, sh),
-      ...[0, 1].flatMap((i) => kit.acUnit(cx - 1.5 + i * 2.4, sh, Z0 + 1.3)),
+      ...(st.flats ? [] : [0, 1].flatMap((i) => kit.acUnit(cx - 1.5 + i * 2.4, sh, Z0 + 1.3))),
     ];
+    // v0.60: apartments above the shop (the sign stays clear on the front's first floor).
+    const flats = st.flats ? apartments(box, sh + 0.12, st.flats, st.wall, st.trim, 3.6) : [];
     // Floor tiles.
     const checker = own(
       canvasTex(64, 64, (g) => {
@@ -940,7 +1008,10 @@ export function buildCity(scene: THREE.Scene) {
     const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
     lamp.position.set(cx, sh - 0.2, cz);
     scene.add(lamp);
-    const fade: Fadeable = { walls: [...walls, ...trimBand], mats: [mWall, mTrim], props: [roof, ...front], opacity: 1 };
+    const fade: Fadeable = {
+      walls: [...walls, ...trimBand], mats: [mWall, mTrim], props: [roof, ...front, ...flats], opacity: 1,
+      cut: flats.length ? { height: sh + (st.flats ?? 0) * FLOOR, keep: sh, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false } : undefined,
+    };
     fadeables.push(fade);
     rooms.set(r.id, fade);
     return { X0, Z0, X1, Z1, cx, cz, t, doorX, sh };
@@ -987,10 +1058,11 @@ export function buildCity(scene: THREE.Scene) {
     const { X1, Z0, t, doorX } = shopShell(STORE, {
       wall: 0xa89c86, trim: 0x2f6b40, stripe: ['#2f6b40', '#d8d0c0'], sign: 'GENERAL STORE', signBg: '#2f7a46',
       floor: ['#b9b2a4', '#8f877a'], light: 0xffc98a,
+      flats: 2,
     });
     // Shelves full of colourful goods, against the walls.
     const productColors = [0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8];
-    const shelfWood = lam(0x6b4a2e);
+    const shelfWood = slam('wood', 0x6b4a2e);
     for (const f of FIXTURES.filter((x) => x.kind === 'shelf' && inRect(STORE, x.x, x.y))) {
       const againstBack = f.y === STORE.y0;
       const w = againstBack ? 0.92 : 0.45;
@@ -1022,9 +1094,10 @@ export function buildCity(scene: THREE.Scene) {
     const { Z0, t } = shopShell(WEAPONS, {
       wall: 0x4e5056, trim: 0x8a2f28, stripe: ['#2b2b2e', '#8a2f28'], sign: "RAY'S ARMS", signBg: '#141210', signFg: '#e2604c',
       floor: ['#6a6660', '#545049'], light: 0xffd8a8,
+      flats: 2, surface: 'brick',
     });
-    const steel = lam(0x8a8f96);
-    const wood = lam(0x6b4a2e);
+    const steel = slam('metal', 0x8a8f96);
+    const wood = slam('wood', 0x6b4a2e); // (v0.60: wood grain)
     const brass = lam(0xd8b04a, { emissive: 0x3a2a08, emissiveIntensity: 0.4 });
     for (const f of FIXTURES.filter((x) => x.kind === 'rack' && inRect(WEAPONS, x.x, x.y))) {
       const fx = f.x + 0.5;
@@ -1054,6 +1127,7 @@ export function buildCity(scene: THREE.Scene) {
     const { X1, Z0, Z1, t, doorX } = shopShell(CANDY, {
       wall: 0x9a6b74, trim: 0x6a2f4a, stripe: ['#b8336a', '#e8d8d0'], sign: 'CANDY', signBg: '#3a1424', signFg: '#ff7ab8',
       floor: ['#d8c4c8', '#a8848c'], light: 0xffb8d0,
+      flats: 2,
     });
     const { ccx, ccz } = counter(CANDY, 0xe8d8d0, 0x6a2f4a);
     // Glass candy jars on the counter.
@@ -1089,9 +1163,10 @@ export function buildCity(scene: THREE.Scene) {
     const { Z0, X0, X1, t } = shopShell(BAR, {
       wall: 0x4a3a30, trim: 0x2a1a14, stripe: ['#5a1a14', '#c8b8a0'], sign: 'BAR', signBg: '#14100c', signFg: '#ff5a3a',
       floor: ['#5a4232', '#46321f'], light: 0xffa060, lift: 0.035,
+      flats: 2, surface: 'brick',
     });
-    const dark = lam(0x3a2418);
-    const wood = lam(0x5a3a22);
+    const dark = slam('wood', 0x3a2418);
+    const wood = slam('wood', 0x5a3a22); // (v0.60: wood grain)
     // (The room is 10 deep: a second warm light over the front half.)
     const front = new THREE.PointLight(0xffa060, 5, 6, 1.6);
     front.position.set((X0 + X1) / 2, 1.5, BAR.y1 - 1);
@@ -1559,7 +1634,7 @@ export function buildCity(scene: THREE.Scene) {
     const TOP = 2 * F;
     const t = 0.14;
     add(geoBox(X1 - X0 + 0.6, 0.06, ZS - ZN + 0.6), pavement, cx, 0.03, (ZN + ZS) / 2, false);
-    const mBrick = lam(0x7a4a3a);
+    const mBrick = slam('brick', 0x7a4a3a, 1.5, 1.5, false);
     const mFacade = lam(0x2f3236);
     const mWhite = lam(0xeeeeea);
     const mRed = lam(0xc8282a);
@@ -1705,7 +1780,7 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(X1 - X0 - 2, 0.5, 0.03), glass, cx, F + 0.27, ZM, false);
     add(geoBox(X1 - X0 - 2, 0.05, 0.07), lam(0x8a8f96), cx, F + 0.53, ZM);
     // The beds: head against the wall, white sheets, a blue blanket; a drip stand by some, a patient in two.
-    const steel = lam(0x9aa0a8);
+    const steel = slam('metal', 0x9aa0a8);
     const sheet = lam(0xf4f4f0);
     const blanket = lam(0x6a9ac0);
     FIXTURES.filter((f) => f.kind === 'bed').forEach((b, i) => {
@@ -1772,7 +1847,12 @@ export function buildCity(scene: THREE.Scene) {
     // The back door onto the yard (east wall) with a bare bulb over it.
     const fe = face(r, 'e');
     kit.door(fe, uOf(fe, THRIFT_YARD.y0 + 2.5), { w: 0.75, h: 1.2, color: 0x6a5a4a, light: 'bulb' });
-    const fade: Fadeable = { walls, mats: [mBrick], props: roofParts, opacity: 1 };
+    // v0.60: a storey of flats on top (at the new scale it was barely one and a half floors).
+    const flats = apartments(r, HT + 0.12, 1, 0x8a5040, 0x4a3028);
+    const fade: Fadeable = {
+      walls, mats: [mBrick], props: [...roofParts, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    };
     fadeables.push(fade);
 
     // The yard.
@@ -1798,7 +1878,7 @@ export function buildCity(scene: THREE.Scene) {
     kit.fence(Y1 - 0.02, Z0, Y1 - 0.02, Z1, 'chainBarbed');
     kit.chainPanel(THRIFT_GATE[0] + 1.0, Z1 + 0.45, false, 1.15).rotation.y = Math.PI / 2.4;
     // Junk: pallets, rubbish bags, cans, an old tyre.
-    const wood = lam(0x8a6a44);
+    const wood = slam('wood', 0x8a6a44); // (v0.60: wood grain)
     for (const [px, pz, r] of [[Y0 + 1.2, Z0 + 0.55, 0.2], [Y1 - 0.45, Z0 + 1.2, 1.5]]) {
       for (let i = 0; i < 4; i++) add(geoBox(0.9, 0.04, 0.12), wood, px, 0.1, pz - 0.3 + i * 0.2, false).rotation.y = r;
       add(geoBox(0.9, 0.08, 0.1), wood, px, 0.05, pz, false).rotation.y = r;
@@ -1823,11 +1903,11 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
     const HT = 2.4;
     add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
-    const mRender = lam(0xe2ded6);
+    const mRender = slam('plaster', 0xe2ded6, 1, 1, false);
     const mBlue = lam(0x2a5a9a);
     const walls = [add(geoBox(X1 - X0, HT, Z1 - Z0), mRender, cx, HT / 2, cz)];
     const r = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
-    const props: THREE.Object3D[] = [kit.roof(r, HT, 0x4a4d52, 0.05, 0.08), ...kit.parapet({ x0: X0 - 0.02, z0: Z0 - 0.02, x1: X1 + 0.02, z1: Z1 + 0.02 }, HT + 0.08, 0x2a5a9a)];
+    const props: THREE.Object3D[] = [kit.roof(r, HT, slam('roof', 0x4a4d52), 0.05, 0.08), ...kit.parapet({ x0: X0 - 0.02, z0: Z0 - 0.02, x1: X1 + 0.02, z1: Z1 + 0.02 }, HT + 0.08, 0x2a5a9a)];
     props.push(...kit.acUnit(X0 + 2, HT + 0.05, Z0 + 1.5, true), ...kit.acUnit(X1 - 2.5, HT + 0.05, Z0 + 1.2, true), ...kit.vent(cx, HT + 0.12, Z0 + 2, 0.14, 0.4));
     // The front: a blue band along the top, the sign, the windows either side of the doors.
     const f = face(r, 's');
@@ -1845,7 +1925,12 @@ export function buildCity(scene: THREE.Scene) {
     // A loading door at the back, onto the yard, with a bulb.
     const fn = face(r, 'n');
     kit.door(fn, uOf(fn, SUPERSTORE_YARD.x0 + 2.5), { style: 'shutter', w: 1.6, h: 1.4, color: 0xa8adb4, light: 'bulb' });
-    fadeables.push({ walls, mats: [mRender], props: [...props, ...sign, ...plate], opacity: 1 });
+    // v0.60: two storeys of flats over the store.
+    const flats = apartments(r, HT + 0.12, 2, 0xb8b0a4, 0x2a5a9a);
+    fadeables.push({
+      walls, mats: [mRender], props: [...props, ...sign, ...plate, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + 2 * FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    });
 
     // Shopping carts: a few in a corral at the parking spot, one left out on the sidewalk.
     const cartMetal = lam(0xb8bcc2);
@@ -1995,7 +2080,7 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Inside: the plate presses (west wall) and workbenches (east wall) are the stations (drawn below), crates at the
     // back, oil drums, and lamps hanging from the roof.
-    const wood = lam(0x7a5a3a);
+    const wood = slam('wood', 0x7a5a3a); // (v0.60: wood grain)
     for (const f of FIXTURES.filter((x) => x.kind === 'crate' && inRect(FACTORY, x.x, x.y))) {
       add(geoBox(0.85, 0.7, 0.85), wood, f.x + 0.5, 0.45, f.y + 0.5).rotation.y = rng() * 0.3;
       if (rng() < 0.6) add(geoBox(0.7, 0.5, 0.7), wood, f.x + 0.5, 1.05, f.y + 0.5).rotation.y = rng() * 0.6;
@@ -2061,7 +2146,7 @@ export function buildCity(scene: THREE.Scene) {
     const cz = (Z0 + Z1) / 2;
     const HT = 3.0;
     const t = 0.2;
-    const stone = lam(0xd8d0c0);
+    const stone = slam('stone', 0xd8d0c0, 1, 1, false);
     const stoneDark = lam(0xb0a898);
     add(geoBox(X1 - X0 + 0.6, 0.09, Z1 - Z0 + 1.6), stoneDark, cx, 0.045, cz + 0.5, false);
     // Marble floor.
@@ -2091,7 +2176,10 @@ export function buildCity(scene: THREE.Scene) {
       props.push(...kit.windowRow(f, 0.8, f.len - 0.8, 0.7, 2, { style: 'office', w: 0.7, h: 1.4, lit: true, glow: 0xffe2b0, frame: 0xb0a898 }));
     }
     // Roof, cornice, the pediment over the entrance with BANK on it, columns, steps.
+    // (v0.60: a roof of pale roofing felt with the stone cornice round it, not one flat slab.)
     props.push(add(geoBox(X1 - X0 + 0.3, 0.2, Z1 - Z0 + 0.3), stoneDark, cx, HT + 0.1, cz));
+    props.push(add(geoBox(X1 - X0 - 0.3, 0.04, Z1 - Z0 - 0.3), slam('roof', 0x8a8780), cx, HT + 0.22, cz, false));
+    props.push(...kit.vent(cx - 2, HT + 0.24, cz - 1, 0.12, 1.0, 0x8a8f96), ...kit.vent(cx + 2.5, HT + 0.24, cz + 1, 0.12, 1.0, 0x8a8f96));
     const ped = new THREE.Shape();
     ped.moveTo(-3, 0);
     ped.lineTo(3, 0);
@@ -2114,7 +2202,7 @@ export function buildCity(scene: THREE.Scene) {
       d.rotation.y = r;
     }
     // Inside: the counter with a glass screen, the vault door, lamps.
-    const wood = lam(0x6a4426);
+    const wood = slam('wood', 0x6a4426); // (v0.60: wood grain)
     const counter = FIXTURES.filter((f) => f.kind === 'bankcounter');
     if (counter.length) {
       const cx0 = Math.min(...counter.map((f) => f.x));
@@ -2165,7 +2253,7 @@ export function buildCity(scene: THREE.Scene) {
     const HT = 2.4;
     add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
     const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
-    const mRender = lam(0xd8ceb4);
+    const mRender = slam('plaster', 0xd8ceb4, 1, 1, false);
     const walls = [add(geoBox(X1 - X0, 1.2, Z1 - Z0), mBrick, cx, 0.6, cz), add(geoBox(X1 - X0, HT - 1.2, Z1 - Z0), mRender, cx, 1.2 + (HT - 1.2) / 2, cz)];
     const hr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
     const props: THREE.Object3D[] = [kit.roof(hr, HT, 0x3a3d42, 0.1, 0.12)];
@@ -2186,7 +2274,12 @@ export function buildCity(scene: THREE.Scene) {
       const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz - 3.6 + (i % 3) * 0.12, false);
       pipe.rotation.x = Math.PI / 2;
     }
-    const fade: Fadeable = { walls, mats: [mBrick, mRender], props: [...props, ...sign], opacity: 1 };
+    // v0.60: offices on top (one storey).
+    const flats = apartments({ x0: X0, z0: Z0, x1: X1, z1: Z1 }, HT + 0.12, 1, 0x7a4a3a, 0x5a3a2a);
+    const fade: Fadeable = {
+      walls, mats: [mBrick, mRender], props: [...props, ...sign, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    };
     fadeables.push(fade);
 
     // The yard: cracked concrete, a half-high brick wall with a coping, one opening on the east.
@@ -2414,7 +2507,7 @@ export function buildCity(scene: THREE.Scene) {
     glow.position.set(cx, 1.6, Z0 - 1.2);
     scene.add(glow);
     // Inside: the bar along the back with bottles, the pool table, a table, the jukebox; one red light.
-    const wood = lam(0x4a2e1e);
+    const wood = slam('wood', 0x4a2e1e); // (v0.60: wood grain)
     const bar = FIXTURES.filter((f) => f.kind === 'clubbar');
     if (bar.length) {
       const bx0 = Math.min(...bar.map((f) => f.x));
@@ -2473,7 +2566,12 @@ export function buildCity(scene: THREE.Scene) {
     const red = new THREE.PointLight(0xff4040, 4, 8, 1.4);
     red.position.set(cx, HT - 0.4, cz);
     scene.add(red);
-    const fade: Fadeable = { walls, mats: [mBrick], props, opacity: 1 };
+    // v0.60: the club's rooms upstairs (one storey).
+    const flats = apartments({ x0: X0, z0: Z0, x1: X1, z1: Z1 }, HT + 0.12, 1, 0x3e3430, 0x1e1a18);
+    const fade: Fadeable = {
+      walls, mats: [mBrick], props: [...props, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    };
     fadeables.push(fade);
     rooms.set(CLUB.id, fade);
   }
@@ -2727,7 +2825,7 @@ export function buildCity(scene: THREE.Scene) {
       links.push(lad);
     }
     // Crates and rubbish bags (the walkways' fixtures), and some junk lying about.
-    const wood = lam(0x6a4a2e);
+    const wood = slam('wood', 0x6a4a2e); // (v0.60: wood grain)
     for (const f of FIXTURES) {
       if (f.kind === 'crate') {
         const c = add(geoBox(0.72, 0.6, 0.72), wood, f.x + 0.5, D + 0.3, f.y + 0.5);
@@ -2868,8 +2966,8 @@ export function buildCity(scene: THREE.Scene) {
     if (st.kind === 'bench') {
       // A workbench against the east wall: a thick wooden top on steel legs, a vice, a hammer and tin snips, a sheet,
       // and a pegboard with tools on the wall behind.
-      const top = lam(0x8a6a44);
-      const steel = lam(0x5a5f66);
+      const top = slam('wood', 0x8a6a44);
+      const steel = slam('metal', 0x5a5f66);
       add(geoBox(0.6, 0.08, 0.95), top, x, 0.7, z);
       for (const [dx, dz] of [[-0.25, -0.42], [-0.25, 0.42], [0.25, -0.42], [0.25, 0.42]]) add(geoBox(0.05, 0.66, 0.05), steel, x + dx, 0.35, z + dz, false);
       add(geoBox(0.5, 0.04, 0.85), top, x, 0.2, z, false); // the shelf underneath
@@ -2908,6 +3006,8 @@ export function buildCity(scene: THREE.Scene) {
 
   // Merge everything static into a few meshes per area and colour (and per building, for the ones that fade).
   flames.forEach((f) => keep.add(f)); // (they flicker)
+  // v0.60: textures laid by world position (surfaces.ts) before the meshes are merged.
+  for (const m of statics) if (wantsWorldUV(m)) worldUV(m);
   mergeStatic(scene, statics, fadeables, keep, own);
 
   return {
@@ -2943,6 +3043,33 @@ const ray = new THREE.Raycaster();
  * Fade buildings that stand between the camera and `target` (your character), so you're never hidden.
  * Call every frame.
  */
+/**
+ * v0.60: the cut-away (old-school RuneScape style). Buildings on the camera's side of you, within view (lower on the
+ * screen than you), show only their ground floor, so the tall city never hides the street you're on. Call every frame
+ * after updateFades.
+ */
+export function updateCuts(fadeables: Fadeable[], camera: THREE.Camera, target: THREE.Vector3) {
+  const toCam = new THREE.Vector3(camera.position.x - target.x, 0, camera.position.z - target.z).normalize();
+  const side = new THREE.Vector3(-toCam.z, 0, toCam.x);
+  for (const f of fadeables) {
+    const c = f.cut;
+    if (!c) continue;
+    const dx = c.center.x - target.x, dz = c.center.z - target.z;
+    const ahead = dx * toCam.x + dz * toCam.z; // towards the camera: lower on the screen
+    const across = Math.abs(dx * side.x + dz * side.z);
+    const on = ahead > 1.5 && ahead < 22 && across < 16;
+    if (on !== c.on) {
+      c.on = on;
+      if (c.main) {
+        c.main.scale.y = on ? c.keep / c.height : 1;
+        c.main.position.y = (on ? c.keep : c.height) / 2;
+      }
+    }
+    // (Fading shows and hides props too: the floors above stay hidden while it's cut.)
+    for (const o of c.upper) o.visible = !on && (f.walls.includes(o as THREE.Mesh) || f.opacity > 0.6);
+  }
+}
+
 export function updateFades(fadeables: Fadeable[], camera: THREE.Camera, target: THREE.Vector3, dt: number) {
   const hit = new Set<Fadeable>();
   for (const yOff of [0.3, 1.0]) {

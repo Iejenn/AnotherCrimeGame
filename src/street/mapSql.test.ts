@@ -4,7 +4,6 @@
 // If this fails after a change to the map: print it again only if 0041 isn't live yet; once it is, the change needs a
 // new migration.
 import { expect, test } from 'vitest';
-import { liveWalkRows, turfSql } from '../../scripts/turf-sql';
 
 const load = async () => ({
   m0038: (await import('../../supabase/migrations/0038_aluminium.sql?raw')).default as string,
@@ -12,22 +11,34 @@ const load = async () => ({
   m0041: (await import('../../supabase/migrations/0041_bar_and_yard.sql?raw')).default as string,
 });
 
-test('0041 is the map as it is (the bar and the Yard merged)', async () => {
+// v0.60: 0041 is live (history now); the newest map migration is 0043 (three drunks, the city at a person's scale).
+test('0043 is the map as it is (three drunks, the city at scale)', async () => {
+  const { citySql } = await import('../../scripts/city-sql');
   const { m0038, m0040, m0041 } = await load();
-  expect(m0041 === turfSql(m0038, m0040)).toBe(true);
+  const m0043 = (await import('../../supabase/migrations/0043_city_scale.sql?raw')).default as string;
+  expect(m0043 === citySql(m0038, m0040, m0041)).toBe(true);
 });
 
-// The enemies' walk map on the server: 0038's rows, then the rows 0040 and 0041 update. The game's must match it exactly.
-test("the enemies' walk map is the live one plus 0041's rows", async () => {
-  const { walkMasks } = await import('./sight');
-  const { GH, W, gi } = await import('./map');
-  const { m0038, m0040 } = await load();
-  // (0041's rows are split over short lines, 'abc'\n  || 'def': join them back.)
-  const m0041 = (await load()).m0041.replace(/'\n {2}\|\| '/g, '').replace(/masks = \n {2}'/g, "masks = '").replace(/'\n +where y/g, "' where y");
-  const live = liveWalkRows(m0038, m0040);
-  const m = walkMasks();
-  for (let y = 0; y < GH; y++) {
-    const row = Array.from({ length: W }, (_, x) => m[gi(x, y)].toString(16).padStart(2, '0')).join('');
-    expect(live[y] === row || m0041.includes(`set masks = '${row}' where y = ${y};`), `row ${y}`).toBe(true);
-  }
+// The enemies' walk map on the server: 0038's rows, 0040's and 0041's updates, then 0043's patches. The game's must
+// match it exactly (the patches are written in the same way game.patch_row does).
+test("the enemies' walk map is the live one with 0043's patches", async () => {
+  const { applyPatch, gameRows, liveAfter0041, rowPatch } = await import('../../scripts/city-sql');
+  const { m0038, m0040, m0041 } = await load();
+  const live = liveAfter0041(m0038, m0040, m0041);
+  const game = gameRows();
+  game.forEach((row, y) => expect(live[y] === row ? row : applyPatch(live[y], rowPatch(live[y], row)), `row ${y}`).toBe(row));
+});
+
+// v0.60: the simple chase (0042) is exactly what scripts/chase-sql.ts prints from the game's chase.
+test('0042 is the chase as the game does it', async () => {
+  const { chaseSql } = await import('../../scripts/chase-sql');
+  const sql = (await import('../../supabase/migrations/0042_simple_chase.sql?raw')).default as string;
+  expect(sql === chaseSql()).toBe(true);
+});
+
+// v0.60: running (0044) is exactly what scripts/running-sql.ts prints from the game's stamina numbers.
+test('0044 is running as the game does it', async () => {
+  const { runningSql } = await import('../../scripts/running-sql');
+  const sql = (await import('../../supabase/migrations/0044_running.sql?raw')).default as string;
+  expect(sql === runningSql()).toBe(true);
 });

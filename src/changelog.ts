@@ -8,6 +8,30 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.60.0',
+    date: '2026-11-20',
+    title: 'A city to scale, and running',
+    items: [
+      'Throwing knives in the bag show their real stats now (max hit, speed, range and the Marksman level they need), not "+0 defence, Defense 11", and you Wield them instead of Wear.',
+      "Thugs' hair no longer pokes through their hoods.",
+      'The bar is quieter: three drunks again, an empty stool between them.',
+      'The candy store\'s shelves are stocked with wrapped candy bars, a jar of gumballs and lollipops; the gas station\'s with soda, chips and sandwiches.',
+      'The basketball players no longer bump into each other (their arms went wild): the defender keeps a body length away and they move round each other.',
+      'The city is built at a person\'s scale: taller storeys, 2 to 4 floors, doors you fit through, bigger windows, and no more houses narrower than two people (each lot is one building, or one with a yard or an alley beside it).',
+      'Buildings between you and the camera (low on the screen) show only their ground floor, so the taller city never hides the street you\'re on.',
+      'Textures on the city: brick or render on every house, roofing felt on the roofs, wood grain on counters, shelves, tables, benches, crates and plank fences, stone on the bank, brushed metal on bins, newspaper boxes, dumpsters and steel furniture.',
+      "Shops have apartments on top now: Eddy's, Ray's Arms, the candy store, the bar and the Superstore two storeys, Iron Saints MC, Hotline and the Thrift Store one.",
+      'Enemies chase you the old-school way now: straight at you. Put a bench, a car, a dumpster or the sewage channel between you and them and they get stuck behind it, while your throwing knives fly right over. A stuck enemy never hits you, but you can only hit it at range: walk round to it to fight it up close.',
+      'Running: tap the new running man on the minimap to run, twice as fast as walking. It uses stamina (the ring round the button): a full bar runs 60 tiles. Stamina comes back by itself, full in 6 minutes while you walk and twice as fast standing still; at 0 you walk again.',
+      'A new skill, Dexterity: walking and running both train it (1 XP every 75 tiles). Each level lets you run 1% further on a full bar (twice as far at level 100). It shows in your skills and on the highscores.',
+      'Others see you run, with a proper running animation.',
+      'The combat style button is always on the minimap now; with no marksman weapon ready, tapping it tells you so. The round buttons (health, combat style, world map, running) all sit centred on the minimap\'s ring.',
+      'Grass has texture now: blades and clumps on every lawn, the park, the barbecue spot and the hedges, instead of flat green.',
+      'The bank has a proper roof (roofing felt and vents inside its stone cornice) instead of one flat slab.',
+      'The server now checks how fast you move: faster than walking takes stamina, so nobody can run on an empty bar or move faster than running.',
+    ],
+  },
+  {
     version: '0.59.0',
     date: '2026-11-18',
     title: 'Yard fixes',

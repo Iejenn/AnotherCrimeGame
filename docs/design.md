@@ -249,7 +249,7 @@ district itself is for trading, later).
 - **The bar** (built; v0.58: in the Industrial zone, I-009, 5×10, next to the Yard): walk in like a shop. Dark wood, a
   red neon BAR sign, a long back bar of glowing bottles with a mirror along the west wall, the bartender's aisle, a long
   counter with beer taps and pendant lamps, a jukebox, a pool table and two small tables with candles at the front.
-  **Six drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
+  **Three drunks** (v0.60; six in v0.58) sit on stools at the counter, an empty stool between them (tap one to pick his pocket: 3s, always works).
   The **bartender** works behind the counter on a **fixed schedule** (the same for every player, see §11): every
   8.5s he **watches the room for 3.5–5s**, then **turns his back** for the rest, polishing bottles at one of three
   spots. Turning round takes 0.6s before he sees anything. His label says "watching" (red) or "back turned" (green).
@@ -697,7 +697,15 @@ Outside fights eating still takes half a second.
   enclosure (you only throw at things on your side of it), no tile off the map (the sewer's walls). Benches, cars and
   the sewage channel don't block. However close: no throwing through a fence from next to it. `src/street/sight.ts` and `game.clear_shot` take the
   exact same whole-number steps; the server's walls and enclosures are printed from the map (`scripts/marksman-sql.ts`).
-- **The enemy walks up to you** (2.5 tiles/s) the real way round, like you'd walk: only floors and roads, round the
+- **v0.60: enemies chase the simple way** (old-school RuneScape; replaces the next point): every step an enemy heads
+  straight for you, diagonally if it can; blocked, it tries the sideways step, then the up-or-down one; if none works
+  it's **stuck** and stays there, never swinging, until it dies ("The thug cannot get to you."). So you can throw at it
+  from behind a bench, a car, a dumpster or the sewage channel (they block walking, not throws): safespots are the
+  skill in ranged fighting, the knives (2 in 3 lost) the cost. A stuck enemy can't be hit in melee either; walk round
+  to it and attack again and it chases again from where it stands. Every enemy, pigeons too. Strolling around their
+  place (not chasing) they still walk round things. `enemyChase` in sight.ts and `game.enemy_chase` (0042,
+  `scripts/chase-sql.ts`) take the same steps; `scripts/chase-parity.ts` compares them.
+- *(Before v0.60)* **The enemy walked up to you** (2.5 tiles/s) the real way round, like you'd walk: only floors and roads, round the
   sewage channel (over a bridge), walls, fences and objects, through doors and gates (`enemyRoute` in sight.ts and
   `game.enemy_route` take the same steps over the same walk map). It stops on a tile it could step onto yours from
   and only starts swinging once there: the free throws meanwhile are what ranged buys you. If it has no way to reach
@@ -951,6 +959,21 @@ log in and in chat).
 - **The bag** uses bank-sized slots, 10 across; tap an item and its buttons (Wield, Eat, Use, Drop) show in one line.
 - The normal arrow cursor everywhere (no hand).
 
+## 17b. Running, stamina and Dexterity (v0.60)
+
+- **The button:** a circle at the bottom right of the minimap (a running man) toggles running; a ring round it shows
+  stamina. Your choice is kept (prefs `runOn`). At 0 stamina it switches itself off.
+- **Speed:** running is 2× walking (`RUN_MULT`, `src/game/stamina.ts`), with its own animation (pose `run`).
+- **Stamina** (0–100): a full bar runs 60 tiles at Dexterity 1; each level +1% range, 200% at level 100
+  (`runRange`). It comes back on its own: full in 6 minutes while walking, 3 minutes standing still.
+- **Dexterity:** 1 XP for every 75 tiles walked or run (level 2 after about 15 minutes of walking).
+- **Server (0044):** `game.move_check` works out from your last saved position and time how many tiles you must have
+  run (walking at up to 3 tiles/s is free, running at up to 5.5 tiles/s, 3 tiles of leeway), and what that leaves of
+  your stamina. Every action's speed check (`game.can_reach`) uses it: faster than running, or running on an empty bar
+  (below −5), is refused. A trigger on `players` applies stamina and Dexterity XP whenever your position changes.
+  Teleports (climbing, waking up) count nothing. The client keeps its own stamina and shows the lower of it and the
+  server's.
+
 ## 18. The look: rules for every 3D model (the art red line)
 
 Every model in the game follows these rules, whoever makes it: built in code, made in Blender (by script or by hand),
@@ -983,7 +1006,22 @@ Only water has a texture: drawn ripples (no picture files), as grey detail on th
 Kit) and a tester preferred the plain, basic look.
 **Props may have textures (v0.59):** small pixel textures drawn in code (32×32 texels, sampled crisp, no picture files):
 brick, wood planks, corrugated steel, worn car paint, concrete (`pixelTex`/`texMat` in props.ts; one texture covers a
-tile of surface). The ground stays plain.
+tile of surface). The ground stays plain, except grass (lawns and hedges: the pixel grass, one a tile; the owner found plain green flat) and water.
+**Surfaces (v0.60, `src/street/surfaces.ts`):** grey pixel textures for what the city is built of (brick, plaster,
+wood, roof felt, stone, metal), multiplied by each material's own colour (one texture for every brick wall), laid by
+world position before the city is merged (one texture a tile, never stretched). In city.ts `slam(kind, colour)`
+makes such a material. Houses are brick or render, roofs felt, furniture wood, the bank stone.
+
+### Scale (v0.60)
+A person is about 1.2 tall, so a tile is about 1.5 m. Buildings match that: a storey is 1.9 (about 1.6 people, 2.8 m),
+houses are 2 to 4 storeys, doors 1.5 high (taller than a person), windows 0.6 × 0.85. No building is narrower than 3
+tiles (about 4.4 m, a narrow town house): a lot is one building, or one 3 tiles deep or wide with a yard or alley
+beside it. **The cut-away:** buildings on the camera's side of you (low on the screen) show only their ground floor
+(`updateCuts` in city.ts), like old-school RuneScape hiding the floors above; what's above the ground floor (windows,
+roof edge, rooftop clutter, drainpipes, a shop's apartments) is merged on its own so it can be hidden.
+**Shops have apartments on top** (`apartments()` in city.ts: brick, a window on every tile of every floor, a roof):
+Eddy's, Ray's, the candy store, the bar and the Superstore two storeys, Iron Saints MC, Hotline and the Thrift Store one; not the gas
+station's kiosk. They hide with the roof when you walk in, and with the cut-away.
 
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |

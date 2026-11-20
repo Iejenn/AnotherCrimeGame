@@ -104,40 +104,31 @@ export function walkMasks(): Uint8Array {
 }
 
 /**
- * The route an enemy at `from` walks to reach you at `to`: the fewest steps (breadth-first, moves tried in WALK_DIRS
- * order: the same route the server finds) to a tile next to you. The tiles after `from`, ending next to you; [] if
- * it's already there; null if it can't get to you at all.
+ * How an enemy chases you (v0.60: simple, like old-school RuneScape): every step it heads straight for you, diagonally
+ * if it can; if that step is blocked it tries the sideways step, then the straight up-or-down one; if none of them
+ * works it's stuck and stays there (so you can throw at it from behind a bench, a car or the sewage channel). It never
+ * steps onto your tile. `route`: the tiles after `from` it walks; `reached`: it ended next to you, on a tile it could
+ * step onto yours from (and only then does it swing). The server takes the same steps (game.enemy_chase).
  */
-export function enemyRoute(masks: Uint8Array, from: [number, number], to: [number, number]): [number, number][] | null {
-  // "Next to you": one step away AND a step it could take onto your tile (not across a fence or a wall corner).
-  const next = (x: number, y: number) => Math.max(Math.abs(x - to[0]), Math.abs(y - to[1])) === 1 && !!(masks[gi(x, y)] & (1 << walkBit(to[0] - x, to[1] - y)));
-  if (next(...from)) return [];
-  // (Grid indices from here: v0.57, the grid has a border round the city.)
-  const W = GRID.w;
-  const start = gi(...from);
-  const came = new Int32Array(GRID.w * GRID.h).fill(-1);
-  came[start] = start;
-  const q = [start];
-  for (let h = 0; h < q.length; h++) {
-    const c = q[h];
-    const cx = (c % W) + GRID.x0;
-    const cy = ((c / W) | 0) + GRID.y0;
-    for (let i = 0; i < 8; i++) {
-      if (!(masks[c] & (1 << i))) continue;
-      const n = gi(cx + WALK_DIRS[i][0], cy + WALK_DIRS[i][1]);
-      if (came[n] >= 0) continue;
-      came[n] = c;
-      const nx = (n % W) + GRID.x0;
-      const ny = ((n / W) | 0) + GRID.y0;
-      if (next(nx, ny)) {
-        const route: [number, number][] = [];
-        for (let k = n; k !== start; k = came[k]) route.unshift([(k % W) + GRID.x0, ((k / W) | 0) + GRID.y0]);
-        return route;
-      }
-      q.push(n);
-    }
+export function enemyChase(masks: Uint8Array, from: [number, number], to: [number, number]): { route: [number, number][]; reached: boolean } {
+  const can = (x: number, y: number, dx: number, dy: number) => !!(masks[gi(x, y)] & (1 << walkBit(dx, dy)));
+  const next = (x: number, y: number) => Math.max(Math.abs(x - to[0]), Math.abs(y - to[1])) === 1 && can(x, y, to[0] - x, to[1] - y);
+  const route: [number, number][] = [];
+  let [x, y] = from;
+  // (Every step gets it closer, so this ends: at most as many steps as it is away.)
+  while (!next(x, y)) {
+    const dx = Math.sign(to[0] - x), dy = Math.sign(to[1] - y);
+    const tries: [number, number][] = [];
+    if (dx && dy) tries.push([dx, dy]);
+    if (dx) tries.push([dx, 0]);
+    if (dy) tries.push([0, dy]);
+    const step = tries.find(([sx, sy]) => !(x + sx === to[0] && y + sy === to[1]) && can(x, y, sx, sy));
+    if (!step) return { route, reached: false };
+    x += step[0];
+    y += step[1];
+    route.push([x, y]);
   }
-  return null;
+  return { route, reached: true };
 }
 
 /** Where an enemy is (tile centre) after walking `frac` (0–1) of its route from `from`, by distance. */

@@ -75,9 +75,9 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
           const info = def.heal
             ? `+${def.heal} HP`
             : def.gear
-              ? def.gear.slot === 'weapon'
+              ? def.gear.slot === 'weapon' || def.gear.slot === 'marksman' // (v0.60: throwing knives are weapons too, not armour)
                 ? `max hit +${(def.gear.damage ?? 1) - 1}, ${((def.gear.speed ?? 3) * 0.5).toFixed(1)}s${def.gear.range ? `, ${def.gear.range} tiles` : ''}${def.gear.needs && def.gear.needs.level > 1 ? `, ${SKILL_BY_ID[def.gear.needs.skill].name} ${def.gear.needs.level}` : ''}`
-                : `+${def.gear.defence ?? 0} defence${def.gear.needs && def.gear.needs.level > 1 ? `, Defense ${def.gear.needs.level}` : ''}`
+                : `+${def.gear.defence ?? 0} defence${def.gear.needs && def.gear.needs.level > 1 ? `, ${SKILL_BY_ID[def.gear.needs.skill].name} ${def.gear.needs.level}` : ''}`
               : def.quest
                 ? 'quest item (kept when you die)'
                 : itemPrice(selected.id) > 0
@@ -91,7 +91,7 @@ export function BagPanel({ s, api }: { s: GameState; api: GameApi }) {
               <span className="item-strip-btns">
                 {def.gear && (
                   <button className="btn tiny primary" onClick={() => api.equip(selected.id)}>
-                    {def.gear.slot === 'weapon' ? 'Wield' : 'Wear'}
+                    {def.gear.slot === 'weapon' || def.gear.slot === 'marksman' ? 'Wield' : 'Wear'}
                   </button>
                 )}
                 {def.heal > 0 && (

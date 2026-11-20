@@ -719,14 +719,15 @@ export const LOTS: Lot[] = (() => {
 
 const WALL_COLORS = [0x37322d, 0x3f3a33, 0x332f2b, 0x45392f, 0x3a3936, 0x4a3f36, 0x2f3236];
 
-/** Each building lot gets one of these layouts (offsets inside the 5×5 lot). */
+/** Each building lot gets one of these layouts (offsets inside the 5×5 lot, for a lot on its block's north side; on
+ *  the south side it's flipped, so the building stands on the street and the yard is behind it).
+ *  v0.60: no slivers (nothing narrower than 3 tiles): the old 2-wide buildings were narrower than two people. */
 const LAYOUTS: [number, number, number, number][][] = [
   [[0, 0, 5, 5]], // one big building
-  [[0, 0, 2, 5], [3, 0, 2, 5]], // two tall ones, alley in the middle
-  [[0, 0, 5, 2], [0, 3, 5, 2]], // two wide ones, alley in the middle
-  [[0, 0, 5, 2], [0, 2, 5, 3]], // a short and a deep building, back to back
-  [[0, 0, 3, 5], [3, 0, 2, 5]], // wide + narrow, back to back
-  [[0, 0, 5, 3], [0, 3, 2, 2], [3, 3, 2, 2]], // big one at the back, two small at the front with a gap
+  [[0, 0, 5, 5]],
+  [[0, 0, 5, 3]], // on the street, a yard behind
+  [[0, 0, 3, 5]], // an alley down one side
+  [[2, 0, 3, 5]], // the alley down the other side
 ];
 
 export const BUILDINGS: Building[] = (() => {
@@ -745,8 +746,9 @@ export const BUILDINGS: Building[] = (() => {
     if (lot.kind !== 'buildings' && !gone) return;
     const block = blockRect(lot.bx, lot.by);
     const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
-    for (const [ox, oy, w, h] of layout) {
+    for (const [ox, oy0, w, h] of layout) {
       const big = w * h >= 10;
+      const oy = lot.ly === 1 ? LOT_SIZE - oy0 - h : oy0;
       const y = lot.rect.y0 + oy;
       const b: Building = {
         x: lot.rect.x0 + ox,
@@ -885,11 +887,11 @@ export const FIXTURES: Fixture[] = (() => {
   // The bar (v0.58: 5 wide, 10 deep). Layout (B = back bar with bottles, a = the bartender's aisle, c = the counter,
   // d = a drunk on a stool (a spot, see NODES), J = jukebox, P = pool table, T = table, D = door):
   //   B a c d J
+  //   B a c . .
   //   B a c d .
+  //   B a c . .
   //   B a c d .
-  //   B a c d .
-  //   B a c d .
-  //   B a c d .     (the aisle opens at its south end: the bartender comes out that way to catch you)
+  //   B a c . .     (the aisle opens at its south end: the bartender comes out that way to catch you)
   //   . . . . .
   //   T . P P T
   //   . . . . .
@@ -992,8 +994,9 @@ export const NODES: StreetNode[] = (() => {
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
   // Four candy shelves along the back wall of the candy store.
   [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
-  // Six drunks on stools along the bar, facing the counter (west). (v0.58: was three.)
-  for (let i = 0; i < 6; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + 3, BAR.y0 + i, { facing: -Math.PI / 2, seated: true });
+  // Three drunks along the bar, facing the counter (west), an empty stool between each two. (v0.58: six; v0.60: three
+  // again, for a quieter bar.)
+  for (let i = 0; i < 3; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + 3, BAR.y0 + i * 2, { facing: -Math.PI / 2, seated: true });
   // Five parking meters: three along the north edge of the north-east lot (facing in), two along the south edge.
   [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', PARKING_NE.x0 + dx, PARKING_NE.y0, { facing: 0 }));
   [2, 6].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', PARKING_S.x0 + dx, PARKING_S.y1, { facing: Math.PI }));

@@ -1,4 +1,4 @@
-export type SkillId = 'melee' | 'defense' | 'marksman' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering';
+export type SkillId = 'melee' | 'defense' | 'marksman' | 'health' | 'street' | 'cooking' | 'scrapping' | 'tinkering' | 'dexterity';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -81,6 +81,8 @@ export interface GameState {
   hp: number;
   hpAt: number;
   skills: Record<SkillId, SkillState>;
+  /** v0.60: running stamina (0–100) as the server last worked it out, at `at` (game time ms). */
+  stamina?: { value: number; at: number };
   player: PlayerState;
   /** Item id → how many (food stacks). Each different item takes one inventory slot. */
   inventory: Record<string, number>;

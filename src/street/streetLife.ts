@@ -3,11 +3,12 @@
 // pits, dumpsters in alleys, fire escapes, balconies, stoops. And shop fronts with character (the candy store's
 // lollipop sign and window display, Ray's roll-up shutter and barred windows, Eddy's fruit crates).
 //
-// Sizes are in tiles, at the characters' scale: a person is about 1.2 tall, one floor 1.45, a door 1.1.
+// Sizes are in tiles, at the characters' scale: a person is about 1.2 tall, one floor 1.9, a door 1.5 (v0.60).
 // Everything here is a plain THREE.Group placed with its front facing +z (towards the street, when it stands on
 // the north side), so callers only position and rotate it.
 import { withModel } from './models';
 import * as THREE from 'three';
+import { surfaceMat } from './surfaces';
 import { boxGeo, buildLoot, lambert } from './props';
 
 const cyl = (rt: number, rb: number, h: number, seg = 10) => new THREE.CylinderGeometry(rt, rb, h, seg);
@@ -68,7 +69,7 @@ export function buildMailbox() {
 /** A metal trash can, sometimes overflowing. */
 export function buildBin(full = false) {
   const g = new THREE.Group();
-  put(g, cyl(0.17, 0.15, 0.5, 12), 0x5f6366, 0, 0.25, 0);
+  put(g, cyl(0.17, 0.15, 0.5, 12), surfaceMat('metal', 0x5f6366), 0, 0.25, 0);
   put(g, cyl(0.19, 0.19, 0.05, 12), 0x4a4d50, 0, 0.52, 0);
   if (full) put(g, new THREE.SphereGeometry(0.16, 8, 6), 0x2b2b2e, 0.05, 0.6, 0.02);
   return g;
@@ -79,7 +80,7 @@ export function buildNewsBoxes() {
   const g = new THREE.Group();
   [0xd9473a, 0x3a6ea5].forEach((c, i) => {
     const x = i * 0.42 - 0.21;
-    put(g, boxGeo(0.36, 0.5, 0.32), c, x, 0.5, 0);
+    put(g, boxGeo(0.36, 0.5, 0.32), surfaceMat('metal', c), x, 0.5, 0);
     put(g, boxGeo(0.28, 0.18, 0.02), glow(0xe8e2d0, 0.3), x, 0.6, 0.17, false);
     put(g, boxGeo(0.06, 0.25, 0.06), 0x2b2b2e, x, 0.13, 0);
   });
@@ -89,8 +90,8 @@ export function buildNewsBoxes() {
 /** A bench (two people fit). */
 export function buildBench(len = 1.3) {
   const g = new THREE.Group();
-  put(g, boxGeo(len, 0.06, 0.36), 0x6b4a2e, 0, 0.42, 0);
-  put(g, boxGeo(len, 0.3, 0.05), 0x6b4a2e, 0, 0.66, -0.17);
+  put(g, boxGeo(len, 0.06, 0.36), surfaceMat('wood', 0x6b4a2e), 0, 0.42, 0);
+  put(g, boxGeo(len, 0.3, 0.05), surfaceMat('wood', 0x6b4a2e), 0, 0.66, -0.17);
   for (const x of [-len / 2 + 0.08, len / 2 - 0.08]) put(g, boxGeo(0.05, 0.42, 0.36), 0x2b2b2e, x, 0.21, 0);
   return g;
 }
@@ -167,7 +168,7 @@ export function buildTreePit(rng = Math.random) {
 /** A big green dumpster with a lid half open, and bags next to it. */
 export function buildDumpster() {
   const g = new THREE.Group();
-  put(g, boxGeo(1.4, 0.8, 0.8), 0x2e5a3a, 0, 0.45, 0);
+  put(g, boxGeo(1.4, 0.8, 0.8), surfaceMat('metal', 0x2e5a3a), 0, 0.45, 0);
   const lid = put(g, boxGeo(1.42, 0.05, 0.82), 0x24482e, 0, 0.88, -0.1);
   lid.rotation.x = -0.35;
   for (const x of [-0.55, 0.55]) put(g, cyl(0.06, 0.06, 0.05, 8).rotateX(Math.PI / 2), 0x1e1e22, x, 0.06, 0.38);
@@ -389,15 +390,15 @@ export function buildCamera() {
 /** Eddy's fruit and vegetable crates on a stand outside, with a chalkboard. */
 export function buildCrates() {
   const g = new THREE.Group();
-  put(g, boxGeo(1.5, 0.08, 0.6), 0x6b4a2e, 0, 0.55, 0);
-  for (const x of [-0.7, 0.7]) put(g, boxGeo(0.06, 0.55, 0.6), 0x5a3d26, x, 0.27, 0);
+  put(g, boxGeo(1.5, 0.08, 0.6), surfaceMat('wood', 0x6b4a2e), 0, 0.55, 0);
+  for (const x of [-0.7, 0.7]) put(g, boxGeo(0.06, 0.55, 0.6), surfaceMat('wood', 0x5a3d26), x, 0.27, 0);
   // Four crates of produce from Kenney's Food Kit (v0.45): apples, oranges, tomatoes, carrots lying in a heap.
   const produce: [string, number, [number, number, number]][] = [
     ['food/apple.glb', 0.7, [0, 0, 0]], ['food/orange.glb', 0.8, [0, 0, 0]], ['food/tomato.glb', 0.85, [0, 0, 0]], ['food/carrot.glb', 0.38, [0, 0, Math.PI / 2]],
   ];
   produce.forEach(([file, scale, [rx, , rz]], i) => {
     const x = -0.55 + i * 0.37;
-    put(g, boxGeo(0.33, 0.14, 0.5), 0x9a7a52, x, 0.66, 0);
+    put(g, boxGeo(0.33, 0.14, 0.5), surfaceMat('wood', 0x9a7a52), x, 0.66, 0);
     for (let j = 0; j < 6; j++) {
       const m = withModel(file, { scale, tone: 'muted', tiltX: rx, tiltZ: rz, rot: j * 1.3 });
       m.position.set(x - 0.08 + (j % 2) * 0.16, rz ? 0.74 + (j % 3) * 0.02 : 0.72, -0.16 + Math.floor(j / 2) * 0.16);

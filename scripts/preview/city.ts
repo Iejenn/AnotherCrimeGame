@@ -1,6 +1,6 @@
 // The real city on its own (see city.html): buildCity plus a character at (x, z), with the game's lights and camera.
 import * as THREE from 'three';
-import { buildCity, updateFades } from '../../src/street/city';
+import { buildCity, updateCuts, updateFades } from '../../src/street/city';
 import { animateCharacter, buildCharacter } from '../../src/street/character';
 import { buildBigCar, buildGroundItem } from '../../src/street/streetLife';
 import { buildDog, buildGiantRat, buildMeter, buildRat } from '../../src/street/props';
@@ -130,6 +130,8 @@ const inside = q.get('inside');
 if (inside) city.rooms.get(inside)!.force = true;
 // Buildings between the camera and you fade, like in the game.
 for (let i = 0; i < 40; i++) updateFades(city.fadeables, camera, you.position, 0.05);
+// v0.60: the cut-away, like in the game (?cut=0 to see the city without it).
+if (q.get('cut') !== '0') updateCuts(city.fadeables, camera, you.position);
 // Models load in the background: keep rendering for a moment, then say we're ready.
 const t0 = performance.now();
 const tick = () => {

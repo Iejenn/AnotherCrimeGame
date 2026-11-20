@@ -10,6 +10,7 @@
 // The kit only places meshes, through the city's `add` (city.ts): at the end of buildCity every static piece is
 // merged into a few meshes per area and colour (see `mergeStatic` below), so a window costs triangles, not draw calls.
 import * as THREE from 'three';
+import { surfaceMat } from './surfaces';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ---------- canvas textures (shared by the city and the kit) ----------
@@ -381,8 +382,8 @@ export class Kit {
 
   // ---------- roofs ----------
   /** A flat roof slab on top of walls `h` high (with an overhang all round). */
-  roof(r: Rect, h: number, color: number, overhang = 0, thick = 0.08) {
-    return this.add(this.box(r.x1 - r.x0 + overhang * 2, thick, r.z1 - r.z0 + overhang * 2), this.mat(color), (r.x0 + r.x1) / 2, h + thick / 2, (r.z0 + r.z1) / 2);
+  roof(r: Rect, h: number, color: number | THREE.Material, overhang = 0, thick = 0.08) {
+    return this.add(this.box(r.x1 - r.x0 + overhang * 2, thick, r.z1 - r.z0 + overhang * 2), typeof color === 'number' ? this.mat(color) : color, (r.x0 + r.x1) / 2, h + thick / 2, (r.z0 + r.z1) / 2);
   }
   /** A band round the roof edge (a parapet): the roof shows in the middle. `m` may be the building's own material. */
   parapet(r: Rect, top: number, m: THREE.Material | number, high = 0.16, thick = 0.1) {
@@ -534,7 +535,7 @@ export class Kit {
       } else {
         for (let k = 0; k < 4; k++) {
           const p = at(i + (k + 0.5) / 4);
-          const plank = this.add(this.box(alongZ ? 0.05 : 0.23, high * (0.9 + rng() * 0.15), alongZ ? 0.23 : 0.05), this.mat(o.color ?? 0x6a4a2e), p.x, (high * 0.95) / 2, p.z);
+          const plank = this.add(this.box(alongZ ? 0.05 : 0.23, high * (0.9 + rng() * 0.15), alongZ ? 0.23 : 0.05), surfaceMat('wood', o.color ?? 0x6a4a2e), p.x, (high * 0.95) / 2, p.z);
           plank.rotation.y = (rng() - 0.5) * 0.06;
           out.push(plank);
         }
@@ -564,6 +565,8 @@ export interface MergeGroup {
   walls: THREE.Mesh[];
   mats: THREE.Material[];
   props: THREE.Object3D[];
+  /** v0.60: what's above the ground floor (the cut-away hides it): merged on its own, so it can still be hidden. */
+  cut?: { upper: THREE.Object3D[] };
 }
 const CHUNK = 12;
 
@@ -577,13 +580,15 @@ const CHUNK = 12;
 export function mergeStatic(scene: THREE.Scene, meshes: THREE.Mesh[], groups: MergeGroup[], keep: Set<THREE.Object3D>, own: <T extends { dispose: () => void }>(x: T) => T) {
   const wallOf = new Map<THREE.Mesh, MergeGroup>();
   const propOf = new Map<THREE.Object3D, MergeGroup>();
+  const upperOf = new Set<THREE.Object3D>();
   const fadeMats = new Set<THREE.Material>();
   for (const g of groups) {
     g.walls.forEach((m) => wallOf.set(m, g));
     g.props.forEach((m) => propOf.set(m, g));
+    g.cut?.upper.forEach((m) => upperOf.add(m));
     g.mats.forEach((m) => fadeMats.add(m));
   }
-  type Bucket = { meshes: THREE.Mesh[]; mat: THREE.Material; paint: boolean; shadow: boolean; recv: boolean; group?: MergeGroup; role: 'walls' | 'props' | 'fixed' };
+  type Bucket = { meshes: THREE.Mesh[]; mat: THREE.Material; paint: boolean; shadow: boolean; recv: boolean; group?: MergeGroup; role: 'walls' | 'props' | 'fixed'; upper: boolean };
   const buckets = new Map<string, Bucket>();
   const vcMats = new Map<string, THREE.MeshLambertMaterial>();
   const v = new THREE.Vector3();
@@ -600,7 +605,8 @@ export function mergeStatic(scene: THREE.Scene, meshes: THREE.Mesh[], groups: Me
     const area = role === 'fixed' ? `${Math.floor(v.x / CHUNK)},${Math.floor(v.z / CHUNK)}` : '';
     const groupId = group ? groups.indexOf(group) : -1;
     const look = paint ? `paint|${lam.emissive.getHexString()}|${lam.emissiveIntensity}` : `mat|${mat.uuid}`;
-    const k = `${role}|${groupId}|${area}|${look}|${m.castShadow}|${m.receiveShadow}`;
+    // (Above the ground floor: its own bucket, so the cut-away can hide it.)
+    const k = `${role}|${upperOf.has(m) ? 'up' : ''}|${groupId}|${area}|${look}|${m.castShadow}|${m.receiveShadow}`;
     let b = buckets.get(k);
     if (!b) {
       let bm: THREE.Material = mat;
@@ -613,12 +619,12 @@ export function mergeStatic(scene: THREE.Scene, meshes: THREE.Mesh[], groups: Me
         }
         bm = vm;
       }
-      b = { meshes: [], mat: bm, paint, shadow: m.castShadow, recv: m.receiveShadow, group, role };
+      b = { meshes: [], mat: bm, paint, shadow: m.castShadow, recv: m.receiveShadow, group, role, upper: upperOf.has(m) };
       buckets.set(k, b);
     }
     b.meshes.push(m);
   }
-  const replaced = new Map<MergeGroup, { walls: THREE.Mesh[]; props: THREE.Mesh[]; gone: Set<THREE.Object3D> }>();
+  const replaced = new Map<MergeGroup, { walls: THREE.Mesh[]; props: THREE.Mesh[]; upper: THREE.Mesh[]; gone: Set<THREE.Object3D> }>();
   for (const b of buckets.values()) {
     if (b.meshes.length < 2) continue; // nothing to gain
     const hasUv = !b.paint && !!(b.mat as THREE.MeshLambertMaterial).map;
@@ -651,13 +657,15 @@ export function mergeStatic(scene: THREE.Scene, meshes: THREE.Mesh[], groups: Me
     for (const m of b.meshes) scene.remove(m);
     if (b.group) {
       let r = replaced.get(b.group);
-      if (!r) replaced.set(b.group, (r = { walls: [], props: [], gone: new Set() }));
+      if (!r) replaced.set(b.group, (r = { walls: [], props: [], upper: [], gone: new Set() }));
       (b.role === 'walls' ? r.walls : r.props).push(one);
+      if (b.upper) r.upper.push(one);
       b.meshes.forEach((m) => r.gone.add(m));
     }
   }
   for (const [g, r] of replaced) {
     g.walls = [...g.walls.filter((m) => !r.gone.has(m)), ...r.walls];
     g.props = [...g.props.filter((m) => !r.gone.has(m)), ...r.props];
+    if (g.cut) g.cut.upper = [...g.cut.upper.filter((m) => !r.gone.has(m)), ...r.upper];
   }
 }

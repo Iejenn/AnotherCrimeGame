@@ -1,7 +1,7 @@
 // The Yard's hangout props (v0.58) stay within the triangle budgets of docs/design.md §18: a prop 300, a vehicle 800.
 import * as THREE from 'three';
 import { expect, test } from 'vitest';
-import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWall, buildStringLights, buildStrippedCar } from './props';
+import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWall, buildShelf, buildStringLights, buildStrippedCar } from './props';
 
 const tris = (o: THREE.Object3D) => {
   let n = 0;
@@ -23,6 +23,8 @@ test('the hangout props are within budget', () => {
     ['lookout', buildLookout(), 300],
     ['string lights', buildStringLights(new THREE.Vector3(), new THREE.Vector3(8, 0, 0)), 300],
     ['stripped car', buildStrippedCar(), 800],
+    ['candy shelf', buildShelf('candy', 3), 300],
+    ['gas station shelf', buildShelf('gas', 3), 300],
   ];
   for (const [name, o, max] of props) expect(tris(o), name).toBeLessThanOrEqual(max);
 });

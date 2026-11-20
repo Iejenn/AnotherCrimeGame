@@ -16,6 +16,11 @@ interface Baller {
 }
 
 const SPEED = 1.8; // tiles per second
+/** v0.60: how close the two players get (their bodies touch below this): they keep apart and slide round each other,
+ *  instead of walking into each other (which made them jitter, arms flailing). */
+const MIN_GAP = 0.85;
+/** How far in front of the ball holder the defender stands (between him and the hoop). */
+const GUARD_GAP = 1.1;
 
 export class Hoops {
   private ball: THREE.Mesh;
@@ -82,8 +87,12 @@ export class Hoops {
     if (this.phase === 'dribble') {
       const me = this.players[h];
       if (me.pos.distanceTo(me.target) < 0.05) me.target = this.randomSpot();
-      // The defender stays between the holder and the hoop.
-      const def = me.pos.clone().lerp(new THREE.Vector3(attack.x, 0, attack.z), 0.45);
+      // The defender stays between the holder and the hoop, a body length in front of him (v0.60: it used to aim
+      // part-way to the hoop, right on top of the holder when he was close to it), inside the court.
+      const toHoop = new THREE.Vector3(attack.x - me.pos.x, 0, attack.z - me.pos.z);
+      const def = me.pos.clone().add(toHoop.normalize().multiplyScalar(GUARD_GAP));
+      def.x = Math.min(this.max.x, Math.max(this.min.x, def.x));
+      def.z = Math.min(this.max.z, Math.max(this.min.z, def.z));
       this.players[o].target.copy(def);
       const hp = this.hand(h);
       this.ball.position.set(hp.x, 0.12 + Math.abs(Math.sin(el * 9)) * 0.55, hp.z);
@@ -138,12 +147,38 @@ export class Hoops {
     // Move towards targets; face where you're going, or the ball when standing.
     for (const p of this.players) {
       const d = p.target.clone().sub(p.pos).setY(0);
+      // (v0.60: a target too close to the other player is pushed out to the edge of his space, so nobody walks into him.)
+      const other = this.players[p === this.players[0] ? 1 : 0];
+      const fromOther = p.target.clone().sub(other.pos).setY(0);
+      if (fromOther.length() < MIN_GAP) {
+        p.target.copy(other.pos).add((fromOther.lengthSq() > 1e-6 ? fromOther : p.pos.clone().sub(other.pos).setY(0)).setLength(MIN_GAP));
+        d.copy(p.target).sub(p.pos).setY(0);
+      }
       if (d.length() > 0.03) {
         p.pos.add(d.clampLength(0, SPEED * dt));
         p.facing = Math.atan2(d.x, d.z);
       } else if (!(this.phase === 'shoot' && p === this.players[h])) {
         p.facing = Math.atan2(this.ball.position.x - p.pos.x, this.ball.position.z - p.pos.z);
       }
+    }
+    // Never overlapping: if they're closer than MIN_GAP, both step apart (half each) along the line between them, so
+    // one slides round the other instead of through him.
+    // (A few rounds: one pinned against the court's edge can't step back, so the other steps aside more.)
+    const [a, b] = this.players;
+    for (let k = 0; k < 4; k++) {
+      const gap = b.pos.clone().sub(a.pos).setY(0);
+      const dist = gap.length();
+      if (dist >= MIN_GAP - 1e-3) break;
+      const dir = dist > 1e-4 ? gap.normalize() : new THREE.Vector3(1, 0, 0);
+      const push = dir.clone().multiplyScalar((MIN_GAP - dist) / 2);
+      a.pos.sub(push);
+      b.pos.add(push);
+      for (const p of this.players) {
+        p.pos.x = Math.min(this.max.x, Math.max(this.min.x, p.pos.x));
+        p.pos.z = Math.min(this.max.z, Math.max(this.min.z, p.pos.z));
+      }
+      // Still too close against a wall: slide sideways along it (across the line between them).
+      if (k === 3 && b.pos.distanceTo(a.pos) < MIN_GAP) b.pos.add(new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(MIN_GAP / 2));
     }
   }
 
