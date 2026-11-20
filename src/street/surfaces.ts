@@ -1,5 +1,5 @@
 // Surfaces (v0.60, docs/design.md §18): the pixel textures for what the city is built of (brick, plaster, wood, roof
-// felt, stone, metal). Drawn in code (no picture files), 32×32 texels, sampled crisp, in greys: a material multiplies
+// felt, stone, metal, grass). Drawn in code (no picture files), 32×32 texels, sampled crisp, in greys: a material multiplies
 // its own colour by it, so one texture serves every brick wall whatever its colour.
 //
 // They're laid by world position (worldUV, called on the city's static meshes before they're merged): one texture
@@ -7,7 +7,7 @@
 // a material's map.repeat can scale that (a brick wall: one texture per floor high).
 import * as THREE from 'three';
 
-export type SurfaceKind = 'brick' | 'plaster' | 'wood' | 'roof' | 'stone' | 'metal';
+export type SurfaceKind = 'brick' | 'plaster' | 'wood' | 'roof' | 'stone' | 'metal' | 'grass';
 
 /** The textures average about this grey: colours under them are made brighter by SURFACE_GAIN to stay the same. */
 const MEAN = 0.84;
@@ -61,6 +61,14 @@ const PAINTERS: Record<SurfaceKind, Painter> = {
         px(210 + Math.floor(rnd() * 25), x + 1, row * 16 + 1, 23, 15);
         for (let i = 0; i < 8; i++) px(200 + Math.floor(rnd() * 30), x + 2 + Math.floor(rnd() * 21), row * 16 + 2 + Math.floor(rnd() * 13));
       }
+  },
+  // Grass (v0.60): short blades in light and dark, a few darker clumps and the odd light tuft, so a lawn isn't one
+  // flat colour.
+  grass: (px, rnd) => {
+    px(205, 0, 0, 32, 32);
+    for (let i = 0; i < 7; i++) px(160, Math.floor(rnd() * 28), Math.floor(rnd() * 28), 3 + Math.floor(rnd() * 4), 2 + Math.floor(rnd() * 3));
+    for (let i = 0; i < 220; i++) px(rnd() < 0.5 ? 145 + Math.floor(rnd() * 30) : 235 + Math.floor(rnd() * 20), Math.floor(rnd() * 32), Math.floor(rnd() * 31), 1, 1 + Math.floor(rnd() * 2));
+    for (let i = 0; i < 6; i++) px(255, Math.floor(rnd() * 31), Math.floor(rnd() * 31), 1, 1);
   },
   // Painted metal: brushed streaks, a few scratches.
   metal: (px, rnd) => {

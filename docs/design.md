@@ -1006,7 +1006,7 @@ Only water has a texture: drawn ripples (no picture files), as grey detail on th
 Kit) and a tester preferred the plain, basic look.
 **Props may have textures (v0.59):** small pixel textures drawn in code (32×32 texels, sampled crisp, no picture files):
 brick, wood planks, corrugated steel, worn car paint, concrete (`pixelTex`/`texMat` in props.ts; one texture covers a
-tile of surface). The ground stays plain.
+tile of surface). The ground stays plain, except grass (lawns and hedges: the pixel grass, one a tile; the owner found plain green flat) and water.
 **Surfaces (v0.60, `src/street/surfaces.ts`):** grey pixel textures for what the city is built of (brick, plaster,
 wood, roof felt, stone, metal), multiplied by each material's own colour (one texture for every brick wall), laid by
 world position before the city is merged (one texture a tile, never stretched). In city.ts `slam(kind, colour)`

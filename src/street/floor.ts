@@ -10,6 +10,7 @@
 // Walking stays on the tile grid (the server checks tiles): the shapes are only how it looks, close to the tiles.
 import * as THREE from 'three';
 import { DETAIL_GAIN, waterTexture } from './textures';
+import { SURFACE_GAIN, surfaceTexture } from './surfaces';
 
 export type Surface = 'water' | 'pond' | 'sand' | 'asphalt' | 'concrete' | 'dirt' | 'sidewalk' | 'grass' | 'gravel' | 'paving';
 
@@ -40,11 +41,13 @@ export const SURFACES: Record<Surface, SurfaceLook> = {
   paving: { color: 0x9a9286, top: 0.1, side: 0x7a7266, corner: 'square', vary: 0.04 },
 };
 
-/** The water's drifting ripples (v0.56, textures.ts): how big (tiles per picture). Everything else is plain colour (a
- *  tester preferred it to the ground textures we tried). */
-export const SURFACE_TEX: Partial<Record<Surface, { tex: 'water'; scale: number }>> = {
+/** The water's drifting ripples (v0.56, textures.ts) and the grass (v0.60, surfaces.ts): how big (tiles per picture).
+ *  The rest of the ground is plain colour (a tester preferred it to the ground textures we tried). */
+export const SURFACE_TEX: Partial<Record<Surface, { tex: 'water' | 'grass'; scale: number }>> = {
   water: { tex: 'water', scale: 3 },
   pond: { tex: 'water', scale: 2 },
+  // v0.60: the owner asked for texture on the lawns (plain green looked flat): the pixel grass (surfaces.ts), one a tile.
+  grass: { tex: 'grass', scale: 1 },
 };
 const materials = new Map<Surface, THREE.MeshLambertMaterial>();
 /** One material per surface (shared by every floor): its detail texture, brightened so the colour stays the same. */
@@ -52,10 +55,10 @@ function surfaceMaterial(s: Surface) {
   let m = materials.get(s);
   if (m) return m;
   const t = SURFACE_TEX[s];
-  const map = t ? waterTexture() : null;
+  const map = t?.tex === 'water' ? waterTexture() : t?.tex === 'grass' ? surfaceTexture('grass') : null;
   // (Both sides: flat shading lights a face by its slope on screen, whichever way it was wound.)
   m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, map });
-  if (map) m.color.setScalar(DETAIL_GAIN);
+  if (map) m.color.setScalar(t?.tex === 'grass' ? SURFACE_GAIN : DETAIL_GAIN);
   materials.set(s, m);
   return m;
 }

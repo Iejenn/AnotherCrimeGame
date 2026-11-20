@@ -26,6 +26,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'A new skill, Dexterity: walking and running both train it (1 XP every 75 tiles). Each level lets you run 1% further on a full bar (twice as far at level 100). It shows in your skills and on the highscores.',
       'Others see you run, with a proper running animation.',
       'The combat style button is always on the minimap now; with no marksman weapon ready, tapping it tells you so. The round buttons (health, combat style, world map, running) all sit centred on the minimap\'s ring.',
+      'Grass has texture now: blades and clumps on every lawn, the park, the barbecue spot and the hedges, instead of flat green.',
+      'The bank has a proper roof (roofing felt and vents inside its stone cornice) instead of one flat slab.',
       'The server now checks how fast you move: faster than walking takes stamina, so nobody can run on an empty bar or move faster than running.',
     ],
   },

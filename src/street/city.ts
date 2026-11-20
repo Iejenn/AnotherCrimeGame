@@ -329,7 +329,7 @@ export function buildCity(scene: THREE.Scene) {
     }
   };
   const pavement = lam(C.pavement);
-  const grassMat = lam(C.grass);
+  const grassMat = slam('grass', C.grass); // (v0.60: textured, the lots' lawns too)
   /** Marks lying flat on the ground (stains, cracks, painted lines): pulled towards the camera so they never flicker
    *  against the ground they lie on. */
   const DECAL = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
@@ -776,7 +776,7 @@ export function buildCity(scene: THREE.Scene) {
       for (const lx of [-0.39, 0.39]) part(geoBox(0.04, 0.3, 0.3), iron, lx, 0.15, 0);
     }
     // Hedges: dark green boxes, slightly uneven, along the park's outside edge.
-    const hedges = new Batch(geoBox(1, 0.5, 0.7), lam(0x2c4a26, { flatShading: true }));
+    const hedges = new Batch(geoBox(1, 0.5, 0.7), surfaceMat('grass', 0x2c4a26)); // (v0.60: leafy, not flat green)
     for (const f of FIXTURES.filter((f) => f.kind === 'hedge' && inPark(f.x, f.y))) {
       const sideways = !inPark(f.x - 1, f.y) || !inPark(f.x + 1, f.y);
       hedges.add(f.x + 0.5, LAWN + 0.2, f.y + 0.5, 1, 0.85 + rng() * 0.3, 1, sideways ? Math.PI / 2 : 0);
@@ -2176,7 +2176,10 @@ export function buildCity(scene: THREE.Scene) {
       props.push(...kit.windowRow(f, 0.8, f.len - 0.8, 0.7, 2, { style: 'office', w: 0.7, h: 1.4, lit: true, glow: 0xffe2b0, frame: 0xb0a898 }));
     }
     // Roof, cornice, the pediment over the entrance with BANK on it, columns, steps.
+    // (v0.60: a roof of pale roofing felt with the stone cornice round it, not one flat slab.)
     props.push(add(geoBox(X1 - X0 + 0.3, 0.2, Z1 - Z0 + 0.3), stoneDark, cx, HT + 0.1, cz));
+    props.push(add(geoBox(X1 - X0 - 0.3, 0.04, Z1 - Z0 - 0.3), slam('roof', 0x8a8780), cx, HT + 0.22, cz, false));
+    props.push(...kit.vent(cx - 2, HT + 0.24, cz - 1, 0.12, 1.0, 0x8a8f96), ...kit.vent(cx + 2.5, HT + 0.24, cz + 1, 0.12, 1.0, 0x8a8f96));
     const ped = new THREE.Shape();
     ped.moveTo(-3, 0);
     ped.lineTo(3, 0);
