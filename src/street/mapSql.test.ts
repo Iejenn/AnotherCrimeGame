@@ -11,27 +11,22 @@ const load = async () => ({
   m0041: (await import('../../supabase/migrations/0041_bar_and_yard.sql?raw')).default as string,
 });
 
-// v0.60: 0041 is live (history now); the newest map migration is 0043 (three drunks).
-test('0043 is the map as it is (three drunks)', async () => {
-  const { drunksSql } = await import('../../scripts/drunks-sql');
+// v0.60: 0041 is live (history now); the newest map migration is 0043 (three drunks, the city at a person's scale).
+test('0043 is the map as it is (three drunks, the city at scale)', async () => {
+  const { citySql } = await import('../../scripts/city-sql');
   const { m0038, m0040, m0041 } = await load();
-  const m0043 = (await import('../../supabase/migrations/0043_three_drunks.sql?raw')).default as string;
-  expect(m0043 === drunksSql(m0038, m0040, m0041)).toBe(true);
+  const m0043 = (await import('../../supabase/migrations/0043_city_scale.sql?raw')).default as string;
+  expect(m0043 === citySql(m0038, m0040, m0041)).toBe(true);
 });
 
-// The enemies' walk map on the server: 0038's rows, then 0040's, 0041's and 0043's updates. The game's must match it.
-test("the enemies' walk map is the live one plus 0043's rows", async () => {
-  const { walkMasks } = await import('./sight');
-  const { GH, W, gi } = await import('./map');
-  const { liveAfter0041 } = await import('../../scripts/drunks-sql');
+// The enemies' walk map on the server: 0038's rows, 0040's and 0041's updates, then 0043's patches. The game's must
+// match it exactly (the patches are written in the same way game.patch_row does).
+test("the enemies' walk map is the live one with 0043's patches", async () => {
+  const { applyPatch, gameRows, liveAfter0041, rowPatch } = await import('../../scripts/city-sql');
   const { m0038, m0040, m0041 } = await load();
-  const m0043 = (await import('../../supabase/migrations/0043_three_drunks.sql?raw')).default as string;
-  const live = liveAfter0041(m0038, m0040, m0041 + '\n' + m0043);
-  const m = walkMasks();
-  for (let y = 0; y < GH; y++) {
-    const row = Array.from({ length: W }, (_, x) => m[gi(x, y)].toString(16).padStart(2, '0')).join('');
-    expect(live[y], `row ${y}`).toBe(row);
-  }
+  const live = liveAfter0041(m0038, m0040, m0041);
+  const game = gameRows();
+  game.forEach((row, y) => expect(live[y] === row ? row : applyPatch(live[y], rowPatch(live[y], row)), `row ${y}`).toBe(row));
 });
 
 // v0.60: the simple chase (0042) is exactly what scripts/chase-sql.ts prints from the game's chase.

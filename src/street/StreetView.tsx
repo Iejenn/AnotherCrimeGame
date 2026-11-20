@@ -17,7 +17,7 @@ import { BAR_FACING, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y,
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { clearShot, routeMs, routePoint } from './sight';
 import { rangedWeapon } from '../game/combat';
-import { buildCity, updateFades } from './city';
+import { buildCity, updateCuts, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
@@ -1926,6 +1926,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
       }
       updateFades(city.fadeables, camera, lift(me.pos, 0), dt);
+      updateCuts(city.fadeables, camera, lift(me.pos, 0)); // (v0.60: buildings low on the screen show only their ground floor)
       city.animate(now);
 
       // Progress bar for the current action.

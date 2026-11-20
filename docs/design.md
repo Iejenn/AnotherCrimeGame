@@ -993,6 +993,14 @@ Kit) and a tester preferred the plain, basic look.
 brick, wood planks, corrugated steel, worn car paint, concrete (`pixelTex`/`texMat` in props.ts; one texture covers a
 tile of surface). The ground stays plain.
 
+### Scale (v0.60)
+A person is about 1.2 tall, so a tile is about 1.5 m. Buildings match that: a storey is 1.9 (about 1.6 people, 2.8 m),
+houses are 2 to 4 storeys, doors 1.5 high (taller than a person), windows 0.6 × 0.85. No building is narrower than 3
+tiles (about 4.4 m, a narrow town house): a lot is one building, or one 3 tiles deep or wide with a yard or alley
+beside it. **The cut-away:** buildings on the camera's side of you (low on the screen) show only their ground floor
+(`updateCuts` in city.ts), like old-school RuneScape hiding the floors above; what's above the ground floor (windows,
+roof edge, rooftop clutter, drainpipes, a shop's apartments) is merged on its own so it can be hidden.
+
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |
 |---|---|---|

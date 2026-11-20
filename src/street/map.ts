@@ -719,14 +719,15 @@ export const LOTS: Lot[] = (() => {
 
 const WALL_COLORS = [0x37322d, 0x3f3a33, 0x332f2b, 0x45392f, 0x3a3936, 0x4a3f36, 0x2f3236];
 
-/** Each building lot gets one of these layouts (offsets inside the 5×5 lot). */
+/** Each building lot gets one of these layouts (offsets inside the 5×5 lot, for a lot on its block's north side; on
+ *  the south side it's flipped, so the building stands on the street and the yard is behind it).
+ *  v0.60: no slivers (nothing narrower than 3 tiles): the old 2-wide buildings were narrower than two people. */
 const LAYOUTS: [number, number, number, number][][] = [
   [[0, 0, 5, 5]], // one big building
-  [[0, 0, 2, 5], [3, 0, 2, 5]], // two tall ones, alley in the middle
-  [[0, 0, 5, 2], [0, 3, 5, 2]], // two wide ones, alley in the middle
-  [[0, 0, 5, 2], [0, 2, 5, 3]], // a short and a deep building, back to back
-  [[0, 0, 3, 5], [3, 0, 2, 5]], // wide + narrow, back to back
-  [[0, 0, 5, 3], [0, 3, 2, 2], [3, 3, 2, 2]], // big one at the back, two small at the front with a gap
+  [[0, 0, 5, 5]],
+  [[0, 0, 5, 3]], // on the street, a yard behind
+  [[0, 0, 3, 5]], // an alley down one side
+  [[2, 0, 3, 5]], // the alley down the other side
 ];
 
 export const BUILDINGS: Building[] = (() => {
@@ -745,8 +746,9 @@ export const BUILDINGS: Building[] = (() => {
     if (lot.kind !== 'buildings' && !gone) return;
     const block = blockRect(lot.bx, lot.by);
     const layout = LAYOUTS[Math.floor(rng() * LAYOUTS.length)];
-    for (const [ox, oy, w, h] of layout) {
+    for (const [ox, oy0, w, h] of layout) {
       const big = w * h >= 10;
+      const oy = lot.ly === 1 ? LOT_SIZE - oy0 - h : oy0;
       const y = lot.rect.y0 + oy;
       const b: Building = {
         x: lot.rect.x0 + ox,

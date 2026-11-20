@@ -52,7 +52,13 @@ export interface Fadeable {
   opacity: number;
   /** Fade regardless of the camera (the store, while you're inside it). */
   force?: boolean;
+  /** v0.60: the cut-away. While the building stands on the camera's side of you (low on the screen), it's cut down to
+   *  its ground floor: `main` (if any) squashed to `keep` high, `upper` (floors above, their windows, the roof edge and
+   *  clutter, a shop's apartments) hidden. */
+  cut?: { main?: THREE.Mesh; height: number; keep: number; center: THREE.Vector3; upper: THREE.Object3D[]; on: boolean };
 }
+/** The lowest point of an object (for picking what's above a building's ground floor). */
+export const minY = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o).min.y;
 
 /** A soft orange circle for the light pool under each street lamp. */
 const lightPoolTex = () =>
@@ -487,8 +493,10 @@ export function buildCity(scene: THREE.Scene) {
     }),
   );
   // One floor is a person and a bit (the characters are about 1.2 tall), so a building with 3 rows of windows is
-  // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows. 2 or 3 floors.
-  const FLOOR = 1.45;
+  // 3 floors a person could live in, not a toy tower with 8 floors of half-person-sized windows.
+  // v0.60: 1.9 (was 1.45, barely taller than a person: the houses looked like dolls' houses next to people and the
+  // bar). About 1.6 people a floor, 2 to 4 floors.
+  const FLOOR = 1.9;
   // ---------- the Industrial zone: corrugated-metal sheds and workshops ----------
   /** Corrugated metal: vertical ribs with streaks of rust. */
   const corrugated = own(
@@ -510,7 +518,7 @@ export function buildCity(scene: THREE.Scene) {
   // windows and awnings, a parapet, roof clutter. Their own random numbers, so they don't shift the rest of the city.
   const brng = mulberry32(4711);
   // How many floors stand on each tile (a wall above a lower neighbour's roof is open air too).
-  const floorsOf = (b: (typeof BUILDINGS)[number]) => (b.industrial ? 1 : b.height > 1.8 ? 3 : 2);
+  const floorsOf = (b: (typeof BUILDINGS)[number]) => (b.industrial ? 1 : 2 + (b.height > 1.4 ? 1 : 0) + (b.height > 2.0 ? 1 : 0));
   const solid = new Map<string, number>();
   for (const b of BUILDINGS) for (let x = b.x; x < b.x + b.w; x++) for (let y = b.y; y < b.y + b.h; y++) solid.set(`${x},${y}`, floorsOf(b));
   /** The tiles along one side of a building, each with how many floors of the neighbour cover it (0: open air). */
@@ -607,27 +615,34 @@ export function buildCity(scene: THREE.Scene) {
       for (const tile of sideTiles(b, side)) {
         const u = uOf(f, side === 'n' || side === 's' ? tile.x : tile.z);
         for (let fl = tile.covered; fl < floors; fl++) {
-          const y = fl * FLOOR + 0.42;
+          const y = fl * FLOOR + 0.55;
           if (b.boarded) {
-            if (fl > 0) props.push(...kit.window(f, u, y, { style: 'boarded', w: 0.5, h: 0.7 }));
+            if (fl > 0) props.push(...kit.window(f, u, y, { style: 'boarded', w: 0.6, h: 0.9 }));
             continue;
           }
           if (fl === 0 && side === frontSide && (Math.abs(tile.x - doorX) < 0.6 || (shop && Math.abs(tile.x - gx) < gw / 2 + 0.3))) continue;
           const lit = brng() < 0.3;
-          props.push(...kit.window(f, u, y, { lit, frame: fl === 0 ? trim : 0x3a3430, behind: lit && brng() < 0.35 ? CURTAINS[Math.floor(brng() * CURTAINS.length)] : undefined }));
+          props.push(...kit.window(f, u, y, { w: 0.6, h: 0.85, lit, frame: fl === 0 ? trim : 0x3a3430, behind: lit && brng() < 0.35 ? CURTAINS[Math.floor(brng() * CURTAINS.length)] : undefined }));
         }
       }
     }
     // Every building has a front door at person size, with a step and a lamp: so you can tell how big it is, and that
     // people live there.
-    props.push(...kit.door(front, uOf(front, doorX), { color: 0x3a2a20, frame: trim, step: true, light: 'lamp' }));
+    // (v0.60: a door you'd fit through, taller than a person.)
+    props.push(...kit.door(front, uOf(front, doorX), { w: 0.75, h: 1.5, color: 0x3a2a20, frame: trim, step: true, light: 'lamp' }));
     if (shop) {
-      props.push(...kit.window(front, uOf(front, gx), 0.15, { style: 'shop', w: gw, h: 0.8, frame: trim }));
+      props.push(...kit.window(front, uOf(front, gx), 0.2, { style: 'shop', w: gw, h: 1.1, frame: trim }));
       const stripe = `#${C.trims[Math.floor(brng() * C.trims.length)].toString(16).padStart(6, '0')}`;
-      props.push(...kit.awning(front, uOf(front, cx), 1.42, Math.max(0.7, bw - 0.3), { color: stripe, light: '#b8b0a0', depth: 0.45 }));
+      props.push(...kit.awning(front, uOf(front, cx), 1.75, Math.max(0.7, bw - 0.3), { color: stripe, light: '#b8b0a0', depth: 0.5 }));
     }
-    if (brng() < 0.5) props.push(...kit.drainpipe(front, brng() < 0.5 ? 0.08 : front.len - 0.08, height));
-    fadeables.push({ walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1 });
+    const pipe = brng() < 0.5 ? kit.drainpipe(front, brng() < 0.5 ? 0.08 : front.len - 0.08, height) : [];
+    props.push(...pipe);
+    // (The drainpipe runs from the ground to the roof: it goes with the floors above when the building is cut.)
+    const upper = [...trimBand, ...pipe, ...props.filter((p) => minY(p) >= FLOOR - 0.25)];
+    fadeables.push({
+      walls: [walls, ...trimBand], mats: [mX, mZ, mRoof, mTrim], props, opacity: 1,
+      cut: { main: walls, height, keep: FLOOR, center: new THREE.Vector3(cx, 0, cz), upper, on: false },
+    });
   }
 
   // ---------- Central Park (Pickpocket Tourists; v0.54: the big cross, PARK_AREA) ----------
@@ -2943,6 +2958,33 @@ const ray = new THREE.Raycaster();
  * Fade buildings that stand between the camera and `target` (your character), so you're never hidden.
  * Call every frame.
  */
+/**
+ * v0.60: the cut-away (old-school RuneScape style). Buildings on the camera's side of you, within view (lower on the
+ * screen than you), show only their ground floor, so the tall city never hides the street you're on. Call every frame
+ * after updateFades.
+ */
+export function updateCuts(fadeables: Fadeable[], camera: THREE.Camera, target: THREE.Vector3) {
+  const toCam = new THREE.Vector3(camera.position.x - target.x, 0, camera.position.z - target.z).normalize();
+  const side = new THREE.Vector3(-toCam.z, 0, toCam.x);
+  for (const f of fadeables) {
+    const c = f.cut;
+    if (!c) continue;
+    const dx = c.center.x - target.x, dz = c.center.z - target.z;
+    const ahead = dx * toCam.x + dz * toCam.z; // towards the camera: lower on the screen
+    const across = Math.abs(dx * side.x + dz * side.z);
+    const on = ahead > 1.5 && ahead < 22 && across < 16;
+    if (on !== c.on) {
+      c.on = on;
+      if (c.main) {
+        c.main.scale.y = on ? c.keep / c.height : 1;
+        c.main.position.y = (on ? c.keep : c.height) / 2;
+      }
+    }
+    // (Fading shows and hides props too: the floors above stay hidden while it's cut.)
+    for (const o of c.upper) o.visible = !on && (f.walls.includes(o as THREE.Mesh) || f.opacity > 0.6);
+  }
+}
+
 export function updateFades(fadeables: Fadeable[], camera: THREE.Camera, target: THREE.Vector3, dt: number) {
   const hit = new Set<Fadeable>();
   for (const yOff of [0.3, 1.0]) {

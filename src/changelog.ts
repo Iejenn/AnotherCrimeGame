@@ -15,6 +15,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Throwing knives in the bag show their real stats now (max hit, speed, range and the Marksman level they need), not "+0 defence, Defense 11", and you Wield them instead of Wear.',
       "Thugs' hair no longer pokes through their hoods.",
       'The bar is quieter: three drunks again, an empty stool between them.',
+      'The city is built at a person\'s scale: taller storeys, 2 to 4 floors, doors you fit through, bigger windows, and no more houses narrower than two people (each lot is one building, or one with a yard or an alley beside it).',
+      'Buildings between you and the camera (low on the screen) show only their ground floor, so the taller city never hides the street you\'re on.',
       'Enemies chase you the old-school way now: straight at you. Put a bench, a car, a dumpster or the sewage channel between you and them and they get stuck behind it, while your throwing knives fly right over. A stuck enemy never hits you, but you can only hit it at range: walk round to it to fight it up close.',
     ],
   },
