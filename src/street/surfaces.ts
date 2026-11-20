@@ -115,3 +115,22 @@ export function worldUV(m: THREE.Mesh) {
 }
 /** Does this mesh's material (or one of them) want its texture laid by world position? */
 export const wantsWorldUV = (m: THREE.Mesh) => (Array.isArray(m.material) ? m.material : [m.material]).some((x) => x.userData.worldUV);
+
+const matCache = new Map<string, THREE.MeshLambertMaterial>();
+/**
+ * A ready material for small props (benches, crates, bins, dumpsters): the surface's texture once over each face
+ * (their boxes' own UVs, no world mapping needed), tinted `color`; plain colour where there's no browser. Shared.
+ */
+export function surfaceMat(kind: SurfaceKind, color: number, repeat = 1): THREE.MeshLambertMaterial {
+  const key = `${kind}|${color}|${repeat}`;
+  let m = matCache.get(key);
+  if (!m) {
+    const base = surfaceTexture(kind);
+    const map = base ? base.clone() : undefined;
+    if (map) (map.repeat.set(repeat, repeat), (map.needsUpdate = true));
+    m = new THREE.MeshLambertMaterial({ color, flatShading: true, map });
+    if (map) m.color.multiplyScalar(SURFACE_GAIN);
+    matCache.set(key, m);
+  }
+  return m;
+}

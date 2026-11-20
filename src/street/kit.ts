@@ -10,6 +10,7 @@
 // The kit only places meshes, through the city's `add` (city.ts): at the end of buildCity every static piece is
 // merged into a few meshes per area and colour (see `mergeStatic` below), so a window costs triangles, not draw calls.
 import * as THREE from 'three';
+import { surfaceMat } from './surfaces';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ---------- canvas textures (shared by the city and the kit) ----------
@@ -534,7 +535,7 @@ export class Kit {
       } else {
         for (let k = 0; k < 4; k++) {
           const p = at(i + (k + 0.5) / 4);
-          const plank = this.add(this.box(alongZ ? 0.05 : 0.23, high * (0.9 + rng() * 0.15), alongZ ? 0.23 : 0.05), this.mat(o.color ?? 0x6a4a2e), p.x, (high * 0.95) / 2, p.z);
+          const plank = this.add(this.box(alongZ ? 0.05 : 0.23, high * (0.9 + rng() * 0.15), alongZ ? 0.23 : 0.05), surfaceMat('wood', o.color ?? 0x6a4a2e), p.x, (high * 0.95) / 2, p.z);
           plank.rotation.y = (rng() - 0.5) * 0.06;
           out.push(plank);
         }

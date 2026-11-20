@@ -1,5 +1,6 @@
 // Small models: cars, gym bags, shop shelves and parking meters. Chunky low-poly, muted dusk colours.
 import * as THREE from 'three';
+import { surfaceMat } from './surfaces';
 import { limb, loft, spikes } from './loft';
 
 const matCache = new Map<number, THREE.MeshLambertMaterial>();
@@ -137,7 +138,8 @@ export function buildScrapDumpster(metal: 'tin' | 'copper' | 'aluminium' = 'tin'
   const bodyGeo = new THREE.ExtrudeGeometry(profile, { depth: 0.94, bevelEnabled: false, curveSegments: 1 });
   bodyGeo.rotateY(-Math.PI / 2);
   bodyGeo.translate(0.47, 0, 0);
-  const body = new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: paint, flatShading: true }));
+  // (v0.60: brushed paint over steel; the shape's sides are in world units, so the texture's 1 a tile.)
+  const body = new THREE.Mesh(bodyGeo, surfaceMat('metal', paint));
   body.castShadow = body.receiveShadow = true;
   g.add(body);
   // The rim round the top, a rib down each side, fork pockets, wheels.

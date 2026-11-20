@@ -22,7 +22,7 @@ import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWal
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
-import { SURFACE_GAIN, surfaceTexture, worldUV, wantsWorldUV, type SurfaceKind } from './surfaces';
+import { SURFACE_GAIN, surfaceMat, surfaceTexture, worldUV, wantsWorldUV, type SurfaceKind } from './surfaces';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
 const C = {
@@ -430,7 +430,7 @@ export function buildCity(scene: THREE.Scene) {
     }
 
   // ---------- grime: dumpsters and trash bags in the alleys between buildings ----------
-  const dumpsters = new Batch(geoBox(1.1, 0.7, 0.62), lam(0x2f4a36));
+  const dumpsters = new Batch(geoBox(1.1, 0.7, 0.62), surfaceMat('metal', 0x2f4a36));
   const dumpLids = new Batch(geoBox(1.12, 0.05, 0.64), lam(0x1f2a22));
   const bags = new Batch(own(new THREE.IcosahedronGeometry(0.17, 0)), lam(0x1c1c1f, { flatShading: true }));
   {
@@ -1847,7 +1847,12 @@ export function buildCity(scene: THREE.Scene) {
     // The back door onto the yard (east wall) with a bare bulb over it.
     const fe = face(r, 'e');
     kit.door(fe, uOf(fe, THRIFT_YARD.y0 + 2.5), { w: 0.75, h: 1.2, color: 0x6a5a4a, light: 'bulb' });
-    const fade: Fadeable = { walls, mats: [mBrick], props: roofParts, opacity: 1 };
+    // v0.60: a storey of flats on top (at the new scale it was barely one and a half floors).
+    const flats = apartments(r, HT + 0.12, 1, 0x8a5040, 0x4a3028);
+    const fade: Fadeable = {
+      walls, mats: [mBrick], props: [...roofParts, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    };
     fadeables.push(fade);
 
     // The yard.
