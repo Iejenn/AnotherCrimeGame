@@ -1035,6 +1035,18 @@ game's camera, in our gritty dusk colours. Nothing smooth or detailed next to so
 - **Scale:** 1 unit = 1 tile. A person is about 1.2 tall, a rat about 0.6 long (without its tail), a car 2.5 long.
   Models stand on the floor at their origin.
 
+### The quality bar (v0.62, the owner: "this is the quality we need")
+The burst pipe in the bar (`buildBurstPipe`, props.ts) is the reference. Low-poly still, but never flat and boxy:
+- **Real shapes, not stand-ins.** Follow the thing's actual form (a curved stream along an arc, not cones; a jagged
+  puddle outline, not a disc). Use the right three.js geometry: tubes along curves, extruded or lathed shapes, shapes
+  with irregular outlines.
+- **Layers.** Build something from a few parts that read together: the stream plus a paler core, a big puddle plus two
+  small ones, a pipe with its break and a cap.
+- **Colour that reads.** Saturated, with a little emissive so it holds up in dim rooms; a lighter and a darker tone of
+  the same colour rather than one flat fill. Check it under the scene's real light (a screenshot), not in isolation.
+- **Movement where things move.** Water splashes, smoke rises, lights flicker: a small animate function, cheap.
+- **Look at a reference** (old-school RuneScape screenshots) before building, and compare the screenshot with it.
+
 ### The floor kit (v0.55, `src/street/floor.ts`; preview `scripts/preview/floor.html`)
 The ground, drawn from a grid of surfaces (asphalt, sidewalk, grass, gravel, paving, dirt, concrete, sand, water): each
 at its own height with a side where it stands above its neighbour (curbs, lawn edges, the beach's drop), corners rounded
