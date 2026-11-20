@@ -36,6 +36,8 @@ interface WalkRow {
   from_y: number;
   path: [number, number][];
   started_at: string;
+  /** v0.60: running this route. */
+  run?: boolean;
 }
 
 export function useWorld(
@@ -46,7 +48,7 @@ export function useWorld(
   onFight: (fn: (events: FightEvent[]) => void) => () => void,
 ): WorldLink {
   /** Routes heard live (newer than the last roster), by player id. */
-  const routes = useRef(new Map<string, { from: [number, number]; path: [number, number][]; at: number }>());
+  const routes = useRef(new Map<string, { from: [number, number]; path: [number, number][]; at: number; run?: boolean }>());
   /** What everyone is doing (working, stunned, fighting) and their health: public.player_status, kept live. */
   const status = useRef(new Map<string, OtherStatus>());
 
@@ -76,7 +78,7 @@ export function useWorld(
       .on('postgres_changes', { event: '*', schema: 'public', table: 'walks' }, (msg) => {
         const r = msg.new as Partial<WalkRow>;
         if (!r?.player_id || r.player_id === userId) return;
-        routes.current.set(r.player_id, { from: [r.from_x!, r.from_y!], path: r.path ?? [], at: Date.parse(r.started_at!) });
+        routes.current.set(r.player_id, { from: [r.from_x!, r.from_y!], path: r.path ?? [], at: Date.parse(r.started_at!), run: !!r.run });
         // Someone we don't know yet: ask the server who it is.
         if (!roster.current.some((p) => p.id === r.player_id)) refresh();
       })
@@ -86,9 +88,10 @@ export function useWorld(
     };
   }, [userId, roster, refresh]);
 
-  const move = useCallback((from: [number, number], path: [number, number][]) => {
+  const move = useCallback((from: [number, number], path: [number, number][], run = false) => {
     // (A Supabase call only goes out once something waits for its answer, hence the .then.)
-    supabase.rpc('walk', { p_from_x: from[0], p_from_y: from[1], p_path: path }).then(() => undefined);
+    // (v0.60: walk_to, with whether you run it, so the others see you run.)
+    supabase.rpc('walk_to', { p_from_x: from[0], p_from_y: from[1], p_path: path, p_run: run }).then(() => undefined);
   }, []);
 
   return useMemo(
@@ -98,7 +101,7 @@ export function useWorld(
         roster.current.map((p) => {
           const live = routes.current.get(p.id);
           const r = live && live.at >= p.at ? live : p;
-          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at, equipment: p.equipment, style: p.style, combat: p.combat, status: status.current.get(p.id) };
+          return { id: p.id, name: p.name, look: p.look, from: r.from, path: r.path, at: r.at, run: !!r.run, equipment: p.equipment, style: p.style, combat: p.combat, status: status.current.get(p.id) };
         }),
       move,
       myId: userId,

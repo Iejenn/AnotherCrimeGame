@@ -389,7 +389,7 @@ export function buildCharacter(look: Look, extra?: Outfit): THREE.Group {
   return root;
 }
 
-export type Pose = 'idle' | 'walk' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing' | 'punch' | 'stab' | 'throw';
+export type Pose = 'idle' | 'walk' | 'run' | 'work' | 'stunned' | 'sit' | 'sitFloor' | 'swing' | 'punch' | 'stab' | 'throw';
 /** When the knife leaves the hand in the 'throw' pose (how far through it, 0–1). */
 export const THROW_RELEASE = 0.55;
 /** Walking speed the walk cycle is tuned for (tiles a second): the feet keep pace with the ground at this speed. */
@@ -518,6 +518,27 @@ export function animateCharacter(g: THREE.Group, pose: Pose, t: number, phase = 
     twist = -sw * 0.07;
     headTurn = -twist * 0.8;
     lean = 0.05;
+  } else if (pose === 'run') {
+    // Running (v0.60): twice the walking pace, so longer strides (about 1.1 tiles a step) at a quicker beat; the knee
+    // lifts high as the leg swings through and kicks back behind, the elbows bent at about a right angle and the arms
+    // pumping from the shoulder, a clear lean forward, more bounce (in the air between steps).
+    const speed = p > 0 ? p : WALK_PACE * 2;
+    const ph = s * speed * ((2 * Math.PI) / 2.2);
+    const sw = Math.sin(ph);
+    const cw = Math.cos(ph);
+    legSwing = sw * 0.72;
+    const bend = (x: number) => 0.15 + 1.25 * Math.pow(Math.max(0, -Math.cos(x - 0.2)), 1.2);
+    kneeL = bend(ph);
+    kneeR = bend(ph + Math.PI);
+    armL = -sw * 0.75;
+    armR = sw * 0.75;
+    elbowL = -1.35;
+    elbowR = -1.35;
+    bob = Math.abs(cw) * 0.07;
+    wobble = cw * 0.02;
+    twist = -sw * 0.12;
+    headTurn = -twist * 0.8;
+    lean = 0.17;
   } else if (pose === 'work') {
     // Reach forward with the right hand, little dips.
     armR = -0.8 + Math.sin(s * 9) * 0.3;

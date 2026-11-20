@@ -35,3 +35,10 @@ test('0042 is the chase as the game does it', async () => {
   const sql = (await import('../../supabase/migrations/0042_simple_chase.sql?raw')).default as string;
   expect(sql === chaseSql()).toBe(true);
 });
+
+// v0.60: running (0044) is exactly what scripts/running-sql.ts prints from the game's stamina numbers.
+test('0044 is running as the game does it', async () => {
+  const { runningSql } = await import('../../scripts/running-sql');
+  const sql = (await import('../../supabase/migrations/0044_running.sql?raw')).default as string;
+  expect(sql === runningSql()).toBe(true);
+});

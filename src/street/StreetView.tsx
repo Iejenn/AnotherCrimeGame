@@ -14,6 +14,8 @@ import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '
 import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
 import { BAR_FACING, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { RUN_MULT, drainPerTile, regenPerSecond } from '../game/stamina';
+import { levelFromXp } from '../game/xp';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { clearShot, routeMs, routePoint } from './sight';
 import { rangedWeapon } from '../game/combat';
@@ -33,7 +35,7 @@ import { WorldMap } from './WorldMap';
 import { NpcDialog } from './NpcDialog';
 import { QuestDialog, isQuestNpc } from './QuestDialog';
 import { findPath, neighbors } from './pathfind';
-import { getPrefs } from '../game/prefs';
+import { getPrefs, onPrefs, setPrefs } from '../game/prefs';
 import { BALL_COLOR, Hoops } from './hoops';
 import { ChatBox } from './ChatBox';
 import type { ChatLink } from '../net/chat';
@@ -131,6 +133,8 @@ export interface OtherPlayer {
   from: [number, number];
   path: [number, number][];
   at: number;
+  /** v0.60: running this route (twice walking speed). */
+  run?: boolean;
   equipment?: Partial<Record<string, string>>;
   /** Melee or Marksman (v0.51): with Marksman they hold and throw their knives. */
   style?: string;
@@ -153,7 +157,7 @@ export interface OtherStatus {
 /** The shared world, online: who else is here, and how to tell them where you walk. */
 export interface WorldLink {
   others: () => OtherPlayer[];
-  move: (from: [number, number], path: [number, number][]) => void;
+  move: (from: [number, number], path: [number, number][], run?: boolean) => void;
   /** Your own player id. */
   myId: string;
   /** The enemies (shared by everyone), and the swings of your fight as the server rolls them. */
@@ -193,6 +197,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
   const floatsRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const eatRingRef = useRef<HTMLButtonElement>(null);
+  // v0.60: the run button (its ring shows your stamina, drawn by the loop) and whether running is on.
+  const runBtnRef = useRef<HTMLButtonElement>(null);
+  const [runOn, setRunOn] = useState(getPrefs().runOn);
+  useEffect(() => onPrefs((p) => setRunOn(p.runOn)), []);
   const sRef = useRef(s);
   sRef.current = s;
   const apiRef = useRef(api);
@@ -514,6 +522,33 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
       punchAt: 0,
     };
+    // ---------- running (v0.60): twice as fast, uses stamina; Dexterity makes a full bar last longer ----------
+    /** Your stamina (0–100) as this phone keeps it: the server's figure when it sends one (never more than that). */
+    const serverStamina = () => {
+      const v = sRef.current.stamina;
+      return v ? Math.min(100, v.value + Math.max(0, (gameNow() - v.at) / 1000) * regenPerSecond(false)) : 100;
+    };
+    let stamina = serverStamina();
+    let seenStamina = sRef.current.stamina;
+    const dexLevel = () => levelFromXp(sRef.current.skills.dexterity?.xp ?? 0);
+    const running = () => getPrefs().runOn && stamina > 0;
+    /** Tell the others (and the server) the rest of your route, walked or run. */
+    const announce = () => worldRef.current?.move(tileOf(me.pos.x, me.pos.z), me.path, running());
+    // Running turned on or off mid-route: the rest of it goes at the new pace.
+    let wasRunning = getPrefs().runOn;
+    const offRun = onPrefs((p) => {
+      if (p.runOn === wasRunning) return;
+      wasRunning = p.runOn;
+      if (me.path.length) announce();
+    });
+    /** Stamina comes back while you're not running: walking, or twice as fast standing still. */
+    const tickStamina = (dt: number) => {
+      if (sRef.current.stamina !== seenStamina) {
+        seenStamina = sRef.current.stamina;
+        stamina = Math.min(stamina, serverStamina());
+      }
+      if (!(running() && me.path.length)) stamina = Math.min(100, stamina + regenPerSecond(!me.path.length) * dt);
+    };
     /** Remember the tile you're on in the save (so switching tabs or reloading keeps you here). */
     const savePos = () => {
       const t = tileOf(me.pos.x, me.pos.z);
@@ -792,7 +827,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         return false;
       }
       me.path = path;
-      worldRef.current?.move(tileOf(me.pos.x, me.pos.z), path);
+      worldRef.current?.move(tileOf(me.pos.x, me.pos.z), path, running());
       me.goal = goal;
       me.goalNpc = npc;
       me.goalGrave = false;
@@ -1371,7 +1406,16 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     if (me.path.length) {
       const next = center(...me.path[0]);
       const d = next.clone().sub(me.pos);
-      const step = WALK_SPEED * dt;
+      const run = running();
+      const step = WALK_SPEED * (run ? RUN_MULT : 1) * dt;
+      if (run) {
+        stamina -= Math.min(step, d.length()) * drainPerTile(dexLevel());
+        // Out of breath: walk the rest (the button turns off; the others see you slow down).
+        if (stamina <= 0) {
+          stamina = 0;
+          setPrefs({ runOn: false });
+        }
+      }
       if (d.length() <= step) {
         me.pos.copy(next);
         me.path.shift();
@@ -1499,8 +1543,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         if (near) me.facing = Math.atan2(near.x + 0.5 - me.pos.x, near.y + 0.5 - me.pos.z);
       }
       const attacking = now < me.punchUntil ? (myRanged ? 'throw' : weaponAnim(st.equipment?.weapon)) : null;
-      const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? 'walk' : attacking ?? (working || cooking ? 'work' : 'idle');
-      animateCharacter(player, pose, now, 0, pose === 'walk' ? WALK_SPEED : (now - me.punchAt) / (me.punchUntil - me.punchAt));
+      const pose: Pose = stunned || (now < wakeUntil && !me.path.length) ? 'stunned' : me.path.length ? (running() ? 'run' : 'walk') : attacking ?? (working || cooking ? 'work' : 'idle');
+      animateCharacter(player, pose, now, 0, pose === 'walk' ? WALK_SPEED : pose === 'run' ? WALK_SPEED * RUN_MULT : (now - me.punchAt) / (me.punchUntil - me.punchAt));
       // A thrown knife has left your hand (it's in the air); and with none left there's nothing to hold.
       const held = player.getObjectByName('weapon');
       if (held) {
@@ -1812,20 +1856,21 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         // Where their route says they are now. We don't jump there: we glide (a bit faster than walking, so we
         // catch up), so a new route that starts from the middle of a tile, or a small clock correction, doesn't
         // make them hop. Only a big gap (they died and woke up at the start) snaps straight there.
-        const at = along(o.from, o.path, Math.max(0, ((gameNow() - o.at) / 1000) * WALK_SPEED));
+        const speed = WALK_SPEED * (o.run ? RUN_MULT : 1);
+        const at = along(o.from, o.path, Math.max(0, ((gameNow() - o.at) / 1000) * speed));
         const goal = new THREE.Vector3(at.x, 0, at.z);
         if (!e.pos || e.pos.distanceTo(goal) > 4) e.pos = goal.clone();
         const gap = goal.clone().sub(e.pos);
         const gliding = gap.length() > 0.03;
         if (gliding) {
-          e.pos.add(gap.clone().clampLength(0, WALK_SPEED * 1.35 * dt));
+          e.pos.add(gap.clone().clampLength(0, speed * 1.35 * dt));
           e.facing = Math.atan2(gap.x, gap.z);
         } else if (at.facing !== null && at.moving) e.facing = at.facing;
         // What they're doing (public.player_status): stunned, working a spot (facing it), or fighting (facing the enemy).
         const os = o.status;
         const t = gameNow();
         const moving = at.moving || gliding;
-        let pose: Pose = moving ? 'walk' : 'idle';
+        let pose: Pose = moving ? (o.run ? 'run' : 'walk') : 'idle';
         if (os && !moving) {
           if (os.stunnedUntil > t) pose = 'stunned';
           else if (os.fightEnemy) {
@@ -2171,6 +2216,11 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
       }
       // The quick-eat button's ring: how much of the current bite is left (1.5 s in a fight, 0.5 s otherwise).
+      tickStamina(dt);
+      if (runBtnRef.current) {
+        runBtnRef.current.style.setProperty('--stamina', String(stamina / 100));
+        runBtnRef.current.title = `Run (${Math.floor(stamina)}% stamina)`;
+      }
       if (eatRingRef.current) {
         const left = st.player.eatingUntil - gameNow();
         eatRingRef.current.style.setProperty('--eat', String(left > 0 ? Math.min(1, left / (st.fight ? 1500 : 500)) : 0));
@@ -2190,6 +2240,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       savePos();
       cancelAnimationFrame(raf);
       clearInterval(background);
+      offRun();
       off();
       offFight?.();
       ro.disconnect();
@@ -2237,6 +2288,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         </div>
         <canvas className="minimap" ref={miniRef} aria-label="Minimap: tap to walk there" />
         <StyleToggle s={s} api={api} say={(t) => sayRef.current(t)} />
+        {/* v0.60: run on/off; the ring round it is your stamina. */}
+        <button ref={runBtnRef} className={`run-btn ${runOn ? 'on' : ''}`} onClick={() => setPrefs({ runOn: !getPrefs().runOn })} aria-label={runOn ? 'Running: tap to walk' : 'Walking: tap to run'} aria-pressed={runOn}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="15" cy="4.5" r="2.2" fill="#e8dcc0" />
+            <path d="M13.5 8 L9.5 10.5 L7 9 M13.5 8 L12 13 L15.5 15.5 L14.5 20.5 M12 13 L9 16 L5 16.5 M13.5 8 L17 11 L20 10.5" fill="none" stroke="#e8dcc0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <button className="map-btn" onClick={() => setMapOpen(true)} aria-label="Open the world map" title="World map">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 6 L9 3.5 L15 6 L21 3.5 V18 L15 20.5 L9 18 L3 20.5 Z" fill="#e8dcc0" stroke="#141210" strokeWidth="1.4" strokeLinejoin="round" />

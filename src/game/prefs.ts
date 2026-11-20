@@ -4,14 +4,16 @@
 export interface Prefs {
   /** How far the minimap is zoomed out: 1 = the standard view, up to 3 (300%: three times as much ground across). */
   minimapZoom: number;
+  /** v0.60: running on (the button by the minimap); it turns itself off when your stamina runs out. */
+  runOn: boolean;
 }
 const KEY = 'underworld-prefs';
-const DEFAULTS: Prefs = { minimapZoom: 1 };
+const DEFAULTS: Prefs = { minimapZoom: 1, runOn: false };
 let current: Prefs = (() => {
   try {
     const raw = localStorage.getItem(KEY);
     const p = raw ? (JSON.parse(raw) as Partial<Prefs>) : {};
-    return { ...DEFAULTS, ...p, minimapZoom: Math.min(3, Math.max(1, Number(p.minimapZoom) || 1)) };
+    return { ...DEFAULTS, ...p, minimapZoom: Math.min(3, Math.max(1, Number(p.minimapZoom) || 1)), runOn: !!p.runOn };
   } catch {
     return { ...DEFAULTS };
   }

@@ -14,6 +14,7 @@ import type { GameApi } from '../game/api';
 import { gameNow, syncClock } from '../game/clock';
 import { CATCH_SECONDS, CRIME_BY_ID } from '../game/data/crimes';
 import { SKILL_BY_ID, SKILL_IDS } from '../game/data/skills';
+import { levelFromXp } from '../game/xp';
 import { firstSeen } from '../game/watchers';
 import { supabase } from './supabase';
 
@@ -105,6 +106,8 @@ export interface WorldEntry {
   from: [number, number];
   path: [number, number][];
   at: number;
+  /** v0.60: they're running this route (twice walking speed). */
+  run?: boolean;
 }
 
 /** Server reasons that the game explains itself already (or that need no message). */
@@ -164,6 +167,11 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     // Every skill the game knows, at 0 XP if the server doesn't send it (yet).
     // (v0.51: Gunfire became Marksman; an older server still calls it 'gunfire'.)
     skills: Object.fromEntries(SKILL_IDS.map((k) => [k, { xp: Number(((p.skills as Record<string, { xp: number } | undefined>)[k] ?? (k === 'marksman' ? (p.skills as Record<string, { xp: number } | undefined>).gunfire : undefined))?.xp ?? 0) }])) as GameState['skills'],
+    // v0.60: stamina comes with Dexterity (the server works it out on every move).
+    stamina: (() => {
+      const d = (p.skills as Record<string, { stamina?: number; staminaAt?: number } | undefined>).dexterity;
+      return d?.stamina !== undefined ? { value: Number(d.stamina), at: Number(d.staminaAt ?? 0) } : undefined;
+    })(),
     player: {
       job: p.job ? { ...p.job, pos: p.job.pos } : null,
       stunnedUntil: p.stunnedUntil,
@@ -233,6 +241,13 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       if (!a.player) return;
       const t = gameNow();
       const lines: LogEntry[] = (a.log ?? []).map((text) => ({ t, text, kind: /stunned|died|saw you|spotted|alarm/i.test(text) ? 'fail' : 'success' }));
+      // v0.60: Dexterity levels up as you move (the server adds the XP on every move, not in an action's report).
+      const dexBefore = levelFromXp(ref.current.skills.dexterity?.xp ?? 0);
+      const dexAfter = levelFromXp(Number((a.player.skills as Record<string, { xp: number } | undefined>).dexterity?.xp ?? 0));
+      if (dexAfter > dexBefore && ref.current.skills.dexterity) {
+        lines.unshift({ t, text: `Dexterity reached level ${dexAfter}!`, kind: 'success' });
+        a.report = { ...(a.report ?? {}), levelUps: [...((a.report?.levelUps as Report['levelUps']) ?? []), { skill: 'dexterity', level: dexAfter }] } as typeof a.report;
+      }
       ref.current = fromServer(a, [...lines.reverse(), ...ref.current.log].slice(0, 150));
       const report: Report = { ...emptyReport(), ...a.report } as Report;
       // A peck in a fight is not a stun: no screen shake or "Stunned!" (fight answers carry `events`). The damage
