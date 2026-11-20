@@ -23,6 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Trees with bark and branches and leafy, lumpy crowns, lumpy hedges, flowerbeds with real flowers, and new park benches, street lamps, fire hydrants, mailboxes, bins, newspaper boxes, dumpsters and crates.',
       'The Junkyard\'s crane is a real crawler crane now: tracks, a worn yellow cab, a striped counterweight, a lattice boom and a scrap magnet holding a crushed car.',
       'And Rex the guard dog has a proper home: plank walls, an arched door, a shingled roof, his name over the door, a chain, a food bowl and a chewed bone.',
+      'The Junkyard\'s ground is real dirt now (packed earth and pebbles), with oil puddles and tyre tracks running in from the gate.',
     ],
   },
   {

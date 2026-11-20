@@ -2440,9 +2440,53 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
     // (A bit higher than the block's pavement, so the two don't flicker through each other.)
-    add(geoBox(X1 - X0, 0.12, Z1 - Z0), lam(0x5a4a38), cx, 0.06, cz, false);
+    // (v0.62: the pixel dirt texture, laid by world position; oil stains as irregular puddles with a dull sheen.)
+    add(geoBox(X1 - X0, 0.12, Z1 - Z0), slam('dirt', 0x5a4a38), cx, 0.06, cz, false);
+    const oilMat = lam(0x1a1612, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    // Tyre tracks: two ruts curving in from the gate past the crane, darker packed dirt with tread marks across.
+    {
+      const tread = own(
+        canvasTex(16, 16, (g) => {
+          g.fillStyle = '#3a2c20';
+          g.fillRect(0, 0, 16, 16);
+          g.fillStyle = '#261c14';
+          for (let y = 0; y < 16; y += 4) g.fillRect(0, y, 16, 2);
+        }),
+      );
+      const rutMat = lam(0xc8c0b8, { map: tread, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      const path = new THREE.CatmullRomCurve3([new THREE.Vector3(X1, 0, Z0 + 4.6), new THREE.Vector3(X0 + 6.5, 0, Z0 + 4.2), new THREE.Vector3(X0 + 4.2, 0, Z0 + 2.6), new THREE.Vector3(X0 + 3.5, 0, Z0 + 1.2)]);
+      for (const off of [-0.32, 0.32]) {
+        const pts = path.getPoints(24);
+        const pos: number[] = [], uv: number[] = [];
+        pts.forEach((p, i) => {
+          const t = path.getTangent(i / 24);
+          const nx = -t.z, nz = t.x;
+          for (const side of [-0.09, 0.09]) {
+            pos.push(p.x + nx * (off + side), 0.123, p.z + nz * (off + side));
+            uv.push(side < 0 ? 0 : 1, i * 0.6);
+          }
+        });
+        const idx: number[] = [];
+        for (let i = 0; i < 24; i++) idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        const rut = new THREE.Mesh(own(geo), rutMat);
+        rut.receiveShadow = true;
+        scene.add(rut);
+      }
+    }
     for (let i = 0; i < 9; i++) {
-      const oil = add(own(new THREE.CircleGeometry(0.2 + rng() * 0.35, 8)), lam(0x2a2620), X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
+      const r = 0.2 + rng() * 0.35;
+      const sh = new THREE.Shape();
+      for (let k = 0; k <= 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const q = r * (0.7 + 0.45 * Math.abs(Math.sin(i * 4.7 + k * 2.3)));
+        k === 0 ? sh.moveTo(Math.cos(a) * q, Math.sin(a) * q) : sh.lineTo(Math.cos(a) * q, Math.sin(a) * q);
+      }
+      const oil = add(own(new THREE.ShapeGeometry(sh)), oilMat, X0 + 1 + rng() * 8, 0.125, Z0 + 1 + rng() * 8, false);
       oil.rotation.x = -Math.PI / 2;
     }
     // A tall corrugated fence all round (kit; every fourth sheet rusty), with the gate on the east.
