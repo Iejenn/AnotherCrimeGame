@@ -19,7 +19,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { crownClump, buildCrate, animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
+import { buildCrane, crownClump, buildCrate, animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -2525,20 +2525,16 @@ export function buildCity(scene: THREE.Scene) {
       m.position.set(f.x + 0.5 + dx, 0.1, f.y + 0.5 + dz);
       scene.add(m);
     }
-    // The crane: one model on its four tiles (a cab on tracks, a lattice boom up and over, a hook).
+    // The crane: one model on its four tiles (a crawler crane with a lattice boom and a scrap magnet).
     const crane = FIXTURES.filter((f) => f.kind === 'crane');
     if (crane.length) {
       const x = (Math.min(...crane.map((f) => f.x)) + Math.max(...crane.map((f) => f.x)) + 1) / 2;
       const z = (Math.min(...crane.map((f) => f.y)) + Math.max(...crane.map((f) => f.y)) + 1) / 2;
-      const yellow = lam(0xd8a02a, { flatShading: true });
-      for (const dz of [-0.6, 0.6]) add(geoBox(1.8, 0.35, 0.4), lam(0x2a2a2e), x, 0.18, z + dz);
-      add(geoBox(1.3, 0.9, 1.1), yellow, x, 0.8, z);
-      add(geoBox(0.5, 0.45, 0.04), lam(0x2a3a46), x + 0.3, 1.0, z + 0.56, false);
-      const boom = add(geoBox(0.22, 3.6, 0.22), yellow, x - 0.6, 2.4, z);
-      boom.rotation.z = 0.55;
-      const tip = new THREE.Vector3(x - 0.6 - Math.sin(0.55) * 1.8, 2.4 + Math.cos(0.55) * 1.8, z);
-      add(geoBox(0.02, 1.6, 0.02), lam(0x1a1a1e), tip.x, tip.y - 0.8, z, false);
-      add(geoBox(0.2, 0.25, 0.08), lam(0x3a3d42), tip.x, tip.y - 1.7, z, false);
+      // (v0.62, the quality bar: a props.ts model.)
+      const c = buildCrane();
+      c.position.set(x, 0.04, z);
+      c.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+      scene.add(c);
     }
   }
 

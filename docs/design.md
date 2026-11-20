@@ -1047,6 +1047,26 @@ The burst pipe in the bar (`buildBurstPipe`, props.ts) is the reference. Low-pol
 - **Movement where things move.** Water splashes, smoke rises, lights flicker: a small animate function, cheap.
 - **Look at a reference** (old-school RuneScape screenshots) before building, and compare the screenshot with it.
 
+### The model catalogue (reuse these before building new ones)
+Every model is a function that returns a `THREE.Group` standing on its origin; `props.test.ts` keeps each within its
+budget. See them side by side: `scripts/preview/gallery.html?set=street` or `?set=props`.
+- **Fire and water** (`props.ts`): `buildFire(size)` + `animateFire` (any fire: barrels, barbecues, braziers);
+  `buildPour({reach, drop, rise, r, wide, color, pipe, core})` + `animatePour` (any pouring liquid: fountains, outflow
+  pipes, leaks); `buildBurstPipe` + `animateBurstPipe`; `buildLilyPad`, `buildReeds`; `sludgeMaterial` +
+  `animateSludge` (flowing sewage); `buildMuck` (floating junk).
+- **Nature**: `crownClump(seed)` (a tree crown's lumpy clump, for the leaves texture with vertexColors);
+  `buildFlowerbed(seed)`; the park's trees and hedges in city.ts use these.
+- **Street** (`streetLife.ts`): `buildStreetLamp`, `buildHydrant`, `buildMailbox`, `buildBin(full)`, `buildNewsBoxes`,
+  `buildBench(len)`, `buildDumpster`, `buildTreePit`, `buildBusStop`, `buildBikeRack`.
+- **Props** (`props.ts`): `buildCrate(size)`, `buildBarbecue`, `buildCrane` (a vehicle), `buildWaterMain`,
+  `buildShopCounter(len, till)`, `buildFittingsShelf`, `buildWaterHeater(tall)`, `buildPlumbBench`, `buildPipeRack`,
+  `buildToolbox`, `buildPipeElbow`, `buildShelf('candy'|'gas')`, `buildScrapDumpster(metal)`; the Yard's
+  `buildContainer`, `buildRuinWall`, `buildRubble`, `buildStrippedCar`, `buildDiceCrate`, `buildLookout`,
+  `buildStringLights`.
+- **Pixel textures**: `surfaceMat(kind, colour)` (surfaces.ts: brick, plaster, wood, roof, stone, metal, grass, leaves,
+  bark) and the painters in props.ts (`texMat`: BRICK, WOOD, STEEL, PAINT, CONCRETE, PIPE_METAL, RUST_PIPE, ENAMEL,
+  MACHINE_YELLOW, HAZARD, TREAD, SLUDGE).
+
 ### The floor kit (v0.55, `src/street/floor.ts`; preview `scripts/preview/floor.html`)
 The ground, drawn from a grid of surfaces (asphalt, sidewalk, grass, gravel, paving, dirt, concrete, sand, water): each
 at its own height with a side where it stands above its neighbour (curbs, lawn edges, the beach's drop), corners rounded

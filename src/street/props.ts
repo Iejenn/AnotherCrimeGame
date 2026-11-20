@@ -1674,3 +1674,93 @@ export function buildCrate(s = 1): THREE.Group {
   }
   return g;
 }
+
+// ---------- the Junkyard's crane (v0.62, the quality bar) ----------
+/** Worn machine yellow: the paint in uneven patches, rust bleeding down from bolts, grime along the bottom. */
+const MACHINE_YELLOW: Painter = (g, rnd) => {
+  px(g, '#d8a02a', 0, 0, 32, 32);
+  for (let i = 0; i < 30; i++) px(g, rnd() < 0.5 ? '#c8902a' : '#e0ac3a', Math.floor(rnd() * 30), Math.floor(rnd() * 30), 2 + Math.floor(rnd() * 3), 2);
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rnd() * 30), y = Math.floor(rnd() * 16);
+    px(g, '#8a4a22', x, y, 2, 2);
+    px(g, '#9a5a2a', x, y + 2, 1, 4 + Math.floor(rnd() * 8));
+  }
+  for (let x = 0; x < 32; x++) if (rnd() < 0.7) px(g, '#5a4a2a', x, 28 + Math.floor(rnd() * 3), 1, 4);
+};
+/** Hazard stripes (a counterweight's back): yellow and black diagonals. */
+const HAZARD: Painter = (g) => {
+  px(g, '#d8a02a', 0, 0, 32, 32);
+  for (let k = -32; k < 32; k += 8) for (let y = 0; y < 32; y++) px(g, '#1e1e22', k + y, y, 4, 1);
+};
+/** Crawler tread: plates across, dark rubber and steel. */
+const TREAD: Painter = (g) => {
+  px(g, '#2a2a2e', 0, 0, 32, 32);
+  for (let x = 0; x < 32; x += 4) px(g, '#45454a', x, 0, 2, 32);
+};
+
+/**
+ * A scrapyard crawler crane (a vehicle: 800 tris at most): two crawler tracks (a rounded outline pushed out, tread
+ * texture, wheels), a turntable, the cab in worn machine yellow with dark windows and an exhaust stack, a hazard-striped
+ * counterweight at the back, a lattice boom (two chords, zig-zag bracing) reaching up and out over -x, a cable down to a
+ * scrap magnet holding a crushed car. Its tracks run along x; it stands on its origin, about 2 tiles square. ~620 tris.
+ */
+export function buildCrane(): THREE.Group {
+  const g = new THREE.Group();
+  const yellow = texMat('machineyellow', MACHINE_YELLOW, 1, 1, 0xd8a02a);
+  const steel = 0x3a3d42;
+  // The tracks: a stadium outline (round ends) pushed out to the track's width; three wheels showing on the outside.
+  const track = new THREE.Shape();
+  const L = 0.8, R = 0.17;
+  track.moveTo(-L, 0);
+  track.lineTo(L, 0);
+  track.absarc(L, R, R, -Math.PI / 2, Math.PI / 2, false);
+  track.lineTo(-L, 2 * R);
+  track.absarc(-L, R, R, Math.PI / 2, Math.PI * 1.5, false);
+  const trackGeo = new THREE.ExtrudeGeometry(track, { depth: 0.36, bevelEnabled: false, curveSegments: 3 });
+  for (const z of [-0.72, 0.36]) {
+    addTex(g, trackGeo, texMat('tread', TREAD, 1, 1, 0x2a2a2e), 0, 0, z);
+    for (const x of [-0.75, 0, 0.75]) add(g, cylGeo(0.12, 0.04, 6).rotateX(Math.PI / 2), steel, x, R, z < 0 ? z - 0.02 : z + 0.38, false);
+  }
+  // The turntable, the cab (a house with a sloped back), its windows, the counterweight, the exhaust.
+  add(g, cylGeo(0.5, 0.12, 8), steel, 0, 0.4, 0);
+  const cab = new THREE.Shape([new THREE.Vector2(-0.55, 0), new THREE.Vector2(0.6, 0), new THREE.Vector2(0.6, 0.55), new THREE.Vector2(0.15, 0.85), new THREE.Vector2(-0.55, 0.85)]);
+  const cabGeo = new THREE.ExtrudeGeometry(cab, { depth: 0.95, bevelEnabled: false, curveSegments: 1 });
+  addTex(g, cabGeo, yellow, 0, 0.46, -0.48);
+  const glass = new THREE.MeshLambertMaterial({ color: 0x2a3a46, emissive: 0x0a1a2a, emissiveIntensity: 0.4, flatShading: true });
+  const window1 = new THREE.Mesh(boxGeo(0.4, 0.3, 0.02), glass);
+  window1.position.set(-0.25, 1.05, 0.48);
+  g.add(window1);
+  const window2 = new THREE.Mesh(boxGeo(0.02, 0.28, 0.6), glass);
+  window2.position.set(-0.56, 1.05, 0);
+  g.add(window2);
+  addTex(g, boxGeo(0.35, 0.6, 1.0), texMat('hazard', HAZARD, 1, 1, 0xd8a02a), 0.78, 0.76, 0); // the counterweight
+  add(g, cylGeo(0.04, 0.45, 6), 0x2b2b2e, 0.4, 1.45, -0.35, false); // the exhaust
+  add(g, cylGeo(0.05, 0.06, 6), 0x1e1e22, 0.4, 1.7, -0.35, false);
+  // The boom: from a foot on the cab's front, up and out over -x. Two chords and zig-zag bracing between them.
+  const boom = new THREE.Group();
+  boom.position.set(-0.5, 0.95, 0);
+  boom.rotation.z = 0.75; // tilted out over -x
+  const BL = 3.4;
+  for (const z of [-0.13, 0.13]) {
+    for (const x of [-0.1, 0.1]) addTex(boom, boxGeo(0.05, BL, 0.05), yellow, x, BL / 2, z);
+  }
+  for (let i = 0; i < 8; i++) {
+    const y = 0.2 + i * 0.4;
+    const brace = boxAt(boom, 0.03, 0.42, 0.03, 0xb8862a, 0, y, (i % 2 ? 1 : -1) * 0.13, false);
+    brace.rotation.z = i % 2 ? 0.45 : -0.45;
+    const cross = boxAt(boom, 0.03, 0.26, 0.03, 0xb8862a, (i % 2 ? 1 : -1) * 0.1, y, 0, false);
+    cross.rotation.x = Math.PI / 2;
+  }
+  add(boom, cylGeo(0.08, 0.3, 8).rotateX(Math.PI / 2), steel, 0, BL, 0); // the sheave at the tip
+  g.add(boom);
+  // The cable from the tip down to the magnet, and a crushed car hanging under it.
+  boom.updateMatrix();
+  const tip = new THREE.Vector3(0, BL, 0).applyMatrix4(boom.matrix);
+  const drop = tip.y - 1.05;
+  add(g, boxGeo(0.02, drop, 0.02), 0x1a1a1e, tip.x, tip.y - drop / 2, 0, false);
+  add(g, cylGeo(0.32, 0.14, 10), 0x2b2b2e, tip.x, 1.0, 0);
+  add(g, cylGeo(0.26, 0.03, 10), 0x8a8f96, tip.x, 0.92, 0, false);
+  const car = addTex(g, boxGeo(0.9, 0.3, 0.55), texMat('paint', PAINT, 1, 1, 0x6a6e74), tip.x, 0.72, 0);
+  car.rotation.set(0.15, 0.4, 0.1);
+  return g;
+}

@@ -21,6 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'You can go inside Hotline Plumbing & Heating now: shelves of fittings, water heaters, the counter where Gus works, and the workshop at the back.',
       'Better graphics all over the city: real fires in the barrels and the barbecue (layered flames, embers, smoke), a proper brick barbecue with sausages on the grill, water pouring over the fountains in sheets, lily pads with flowers and reeds in the ponds, flowing sewage with floating junk, bubbles and outflow pipes.',
       'Trees with bark and branches and leafy, lumpy crowns, lumpy hedges, flowerbeds with real flowers, and new park benches, street lamps, fire hydrants, mailboxes, bins, newspaper boxes, dumpsters and crates.',
+      'The Junkyard\'s crane is a real crawler crane now: tracks, a worn yellow cab, a striped counterweight, a lattice boom and a scrap magnet holding a crushed car.',
     ],
   },
   {
