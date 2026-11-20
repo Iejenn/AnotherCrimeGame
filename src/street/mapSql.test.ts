@@ -31,3 +31,10 @@ test("the enemies' walk map is the live one plus 0041's rows", async () => {
     expect(live[y] === row || m0041.includes(`set masks = '${row}' where y = ${y};`), `row ${y}`).toBe(true);
   }
 });
+
+// v0.60: the simple chase (0042) is exactly what scripts/chase-sql.ts prints from the game's chase.
+test('0042 is the chase as the game does it', async () => {
+  const { chaseSql } = await import('../../scripts/chase-sql');
+  const sql = (await import('../../supabase/migrations/0042_simple_chase.sql?raw')).default as string;
+  expect(sql === chaseSql()).toBe(true);
+});

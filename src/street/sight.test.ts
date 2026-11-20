@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { clearShot, enemyRoute, routeMs, shotLine, SHOT_WALLS, walkMasks } from './sight';
-import { JUNKYARD, PARK, SEWER } from './map';
+import { clearShot, enemyChase, routeMs, shotLine, SHOT_WALLS, walkMasks } from './sight';
+import { JUNKYARD, PARK, SEWER, gi } from './map';
 
 describe('line of sight (v0.51)', () => {
   it('walks every tile a line touches, corners included', () => {
@@ -24,18 +24,23 @@ describe('line of sight (v0.51)', () => {
     expect(clearShot(JUNKYARD.x1 + 1, JUNKYARD.y0 + 2, JUNKYARD.x1 - 1, JUNKYARD.y0 + 2)).toBe(false);
   });
 
-  it('enemies walk round: open ground is a straight walk, the sewage channel goes via a bridge', () => {
+  it('enemies chase the simple way (v0.60): straight at you, stuck behind the sewage channel or a bench', async () => {
+    const { FIXTURES } = await import('./map');
     const masks = walkMasks();
-    // The park: 4 tiles straight, it stops next to you.
-    const r = enemyRoute(masks, [PARK.x0 + 1, PARK.y0 + 1], [PARK.x0 + 6, PARK.y0 + 1])!;
-    expect(r.length).toBe(4);
-    const [lx, ly] = r[r.length - 1];
-    expect(Math.max(Math.abs(lx - (PARK.x0 + 6)), Math.abs(ly - (PARK.y0 + 1)))).toBe(1);
-    // A rat on the north walkway, you right across the channel: much further than the 6 tiles across.
-    // (Relative to the sewer: it moved down with the bigger map in v0.54.)
-    const a: [number, number] = [SEWER.x0, SEWER.y0 + 2];
-    const across = enemyRoute(masks, a, [SEWER.x0, SEWER.y0 + 8])!;
-    expect(across.length).toBeGreaterThan(8);
-    expect(routeMs(a, across)).toBeGreaterThan(3000);
+    // The Plaza (paved, open): 4 tiles straight, it stops next to you.
+    const { PLAZA } = await import('./map');
+    const r = enemyChase(masks, [PLAZA.x0 + 1, PLAZA.y0 + 1], [PLAZA.x0 + 1, PLAZA.y0 + 6]);
+    expect(r.reached).toBe(true);
+    expect(r.route.length).toBe(4);
+    // A rat on the north walkway, you right across the channel: it walks to the water's edge and is stuck there.
+    const across = enemyChase(masks, [SEWER.x0, SEWER.y0 + 2], [SEWER.x0, SEWER.y0 + 8]);
+    expect(across.reached).toBe(false);
+    expect(across.route.length).toBeGreaterThan(0);
+    // You stand right behind a bench (a fixture that blocks walking, not throws), it comes straight at you: stuck.
+    const bench = FIXTURES.find((f) => f.kind === 'bench' && [-3, -2, -1, 1].every((d) => masks[gi(f.x, f.y + d)]))!;
+    const behind = enemyChase(masks, [bench.x, bench.y - 3], [bench.x, bench.y + 1]);
+    expect(behind.reached).toBe(false);
+    expect(behind.route[behind.route.length - 1]).toEqual([bench.x, bench.y - 1]);
+    expect(routeMs([bench.x, bench.y - 3], behind.route)).toBeGreaterThan(0);
   });
 });

@@ -697,7 +697,15 @@ Outside fights eating still takes half a second.
   enclosure (you only throw at things on your side of it), no tile off the map (the sewer's walls). Benches, cars and
   the sewage channel don't block. However close: no throwing through a fence from next to it. `src/street/sight.ts` and `game.clear_shot` take the
   exact same whole-number steps; the server's walls and enclosures are printed from the map (`scripts/marksman-sql.ts`).
-- **The enemy walks up to you** (2.5 tiles/s) the real way round, like you'd walk: only floors and roads, round the
+- **v0.60: enemies chase the simple way** (old-school RuneScape; replaces the next point): every step an enemy heads
+  straight for you, diagonally if it can; blocked, it tries the sideways step, then the up-or-down one; if none works
+  it's **stuck** and stays there, never swinging, until it dies ("The thug cannot get to you."). So you can throw at it
+  from behind a bench, a car, a dumpster or the sewage channel (they block walking, not throws): safespots are the
+  skill in ranged fighting, the knives (2 in 3 lost) the cost. A stuck enemy can't be hit in melee either; walk round
+  to it and attack again and it chases again from where it stands. Every enemy, pigeons too. Strolling around their
+  place (not chasing) they still walk round things. `enemyChase` in sight.ts and `game.enemy_chase` (0042,
+  `scripts/chase-sql.ts`) take the same steps; `scripts/chase-parity.ts` compares them.
+- *(Before v0.60)* **The enemy walked up to you** (2.5 tiles/s) the real way round, like you'd walk: only floors and roads, round the
   sewage channel (over a bridge), walls, fences and objects, through doors and gates (`enemyRoute` in sight.ts and
   `game.enemy_route` take the same steps over the same walk map). It stops on a tile it could step onto yours from
   and only starts swinging once there: the free throws meanwhile are what ranged buys you. If it has no way to reach

@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Throwing knives in the bag show their real stats now (max hit, speed, range and the Marksman level they need), not "+0 defence, Defense 11", and you Wield them instead of Wear.',
       "Thugs' hair no longer pokes through their hoods.",
+      'Enemies chase you the old-school way now: straight at you. Put a bench, a car, a dumpster or the sewage channel between you and them and they get stuck behind it, while your throwing knives fly right over. A stuck enemy never hits you, but you can only hit it at range: walk round to it to fight it up close.',
     ],
   },
   {
