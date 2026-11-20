@@ -1188,8 +1188,15 @@ export const PARKED_CARS: ParkedCar[] = (() => {
 export const parkedTiles = (c: ParkedCar): [number, number][] =>
   [0, 1, 2].map((i) => (c.along === 'x' ? [c.x + i, c.y] : [c.x, c.y + i]));
 
-/** Tiles you can't walk through: buildings, fixtures, fixed spots and parked cars. Streets, alleys, parks and shop floors are open. */
+/** Tiles you can't walk through: buildings, fixtures, fixed spots, parked cars, and (v0.63) the street furniture and
+ *  alley dumpsters. Streets, alleys, parks and shop floors are open. */
 export function buildBlocked(): Uint8Array {
+  const g = blockedWithoutProps();
+  for (const p of STREET_PROPS) g[gi(p.x, p.y)] = 1;
+  return g;
+}
+/** The same without the street furniture (it's placed on this). */
+export function blockedWithoutProps(): Uint8Array {
   const g = new Uint8Array(GRID.w * GRID.h);
   // Outside the island only the beach (v0.57), the sewer's walkways and its bridges are open; rocks on the beach are solid.
   for (let y = GRID.y0; y < GRID.y0 + GRID.h; y++)
@@ -1331,3 +1338,97 @@ export const AREAS: Area[] = [
     blurb: 'Meters full of quarters and cars with unlocked doors. A guard patrols with a flashlight.',
   },
 ];
+
+// ---------- street furniture and alley dumpsters (v0.63) ----------
+// They used to be scattered by the 3D city only, so you walked through them. Now they're placed here, on tiles, and
+// they block like any fixture (for enemies too: the server's walk map has them). Never next to a spot, a person, a
+// door or opening, a link, a cooking station or the spawn; and only where blocking the tile leaves every tile you
+// could reach still reachable (so a narrow sidewalk or an alley is never cut off).
+export type StreetPropKind = 'hydrant' | 'bin' | 'binfull' | 'mailbox' | 'newsbox' | 'bench' | 'bikerack' | 'alleydump';
+export interface StreetProp {
+  x: number;
+  y: number;
+  kind: StreetPropKind;
+  /** Which way it faces (the street side): a rotation about y. */
+  rot: number;
+}
+export const STREET_PROPS: StreetProp[] = (() => {
+  const g = blockedWithoutProps();
+  const rng = mulberry32(6363);
+  const keepClear = new Set<string>();
+  const clear = (x: number, y: number, r = 1) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) keepClear.add(`${x + dx},${y + dy}`);
+  };
+  for (const n of NODES) clear(n.x, n.y);
+  for (const p of NPCS) clear(p.x, p.y);
+  for (const e of ENCLOSURES) for (const o of e.openings) clear(...o.outside), clear(...o.inside);
+  for (const l of LINKS) clear(...l.at), clear(...l.to);
+  for (const st of STATIONS) clear(st.x, st.y);
+  clear(...SPAWN, 2);
+  clear(...WATER_MAIN);
+  // Everything reachable from the spawn (4 directions: if that stays connected, walking diagonally does too).
+  const reach = (): number => {
+    const seen = new Uint8Array(g.length);
+    const q: [number, number][] = [SPAWN];
+    seen[gi(...SPAWN)] = 1;
+    let n = 0;
+    while (q.length) {
+      const [x, y] = q.pop()!;
+      n++;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (!inGrid(nx, ny) || seen[gi(nx, ny)] || g[gi(nx, ny)] || !canStep(x, y, nx, ny)) continue;
+        seen[gi(nx, ny)] = 1;
+        q.push([nx, ny]);
+      }
+    }
+    return n;
+  };
+  let open = reach();
+  const out: StreetProp[] = [];
+  const tryPlace = (x: number, y: number, kind: StreetPropKind, rot: number) => {
+    // (Never on a special site or in a room or fenced place: the Yard, the Factory's, the park; where enemies roam.)
+    if (!inGrid(x, y) || x < 0 || y < 0 || x >= W || y >= H || g[gi(x, y)] || keepClear.has(`${x},${y}`) || inPark(x, y)) return false;
+    if ([TURF_SITE, FACTORY_SITE, ...ROOMS, ...ENCLOSURES.map((e) => e.rect)].some((r) => inRect(r, x, y))) return false;
+    g[gi(x, y)] = 1;
+    const now = reach();
+    if (now !== open - 1) {
+      g[gi(x, y)] = 0; // it would cut something off
+      return false;
+    }
+    open = now;
+    out.push({ x, y, kind, rot });
+    clear(x, y); // (never two side by side)
+    return true;
+  };
+  const furniture: StreetPropKind[] = ['hydrant', 'bin', 'mailbox', 'newsbox', 'bench', 'bikerack'];
+  // Per block side of the city's blocks: at two places along it, maybe a piece on the sidewalk tile next to the block.
+  for (let by = 0; by < BROWS; by++)
+    for (let bx = CITY_BX; bx < CITY_BX + CITY_COLS; bx++) {
+      const b = blockRect(bx, by);
+      const sides: [(t: number) => [number, number], number][] = [
+        [(t) => [b.x0 + t, b.y0 - 1], Math.PI],
+        [(t) => [b.x0 + t, b.y1 + 1], 0],
+        [(t) => [b.x0 - 1, b.y0 + t], -Math.PI / 2],
+        [(t) => [b.x1 + 1, b.y0 + t], Math.PI / 2],
+      ];
+      for (const [at, rot] of sides)
+        for (const t of [2, 6]) {
+          if (rng() < 0.5) continue;
+          let kind = furniture[Math.floor(rng() * furniture.length)];
+          if (kind === 'bin' && rng() < 0.3) kind = 'binfull';
+          tryPlace(...at(t), kind, rot);
+        }
+    }
+  // Alley dumpsters: in two lots out of three with free tiles (alleys and gaps between buildings), one dumpster.
+  for (const lot of LOTS) {
+    if (lot.kind !== 'buildings' || rng() < 0.35) continue;
+    const free: [number, number][] = [];
+    for (let y = lot.rect.y0; y <= lot.rect.y1; y++) for (let x = lot.rect.x0; x <= lot.rect.x1; x++) if (!g[gi(x, y)]) free.push([x, y]);
+    for (let k = 0; k < 4 && free.length; k++) {
+      const [x, y] = free.splice(Math.floor(rng() * free.length), 1)[0];
+      if (tryPlace(x, y, 'alleydump', rng() < 0.5 ? 0 : Math.PI / 2)) break;
+    }
+  }
+  return out;
+})();

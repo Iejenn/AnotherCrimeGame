@@ -1,7 +1,7 @@
 // The server's copy of the map is exactly what the generators print from the game's data. The newest migration that
-// rebuilds map tables is checked against today's map (v0.62: 0047). Older ones (0037–0043) are history: they ran,
+// rebuilds map tables is checked against today's map (v0.63: 0048). Older ones (0037–0047) are history: they ran,
 // and a later migration rebuilt what changed since.
-// If this fails after a change to the map: print it again only if 0047 isn't live yet; once it is, the change needs a
+// If this fails after a change to the map: print it again only if 0048 isn't live yet; once it is, the change needs a
 // new migration.
 import { expect, test } from 'vitest';
 
@@ -11,24 +11,24 @@ const load = async () => ({
   m0041: (await import('../../supabase/migrations/0041_bar_and_yard.sql?raw')).default as string,
 });
 
-// v0.60: 0041 is live (history now). v0.62: so is 0043 (the city at scale); the newest map migration is 0047 (the
-// quest "Pipe Dreams": Hotline's inside, the water main).
-test('0047 is the map as it is (Hotline inside, Pipe Dreams)', async () => {
-  const { pipeSql } = await import('../../scripts/pipe-sql');
+// v0.60: 0041 is live (history now). v0.62: so are 0043 and 0047; v0.63: the newest map migration is 0048 (the
+// street furniture and alley dumpsters are solid).
+const m0043 = async () => (await import('../../supabase/migrations/0043_city_scale.sql?raw')).default as string;
+const m0047 = async () => (await import('../../supabase/migrations/0047_pipe_dreams.sql?raw')).default as string;
+test('0048 is the map as it is (solid street furniture)', async () => {
+  const { propsSql } = await import('../../scripts/props-sql');
   const { m0038, m0040, m0041 } = await load();
-  const m0043 = (await import('../../supabase/migrations/0043_city_scale.sql?raw')).default as string;
-  const m0047 = (await import('../../supabase/migrations/0047_pipe_dreams.sql?raw')).default as string;
-  expect(m0047 === pipeSql(m0038, m0040, m0041, m0043)).toBe(true);
+  const m0048 = (await import('../../supabase/migrations/0048_street_props.sql?raw')).default as string;
+  expect(m0048 === propsSql(m0038, m0040, m0041, await m0043(), await m0047())).toBe(true);
 });
 
-// The enemies' walk map on the server: 0038's rows, 0040's and 0041's updates, 0043's patches, then 0047's. The
-// game's must match it exactly (the patches are written in the same way game.patch_row does).
-test("the enemies' walk map is the live one with 0047's patches", async () => {
+// The enemies' walk map on the server: 0038's rows, 0040's and 0041's updates, 0043's and 0047's patches, then 0048's.
+// The game's must match it exactly (the patches are written in the same way game.patch_row does).
+test("the enemies' walk map is the live one with 0048's patches", async () => {
   const { applyPatch, gameRows, rowPatch } = await import('../../scripts/city-sql');
-  const { liveAfter0043 } = await import('../../scripts/pipe-sql');
+  const { liveAfter0047 } = await import('../../scripts/props-sql');
   const { m0038, m0040, m0041 } = await load();
-  const m0043 = (await import('../../supabase/migrations/0043_city_scale.sql?raw')).default as string;
-  const live = liveAfter0043(m0038, m0040, m0041, m0043);
+  const live = liveAfter0047(m0038, m0040, m0041, await m0043(), await m0047());
   const game = gameRows();
   game.forEach((row, y) => expect(live[y] === row ? row : applyPatch(live[y], rowPatch(live[y], row)), `row ${y}`).toBe(row));
 });

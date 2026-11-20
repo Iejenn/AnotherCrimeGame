@@ -1,5 +1,5 @@
 // Prints supabase/migrations/0047_pipe_dreams.sql (v0.62): the quest "Pipe Dreams", and Hotline's inside.
-// Run: npx vite-node scripts/pipe-sql.ts > supabase/migrations/0047_pipe_dreams.sql
+// Run: npx vite-node scripts/print-sql.ts 0047 > supabase/migrations/0047_pipe_dreams.sql
 // (src/street/mapSql.test.ts checks the migration is exactly what this prints.)
 //
 // What it does (the SQL has no comments: Supabase's SQL editor mangles them, see 0041). Lines under 100 characters.
@@ -239,10 +239,4 @@ commit;
   for (const l of sql.split('\n')) if (l.length > 100) throw new Error(`line over 100 characters: ${l}`);
   if (/--/.test(sql.replace(/'[^']*'/g, ''))) throw new Error('a comment in the migration');
   return sql;
-}
-
-if (!process.env.VITEST) {
-  const fs = require('node:fs');
-  const m = (f: string) => fs.readFileSync(`supabase/migrations/${f}`, 'utf8');
-  process.stdout.write(pipeSql(m('0038_aluminium.sql'), m('0040_beach.sql'), m('0041_bar_and_yard.sql'), m('0043_city_scale.sql')));
 }

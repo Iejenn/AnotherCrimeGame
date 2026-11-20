@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.64.0',
+    date: '2026-11-20',
+    title: 'Fixes',
+    items: [
+      'Street furniture is solid now: you walk round benches, bins, hydrants, mailboxes, newspaper boxes, bike racks and the dumpsters in the alleys instead of through them (they never block a path you need).',
+    ],
+  },
+  {
     version: '0.63.0',
     date: '2026-11-20',
     title: 'Fixes',

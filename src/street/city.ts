@@ -12,7 +12,7 @@ import { DETAIL_GAIN, animateWater, waterTexture } from './textures';
 import { COAST_ROCKS, SHALLOWS, coastAt } from './coast';
 import {
   BAR, TURF_SITE, BCOLS, BLOCK_SIZE, BROWS, BUILDINGS, CANDY, COURT, ENCLOSURES, FIXTURES, GAS, H, LOTS, NODES, NPCS, PARK, PARKED_CARS, PARK_AREA, PARK_BLOCKS, PARK_BOUNDS, PLAZA, inPark, onParkPath, OLD_ROWS,
-  PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, gi, inRect, type Room,
+  PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, blockedWithoutProps, STREET_PROPS, gi, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SUPERSTORE, SUPERSTORE_GATE, SUPERSTORE_LOT, SUPERSTORE_YARD,
   CLUB, CLUB_DOOR, HOTLINE, HOTLINE_ROOM, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
@@ -455,8 +455,10 @@ export function buildCity(scene: THREE.Scene) {
   const dumpsters = new Batch(geoBox(1.1, 0.7, 0.62), surfaceMat('metal', 0x2f4a36));
   const dumpLids = new Batch(geoBox(1.12, 0.05, 0.64), lam(0x1f2a22));
   const bags = new Batch(own(new THREE.IcosahedronGeometry(0.17, 0)), lam(0x1c1c1f, { flatShading: true }));
+  // (v0.63: these are placed by map.ts now (STREET_PROPS: they block, and the server's walk map has them), drawn
+  // below. This still draws its random numbers, unused, so everything placed after it stays where it was.)
   {
-    const blocked = buildBlocked();
+    const blocked = blockedWithoutProps();
     // (The old map's lots first, in their old order, so their dumpsters stay put.)
     for (const lot of [...LOTS.filter((l) => l.by < OLD_ROWS), ...LOTS.filter((l) => l.by >= OLD_ROWS)]) {
       if (lot.kind !== 'buildings') continue;
@@ -471,7 +473,6 @@ export function buildCity(scene: THREE.Scene) {
       for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) bags.add(x + 0.2 + rng() * 0.6, 0.15, y + 0.2 + rng() * 0.6, 1, 0.8 + rng() * 0.3, 1, rng() * 3);
     }
   }
-  for (const b of [dumpsters, dumpLids, bags]) b.build(scene);
 
   // ---------- street life: cars parked along the curbs, and things on the sidewalks ----------
   for (const c of PARKED_CARS) {
@@ -500,14 +501,25 @@ export function buildCity(scene: THREE.Scene) {
             const x = side.x(t);
             const z = side.z(t);
             if (busy.has(`${Math.floor(x)},${Math.floor(z)}`)) continue;
-            const g = kinds[Math.floor(rng() * kinds.length)]();
-            if (onSite(x, z)) continue; // (none on the park's lawn; after its random pick, so the rest stay put)
-            g.position.set(x, 0.07, z);
-            g.rotation.y = side.rot;
-            scene.add(g);
+            // (v0.63: only its random numbers, see above; a bin also drew whether it's full.)
+            if (Math.floor(rng() * kinds.length) === 1) rng();
+            void side;
           }
         }
       }
+    }
+    // v0.63: the street furniture and alley dumpsters, where map.ts put them (on tiles, solid).
+    const build: Record<string, () => THREE.Object3D> = {
+      hydrant: () => L.buildHydrant(), bin: () => L.buildBin(false), binfull: () => L.buildBin(true), mailbox: () => L.buildMailbox(),
+      newsbox: () => L.buildNewsBoxes(), bench: () => L.buildBench(), bikerack: () => L.buildBikeRack(), alleydump: () => L.buildDumpster(),
+    };
+    for (const p of STREET_PROPS) {
+      const g = build[p.kind]();
+      g.position.set(p.x + 0.5, p.kind === 'alleydump' ? 0.075 : 0.07, p.y + 0.5);
+      g.rotation.y = p.rot;
+      if (p.kind === 'alleydump') g.scale.setScalar(0.7); // (fits its tile)
+      g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+      scene.add(g);
     }
     // A bus stop on the park's sidewalk, across from the candy store.
     const stop = L.buildBusStop();

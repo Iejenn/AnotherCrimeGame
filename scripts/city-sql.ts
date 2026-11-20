@@ -8,7 +8,7 @@
 //  - Anyone (anything on the ground, any grave) inside a building now is moved to the Plaza.
 //  - A guard undoes everything if the walk map, the walls or the drunks aren't exactly the game's.
 // No comments in the SQL itself (Supabase's SQL editor mangles them, see 0041). Lines under 100 characters.
-// Run: npx vite-node scripts/city-sql.ts > supabase/migrations/0043_city_scale.sql
+// Run: npx vite-node scripts/print-sql.ts 0043 > supabase/migrations/0043_city_scale.sql
 declare const process: { env: Record<string, string | undefined>; stdout: { write(s: string): void } };
 import { GH, H, NODES, SPAWN, W, gi } from '../src/street/map';
 import { SHOT_WALLS, walkMasks } from '../src/street/sight';
@@ -136,11 +136,4 @@ commit;
   for (const l of sql.split('\n')) if (l.length > 100) throw new Error(`line over 100 characters: ${l}`);
   if (/--/.test(sql.replace(/'[^']*'/g, ''))) throw new Error('a comment in the migration');
   return sql;
-}
-
-// (Only when run itself: v0.62's pipe-sql.ts imports its helpers.)
-if (!process.env.VITEST && ((process as unknown as { argv: string[] }).argv[1] ?? '').endsWith('city-sql.ts')) {
-  const fs = require('node:fs');
-  const read = (f: string) => fs.readFileSync(`supabase/migrations/${f}`, 'utf8');
-  process.stdout.write(citySql(read('0038_aluminium.sql'), read('0040_beach.sql'), read('0041_bar_and_yard.sql')));
 }
