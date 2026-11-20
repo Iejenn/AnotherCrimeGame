@@ -522,7 +522,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
       punchAt: 0,
     };
-    // ---------- running (v0.60): twice as fast, uses stamina; Dexterity makes a full bar last longer ----------
+    // ---------- running (v0.60): twice as fast, uses stamina; Fitness makes a full bar last longer ----------
     /** Your stamina (0–100) as this phone keeps it: the server's figure when it sends one (never more than that). */
     const serverStamina = () => {
       const v = sRef.current.stamina;

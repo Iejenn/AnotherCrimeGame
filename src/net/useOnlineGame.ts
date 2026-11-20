@@ -167,7 +167,7 @@ function fromServer(a: ServerAnswer, log: LogEntry[]): GameState {
     // Every skill the game knows, at 0 XP if the server doesn't send it (yet).
     // (v0.51: Gunfire became Marksman; an older server still calls it 'gunfire'.)
     skills: Object.fromEntries(SKILL_IDS.map((k) => [k, { xp: Number(((p.skills as Record<string, { xp: number } | undefined>)[k] ?? (k === 'marksman' ? (p.skills as Record<string, { xp: number } | undefined>).gunfire : undefined))?.xp ?? 0) }])) as GameState['skills'],
-    // v0.60: stamina comes with Dexterity (the server works it out on every move).
+    // v0.60: stamina comes with Fitness (the server works it out on every move).
     stamina: (() => {
       const d = (p.skills as Record<string, { stamina?: number; staminaAt?: number } | undefined>).dexterity;
       return d?.stamina !== undefined ? { value: Number(d.stamina), at: Number(d.staminaAt ?? 0) } : undefined;
@@ -241,11 +241,11 @@ export function useOnlineGame(first: ServerAnswer, onReplaced: () => void) {
       if (!a.player) return;
       const t = gameNow();
       const lines: LogEntry[] = (a.log ?? []).map((text) => ({ t, text, kind: /stunned|died|saw you|spotted|alarm/i.test(text) ? 'fail' : 'success' }));
-      // v0.60: Dexterity levels up as you move (the server adds the XP on every move, not in an action's report).
+      // v0.60: Fitness levels up as you move (the server adds the XP on every move, not in an action's report).
       const dexBefore = levelFromXp(ref.current.skills.dexterity?.xp ?? 0);
       const dexAfter = levelFromXp(Number((a.player.skills as Record<string, { xp: number } | undefined>).dexterity?.xp ?? 0));
       if (dexAfter > dexBefore && ref.current.skills.dexterity) {
-        lines.unshift({ t, text: `Dexterity reached level ${dexAfter}!`, kind: 'success' });
+        lines.unshift({ t, text: `Fitness reached level ${dexAfter}!`, kind: 'success' });
         a.report = { ...(a.report ?? {}), levelUps: [...((a.report?.levelUps as Report['levelUps']) ?? []), { skill: 'dexterity', level: dexAfter }] } as typeof a.report;
       }
       ref.current = fromServer(a, [...lines.reverse(), ...ref.current.log].slice(0, 150));
