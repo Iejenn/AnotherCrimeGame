@@ -1,4 +1,4 @@
-// Four copies of a character with a weapon, at 0%, 30%, 50% and 75% of a swing, seen from the game's camera angle.
+// Four copies of a character with a weapon, at 0%, 30%, 50% and 75% of a swing (or of a run cycle, ?pose=run), seen from the game's camera angle.
 import * as THREE from 'three';
 import { animateCharacter, buildCharacter } from '../../src/street/character';
 import { setGear } from '../../src/street/props';
@@ -18,7 +18,9 @@ scene.add(sun);
   const q = new URLSearchParams(location.search);
   const g = buildCharacter({ skin: 1, hair: Number(q.get('hair') ?? 1), hairColor: 1, top: 0, bottom: 1 }, q.get('hood') ? { hood: 0x4a4d52 } : undefined);
   setGear(g, { weapon });
-  animateCharacter(g, 'swing', 0, 0, p);
+  // (?pose=run: four moments of the run cycle instead of a swing.)
+  if (q.get('pose') === 'run') animateCharacter(g, 'run', p * 1000 * (2.2 / 4));
+  else animateCharacter(g, 'swing', 0, 0, p);
   g.position.set(i * 1.6 - 2.4, 0, 0);
   g.rotation.y = -0.5;
   scene.add(g);
