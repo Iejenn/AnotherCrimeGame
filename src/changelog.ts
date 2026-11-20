@@ -19,6 +19,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Quests show the levels we advise (never required): Sewer Problems advises combat level 5. Green when you have it, amber when you\'re below.',
       'A new quest, Pipe Dreams, no fighting needed: Gus at Hotline Plumbing & Heating has a bad back and the bar has a burst pipe. Talk to the bartender, find the water main, make a Pipe Elbow (tin salvage, pressed and bent at the Factory), fix the leak, turn the water back on. Reward: +50 Scrapping XP, +50 Tinkering XP and $50.',
       'You can go inside Hotline Plumbing & Heating now: shelves of fittings, water heaters, the counter where Gus works, and the workshop at the back.',
+      'Better graphics all over the city: real fires in the barrels and the barbecue (layered flames, embers, smoke), a proper brick barbecue with sausages on the grill, water pouring over the fountains in sheets, lily pads with flowers and reeds in the ponds, flowing sewage with floating junk, bubbles and outflow pipes.',
+      'Trees with bark and branches and leafy, lumpy crowns, lumpy hedges, flowerbeds with real flowers, and new park benches, street lamps, fire hydrants, mailboxes, bins, newspaper boxes, dumpsters and crates.',
     ],
   },
   {

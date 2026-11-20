@@ -19,7 +19,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
+import { crownClump, buildCrate, animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -330,26 +330,7 @@ export function buildCity(scene: THREE.Scene) {
     ].map((g) => g.toNonIndexed()), false)!,
   );
   const trunks = new Batch(trunkGeo, surfaceMat('bark', C.trunk));
-  const clump = (seed: number) => {
-    const g = new THREE.IcosahedronGeometry(0.42, 0);
-    const pos = g.attributes.position;
-    const col: number[] = [];
-    const v = new THREE.Vector3();
-    // Push each corner in or out (the same corner shared by faces moves together, so the clump stays closed).
-    const bump = (p: THREE.Vector3) => 0.85 + 0.3 * Math.abs(Math.sin(seed * 3.1 + p.x * 9.7 + p.y * 5.3 + p.z * 7.1));
-    for (let i = 0; i < pos.count; i++) {
-      v.fromBufferAttribute(pos, i);
-      v.multiplyScalar(bump(v));
-      v.y *= 0.85;
-      pos.setXYZ(i, v.x, v.y, v.z);
-      const k = 0.6 + 0.8 * ((v.y / 0.36 + 1) / 2) ** 1.3; // darker underneath, lighter on top
-      col.push(k, k, k);
-    }
-    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    g.computeVertexNormals();
-    return own(g);
-  };
-  const crownGeos = [clump(1), clump(2), clump(3)];
+  const crownGeos = [1, 2, 3].map((n) => own(crownClump(n))); // (props.ts: the tree pits' crowns too)
   const leafMats = C.leaves.map((c) => {
     const m = surfaceMat('leaves', c).clone();
     m.vertexColors = true;
@@ -2158,10 +2139,18 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Inside: the plate presses (west wall) and workbenches (east wall) are the stations (drawn below), crates at the
     // back, oil drums, and lamps hanging from the roof.
-    const wood = slam('wood', 0x7a5a3a); // (v0.60: wood grain)
     for (const f of FIXTURES.filter((x) => x.kind === 'crate' && inRect(FACTORY, x.x, x.y))) {
-      add(geoBox(0.85, 0.7, 0.85), wood, f.x + 0.5, 0.45, f.y + 0.5).rotation.y = rng() * 0.3;
-      if (rng() < 0.6) add(geoBox(0.7, 0.5, 0.7), wood, f.x + 0.5, 1.05, f.y + 0.5).rotation.y = rng() * 0.6;
+      // (v0.62: props.ts crates, planked and braced; same random numbers as the boxes they replace.)
+      const c = buildCrate(1.4);
+      c.position.set(f.x + 0.5, 0.1, f.y + 0.5);
+      c.rotation.y = rng() * 0.3;
+      scene.add(c);
+      if (rng() < 0.6) {
+        const top = buildCrate(1.1);
+        top.position.set(f.x + 0.5, 0.1 + 0.84, f.y + 0.5);
+        top.rotation.y = rng() * 0.6;
+        scene.add(top);
+      }
     }
     for (const [dx, dz] of [[0.4, 11.3], [9.5, 11.3]]) add(own(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 10)), lam(0x2e4a5a), X0 + dx, 0.4, Z0 + dz);
     const lampMat = lam(0xfff0c8, { emissive: 0xffe2a8, emissiveIntensity: 1.6 });
@@ -2969,12 +2958,12 @@ export function buildCity(scene: THREE.Scene) {
       links.push(lad);
     }
     // Crates and rubbish bags (the walkways' fixtures), and some junk lying about.
-    const wood = slam('wood', 0x6a4a2e); // (v0.60: wood grain)
     for (const f of FIXTURES) {
       if (f.kind === 'crate') {
-        const c = add(geoBox(0.72, 0.6, 0.72), wood, f.x + 0.5, D + 0.3, f.y + 0.5);
+        const c = buildCrate(1.15); // (v0.62: a props.ts crate)
+        c.position.set(f.x + 0.5, D, f.y + 0.5);
         c.rotation.y = rng() * 0.5 - 0.25;
-        add(geoBox(0.74, 0.06, 0.74), lam(0x4a3220), f.x + 0.5, D + 0.32, f.y + 0.5, false).rotation.y = c.rotation.y;
+        scene.add(c);
       } else if (f.kind === 'trash') {
         for (let i = 0; i < 3; i++) {
           const bag = add(own(new THREE.IcosahedronGeometry(0.22 + rng() * 0.06, 0)), lam(0x1e2022, { flatShading: true }), f.x + 0.3 + rng() * 0.4, D + 0.2, f.y + 0.3 + rng() * 0.4);

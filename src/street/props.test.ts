@@ -1,7 +1,8 @@
 // The Yard's hangout props (v0.58) stay within the triangle budgets of docs/design.md §18: a prop 300, a vehicle 800.
 import * as THREE from 'three';
+import * as SL from './streetLife';
 import { expect, test } from 'vitest';
-import { buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
+import { buildCrate, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
 
 const tris = (o: THREE.Object3D) => {
   let n = 0;
@@ -45,6 +46,15 @@ test('the hangout props are within budget', () => {
     ['reeds', buildReeds(1), 300],
     ['muck', buildMuck(3), 300],
     ['flowerbed', buildFlowerbed(1), 300],
+    ['crate', buildCrate(), 300],
+    ['street lamp', SL.buildStreetLamp(), 300],
+    ['hydrant', SL.buildHydrant(), 300],
+    ['mailbox', SL.buildMailbox(), 300],
+    ['bin (full)', SL.buildBin(true), 300],
+    ['bin', SL.buildBin(), 300],
+    ['newspaper boxes', SL.buildNewsBoxes(), 300],
+    ['bench', SL.buildBench(), 300],
+    ['dumpster', SL.buildDumpster(), 300],
   ];
   for (const [name, o, max] of props) expect(tris(o), name).toBeLessThanOrEqual(max);
 });

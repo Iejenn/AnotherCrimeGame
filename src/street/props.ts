@@ -1634,3 +1634,43 @@ export function buildFlowerbed(seed = 1): THREE.Group {
   }
   return g;
 }
+
+/**
+ * A tree crown's clump (v0.62): an icosahedron with its corners pushed in and out (`seed` picks the shape; a corner
+ * shared by faces moves with them, so it stays closed), a bit flattened, with vertex colours darker underneath and
+ * lighter on top (for a material with vertexColors and the leaves texture). Radius about 0.42. 20 tris.
+ */
+export function crownClump(seed: number): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(0.42, 0);
+  const pos = g.attributes.position;
+  const col: number[] = [];
+  const v = new THREE.Vector3();
+  const bump = (p: THREE.Vector3) => 0.85 + 0.3 * Math.abs(Math.sin(seed * 3.1 + p.x * 9.7 + p.y * 5.3 + p.z * 7.1));
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    v.multiplyScalar(bump(v));
+    v.y *= 0.85;
+    pos.setXYZ(i, v.x, v.y, v.z);
+    const k = 0.6 + 0.8 * ((v.y / 0.36 + 1) / 2) ** 1.3;
+    col.push(k, k, k);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** A wooden crate (v0.62): planked sides in the wood texture, darker edge boards framing each face, a diagonal brace
+ *  on the front and back, nail heads. `s`: its size (1 = 0.6 across). About 150 tris. */
+export function buildCrate(s = 1): THREE.Group {
+  const g = new THREE.Group();
+  const w = 0.6 * s;
+  addTex(g, boxGeo(w, w, w), texMat('wood', WOOD, 1, 1, 0x7a5a3a), 0, w / 2, 0);
+  const edge = 0x4a3220;
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) boxAt(g, 0.06 * s, w + 0.02, 0.06 * s, edge, (x * w) / 2, -0.01, (z * w) / 2, false);
+  for (const y of [0, w - 0.05 * s]) for (const z of [-1, 1]) boxAt(g, w, 0.05 * s, 0.03 * s, edge, 0, y, (z * w) / 2, false);
+  for (const z of [-1, 1]) {
+    const brace = boxAt(g, w * 1.25, 0.05 * s, 0.025 * s, edge, 0, w / 2 - 0.025 * s, (z * (w + 0.03 * s)) / 2, false);
+    brace.rotation.z = Math.PI / 4;
+  }
+  return g;
+}
