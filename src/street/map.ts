@@ -885,11 +885,11 @@ export const FIXTURES: Fixture[] = (() => {
   // The bar (v0.58: 5 wide, 10 deep). Layout (B = back bar with bottles, a = the bartender's aisle, c = the counter,
   // d = a drunk on a stool (a spot, see NODES), J = jukebox, P = pool table, T = table, D = door):
   //   B a c d J
+  //   B a c . .
   //   B a c d .
+  //   B a c . .
   //   B a c d .
-  //   B a c d .
-  //   B a c d .
-  //   B a c d .     (the aisle opens at its south end: the bartender comes out that way to catch you)
+  //   B a c . .     (the aisle opens at its south end: the bartender comes out that way to catch you)
   //   . . . . .
   //   T . P P T
   //   . . . . .
@@ -992,8 +992,9 @@ export const NODES: StreetNode[] = (() => {
   node('bag_1', 'gym_bags', COURT.x0 + 3, COURT.y0, { facing: 0 });
   // Four candy shelves along the back wall of the candy store.
   [0, 1, 3, 4].forEach((dx, i) => node(`candy_${i}`, 'candy_store', CANDY.x0 + dx, CANDY.y0, { facing: 0 }));
-  // Six drunks on stools along the bar, facing the counter (west). (v0.58: was three.)
-  for (let i = 0; i < 6; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + 3, BAR.y0 + i, { facing: -Math.PI / 2, seated: true });
+  // Three drunks along the bar, facing the counter (west), an empty stool between each two. (v0.58: six; v0.60: three
+  // again, for a quieter bar.)
+  for (let i = 0; i < 3; i++) node(`drunk_${i}`, 'pick_drunk', BAR.x0 + 3, BAR.y0 + i * 2, { facing: -Math.PI / 2, seated: true });
   // Five parking meters: three along the north edge of the north-east lot (facing in), two along the south edge.
   [0, 2, 4].forEach((dx, i) => node(`meter_${i}`, 'parking_meter', PARKING_NE.x0 + dx, PARKING_NE.y0, { facing: 0 }));
   [2, 6].forEach((dx, i) => node(`meter_${i + 3}`, 'parking_meter', PARKING_S.x0 + dx, PARKING_S.y1, { facing: Math.PI }));

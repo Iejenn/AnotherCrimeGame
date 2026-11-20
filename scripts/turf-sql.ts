@@ -2,23 +2,15 @@
 // the street between them included), and the server working out the roaming enemies' walks itself. From the game's map.
 // Run: npx vite-node scripts/turf-sql.ts > supabase/migrations/0041_bar_and_yard.sql
 // (src/street/mapSql.test.ts checks the migration is exactly what this prints.)
-declare const process: { env: Record<string, string | undefined>; stdout: { write(s: string): void } };
+declare const process: { env: Record<string, string | undefined>; argv: string[]; stdout: { write(s: string): void } };
 import { ENCLOSURES, GH, NODES, STATIONS, TURF_SITE, W, YARD, YARD_GATES, buildBlocked, gi, inRect } from '../src/street/map';
 import { SHOT_WALLS, walkMasks } from '../src/street/sight';
 import { ENEMIES, ENEMY_KINDS, RAT_MOVE_MS, RAT_WALK_MS, RAT_ZONES, ROAMS, THUG_MOVE_MS, THUG_PATCHES, THUG_TILES, THUG_WALK_MS, enemyAt } from '../src/game/enemies';
+import { liveWalkRows, shortLines } from './sqlkit';
+export { liveWalkRows, shortLines };
 
 const arr = (xs: number[]) => `array[${xs.join(',')}]`;
 
-/** The enemies' walk map as it's live: 0038's rows, with the rows 0040 updated. */
-export function liveWalkRows(m0038: string, m0040: string): string[] {
-  const out: string[] = [];
-  for (let y = 0; y < GH; y++) {
-    const upd = new RegExp(`set masks = '([0-9a-f]+)' where y = ${y};`).exec(m0040);
-    const base = new RegExp(`\\n  \\(${y}, '([0-9a-f]+)'\\)`).exec(m0038);
-    out.push(upd ? upd[1] : base![1]);
-  }
-  return out;
-}
 
 /** The game's walk map rows that aren't what's live. */
 export function changedWalkRows(live: string[]): [number, string][] {
@@ -85,26 +77,6 @@ function bareSql(sql: string): string {
   for (const l of out.split('\n')) if (l.length > 100) throw new Error('a line is longer than 100 characters: ' + l.slice(0, 160));
   if (/--/.test(out.replace(/'[^']*'/g, ''))) throw new Error('a comment is left in the migration');
   return out;
-}
-/** v0.58: no line over 100 characters (a long line got wrapped on its way into the SQL editor, which broke it): long
- *  hex strings become pieces joined with ||, and long lines break after a comma or a space outside quotes. */
-function shortLines(line: string): string {
-  line = line.replace(/'([0-9a-f]{80,})'/g, (_, hex: string) => (hex.match(/.{1,80}/g) as string[]).map((h) => `'${h}'`).join('\n  || ').replace(/^/, '\n  '));
-  return line
-    .split('\n')
-    .flatMap((l) => {
-      const out: string[] = [];
-      let cur = '';
-      let quoted = false;
-      for (const ch of l) {
-        cur += ch;
-        if (ch === "'") quoted = !quoted;
-        if (!quoted && (ch === ',' || ch === ' ') && cur.length > 60) out.push(cur.trimEnd()), (cur = '    ');
-      }
-      out.push(cur);
-      return out.filter((x, i) => i === 0 || x.trim());
-    })
-    .join('\n');
 }
 function turfSqlCommented(m0038: string, m0040: string): string {
   const S = TURF_SITE;

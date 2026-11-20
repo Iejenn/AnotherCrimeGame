@@ -249,7 +249,7 @@ district itself is for trading, later).
 - **The bar** (built; v0.58: in the Industrial zone, I-009, 5×10, next to the Yard): walk in like a shop. Dark wood, a
   red neon BAR sign, a long back bar of glowing bottles with a mirror along the west wall, the bartender's aisle, a long
   counter with beer taps and pendant lamps, a jukebox, a pool table and two small tables with candles at the front.
-  **Six drunks** sit on stools at the counter (tap one to pick his pocket: 3s, always works).
+  **Three drunks** (v0.60; six in v0.58) sit on stools at the counter, an empty stool between them (tap one to pick his pocket: 3s, always works).
   The **bartender** works behind the counter on a **fixed schedule** (the same for every player, see §11): every
   8.5s he **watches the room for 3.5–5s**, then **turns his back** for the rest, polishing bottles at one of three
   spots. Turning round takes 0.6s before he sees anything. His label says "watching" (red) or "back turned" (green).
