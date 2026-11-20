@@ -898,10 +898,40 @@ export function buildCity(scene: THREE.Scene) {
     /** Warm light inside. */
     light: number;
     height?: number;
+    /** v0.60: storeys of apartments on top (0: none, like the gas station's kiosk). */
+    flats?: number;
     /** How much higher the floor is (v0.58: the bar stands on its site's sidewalk slab, which is higher than a lot's). */
     lift?: number;
   }
   const rooms = new Map<string, Fadeable>();
+  /**
+   * v0.60: apartments on top of a one-storey building (the shops): `floors` storeys of flats over the rect, from
+   * `base` up: brick walls (the pixel texture), a window on every tile of every side on every floor (some lit, some
+   * with curtains; `skipFront` leaves the front's first floor clear for a shop sign), a roof and its parapet, air-con
+   * units. Returns the meshes (they hide with the roof when the shop fades, and with the cut-away).
+   */
+  const flatsRng = mulberry32(6060);
+  const apartments = (b: { x0: number; z0: number; x1: number; z1: number }, base: number, floors: number, color: number, trim: number, skipFront = 0) => {
+    const W = b.x1 - b.x0, D = b.z1 - b.z0, h = floors * FLOOR;
+    const before = scene.children.length;
+    const tx = own(brickTex.clone());
+    tx.repeat.set(Math.max(W, D), floors);
+    tx.needsUpdate = true;
+    const mWall = lam(color, { map: tx });
+    add(geoBox(W - 0.04, h, D - 0.04), [mWall, mWall, lam(C.roof), lam(C.roof), mWall, mWall], (b.x0 + b.x1) / 2, base + h / 2, (b.z0 + b.z1) / 2);
+    kit.parapet({ x0: b.x0 - 0.03, z0: b.z0 - 0.03, x1: b.x1 + 0.03, z1: b.z1 + 0.03 }, base + h + 0.02, lam(trim));
+    for (const side of ['n', 's', 'e', 'w'] as const) {
+      const f = face(b, side);
+      for (let fl = 0; fl < floors; fl++)
+        for (let u = 0.5; u < f.len; u += 1) {
+          if (side === 's' && fl === 0 && Math.abs(u - f.len / 2) < skipFront / 2) continue;
+          const lit = flatsRng() < 0.3;
+          kit.window(f, u, base + fl * FLOOR + 0.6, { w: 0.6, h: 0.85, lit, frame: 0x3a3430, behind: lit && flatsRng() < 0.4 ? CURTAINS[Math.floor(flatsRng() * CURTAINS.length)] : undefined });
+        }
+    }
+    for (let i = 0; i < 1 + Math.floor(W * D / 20); i++) kit.acUnit(b.x0 + 0.6 + flatsRng() * (W - 1.2), base + h, b.z0 + 0.6 + flatsRng() * (D - 1.2));
+    return scene.children.slice(before) as THREE.Mesh[];
+  };
   const shopShell = (r: Room, st: ShopStyle) => {
     const X0 = r.x0;
     const Z0 = r.y0;
@@ -931,8 +961,10 @@ export function buildCity(scene: THREE.Scene) {
       ...kit.awning(fs, (X1 - X0) / 2, DOOR + 0.3, X1 - X0 - 0.8, { color: st.stripe[0], light: st.stripe[1] }),
       ...kit.sign(fs, (X1 - X0) / 2, sh + 0.42, { text: st.sign, bg: st.signBg, fg: st.signFg, w: 3.2, h: 0.6, board: st.trim }),
       ...kit.drainpipe(fs, X1 - X0 - 0.08, sh),
-      ...[0, 1].flatMap((i) => kit.acUnit(cx - 1.5 + i * 2.4, sh, Z0 + 1.3)),
+      ...(st.flats ? [] : [0, 1].flatMap((i) => kit.acUnit(cx - 1.5 + i * 2.4, sh, Z0 + 1.3))),
     ];
+    // v0.60: apartments above the shop (the sign stays clear on the front's first floor).
+    const flats = st.flats ? apartments(box, sh + 0.12, st.flats, st.wall, st.trim, 3.6) : [];
     // Floor tiles.
     const checker = own(
       canvasTex(64, 64, (g) => {
@@ -955,7 +987,10 @@ export function buildCity(scene: THREE.Scene) {
     const lamp = new THREE.PointLight(st.light, 6, 6, 1.6);
     lamp.position.set(cx, sh - 0.2, cz);
     scene.add(lamp);
-    const fade: Fadeable = { walls: [...walls, ...trimBand], mats: [mWall, mTrim], props: [roof, ...front], opacity: 1 };
+    const fade: Fadeable = {
+      walls: [...walls, ...trimBand], mats: [mWall, mTrim], props: [roof, ...front, ...flats], opacity: 1,
+      cut: flats.length ? { height: sh + (st.flats ?? 0) * FLOOR, keep: sh, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false } : undefined,
+    };
     fadeables.push(fade);
     rooms.set(r.id, fade);
     return { X0, Z0, X1, Z1, cx, cz, t, doorX, sh };
@@ -1002,6 +1037,7 @@ export function buildCity(scene: THREE.Scene) {
     const { X1, Z0, t, doorX } = shopShell(STORE, {
       wall: 0xa89c86, trim: 0x2f6b40, stripe: ['#2f6b40', '#d8d0c0'], sign: 'GENERAL STORE', signBg: '#2f7a46',
       floor: ['#b9b2a4', '#8f877a'], light: 0xffc98a,
+      flats: 2,
     });
     // Shelves full of colourful goods, against the walls.
     const productColors = [0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8];
@@ -1037,6 +1073,7 @@ export function buildCity(scene: THREE.Scene) {
     const { Z0, t } = shopShell(WEAPONS, {
       wall: 0x4e5056, trim: 0x8a2f28, stripe: ['#2b2b2e', '#8a2f28'], sign: "RAY'S ARMS", signBg: '#141210', signFg: '#e2604c',
       floor: ['#6a6660', '#545049'], light: 0xffd8a8,
+      flats: 2,
     });
     const steel = lam(0x8a8f96);
     const wood = lam(0x6b4a2e);
@@ -1069,6 +1106,7 @@ export function buildCity(scene: THREE.Scene) {
     const { X1, Z0, Z1, t, doorX } = shopShell(CANDY, {
       wall: 0x9a6b74, trim: 0x6a2f4a, stripe: ['#b8336a', '#e8d8d0'], sign: 'CANDY', signBg: '#3a1424', signFg: '#ff7ab8',
       floor: ['#d8c4c8', '#a8848c'], light: 0xffb8d0,
+      flats: 2,
     });
     const { ccx, ccz } = counter(CANDY, 0xe8d8d0, 0x6a2f4a);
     // Glass candy jars on the counter.
@@ -1104,6 +1142,7 @@ export function buildCity(scene: THREE.Scene) {
     const { Z0, X0, X1, t } = shopShell(BAR, {
       wall: 0x4a3a30, trim: 0x2a1a14, stripe: ['#5a1a14', '#c8b8a0'], sign: 'BAR', signBg: '#14100c', signFg: '#ff5a3a',
       floor: ['#5a4232', '#46321f'], light: 0xffa060, lift: 0.035,
+      flats: 2,
     });
     const dark = lam(0x3a2418);
     const wood = lam(0x5a3a22);
@@ -1860,7 +1899,12 @@ export function buildCity(scene: THREE.Scene) {
     // A loading door at the back, onto the yard, with a bulb.
     const fn = face(r, 'n');
     kit.door(fn, uOf(fn, SUPERSTORE_YARD.x0 + 2.5), { style: 'shutter', w: 1.6, h: 1.4, color: 0xa8adb4, light: 'bulb' });
-    fadeables.push({ walls, mats: [mRender], props: [...props, ...sign, ...plate], opacity: 1 });
+    // v0.60: two storeys of flats over the store.
+    const flats = apartments(r, HT + 0.12, 2, 0xb8b0a4, 0x2a5a9a);
+    fadeables.push({
+      walls, mats: [mRender], props: [...props, ...sign, ...plate, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + 2 * FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    });
 
     // Shopping carts: a few in a corral at the parking spot, one left out on the sidewalk.
     const cartMetal = lam(0xb8bcc2);
@@ -2201,7 +2245,12 @@ export function buildCity(scene: THREE.Scene) {
       const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz - 3.6 + (i % 3) * 0.12, false);
       pipe.rotation.x = Math.PI / 2;
     }
-    const fade: Fadeable = { walls, mats: [mBrick, mRender], props: [...props, ...sign], opacity: 1 };
+    // v0.60: offices on top (one storey).
+    const flats = apartments({ x0: X0, z0: Z0, x1: X1, z1: Z1 }, HT + 0.12, 1, 0x7a4a3a, 0x5a3a2a);
+    const fade: Fadeable = {
+      walls, mats: [mBrick, mRender], props: [...props, ...sign, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    };
     fadeables.push(fade);
 
     // The yard: cracked concrete, a half-high brick wall with a coping, one opening on the east.
@@ -2488,7 +2537,12 @@ export function buildCity(scene: THREE.Scene) {
     const red = new THREE.PointLight(0xff4040, 4, 8, 1.4);
     red.position.set(cx, HT - 0.4, cz);
     scene.add(red);
-    const fade: Fadeable = { walls, mats: [mBrick], props, opacity: 1 };
+    // v0.60: the club's rooms upstairs (one storey).
+    const flats = apartments({ x0: X0, z0: Z0, x1: X1, z1: Z1 }, HT + 0.12, 1, 0x3e3430, 0x1e1a18);
+    const fade: Fadeable = {
+      walls, mats: [mBrick], props: [...props, ...flats], opacity: 1,
+      cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
+    };
     fadeables.push(fade);
     rooms.set(CLUB.id, fade);
   }

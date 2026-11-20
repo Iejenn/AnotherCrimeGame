@@ -1000,6 +1000,9 @@ tiles (about 4.4 m, a narrow town house): a lot is one building, or one 3 tiles 
 beside it. **The cut-away:** buildings on the camera's side of you (low on the screen) show only their ground floor
 (`updateCuts` in city.ts), like old-school RuneScape hiding the floors above; what's above the ground floor (windows,
 roof edge, rooftop clutter, drainpipes, a shop's apartments) is merged on its own so it can be hidden.
+**Shops have apartments on top** (`apartments()` in city.ts: brick, a window on every tile of every floor, a roof):
+Eddy's, Ray's, the candy store, the bar and the Superstore two storeys, Iron Saints MC and Hotline one; not the gas
+station's kiosk. They hide with the roof when you walk in, and with the cut-away.
 
 ### Triangle budgets (the maximum; less is better)
 | Kind | Examples | Max triangles |
