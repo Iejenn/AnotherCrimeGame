@@ -1351,3 +1351,134 @@ export function buildPipeElbow(): THREE.Group {
   add(g, cylGeo(0.085, 0.04, 8), 0xa8acb0, 0.12, 0.37, 0, false);
   return g;
 }
+
+// ---------- fire (v0.62, the quality bar: docs/design.md §18) ----------
+/**
+ * A fire (the burning barrels, the barbecue): teardrop flame tongues in three tones (deep orange outside, orange, a
+ * yellow core), each bent like a real flame and flickering on its own (animateFire), embers rising out of it, a wisp of
+ * dark smoke. `size` 1 is a barrel's fire (about 0.6 tall). Stands at its origin (the base of the flames). ~270 tris.
+ */
+export function buildFire(size = 1): THREE.Group {
+  const g = new THREE.Group();
+  const tongue = (r: number, h: number, bend: number) => {
+    // A teardrop profile (fat low down, a long tip), turned round (5 sides), then bent sideways towards the tip.
+    const pts = [[0.55, 0], [1, 0.22], [0.5, 0.62], [0, 1]].map(([a, b]) => new THREE.Vector2(a * r, b * h));
+    const geo = new THREE.LatheGeometry(pts, 5);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) + bend * (pos.getY(i) / h) ** 2);
+    geo.computeVertexNormals();
+    return geo;
+  };
+  const mat = (c: number, e: number, o: number) => new THREE.MeshLambertMaterial({ color: c, emissive: e, emissiveIntensity: 1.6, transparent: true, opacity: o, flatShading: true, depthWrite: false });
+  const layers: [number, number, number, number, number, number][] = [
+    // [count, radius, height, colour, emissive, opacity]
+    [3, 0.12, 0.55, 0xe8501a, 0xd8380a, 0.85],
+    [2, 0.09, 0.45, 0xff8a22, 0xff6a10, 0.9],
+    [1, 0.06, 0.32, 0xffe070, 0xffc030, 0.95],
+  ];
+  const flames: THREE.Mesh[] = [];
+  layers.forEach(([n, r, h, c, e, o], li) => {
+    const m = mat(c, e, o);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + li;
+      const f = new THREE.Mesh(tongue(r * size, h * size * (0.85 + ((i * 37) % 10) / 30), 0.08 * size * (i % 2 ? 1 : -1)), m);
+      f.position.set(Math.cos(a) * 0.07 * size * (li === 2 ? 0 : 1), 0, Math.sin(a) * 0.07 * size * (li === 2 ? 0 : 1));
+      f.rotation.y = a;
+      f.userData.phase = li * 1.3 + i * 2.1;
+      f.renderOrder = 2 + li;
+      flames.push(f);
+      g.add(f);
+    }
+  });
+  // Embers: little sparks drifting up and out, and smoke: dark puffs rising slowly above the flames.
+  const ember = new THREE.MeshLambertMaterial({ color: 0xffd080, emissive: 0xffa030, emissiveIntensity: 2, flatShading: true });
+  const embers: THREE.Mesh[] = [];
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(new THREE.TetrahedronGeometry(0.018 * size, 0), ember);
+    m.userData = { a: i * 1.9, p: i / 6 };
+    embers.push(m);
+    g.add(m);
+  }
+  const smoke = new THREE.MeshLambertMaterial({ color: 0x3a3634, transparent: true, opacity: 0.35, flatShading: true, depthWrite: false });
+  const puffs: THREE.Mesh[] = [];
+  for (let i = 0; i < 3; i++) {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 * size, 0), smoke.clone());
+    m.userData = { p: i / 3 };
+    puffs.push(m);
+    g.add(m);
+  }
+  g.userData = { flames, embers, puffs, size };
+  animateFire(g, 0);
+  return g;
+}
+/** A fire's flicker: each tongue stretches and sways on its own beat, embers rise and drift, smoke puffs climb, grow
+ *  and fade (`t`: seconds). */
+export function animateFire(g: THREE.Group, t: number) {
+  const { flames, embers, puffs, size } = g.userData as { flames: THREE.Mesh[]; embers: THREE.Mesh[]; puffs: THREE.Mesh[]; size: number };
+  for (const f of flames) {
+    const p = f.userData.phase as number;
+    const k = 0.82 + Math.sin(t * 9 + p) * 0.12 + Math.sin(t * 23 + p * 2) * 0.06;
+    f.scale.set(1 + (1 - k) * 0.6, k, 1 + (1 - k) * 0.6);
+    f.rotation.z = Math.sin(t * 5 + p) * 0.12;
+  }
+  embers.forEach((m) => {
+    const k = (t * 0.7 + (m.userData.p as number)) % 1;
+    const a = (m.userData.a as number) + k * 2;
+    m.position.set(Math.cos(a) * 0.12 * size * k, (0.25 + k * 0.75) * size, Math.sin(a) * 0.12 * size * k);
+    m.visible = k < 0.9;
+  });
+  puffs.forEach((m) => {
+    const k = (t * 0.25 + (m.userData.p as number)) % 1;
+    m.position.set(Math.sin(k * 3) * 0.06 * size, (0.55 + k * 0.9) * size, Math.cos(k * 2) * 0.05 * size);
+    m.scale.setScalar(0.6 + k * 1.4);
+    (m.material as THREE.MeshLambertMaterial).opacity = 0.35 * (1 - k);
+  });
+}
+
+/**
+ * The park's brick barbecue (v0.62, the quality bar): a brick base with an arched firebox in its front (+z) glowing with
+ * coals, stone ledges either side, a grill on top with three sausages on it, a chimney with a cap at the back, a bag of
+ * charcoal leaning on it. The fire itself is buildFire, placed on the grill by city.ts. About 260 tris.
+ */
+export function buildBarbecue(): THREE.Group {
+  const g = new THREE.Group();
+  const brick = texMat('brick', BRICK, 1, 1, 0x8a5040);
+  addTex(g, boxGeo(0.95, 0.6, 0.7), brick, 0, 0.3, 0);
+  // The firebox: an arch cut into the front (a dark opening with glowing coals at its bottom).
+  const arch = new THREE.Shape();
+  arch.moveTo(-0.22, 0);
+  arch.lineTo(0.22, 0);
+  arch.lineTo(0.22, 0.2);
+  arch.quadraticCurveTo(0, 0.36, -0.22, 0.2);
+  arch.closePath();
+  const hole = new THREE.Mesh(new THREE.ShapeGeometry(arch, 3), lambert(0x1a1210));
+  hole.position.set(0, 0.06, 0.352);
+  g.add(hole);
+  const coals = new THREE.MeshLambertMaterial({ color: 0x3a1a10, emissive: 0xff5a1a, emissiveIntensity: 1.4, flatShading: true });
+  for (let i = 0; i < 3; i++) {
+    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.055, 0), coals);
+    c.position.set(-0.11 + i * 0.11, 0.09, 0.32);
+    g.add(c);
+  }
+  // Stone ledges either side of the grill, and the grill: a dark frame, bars across, glowing coals under them.
+  const stone = texMat('concrete', CONCRETE, 1, 1, 0x7a766e);
+  for (const x of [-0.39, 0.39]) addTex(g, boxGeo(0.2, 0.06, 0.76), stone, x, 0.63, 0);
+  boxAt(g, 0.58, 0.02, 0.6, 0x2a1a14, 0, 0.6, 0, false);
+  const glow = new THREE.Mesh(boxGeo(0.54, 0.01, 0.56), coals);
+  glow.position.set(0, 0.625, 0);
+  g.add(glow);
+  for (let i = 0; i < 4; i++) boxAt(g, 0.02, 0.025, 0.58, 0x3a3d42, -0.21 + i * 0.14, 0.66, 0, false);
+  // Three sausages browning on the grill.
+  for (let i = 0; i < 3; i++) {
+    const s = add(g, cylGeo(0.03, 0.2, 6), [0x8a3a22, 0x9a4a2a, 0x7a3220][i], -0.15 + i * 0.13, 0.7, 0.12, false);
+    s.rotation.z = Math.PI / 2;
+    s.rotation.y = 0.15 * (i - 1);
+  }
+  // The chimney at the back, with a cap; the charcoal bag.
+  addTex(g, boxGeo(0.3, 0.65, 0.22), brick, 0, 0.6 + 0.325, -0.26);
+  addTex(g, boxGeo(0.38, 0.05, 0.3), stone, 0, 1.28, -0.26);
+  const bag = boxAt(g, 0.26, 0.36, 0.14, 0x4a3a2a, 0.62, 0, 0.22);
+  bag.rotation.y = -0.3;
+  boxAt(bag, 0.18, 0.08, 0.01, 0xe0b23a, 0, 0.06, 0.075, false); // its label
+  return g;
+}

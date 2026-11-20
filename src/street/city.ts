@@ -18,7 +18,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
+import { animateFire, buildBarbecue, buildFire, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -1388,19 +1388,18 @@ export function buildCity(scene: THREE.Scene) {
   shopFronts();
 
   // Fires that flicker (the Yard's barrel, the barbecue): animate() moves them every frame.
-  const flames: THREE.Mesh[] = [];
+  const fires: THREE.Group[] = [];
   const fireLights: THREE.PointLight[] = [];
 
   /**
    * A burning oil drum (the Yard's, and the sewer's for cooking). v0.54, reworked: a rusty steel drum with a rolled rim
    * and two bulging hoops, rust patches and soot round the top, glowing coals and charred sticks inside, tall layered
-   * flames (orange outside, yellow inside) with a few sparks, and a flickering light. About 290 triangles (prop budget: 300).
+   * flames (v0.62: buildFire, props.ts), and a flickering light.
    */
   const burningBarrel = (x: number, y0: number, z: number) => {
     // (Its own random numbers: the city's shared ones stay as they were, so nothing placed after it moves; the old drum
     // used 10.)
     for (let i = 0; i < 10; i++) rng();
-    const rnd = mulberry32(Math.round(x * 97 + z * 13));
     const steel = lam(0x8a5232, { side: THREE.DoubleSide });
     const rim = lam(0x5a3420);
     // The drum, open at the top (you look into the fire), the rolled rim and the two hoops standing out from it.
@@ -1423,16 +1422,11 @@ export function buildCity(scene: THREE.Scene) {
       const s = add(geoBox(0.05, 0.42, 0.05), stick, x + Math.sin(a) * 0.12, y0 + 0.88, z + Math.cos(a) * 0.12, false);
       s.rotation.set(Math.cos(a) * tilt, 0, -Math.sin(a) * tilt);
     }
-    // The flames: three tall orange ones round the edge, two yellow ones in the middle; and sparks above them.
-    const outer = lam(0xff7a22, { emissive: 0xff5a10, emissiveIntensity: 1.7, transparent: true, opacity: 0.9 });
-    const inner = lam(0xffd04a, { emissive: 0xffb020, emissiveIntensity: 1.8, transparent: true, opacity: 0.95 });
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.1 + rnd() * 0.6;
-      flames.push(add(own(new THREE.ConeGeometry(0.11, 0.5 + rnd() * 0.15, 6)), outer, x + Math.sin(a) * 0.1, y0 + 1.0, z + Math.cos(a) * 0.1, false));
-    }
-    for (let i = 0; i < 2; i++) flames.push(add(own(new THREE.ConeGeometry(0.07, 0.34, 6)), inner, x + (i - 0.5) * 0.08, y0 + 0.92, z + (rnd() - 0.5) * 0.08, false));
-    const spark = lam(0xffe08a, { emissive: 0xffc040, emissiveIntensity: 2 });
-    for (let i = 0; i < 2; i++) flames.push(add(own(new THREE.OctahedronGeometry(0.02, 0)), spark, x + (rnd() - 0.5) * 0.3, y0 + 1.35 + i * 0.2, z + (rnd() - 0.5) * 0.3, false));
+    // The flames (v0.62: the quality bar, props.ts buildFire): layered tongues, embers and smoke, flickering.
+    const fire = buildFire(1.25);
+    fire.position.set(x, y0 + 0.74, z);
+    scene.add(fire);
+    fires.push(fire);
     const light = new THREE.PointLight(0xff8a3a, 5, 6, 1.6);
     light.position.set(x, y0 + 1.2, z);
     scene.add(light);
@@ -3028,20 +3022,21 @@ export function buildCity(scene: THREE.Scene) {
       continue;
     }
     add(own(new THREE.CircleGeometry(1.4, 12).rotateX(-Math.PI / 2)), lam(0x8a8070), x, 0.095, z, false);
-    const brick = lam(0x8a4434, { flatShading: true });
-    add(geoBox(0.9, 0.55, 0.7), brick, x, 0.3, z);
-    add(geoBox(0.96, 0.06, 0.76), lam(0x6a3428), x, 0.6, z);
-    add(geoBox(0.7, 0.04, 0.5), lam(0x2a1a14, { emissive: 0xff5a1a, emissiveIntensity: 0.9 }), x, 0.63, z, false); // coals
-    for (let i = 0; i < 7; i++) add(geoBox(0.02, 0.02, 0.5), lam(0x3a3d42), x - 0.3 + i * 0.1, 0.68, z, false); // grill bars
-    for (let i = 0; i < 4; i++) {
-      const f = add(own(new THREE.ConeGeometry(0.06 + rng() * 0.03, 0.22, 6)), lam(0xff8a2a, { emissive: 0xff6a1a, emissiveIntensity: 1.6, transparent: true, opacity: 0.9 }), x - 0.22 + i * 0.15, 0.76, z + (rng() - 0.5) * 0.25, false);
-      flames.push(f);
+    // v0.62 (the quality bar): the barbecue is a props.ts model, with two small fires licking up through its grill.
+    // (The old one took 8 random numbers: drawn here still, so nothing placed after it moves.)
+    for (let i = 0; i < 8; i++) rng();
+    const bbq = buildBarbecue();
+    bbq.position.set(x, 0.1, z);
+    bbq.traverse((c) => ((c as THREE.Mesh).castShadow = true));
+    scene.add(bbq);
+    for (const dx of [-0.18, 0.16]) {
+      const fire = buildFire(0.5);
+      fire.position.set(x + dx, 0.74, z - 0.08);
+      scene.add(fire);
+      fires.push(fire);
     }
-    // A chimney stack at the back, and a bag of charcoal.
-    add(geoBox(0.3, 0.6, 0.2), brick, x, 0.9, z - 0.26);
-    add(geoBox(0.3, 0.35, 0.18), lam(0x4a3a2a), x + 0.7, 0.25, z + 0.3);
-    const light = new THREE.PointLight(0xff8a3a, 4, 5, 1.6);
-    light.position.set(x, 1.0, z);
+    const light = new THREE.PointLight(0xff8a3a, 3, 5, 1.6);
+    light.position.set(x, 1.4, z + 0.6);
     scene.add(light);
     fireLights.push(light);
   }
@@ -3053,7 +3048,6 @@ export function buildCity(scene: THREE.Scene) {
   crowns.forEach((b) => b.build(scene));
 
   // Merge everything static into a few meshes per area and colour (and per building, for the ones that fade).
-  flames.forEach((f) => keep.add(f)); // (they flicker)
   // v0.60: textures laid by world position (surfaces.ts) before the meshes are merged.
   for (const m of statics) if (wantsWorldUV(m)) worldUV(m);
   mergeStatic(scene, statics, fadeables, keep, own);
@@ -3069,13 +3063,10 @@ export function buildCity(scene: THREE.Scene) {
     setGateOpen(open: boolean) {
       if (gate) gate.rotation.y = open ? -Math.PI / 2 : 0;
     },
-    /** Call every frame: the barbecue's flames flicker. */
+    /** Call every frame: the fires flicker (barrels, barbecues), the water ripples. */
     animate(t: number) {
       animateWater(t);
-      flames.forEach((f, i) => {
-        const k = 0.8 + Math.sin(t / 90 + i * 1.7) * 0.2 + Math.sin(t / 37 + i) * 0.1;
-        f.scale.set(1, k, 1);
-      });
+      fires.forEach((f) => animateFire(f, t / 1000));
       fireLights.forEach((l, i) => (l.intensity = 3.5 + Math.sin(t / 70 + i) * 0.6 + Math.sin(t / 23) * 0.3));
     },
     /** Room id → its walls/roof, so the Street view can fade a room while you're inside. */
