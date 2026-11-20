@@ -942,6 +942,15 @@ level). The quest log shows them ("Advised: Combat level 5"), green when you hav
 required. Sewer Problems advises combat 5: you fight a rat for its meat, and a brand-new character (combat 3, fists)
 wins only about 5 in 6 (simulated); at combat 4, about 49 in 50.
 
+### How we write quests (the owner's rules, v0.62)
+
+- **The game doesn't take itself too seriously.** Dialogue should be fun to read: a little joke or pun now and then (not
+  in every line), characters with a bit of personality. Splinter and the hospital's doctors are the tone.
+- **No plain fetch quests.** Never just "get me X, bring it back, done".
+- **Several steps that use the game.** Even when the heart of it is simple, the steps go through different people,
+  places and skills, like Sewer Problems: talk to Splinter → the hospital → kill a rat → cook the meat → use the
+  antidote on it → bring it back. Each step should be a different kind of thing to do.
+
 ### Sewer Problems (the first quest)
 
 | Step | What happens | Quest log |
