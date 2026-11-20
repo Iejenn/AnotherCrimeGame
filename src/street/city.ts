@@ -22,6 +22,7 @@ import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWal
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
+import { SURFACE_GAIN, surfaceTexture, worldUV, wantsWorldUV, type SurfaceKind } from './surfaces';
 
 // Gritty dusk palette: brick, grimy concrete, soot; muted trims; worn paint.
 const C = {
@@ -125,6 +126,24 @@ export function buildCity(scene: THREE.Scene) {
   };
   const lam = (color: number, extra: THREE.MeshLambertMaterialParameters = {}) => own(new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra }));
   const geoBox = (w: number, h: number, d: number) => own(new THREE.BoxGeometry(w, h, d));
+  /**
+   * v0.60: a material with a surface's pixel texture (surfaces.ts), laid by world position (one texture a tile,
+   * `su` × `sv` more), its colour as the tint. `shared`: one material for every use of this look (furniture); a
+   * building that fades on its own needs its own (false).
+   */
+  const surfMats = new Map<string, THREE.MeshLambertMaterial>();
+  const slam = (kind: SurfaceKind, color: number, su = 1, sv = 1, shared = true) => {
+    const key = `${kind}|${color}|${su}|${sv}`;
+    const known = shared ? surfMats.get(key) : undefined;
+    if (known) return known;
+    const base = surfaceTexture(kind);
+    const map = base ? own(base.clone()) : undefined;
+    if (map) (map.repeat.set(su, sv), (map.needsUpdate = true));
+    const m = lam(color, map ? { map } : {});
+    if (map) m.color.multiplyScalar(SURFACE_GAIN), (m.userData.worldUV = true);
+    if (shared) surfMats.set(key, m);
+    return m;
+  };
   const rng = mulberry32(2024);
   let ironMat: THREE.Material | null = null;
   const iron2 = () => (ironMat ??= lam(0x3a3d42));
@@ -582,9 +601,11 @@ export function buildCity(scene: THREE.Scene) {
       t.needsUpdate = true;
       return t;
     };
-    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : lam(wall);
+    // (v0.60: the rest are brick or render too, picked by where they stand, not by the random numbers; roofs felt.)
+    const look: SurfaceKind = (b.x * 31 + b.y * 17) % 3 === 2 ? 'plaster' : 'brick';
+    const mX = b.boarded ? lam(wall, { map: brick(b.w) }) : slam(look, wall, look === 'brick' ? 1.5 : 1, look === 'brick' ? 1.5 : 1, false);
     const mZ = b.boarded ? lam(wall, { map: brick(b.h) }) : mX;
-    const mRoof = lam(C.roof);
+    const mRoof = slam('roof', C.roof, 1, 1, false);
     const mTrim = lam(trim);
     const bw = b.w - 0.1;
     const bd = b.h - 0.1;
@@ -737,7 +758,7 @@ export function buildCity(scene: THREE.Scene) {
 
     // Benches facing the fountains and along the paths: they face away from their back, the side nearest the edge of
     // their block (or, on the Plaza, the fountain's way).
-    const wood = lam(0x6b4a2e);
+    const wood = slam('wood', 0x6b4a2e); // (v0.60: wood grain)
     const iron = lam(0x2b2b2e);
     for (const f of FIXTURES.filter((f) => f.kind === 'bench' && inPark(f.x, f.y))) {
       const b = PARK_BLOCKS.find((r) => inRect(r, f.x, f.y))!;
@@ -862,7 +883,7 @@ export function buildCity(scene: THREE.Scene) {
     fence(X0 + 0.03, (Z0 + Z1) / 2 + 0.5, Z1 - Z0 - 1, false); // west (the gap at the front is the way in)
     fence(X1 - 0.03, (Z0 + Z1) / 2 + 0.5, Z1 - Z0 - 1, false); // east
     // The bench along the street side, three tiles long.
-    const wood = lam(0x6b4a2e);
+    const wood = slam('wood', 0x6b4a2e); // (v0.60: wood grain)
     const bz = Z0 + 0.5;
     add(geoBox(2.8, 0.05, 0.34), wood, cx, 0.28, bz);
     add(geoBox(2.8, 0.2, 0.04), wood, cx, 0.45, bz - 0.17);
@@ -898,6 +919,8 @@ export function buildCity(scene: THREE.Scene) {
     /** Warm light inside. */
     light: number;
     height?: number;
+    /** v0.60: what the walls are (default render). */
+    surface?: SurfaceKind;
     /** v0.60: storeys of apartments on top (0: none, like the gas station's kiosk). */
     flats?: number;
     /** How much higher the floor is (v0.58: the bar stands on its site's sidewalk slab, which is higher than a lot's). */
@@ -914,11 +937,9 @@ export function buildCity(scene: THREE.Scene) {
   const apartments = (b: { x0: number; z0: number; x1: number; z1: number }, base: number, floors: number, color: number, trim: number, skipFront = 0) => {
     const W = b.x1 - b.x0, D = b.z1 - b.z0, h = floors * FLOOR;
     const before = scene.children.length;
-    const tx = own(brickTex.clone());
-    tx.repeat.set(Math.max(W, D), floors);
-    tx.needsUpdate = true;
-    const mWall = lam(color, { map: tx });
-    add(geoBox(W - 0.04, h, D - 0.04), [mWall, mWall, lam(C.roof), lam(C.roof), mWall, mWall], (b.x0 + b.x1) / 2, base + h / 2, (b.z0 + b.z1) / 2);
+    const mWall = slam('brick', color, 1.5, 1.5);
+    const mRoof = slam('roof', C.roof);
+    add(geoBox(W - 0.04, h, D - 0.04), [mWall, mWall, mRoof, mRoof, mWall, mWall], (b.x0 + b.x1) / 2, base + h / 2, (b.z0 + b.z1) / 2);
     kit.parapet({ x0: b.x0 - 0.03, z0: b.z0 - 0.03, x1: b.x1 + 0.03, z1: b.z1 + 0.03 }, base + h + 0.02, lam(trim));
     for (const side of ['n', 's', 'e', 'w'] as const) {
       const f = face(b, side);
@@ -945,14 +966,14 @@ export function buildCity(scene: THREE.Scene) {
     const t = 0.12; // wall thickness
     const [doorX] = r.door;
     add(geoBox(X1 - X0 + 0.6, 0.06, Z1 - Z0 + 0.6), pavement, cx, 0.03, cz, false);
-    const mWall = lam(st.wall);
+    const mWall = slam(st.surface ?? 'plaster', st.wall, 1.5, 1.5, false);
     const mTrim = lam(st.trim);
     // Kit parts (v0.47): walls with the doorway cut out, the roof and its parapet, shop windows either side of the
     // door (lit from inside), the door frame, a striped awning, the sign on its board, air-con units, a drainpipe.
     const box = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
     const fs = face(box, 's');
     const walls = kit.walls(box, sh, t, mWall, { s: [{ u0: doorX - X0, u1: doorX + 1 - X0, top: DOOR }] });
-    const roof = kit.roof(box, sh, C.roof);
+    const roof = kit.roof(box, sh, slam('roof', C.roof));
     const trimBand = kit.parapet({ x0: X0 - 0.03, z0: Z0 - 0.03, x1: X1 + 0.03, z1: Z1 + 0.03 }, sh + 0.06, mTrim);
     const front = [
       ...kit.window(fs, 1, 0.255, { style: 'shop', w: 1.3, h: 0.85, frame: st.trim }),
@@ -1041,7 +1062,7 @@ export function buildCity(scene: THREE.Scene) {
     });
     // Shelves full of colourful goods, against the walls.
     const productColors = [0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8];
-    const shelfWood = lam(0x6b4a2e);
+    const shelfWood = slam('wood', 0x6b4a2e);
     for (const f of FIXTURES.filter((x) => x.kind === 'shelf' && inRect(STORE, x.x, x.y))) {
       const againstBack = f.y === STORE.y0;
       const w = againstBack ? 0.92 : 0.45;
@@ -1073,10 +1094,10 @@ export function buildCity(scene: THREE.Scene) {
     const { Z0, t } = shopShell(WEAPONS, {
       wall: 0x4e5056, trim: 0x8a2f28, stripe: ['#2b2b2e', '#8a2f28'], sign: "RAY'S ARMS", signBg: '#141210', signFg: '#e2604c',
       floor: ['#6a6660', '#545049'], light: 0xffd8a8,
-      flats: 2,
+      flats: 2, surface: 'brick',
     });
-    const steel = lam(0x8a8f96);
-    const wood = lam(0x6b4a2e);
+    const steel = slam('metal', 0x8a8f96);
+    const wood = slam('wood', 0x6b4a2e); // (v0.60: wood grain)
     const brass = lam(0xd8b04a, { emissive: 0x3a2a08, emissiveIntensity: 0.4 });
     for (const f of FIXTURES.filter((x) => x.kind === 'rack' && inRect(WEAPONS, x.x, x.y))) {
       const fx = f.x + 0.5;
@@ -1142,10 +1163,10 @@ export function buildCity(scene: THREE.Scene) {
     const { Z0, X0, X1, t } = shopShell(BAR, {
       wall: 0x4a3a30, trim: 0x2a1a14, stripe: ['#5a1a14', '#c8b8a0'], sign: 'BAR', signBg: '#14100c', signFg: '#ff5a3a',
       floor: ['#5a4232', '#46321f'], light: 0xffa060, lift: 0.035,
-      flats: 2,
+      flats: 2, surface: 'brick',
     });
-    const dark = lam(0x3a2418);
-    const wood = lam(0x5a3a22);
+    const dark = slam('wood', 0x3a2418);
+    const wood = slam('wood', 0x5a3a22); // (v0.60: wood grain)
     // (The room is 10 deep: a second warm light over the front half.)
     const front = new THREE.PointLight(0xffa060, 5, 6, 1.6);
     front.position.set((X0 + X1) / 2, 1.5, BAR.y1 - 1);
@@ -1613,7 +1634,7 @@ export function buildCity(scene: THREE.Scene) {
     const TOP = 2 * F;
     const t = 0.14;
     add(geoBox(X1 - X0 + 0.6, 0.06, ZS - ZN + 0.6), pavement, cx, 0.03, (ZN + ZS) / 2, false);
-    const mBrick = lam(0x7a4a3a);
+    const mBrick = slam('brick', 0x7a4a3a, 1.5, 1.5, false);
     const mFacade = lam(0x2f3236);
     const mWhite = lam(0xeeeeea);
     const mRed = lam(0xc8282a);
@@ -1759,7 +1780,7 @@ export function buildCity(scene: THREE.Scene) {
     add(geoBox(X1 - X0 - 2, 0.5, 0.03), glass, cx, F + 0.27, ZM, false);
     add(geoBox(X1 - X0 - 2, 0.05, 0.07), lam(0x8a8f96), cx, F + 0.53, ZM);
     // The beds: head against the wall, white sheets, a blue blanket; a drip stand by some, a patient in two.
-    const steel = lam(0x9aa0a8);
+    const steel = slam('metal', 0x9aa0a8);
     const sheet = lam(0xf4f4f0);
     const blanket = lam(0x6a9ac0);
     FIXTURES.filter((f) => f.kind === 'bed').forEach((b, i) => {
@@ -1852,7 +1873,7 @@ export function buildCity(scene: THREE.Scene) {
     kit.fence(Y1 - 0.02, Z0, Y1 - 0.02, Z1, 'chainBarbed');
     kit.chainPanel(THRIFT_GATE[0] + 1.0, Z1 + 0.45, false, 1.15).rotation.y = Math.PI / 2.4;
     // Junk: pallets, rubbish bags, cans, an old tyre.
-    const wood = lam(0x8a6a44);
+    const wood = slam('wood', 0x8a6a44); // (v0.60: wood grain)
     for (const [px, pz, r] of [[Y0 + 1.2, Z0 + 0.55, 0.2], [Y1 - 0.45, Z0 + 1.2, 1.5]]) {
       for (let i = 0; i < 4; i++) add(geoBox(0.9, 0.04, 0.12), wood, px, 0.1, pz - 0.3 + i * 0.2, false).rotation.y = r;
       add(geoBox(0.9, 0.08, 0.1), wood, px, 0.05, pz, false).rotation.y = r;
@@ -1877,11 +1898,11 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
     const HT = 2.4;
     add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
-    const mRender = lam(0xe2ded6);
+    const mRender = slam('plaster', 0xe2ded6, 1, 1, false);
     const mBlue = lam(0x2a5a9a);
     const walls = [add(geoBox(X1 - X0, HT, Z1 - Z0), mRender, cx, HT / 2, cz)];
     const r = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
-    const props: THREE.Object3D[] = [kit.roof(r, HT, 0x4a4d52, 0.05, 0.08), ...kit.parapet({ x0: X0 - 0.02, z0: Z0 - 0.02, x1: X1 + 0.02, z1: Z1 + 0.02 }, HT + 0.08, 0x2a5a9a)];
+    const props: THREE.Object3D[] = [kit.roof(r, HT, slam('roof', 0x4a4d52), 0.05, 0.08), ...kit.parapet({ x0: X0 - 0.02, z0: Z0 - 0.02, x1: X1 + 0.02, z1: Z1 + 0.02 }, HT + 0.08, 0x2a5a9a)];
     props.push(...kit.acUnit(X0 + 2, HT + 0.05, Z0 + 1.5, true), ...kit.acUnit(X1 - 2.5, HT + 0.05, Z0 + 1.2, true), ...kit.vent(cx, HT + 0.12, Z0 + 2, 0.14, 0.4));
     // The front: a blue band along the top, the sign, the windows either side of the doors.
     const f = face(r, 's');
@@ -2054,7 +2075,7 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Inside: the plate presses (west wall) and workbenches (east wall) are the stations (drawn below), crates at the
     // back, oil drums, and lamps hanging from the roof.
-    const wood = lam(0x7a5a3a);
+    const wood = slam('wood', 0x7a5a3a); // (v0.60: wood grain)
     for (const f of FIXTURES.filter((x) => x.kind === 'crate' && inRect(FACTORY, x.x, x.y))) {
       add(geoBox(0.85, 0.7, 0.85), wood, f.x + 0.5, 0.45, f.y + 0.5).rotation.y = rng() * 0.3;
       if (rng() < 0.6) add(geoBox(0.7, 0.5, 0.7), wood, f.x + 0.5, 1.05, f.y + 0.5).rotation.y = rng() * 0.6;
@@ -2120,7 +2141,7 @@ export function buildCity(scene: THREE.Scene) {
     const cz = (Z0 + Z1) / 2;
     const HT = 3.0;
     const t = 0.2;
-    const stone = lam(0xd8d0c0);
+    const stone = slam('stone', 0xd8d0c0, 1, 1, false);
     const stoneDark = lam(0xb0a898);
     add(geoBox(X1 - X0 + 0.6, 0.09, Z1 - Z0 + 1.6), stoneDark, cx, 0.045, cz + 0.5, false);
     // Marble floor.
@@ -2173,7 +2194,7 @@ export function buildCity(scene: THREE.Scene) {
       d.rotation.y = r;
     }
     // Inside: the counter with a glass screen, the vault door, lamps.
-    const wood = lam(0x6a4426);
+    const wood = slam('wood', 0x6a4426); // (v0.60: wood grain)
     const counter = FIXTURES.filter((f) => f.kind === 'bankcounter');
     if (counter.length) {
       const cx0 = Math.min(...counter.map((f) => f.x));
@@ -2224,7 +2245,7 @@ export function buildCity(scene: THREE.Scene) {
     const HT = 2.4;
     add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
     const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
-    const mRender = lam(0xd8ceb4);
+    const mRender = slam('plaster', 0xd8ceb4, 1, 1, false);
     const walls = [add(geoBox(X1 - X0, 1.2, Z1 - Z0), mBrick, cx, 0.6, cz), add(geoBox(X1 - X0, HT - 1.2, Z1 - Z0), mRender, cx, 1.2 + (HT - 1.2) / 2, cz)];
     const hr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
     const props: THREE.Object3D[] = [kit.roof(hr, HT, 0x3a3d42, 0.1, 0.12)];
@@ -2478,7 +2499,7 @@ export function buildCity(scene: THREE.Scene) {
     glow.position.set(cx, 1.6, Z0 - 1.2);
     scene.add(glow);
     // Inside: the bar along the back with bottles, the pool table, a table, the jukebox; one red light.
-    const wood = lam(0x4a2e1e);
+    const wood = slam('wood', 0x4a2e1e); // (v0.60: wood grain)
     const bar = FIXTURES.filter((f) => f.kind === 'clubbar');
     if (bar.length) {
       const bx0 = Math.min(...bar.map((f) => f.x));
@@ -2796,7 +2817,7 @@ export function buildCity(scene: THREE.Scene) {
       links.push(lad);
     }
     // Crates and rubbish bags (the walkways' fixtures), and some junk lying about.
-    const wood = lam(0x6a4a2e);
+    const wood = slam('wood', 0x6a4a2e); // (v0.60: wood grain)
     for (const f of FIXTURES) {
       if (f.kind === 'crate') {
         const c = add(geoBox(0.72, 0.6, 0.72), wood, f.x + 0.5, D + 0.3, f.y + 0.5);
@@ -2937,8 +2958,8 @@ export function buildCity(scene: THREE.Scene) {
     if (st.kind === 'bench') {
       // A workbench against the east wall: a thick wooden top on steel legs, a vice, a hammer and tin snips, a sheet,
       // and a pegboard with tools on the wall behind.
-      const top = lam(0x8a6a44);
-      const steel = lam(0x5a5f66);
+      const top = slam('wood', 0x8a6a44);
+      const steel = slam('metal', 0x5a5f66);
       add(geoBox(0.6, 0.08, 0.95), top, x, 0.7, z);
       for (const [dx, dz] of [[-0.25, -0.42], [-0.25, 0.42], [0.25, -0.42], [0.25, 0.42]]) add(geoBox(0.05, 0.66, 0.05), steel, x + dx, 0.35, z + dz, false);
       add(geoBox(0.5, 0.04, 0.85), top, x, 0.2, z, false); // the shelf underneath
@@ -2977,6 +2998,8 @@ export function buildCity(scene: THREE.Scene) {
 
   // Merge everything static into a few meshes per area and colour (and per building, for the ones that fade).
   flames.forEach((f) => keep.add(f)); // (they flicker)
+  // v0.60: textures laid by world position (surfaces.ts) before the meshes are merged.
+  for (const m of statics) if (wantsWorldUV(m)) worldUV(m);
   mergeStatic(scene, statics, fadeables, keep, own);
 
   return {

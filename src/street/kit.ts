@@ -381,8 +381,8 @@ export class Kit {
 
   // ---------- roofs ----------
   /** A flat roof slab on top of walls `h` high (with an overhang all round). */
-  roof(r: Rect, h: number, color: number, overhang = 0, thick = 0.08) {
-    return this.add(this.box(r.x1 - r.x0 + overhang * 2, thick, r.z1 - r.z0 + overhang * 2), this.mat(color), (r.x0 + r.x1) / 2, h + thick / 2, (r.z0 + r.z1) / 2);
+  roof(r: Rect, h: number, color: number | THREE.Material, overhang = 0, thick = 0.08) {
+    return this.add(this.box(r.x1 - r.x0 + overhang * 2, thick, r.z1 - r.z0 + overhang * 2), typeof color === 'number' ? this.mat(color) : color, (r.x0 + r.x1) / 2, h + thick / 2, (r.z0 + r.z1) / 2);
   }
   /** A band round the roof edge (a parapet): the roof shows in the middle. `m` may be the building's own material. */
   parapet(r: Rect, top: number, m: THREE.Material | number, high = 0.16, thick = 0.1) {
