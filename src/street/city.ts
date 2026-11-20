@@ -2326,12 +2326,22 @@ export function buildCity(scene: THREE.Scene) {
     // The floor: smooth concrete in the shop, the same with oil stains in the workshop.
     const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.3, Z1 - Z0 - 0.3)), slam('stone', 0x8a867e, 1, 1, false));
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(cx, 0.07, cz);
+    // (v0.62: 0.09, above the ground kit's sidewalk under the building (0.07): at the same height they flickered
+    // through each other in patches.)
+    floor.position.set(cx, 0.09, cz);
     floor.receiveShadow = true;
     scene.add(floor);
     statics.push(floor);
-    for (const [x, z, r] of [[X0 + 2.2, Z0 + 7.5, 0.35], [X0 + 1.4, Z0 + 8.6, 0.25]] as const)
-      add(own(new THREE.CircleGeometry(r, 8)), lam(0x3a3630, DECAL), x, 0.075, z, false).rotation.x = -Math.PI / 2;
+    // Oil stains in the workshop: irregular puddles (a jagged outline), not discs.
+    for (const [x, z, r, seed] of [[X0 + 2.2, Z0 + 7.5, 0.35, 1], [X0 + 1.4, Z0 + 8.6, 0.25, 2]] as const) {
+      const sh = new THREE.Shape();
+      for (let k = 0; k <= 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const q = r * (0.7 + 0.45 * Math.abs(Math.sin(seed * 4.7 + k * 2.3)));
+        k === 0 ? sh.moveTo(Math.cos(a) * q, Math.sin(a) * q) : sh.lineTo(Math.cos(a) * q, Math.sin(a) * q);
+      }
+      add(own(new THREE.ShapeGeometry(sh)), lam(0x2a2622, DECAL), x, 0.095, z, false).rotation.x = -Math.PI / 2;
+    }
     // The walls (two-tone: brick to waist height, cream render above), the door opening in the west wall.
     const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
     const mRender = slam('plaster', 0xd8ceb4, 1, 1, false);
@@ -2362,7 +2372,7 @@ export function buildCity(scene: THREE.Scene) {
     }
     // Inside (props.ts models): the fittings shelves and heaters along the north wall, the counter, the workshop.
     const placed = (o: THREE.Object3D, x: number, z: number, ry = 0) => {
-      o.position.set(x, 0.07, z);
+      o.position.set(x, 0.09, z);
       o.rotation.y = ry;
       o.traverse((c) => ((c as THREE.Mesh).castShadow = true));
       scene.add(o);
