@@ -42,3 +42,10 @@ test('0044 is running as the game does it', async () => {
   const sql = (await import('../../supabase/migrations/0044_running.sql?raw')).default as string;
   expect(sql === runningSql()).toBe(true);
 });
+
+// v0.62: melee reach (0045) is exactly what scripts/reach-sql.ts prints from the game's walk map.
+test('0045 is melee reach as the game does it', async () => {
+  const { reachSql } = await import('../../scripts/reach-sql');
+  const sql = (await import('../../supabase/migrations/0045_melee_reach.sql?raw')).default as string;
+  expect(sql === reachSql()).toBe(true);
+});

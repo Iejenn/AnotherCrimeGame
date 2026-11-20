@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.62.0',
+    date: '2026-11-20',
+    title: 'Fixes',
+    items: [
+      'Enemies only hit you when they stand right next to you, with nothing in between: no more thugs hitting you from a tile away or through the Yard\'s fence.',
+      'To fight up close you walk right up to it (it used to start from two tiles away).',
+      'A biker who jumps you in the club always comes to a free spot right next to you.',
+    ],
+  },
+  {
     version: '0.61.0',
     date: '2026-11-20',
     title: 'Fixes',

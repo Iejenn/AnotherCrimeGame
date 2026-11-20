@@ -425,6 +425,14 @@ shared spots → (3) chat, trading, fights (Melee/Defense/Marksman), leaderboard
 > designer's sheet. Decisions are listed at the end; numbers live in `src/game/combat.ts`, `src/game/enemies.ts`,
 > `src/game/data/items.ts` and the same tables on the server (`supabase/migrations/0010_combat.sql`).
 
+### Reach: only next to each other (v0.62)
+
+Every enemy fights melee. It only swings at you when it stands **right next to you** (8 directions) **with nothing in
+between**: one step on the enemies' walk map, so no fence, wall or cut corner (`game.enemy_adjacent`, the same as
+`adjacent` in `src/street/sight.ts`). Checked on every swing in `fight_step`: not next to you, it waits a swing. Your
+melee attack needs the same (the game walks you up to it; the server refuses otherwise); a throw doesn't. A biker who
+jumps you takes a free tile next to you, on his side.
+
 ### The enemy ladder (v0.43)
 
 Every enemy is made for one stage of the ladder: a player at that stage, in that tier's gear, **wins about 9 in 10 and

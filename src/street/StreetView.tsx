@@ -17,7 +17,7 @@ import { BAR_FACING, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y,
 import { RUN_MULT, drainPerTile, regenPerSecond } from '../game/stamina';
 import { levelFromXp } from '../game/xp';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
-import { clearShot, routeMs, routePoint } from './sight';
+import { adjacent, clearShot, routeMs, routePoint, walkMasks } from './sight';
 import { rangedWeapon } from '../game/combat';
 import { buildCity, updateCuts, updateFades } from './city';
 import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
@@ -618,6 +618,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       if (e.fightPos) return { x: e.fightPos[0] + 0.5, z: e.fightPos[1] + 0.5, flying: false };
       return scheduleAt(e.kind, e.index, gameNow());
     };
+    /** Which steps an enemy can take from each tile (sight.ts): who's next to whom in a melee fight. */
+    const reachMasks = walkMasks();
     /** Walk up to an enemy (and attack it when you get there). */
     const goFight = (id: string) => {
       const e = worldRef.current?.enemies().find((x) => x.id === id);
@@ -645,7 +647,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
         return;
       }
-      if (walkTo(beside(ex, ey), null)) {
+      // Melee (v0.62): right next to it, with nothing in between (the server checks the same: game.enemy_adjacent).
+      const goals = beside(ex, ey).filter((t) => adjacent(reachMasks, [ex, ey], t));
+      if (!goals.length) return say("You can't reach that.");
+      if (walkTo(goals, null)) {
         me.goalEnemy = id;
         if (!me.path.length) reachEnemy();
       }
@@ -666,7 +671,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       if (!e || e.deadUntil) return;
       const at = enemyAt(e);
       const rw = rangedWeapon(sRef.current);
-      if (rw ? !canThrowFrom(tileOf(me.pos.x, me.pos.z), at, rw.range) : Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 1.8) {
+      if (rw ? !canThrowFrom(tileOf(me.pos.x, me.pos.z), at, rw.range) : !adjacent(reachMasks, tileOf(at.x, at.z), tileOf(me.pos.x, me.pos.z))) {
         // It moved while you walked: follow it a few times, then give up (instead of a swing the server refuses).
         if (chases++ < 6) return goFight(id);
         chases = 0;
