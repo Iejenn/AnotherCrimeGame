@@ -890,9 +890,14 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
     waterMain.scale.setScalar(1.35); // (a bit bigger than life, so it reads from the game's camera)
     const burstPipe = buildBurstPipe();
     burstPipe.position.set(BAR_LEAK[0] + 0.5, floorY(BAR_LEAK[0] + 0.5, BAR_LEAK[1] + 0.5) + 0.02, BAR_LEAK[1] + 0.5);
+    // (v0.63: no person-sized tap cylinder on these: from the game's camera a tall one covered the floor round the
+    // pipe, so taps meant to walk away kept "tapping the pipe". The models themselves are what you tap; the main gets
+    // a small box round it.)
+    const mainHit = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.7), hitMat);
+    mainHit.position.y = 0.4;
+    waterMain.add(mainHit);
     for (const [o, id] of [[waterMain, 'water_main'], [burstPipe, 'bar_leak']] as const) {
       o.traverse((c) => (c.userData.questSpot = id));
-      addHitArea(o);
       scene.add(o);
       pickables.push(o);
     }
@@ -975,7 +980,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       const ray = new THREE.Raycaster();
       ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      let hit: THREE.Intersection | undefined = ray.intersectObjects(pickables.filter((o) => o.visible), true)[0];
+      // (A quest spot (v0.62) only counts when the tap lands on or right by it; further off it's a tap on the floor.)
+      if (hit?.object.userData.questSpot) {
+        const [qx, qy] = hit.object.userData.questSpot === 'water_main' ? WATER_MAIN : BAR_LEAK;
+        if (Math.hypot(hit.point.x - qx - 0.5, hit.point.z - qy - 0.5) < 1.1) return goQuestSpot(hit.object.userData.questSpot);
+        hit = undefined;
+      }
       if (hit?.object.userData.linkId) {
         // The pothole (climb down) or the sewer's ladder (climb up): walk next to it, then climb.
         const link = LINKS.find((l) => l.id === hit.object.userData.linkId)!;
@@ -1064,7 +1075,6 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
         return;
       }
-      if (hit?.object.userData.questSpot) return goQuestSpot(hit.object.userData.questSpot);
       if (hit?.object.userData.npcId) {
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
         if (npc.kind === 'baller') return say("They're busy playing. Their bags on the bench aren't watched much…");

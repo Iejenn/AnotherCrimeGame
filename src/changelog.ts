@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Fixes',
     items: [
       "Hotline's floor no longer flickers in patches (it sat at the same height as the sidewalk under it), and its oil stains are puddles, not circles.",
+      "Tapping the bar's burst pipe no longer locks you up: taps near it walk you away again (its tap area was as big as a person and covered the floor round it). The same for the water main.",
     ],
   },
   {
