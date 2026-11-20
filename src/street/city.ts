@@ -6,6 +6,7 @@
 // where crimes happen: the big park with its fountain, the basketball court, Eddy's store.
 // Lots of repeated things (trees, lamps, road paint) use InstancedMesh so phones stay smooth.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SURFACES, buildFloor } from './floor';
 import { DETAIL_GAIN, animateWater, waterTexture } from './textures';
 import { COAST_ROCKS, SHALLOWS, coastAt } from './coast';
@@ -18,7 +19,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
+import { animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -317,15 +318,51 @@ export function buildCity(scene: THREE.Scene) {
   joints.build(scene);
 
   // ---------- pavements, parks, trees ----------
-  const trunks = new Batch(own(new THREE.CylinderGeometry(0.06, 0.08, 0.5, 6)), lam(C.trunk));
-  const crownGeo = own(new THREE.IcosahedronGeometry(0.42, 0));
-  const crowns = C.leaves.map((c) => new Batch(crownGeo, lam(c, { flatShading: true })));
+  // v0.62 (the quality bar, docs/design.md §18): trees still drawn in batches (hundreds of them), but shaped like
+  // trees: a tapered trunk with a root flare and two branches forking off it, in bark; crowns of lumpy clumps (three
+  // shapes, each an icosahedron pushed in and out), lighter on top and darker underneath, in a leafy pixel texture.
+  const trunkGeo = own(
+    mergeGeometries([
+      new THREE.CylinderGeometry(0.06, 0.1, 0.8, 6).translate(0, 0.4, 0),
+      new THREE.CylinderGeometry(0.16, 0.12, 0.08, 6).translate(0, 0.04, 0),
+      new THREE.CylinderGeometry(0.025, 0.045, 0.4, 5).translate(0, 0.2, 0).rotateZ(0.7).translate(0.04, 0.5, 0),
+      new THREE.CylinderGeometry(0.025, 0.045, 0.35, 5).translate(0, 0.18, 0).rotateZ(-0.6).rotateY(2.2).translate(-0.03, 0.55, 0.02),
+    ].map((g) => g.toNonIndexed()), false)!,
+  );
+  const trunks = new Batch(trunkGeo, surfaceMat('bark', C.trunk));
+  const clump = (seed: number) => {
+    const g = new THREE.IcosahedronGeometry(0.42, 0);
+    const pos = g.attributes.position;
+    const col: number[] = [];
+    const v = new THREE.Vector3();
+    // Push each corner in or out (the same corner shared by faces moves together, so the clump stays closed).
+    const bump = (p: THREE.Vector3) => 0.85 + 0.3 * Math.abs(Math.sin(seed * 3.1 + p.x * 9.7 + p.y * 5.3 + p.z * 7.1));
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      v.multiplyScalar(bump(v));
+      v.y *= 0.85;
+      pos.setXYZ(i, v.x, v.y, v.z);
+      const k = 0.6 + 0.8 * ((v.y / 0.36 + 1) / 2) ** 1.3; // darker underneath, lighter on top
+      col.push(k, k, k);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    return own(g);
+  };
+  const crownGeos = [clump(1), clump(2), clump(3)];
+  const leafMats = C.leaves.map((c) => {
+    const m = surfaceMat('leaves', c).clone();
+    m.vertexColors = true;
+    return own(m);
+  });
+  const crowns = leafMats.flatMap((m) => crownGeos.map((g) => new Batch(g, m)));
   const tree = (x: number, z: number, size = 1) => {
-    trunks.add(x, 0.25 * size, z, size, size, size);
+    trunks.add(x, 0, z, size, size, size, (x * 7 + z * 3) % 6);
     const n = 2 + Math.floor(rng() * 2);
     for (let i = 0; i < n; i++) {
       const s = size * (0.75 + rng() * 0.45);
-      crowns[Math.floor(rng() * crowns.length)].add(x + (rng() - 0.5) * 0.35 * size, (0.68 + i * 0.2) * size, z + (rng() - 0.5) * 0.35 * size, s, s, s, rng() * 6);
+      const pick = Math.floor(rng() * C.leaves.length) * crownGeos.length + ((i + Math.round(x + z)) % crownGeos.length);
+      crowns[pick].add(x + (rng() - 0.5) * 0.35 * size, (0.85 + i * 0.2) * size, z + (rng() - 0.5) * 0.35 * size, s, s, s, rng() * 6);
     }
   };
   /** v0.62: water pouring (fountains, the sewer's outflows), muck drifting in the sewage, bubbles popping. */
@@ -808,7 +845,14 @@ export function buildCity(scene: THREE.Scene) {
       for (const lx of [-0.39, 0.39]) part(geoBox(0.04, 0.3, 0.3), iron, lx, 0.15, 0);
     }
     // Hedges: dark green boxes, slightly uneven, along the park's outside edge.
-    const hedges = new Batch(geoBox(1, 0.5, 0.7), surfaceMat('grass', 0x2c4a26)); // (v0.60: leafy, not flat green)
+    // (v0.60: leafy, not flat green. v0.62: a lumpy top, three squashed clumps along it, in the leaf texture.)
+    const hedgeGeo = own(
+      mergeGeometries([
+        new THREE.BoxGeometry(1, 0.42, 0.7).translate(0, -0.04, 0).toNonIndexed(),
+        ...[-0.32, 0, 0.32].map((x, i) => new THREE.IcosahedronGeometry(0.3, 0).scale(1, 0.55, 1.15).rotateY(i).translate(x, 0.16, 0)),
+      ], false)!,
+    );
+    const hedges = new Batch(hedgeGeo, surfaceMat('leaves', 0x2c4a26));
     for (const f of FIXTURES.filter((f) => f.kind === 'hedge' && inPark(f.x, f.y))) {
       const sideways = !inPark(f.x - 1, f.y) || !inPark(f.x + 1, f.y);
       hedges.add(f.x + 0.5, LAWN + 0.2, f.y + 0.5, 1, 0.85 + rng() * 0.3, 1, sideways ? Math.PI / 2 : 0);
@@ -816,13 +860,12 @@ export function buildCity(scene: THREE.Scene) {
     hedges.build(scene);
     for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inPark(f.x, f.y))) tree(f.x + 0.5, f.y + 0.5, 1.15 + rng() * 0.3);
     // Flowerbeds: a stone edge, dark soil and dots of colour.
-    const flowerColors = [0xd9473a, 0xf0b13c, 0xe8e2d0, 0x8a5ab8];
-    for (const f of FIXTURES.filter((f) => f.kind === 'flowers' && inPark(f.x, f.y))) {
-      add(geoBox(0.9, 0.14, 0.9), stone, f.x + 0.5, LAWN + 0.03, f.y + 0.5);
-      add(geoBox(0.78, 0.04, 0.78), lam(0x3a2a1e), f.x + 0.5, LAWN + 0.1, f.y + 0.5, false);
-      for (let i = 0; i < 9; i++)
-        add(geoBox(0.12, 0.12, 0.12), lam(flowerColors[i % flowerColors.length]), f.x + 0.2 + (i % 3) * 0.3, LAWN + 0.17, f.y + 0.2 + Math.floor(i / 3) * 0.3, false);
-    }
+    // (v0.62: a props.ts model: stems, petals, leaves; it was cubes.)
+    FIXTURES.filter((f) => f.kind === 'flowers' && inPark(f.x, f.y)).forEach((f, i) => {
+      const bed = buildFlowerbed(i);
+      bed.position.set(f.x + 0.5, LAWN - 0.04, f.y + 0.5);
+      scene.add(bed);
+    });
     // The ponds (one per lawn block that has one): a stone rim, dark water with a soft glow, lily pads and reeds.
     for (const b of PARK_BLOCKS) {
       const pond = FIXTURES.filter((f) => f.kind === 'pond' && inRect(b, f.x, f.y));

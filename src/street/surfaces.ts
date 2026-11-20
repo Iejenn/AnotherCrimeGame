@@ -7,7 +7,7 @@
 // a material's map.repeat can scale that (a brick wall: one texture per floor high).
 import * as THREE from 'three';
 
-export type SurfaceKind = 'brick' | 'plaster' | 'wood' | 'roof' | 'stone' | 'metal' | 'grass';
+export type SurfaceKind = 'brick' | 'plaster' | 'wood' | 'roof' | 'stone' | 'metal' | 'grass' | 'leaves' | 'bark';
 
 /** The textures average about this grey: colours under them are made brighter by SURFACE_GAIN to stay the same. */
 const MEAN = 0.84;
@@ -68,6 +68,23 @@ const PAINTERS: Record<SurfaceKind, Painter> = {
     px(212, 0, 0, 32, 32);
     for (let i = 0; i < 3; i++) px(200, Math.floor(rnd() * 26), Math.floor(rnd() * 26), 4 + Math.floor(rnd() * 4), 3 + Math.floor(rnd() * 3));
     for (let i = 0; i < 90; i++) px(rnd() < 0.5 ? 192 : 228, Math.floor(rnd() * 32), Math.floor(rnd() * 31), 1, 2);
+  },
+  // Leaves (v0.62, tree crowns): clusters of leaves, each a lighter blob with a darker shadow under it.
+  leaves: (px, rnd) => {
+    px(200, 0, 0, 32, 32);
+    for (let i = 0; i < 26; i++) {
+      const x = Math.floor(rnd() * 30), y = Math.floor(rnd() * 30);
+      px(165, x, y + 2, 4, 2);
+      px(230 + Math.floor(rnd() * 25), x, y, 4, 3);
+      px(255, x + 1, y, 1, 1);
+    }
+  },
+  // Bark (v0.62, tree trunks): vertical ridges and furrows, a knot.
+  bark: (px, rnd) => {
+    px(200, 0, 0, 32, 32);
+    for (let x = 0; x < 32; x += 2) px(160 + Math.floor(rnd() * 30), x, 0, 1, 32);
+    for (let i = 0; i < 10; i++) px(235, Math.floor(rnd() * 31), Math.floor(rnd() * 28), 1, 3 + Math.floor(rnd() * 4));
+    px(140, 14, 12, 3, 3);
   },
   // Painted metal: brushed streaks, a few scratches.
   metal: (px, rnd) => {

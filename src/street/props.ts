@@ -1604,3 +1604,33 @@ export function buildMuck(seed: number): THREE.Group {
   if (seed % 3 === 1) add(g, new THREE.CylinderGeometry(0.012, 0.03, 0.14, 6), 0x2a6a3a, -0.02, 0.025, 0.02, false).rotation.x = Math.PI / 2; // a bottle
   return g;
 }
+
+/**
+ * A flowerbed (v0.62, the quality bar): a stone edge round dark soil with lumps, ten flowers on stems (five-petal heads
+ * with a yellow middle, in the bed's colours), tufts of leaves between them. One tile. About 260 tris.
+ */
+export function buildFlowerbed(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  const stone = texMat('concrete', CONCRETE, 1, 1, 0x8e877b);
+  for (const [x, z, w, d] of [[0, -0.42, 0.92, 0.08], [0, 0.42, 0.92, 0.08], [-0.42, 0, 0.08, 0.76], [0.42, 0, 0.08, 0.76]]) addTex(g, boxGeo(w, 0.14, d), stone, x, 0.07, z);
+  boxAt(g, 0.76, 0.06, 0.76, 0x3a2a1e, 0, 0.03, 0, false);
+  const colours = [[0xd9473a, 0xf06a5a], [0xf0b13c, 0xf8d070], [0xe8e2d0, 0xffffff], [0x8a5ab8, 0xb88ae0]];
+  const [c0, c1] = colours[seed % colours.length];
+  const [d0] = colours[(seed + 1) % colours.length];
+  for (let i = 0; i < 10; i++) {
+    const x = -0.28 + (i % 4) * 0.19 + ((i * 37) % 7) / 100, z = -0.28 + Math.floor(i / 4) * 0.27 + ((i * 53) % 7) / 100;
+    const h = 0.16 + ((i * 29) % 10) / 100;
+    add(g, new THREE.ConeGeometry(0.012, h, 3), 0x3a6a2a, x, 0.06 + h / 2, z, false); // the stem
+    const head = new THREE.Mesh(new THREE.CircleGeometry(0.055, 5), lambert(i % 3 === 2 ? d0 : i % 2 ? c1 : c0));
+    head.material.side = THREE.DoubleSide;
+    head.rotation.set(-Math.PI / 2 + 0.3, 0, i);
+    head.position.set(x, 0.06 + h, z);
+    g.add(head);
+    add(g, new THREE.TetrahedronGeometry(0.018, 0), 0xf2d27a, x, 0.07 + h, z, false); // the middle
+  }
+  for (let i = 0; i < 6; i++) {
+    const t = add(g, new THREE.ConeGeometry(0.05, 0.12, 3), 0x4a7a3a, -0.25 + (i % 3) * 0.25, 0.12, -0.15 + Math.floor(i / 3) * 0.3, false);
+    t.rotation.y = i;
+  }
+  return g;
+}
