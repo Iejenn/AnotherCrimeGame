@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Throwing knives in the bag show their real stats now (max hit, speed, range and the Marksman level they need), not "+0 defence, Defense 11", and you Wield them instead of Wear.',
       "Thugs' hair no longer pokes through their hoods.",
       'The bar is quieter: three drunks again, an empty stool between them.',
+      'The candy store\'s shelves are stocked with wrapped candy bars, a jar of gumballs and lollipops; the gas station\'s with soda, chips and sandwiches.',
       'The city is built at a person\'s scale: taller storeys, 2 to 4 floors, doors you fit through, bigger windows, and no more houses narrower than two people (each lot is one building, or one with a yard or an alley beside it).',
       'Buildings between you and the camera (low on the screen) show only their ground floor, so the taller city never hides the street you\'re on.',
       'Textures on the city: brick or render on every house, roofing felt on the roofs, wood grain on counters, shelves, tables, benches, crates and plank fences, stone on the bank, brushed metal on bins, newspaper boxes, dumpsters and steel furniture.',

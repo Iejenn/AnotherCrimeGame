@@ -339,7 +339,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         // (v0.56: each yard's own paint and junk.)
         g = buildScrapDumpster(n.crimeId === 'copper_salvage' ? 'copper' : n.crimeId === 'aluminium_salvage' ? 'aluminium' : 'tin');
       } else {
-        g = buildShelf([0xd9473a, 0xf0b13c, 0x3a6ea5, 0x4fa04a, 0xe07b39, 0xf2efe8, 0x8a5ab8, 0xe86aa0], n.x * 3 + n.y);
+        // (v0.60: stocked with what the shop sells.)
+        g = buildShelf(n.crimeId === 'candy_store' ? 'candy' : 'gas', n.x * 3 + n.y);
       }
       g.position.copy(c);
       if (n.kind === 'car' && n.facing !== undefined) g.position.add(new THREE.Vector3(-Math.cos(n.facing), 0, Math.sin(n.facing)).multiplyScalar(0.45));
