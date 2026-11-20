@@ -130,6 +130,26 @@ const inside = q.get('inside');
 if (inside) city.rooms.get(inside)!.force = true;
 // Buildings between the camera and you fade, like in the game.
 for (let i = 0; i < 40; i++) updateFades(city.fadeables, camera, you.position, 0.05);
+// ?south=cut|fade (v0.60 trial): the buildings on the camera's side of you, within view: cut down to their ground floor
+// (a roof on it, like old-school RuneScape hiding upper floors), or see-through. To compare the two.
+const south = q.get('south');
+if (south)
+  for (const f of city.fadeables) {
+    const main = f.walls[0];
+    if (!main) continue;
+    const box = new THREE.Box3().setFromObject(main);
+    if (box.min.z < z + 0.6 || box.min.z > z + 18 || box.max.x < x - 16 || box.min.x > x + 16 || box.max.y <= 2.2) continue;
+    if (south === 'fade') {
+      for (const m of f.mats) Object.assign(m, { transparent: true, opacity: 0.22, depthWrite: false });
+      for (const p of f.props) p.visible = false;
+      continue;
+    }
+    const keep = 1.9;
+    for (const w of f.walls.slice(1)) w.visible = new THREE.Box3().setFromObject(w).min.y < keep;
+    main.scale.y = keep / (box.max.y - box.min.y);
+    main.position.y = keep / 2;
+    for (const p of f.props) p.visible = new THREE.Box3().setFromObject(p).min.y < keep - 0.2;
+  }
 // Models load in the background: keep rendering for a moment, then say we're ready.
 const t0 = performance.now();
 const tick = () => {
