@@ -9,7 +9,7 @@
 import { withModel } from './models';
 import * as THREE from 'three';
 import { surfaceMat } from './surfaces';
-import { boxGeo, buildLoot, crownClump, lambert } from './props';
+import { boxGeo, buildFood, buildLoot, crownClump, lambert } from './props';
 
 const cyl = (rt: number, rb: number, h: number, seg = 10) => new THREE.CylinderGeometry(rt, rb, h, seg);
 
@@ -556,13 +556,6 @@ export function buildBigCar(color: number) {
 
 /** What an item looks like on the ground: food from the Food Kit, a few bills, metal, gear and quest items. */
 /** Food lying on the ground (loot): which Food Kit model, and its scale (the models are about half a tile). */
-const FOOD_MODELS: Record<string, [string, number]> = {
-  raw_bird_meat: ['meat-raw', 0.65], cooked_bird_meat: ['meat-cooked', 0.65],
-  raw_rat_meat: ['meat-raw', 0.6], cooked_rat_meat: ['meat-ribs', 0.6],
-  raw_giant_rat_meat: ['meat-raw', 1.0], cooked_giant_rat_meat: ['whole-ham', 0.7],
-  candy_bar: ['candy-bar', 1.2], sandwich: ['sandwich', 0.75],
-};
-
 export function buildGroundItem(item: string) {
   const g = new THREE.Group();
   if (item === 'cash') {
@@ -570,18 +563,9 @@ export function buildGroundItem(item: string) {
       const b = put(g, boxGeo(0.26, 0.015, 0.13), i % 2 ? 0x4f8455 : 0x6a9e68, (i - 1) * 0.04, 0.015 + i * 0.016, (i - 1) * 0.02, false);
       b.rotation.y = i * 0.5;
     }
-  } else if (item === 'cooked_rat_antidote') {
-    // The cooked rat meat with the green antidote dripped over it.
-    withModel('food/meat-ribs.glb', { scale: 0.84, tone: 'dull' }, g);
-    for (const [x, z] of [[-0.04, 0.02], [0.05, -0.03], [0.0, 0.06]]) put(g, new THREE.OctahedronGeometry(0.03, 0), 0x5ac04a, x, 0.1, z, false).scale.y = 0.5;
-  } else if (FOOD_MODELS[item]) {
-    // Food on the ground: a model from Kenney's Food Kit (v0.45), toned down to our colours.
-    const [file, size] = FOOD_MODELS[item];
-    withModel(`food/${file}.glb`, { scale: size * 1.4, tone: 'dull' }, g);
-  } else if (/^(raw|cooked)_(bird|rat)_meat$/.test(item)) {
-    const raw = item.startsWith('raw_');
-    put(g, new THREE.SphereGeometry(0.11, 8, 6), raw ? 0xe8a0a0 : 0x8a4a22, 0, 0.07, 0).scale.set(1.3, 0.6, 1);
-    put(g, cyl(0.025, 0.02, 0.14, 6).rotateZ(Math.PI / 2.4), raw ? 0xf2e2d0 : 0xd8c8a8, 0.12, 0.08, 0); // the bone
+  } else if (buildFood(item)) {
+    // Food (v0.64): our own models (props.ts), raw and cooked the same shape; the bag icons are rendered from them.
+    return buildFood(item)!;
   } else {
     // Metal, gear and quest items (props.ts); anything newer than its model is still a small bundle.
     const loot = buildLoot(item);

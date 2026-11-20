@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import * as SL from './streetLife';
 import { expect, test } from 'vitest';
-import { buildDogHouse, buildCrane, buildCrate, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
+import { buildFood, buildDogHouse, buildCrane, buildCrate, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
 
 const tris = (o: THREE.Object3D) => {
   let n = 0;
@@ -49,6 +49,9 @@ test('the hangout props are within budget', () => {
     ['crate', buildCrate(), 300],
     ['crane (a vehicle)', buildCrane(), 800],
     ['dog house', buildDogHouse(), 300],
+    ...['raw_bird_meat', 'cooked_bird_meat', 'raw_rat_meat', 'cooked_rat_meat', 'raw_giant_rat_meat', 'cooked_giant_rat_meat', 'candy_bar', 'sandwich', 'cooked_rat_antidote'].map(
+      (id) => [id, buildFood(id)!, 300] as [string, THREE.Object3D, number],
+    ),
     ['street lamp', SL.buildStreetLamp(), 300],
     ['hydrant', SL.buildHydrant(), 300],
     ['mailbox', SL.buildMailbox(), 300],

@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Fixes',
     items: [
       'Street furniture is solid now: you walk round benches, bins, hydrants, mailboxes, newspaper boxes, bike racks and the dumpsters in the alleys instead of through them (they never block a path you need).',
+      'Food has new models, and the bag shows exactly what lies on the ground: raw and cooked meat are the same drumstick (bird, rat or giant rat), cooking only browns it and adds grill marks. A wrapped candy bar and a proper sandwich too.',
     ],
   },
   {

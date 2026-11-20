@@ -1844,3 +1844,81 @@ export function buildDogHouse(): THREE.Group {
   for (const e of [-1, 1]) add(g, new THREE.OctahedronGeometry(0.035, 0), 0xe8e0c8, -0.3 + e * 0.08, 0.03, D / 2 + 0.25 - e * 0.055, false);
   return g;
 }
+
+// ---------- food (v0.64, the quality bar): our own models, so raw and cooked are the same thing ----------
+// The bag icons are rendered from these very models (scripts/render-icons.cjs), so the bag and the ground match.
+// Raw and cooked meat are the same shape; cooking changes the colour (and adds grill marks), never the food.
+const MEAT: Record<string, { raw: number; cooked: number; size: number }> = {
+  bird: { raw: 0xe8a8a0, cooked: 0xc8862a, size: 0.8 },
+  rat: { raw: 0xb86a62, cooked: 0x8a4a22, size: 0.65 },
+  giant_rat: { raw: 0x9a3a32, cooked: 0x6a3418, size: 1.15 },
+};
+/** A drumstick: a teardrop of meat (turned, 7 sides) on a bone with a knuckle at its end. Cooked: a darker crust ring
+ *  and grill marks across the top. Lies on its side. About 120 tris. */
+function drumstick(colour: number, cooked: boolean, size: number): THREE.Group {
+  const g = new THREE.Group();
+  const leg = new THREE.Group();
+  const prof = [[0, 0], [0.07, 0.02], [0.1, 0.09], [0.085, 0.17], [0.04, 0.22], [0.025, 0.25]].map(([r, y]) => new THREE.Vector2(r, y));
+  const meat = new THREE.Mesh(new THREE.LatheGeometry(prof, 7), new THREE.MeshLambertMaterial({ color: colour, flatShading: true }));
+  meat.castShadow = true;
+  leg.add(meat);
+  if (cooked) {
+    const crust = new THREE.Mesh(new THREE.CylinderGeometry(0.102, 0.095, 0.04, 7), lambert(new THREE.Color(colour).multiplyScalar(0.7).getHex()));
+    crust.position.y = 0.1;
+    leg.add(crust);
+    for (const y of [0.06, 0.12, 0.17]) {
+      const mark = new THREE.Mesh(boxGeo(0.11, 0.012, 0.02), lambert(0x2a1a10));
+      mark.position.set(0, y, 0.088);
+      mark.rotation.z = 0.25;
+      leg.add(mark);
+    }
+  }
+  const bone = 0xf2e8d4;
+  add(leg, cylGeo(0.022, 0.12, 6), bone, 0, 0.3, 0);
+  for (const x of [-0.022, 0.022]) add(leg, new THREE.IcosahedronGeometry(0.028, 0), bone, x, 0.37, 0, false);
+  leg.rotation.z = Math.PI / 2; // lying down
+  leg.position.set(0.18, 0.1, 0);
+  g.add(leg);
+  g.scale.setScalar(size);
+  return g;
+}
+/** A candy bar in its wrapper: a bar with crimped ends, the wrapper's band and logo. About 60 tris. */
+function candyBar(): THREE.Group {
+  const g = new THREE.Group();
+  const c = 0xd9473a;
+  addTex(g, boxGeo(0.3, 0.05, 0.12), texMat(`wrap${c}`, wrapper(c), 1, 1, c), 0, 0.025, 0);
+  for (const x of [-1, 1]) {
+    const end = add(g, new THREE.CylinderGeometry(0.01, 0.05, 0.05, 4), 0xb8382c, x * 0.175, 0.025, 0, false);
+    end.rotation.z = (-x * Math.PI) / 2;
+  }
+  return g;
+}
+/** A sandwich half: a triangle of bread, ham and lettuce peeking out, the crust darker. About 60 tris. */
+function sandwich(): THREE.Group {
+  const g = new THREE.Group();
+  const tri = (r: number, h: number) => new THREE.CylinderGeometry(r, r, h, 3);
+  const layers: [number, number, number, number][] = [
+    [0.15, 0.04, 0xe8d0a0, 0.02], [0.155, 0.015, 0x6ab04a, 0.048], [0.15, 0.025, 0xe89a9a, 0.068], [0.15, 0.04, 0xe8d0a0, 0.1],
+  ];
+  for (const [r, h, c, y] of layers) add(g, tri(r, h), c, 0, y, 0, false);
+  add(g, tri(0.152, 0.02), 0xb88a4a, 0, 0.125, 0, false); // the top crust
+  g.rotation.y = 0.4;
+  return g;
+}
+/** A food item as it lies on the ground (and as the bag shows it), or null if it isn't food. */
+export function buildFood(item: string): THREE.Group | null {
+  if (item === 'candy_bar') return candyBar();
+  if (item === 'sandwich') return sandwich();
+  const m = /^(raw|cooked)_(bird|rat|giant_rat)_meat$/.exec(item);
+  if (m) {
+    const k = MEAT[m[2]];
+    return drumstick(m[1] === 'raw' ? k.raw : k.cooked, m[1] === 'cooked', k.size);
+  }
+  if (item === 'cooked_rat_antidote') {
+    // The cooked rat meat with the green antidote dripped over it.
+    const g = drumstick(MEAT.rat.cooked, true, MEAT.rat.size);
+    for (const [x, z] of [[0.0, 0.03], [0.07, -0.03], [0.13, 0.02]]) add(g, new THREE.OctahedronGeometry(0.035, 0), 0x5ac04a, x, 0.21, z, false).scale.y = 0.5;
+    return g;
+  }
+  return null;
+}

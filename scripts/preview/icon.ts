@@ -1,5 +1,5 @@
-// Dev only: render one ground item (?id=) the way it lies in the street (buildGroundItem: the Food Kit models with the
-// same tone), framed to fill the picture, on a transparent background. scripts/render-icons.cjs saves these as the bag
+// Dev only: render one ground item (?id=) the way it lies in the street (buildGroundItem: v0.64, our own food models in
+// props.ts), framed to fill the picture, on a transparent background. scripts/render-icons.cjs saves these as the bag
 // icons in public/icons/items/, so the bag and the ground always show the same thing.
 import * as THREE from 'three';
 import { buildGroundItem } from '../../src/street/streetLife';
@@ -25,7 +25,7 @@ setTimeout(() => {
   const box = new THREE.Box3().setFromObject(item);
   const c = box.getCenter(new THREE.Vector3());
   const r = box.getSize(new THREE.Vector3()).length() / 2;
-  const d = (r / Math.sin(THREE.MathUtils.degToRad(12))) * 0.78;
+  const d = (r / Math.sin(THREE.MathUtils.degToRad(12))) * 0.95; // (v0.64: room for the bone ends)
   const dir = new THREE.Vector3(0.35, 0.75, 1).normalize();
   camera.position.copy(c).addScaledVector(dir, d);
   camera.lookAt(c);
