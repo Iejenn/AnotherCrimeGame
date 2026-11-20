@@ -14,11 +14,11 @@ import {
   PARKING, PARKING_NE, PARKING_S, PITCH, SPAWN, STATIONS, YARD, YARD_GATES, STREET, STORE, W, WEAPONS, blockRect, buildBlocked, gi, inRect, type Room,
   FLOOR_H, HOSPITAL, LOBBY, STAIRS, WARD, WAKE,
   MANHOLE, SEWER, SEWER_BRIDGES, floorY, THRIFT, THRIFT_GATE, THRIFT_YARD, SUPERSTORE, SUPERSTORE_GATE, SUPERSTORE_LOT, SUPERSTORE_YARD,
-  CLUB, CLUB_DOOR, HOTLINE, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
+  CLUB, CLUB_DOOR, HOTLINE, HOTLINE_ROOM, HOTLINE_GATE, HOTLINE_YARD, JUNKYARD, JUNKYARD_GATE, NEST, NEST_GATE, NEST_TUNNEL,
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { buildContainer, buildDiceCrate, buildLookout, buildRubble, buildRuinWall, buildStringLights, buildStrippedCar } from './props';
+import { buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -2241,8 +2241,11 @@ export function buildCity(scene: THREE.Scene) {
   };
 
   // Hotline: a long two-tone workshop (brick below, cream render above), its front on the WEST side: a big sign, a
-  // roll-up door for the vans, an office door, pipes stacked against the wall. Its yard behind it has a half-high brick
-  // wall with one opening on the east, stacks of old pipe and copper coils lying around (the dumpsters are spots).
+  // roll-up door for the vans, pipes stacked against the wall. Its yard behind it has a half-high brick wall with one
+  // opening on the east, stacks of old pipe and copper coils lying around (the dumpsters are spots).
+  // v0.62 ("Pipe Dreams"): a room you can go into, by the office door (HOTLINE_ROOM in map.ts): the walls fade and the
+  // roof lifts while you're inside. The shop at the front (the counter in an L round Gus's corner, shelves of fittings,
+  // water heaters for sale), the workshop at the back (a workbench, a pipe rack, a toolbox, a hot-water tank).
   {
     const X0 = HOTLINE.x0;
     const X1 = HOTLINE.x1 + 1;
@@ -2251,29 +2254,73 @@ export function buildCity(scene: THREE.Scene) {
     const cx = (X0 + X1) / 2;
     const cz = (Z0 + Z1) / 2;
     const HT = 2.4;
+    const t = 0.2;
     add(geoBox(X1 - X0 + 0.4, 0.06, Z1 - Z0 + 0.4), pavement, cx, 0.03, cz, false);
+    // The floor: smooth concrete in the shop, the same with oil stains in the workshop.
+    const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0 - 0.3, Z1 - Z0 - 0.3)), slam('stone', 0x8a867e, 1, 1, false));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0.07, cz);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    statics.push(floor);
+    for (const [x, z, r] of [[X0 + 2.2, Z0 + 7.5, 0.35], [X0 + 1.4, Z0 + 8.6, 0.25]] as const)
+      add(own(new THREE.CircleGeometry(r, 8)), lam(0x3a3630, DECAL), x, 0.075, z, false).rotation.x = -Math.PI / 2;
+    // The walls (two-tone: brick to waist height, cream render above), the door opening in the west wall.
     const mBrick = brickMat(Z1 - Z0, 0x7a4a3a);
     const mRender = slam('plaster', 0xd8ceb4, 1, 1, false);
-    const walls = [add(geoBox(X1 - X0, 1.2, Z1 - Z0), mBrick, cx, 0.6, cz), add(geoBox(X1 - X0, HT - 1.2, Z1 - Z0), mRender, cx, 1.2 + (HT - 1.2) / 2, cz)];
     const hr = { x0: X0, z0: Z0, x1: X1, z1: Z1 };
+    const fw = face(hr, 'w');
+    const [, dy] = HOTLINE_ROOM.door;
+    const door = { u0: uOf(fw, dy), u1: uOf(fw, dy + 1), top: 1.5 };
+    const walls = [...kit.walls(hr, 1.2, t, mBrick, { w: [{ ...door, top: 1.2 }] })];
+    const upper = kit.walls(hr, HT - 1.2, t, mRender, { w: [{ ...door, top: 0.3 }] });
+    for (const w of upper) w.position.y += 1.2;
+    walls.push(...upper);
     const props: THREE.Object3D[] = [kit.roof(hr, HT, 0x3a3d42, 0.1, 0.12)];
     props.push(add(geoBox(1.2, 0.5, 0.8), lam(0xb8bcc2), cx + 0.5, HT + 0.35, Z0 + 2)); // a boiler flue box on the roof
     props.push(...kit.vent(cx - 1, HT + 0.12, Z1 - 2, 0.12, 1.0, 0x8a8f96));
-    // The front faces WEST (kit): the sign on its board, the roll-up door for the vans, an office door with a bulb,
-    // windows in the cream upper half down both long sides.
-    const fw = face(hr, 'w');
+    // The front (west): the sign on its board, the roll-up door for the vans, the office door (open: the way in) with
+    // a bulb, windows in the cream upper half down both long sides.
     const fx = X0 - 0.01;
     const sign = kit.sign(fw, uOf(fw, cz), 1.95, { text: 'HOTLINE PLUMBING & HEATING', bg: '#1e4a7a', fg: '#f2e8d0', w: 4.2, h: 0.7, board: 0x1a2a3e });
     kit.door(fw, uOf(fw, cz + 2.2), { style: 'shutter', w: 2.0, h: 1.45, color: 0xa8adb4 });
-    kit.door(fw, uOf(fw, cz - 1.0), { style: 'office', w: 0.8, h: 1.25, color: 0x2e5f8a, light: 'bulb' });
+    kit.door(fw, uOf(fw, dy + 0.5), { style: 'frame', w: 1, h: 1.5, frame: 0x2e5f8a, light: 'bulb' });
     for (const side of ['n', 's'] as const) props.push(...kit.windowRow(face(hr, side), 0.6, X1 - X0 - 0.6, 1.3, 1.5, { style: 'office', w: 0.7, h: 0.5, frame: 0x6a6a62, litChance: 0.5, rng: brng }));
     add(own(new THREE.ConeGeometry(0.16, 0.42, 6)), lam(0xe8641e, { emissive: 0x8a3010, emissiveIntensity: 0.6 }), fx - 0.1, 1.95, cz - 2.4, false);
-    // Copper pipes stacked against the front wall, and a bare bulb over the office door.
+    // Copper pipes stacked against the front wall.
     const copper = lam(0xc07040);
     for (let i = 0; i < 6; i++) {
-      const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz - 3.6 + (i % 3) * 0.12, false);
+      const pipe = add(own(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8)), copper, fx - 0.25 - (i % 3) * 0.1, 0.06 + Math.floor(i / 3) * 0.1, cz + 3.4 + (i % 3) * 0.12, false);
       pipe.rotation.x = Math.PI / 2;
     }
+    // Inside (props.ts models): the fittings shelves and heaters along the north wall, the counter, the workshop.
+    const placed = (o: THREE.Object3D, x: number, z: number, ry = 0) => {
+      o.position.set(x, 0.07, z);
+      o.rotation.y = ry;
+      o.traverse((c) => ((c as THREE.Mesh).castShadow = true));
+      scene.add(o);
+      return o;
+    };
+    const fx0 = FIXTURES.filter((f) => inRect(HOTLINE, f.x, f.y));
+    fx0.filter((f) => f.kind === 'fittings').forEach((f, i) => placed(buildFittingsShelf(i), f.x + 0.5, f.y + 0.5));
+    fx0.filter((f) => f.kind === 'heater').forEach((f) => placed(buildWaterHeater(), f.x + 0.5, f.y + 0.45));
+    fx0.filter((f) => f.kind === 'hwtank').forEach((f) => placed(buildWaterHeater(true), f.x + 0.5, f.y + 0.5));
+    const counter = fx0.filter((f) => f.kind === 'hcounter');
+    const ax = counter.filter((f) => f.x === counter[0].x); // the long arm (north-south), and the short one (east-west)
+    const az = counter.filter((f) => f.x !== counter[0].x);
+    if (ax.length) placed(buildShopCounter(ax.length, true), ax[0].x + 0.5, (Math.min(...ax.map((f) => f.y)) + Math.max(...ax.map((f) => f.y)) + 1) / 2, Math.PI / 2);
+    if (az.length) placed(buildShopCounter(az.length), (Math.min(...az.map((f) => f.x)) + Math.max(...az.map((f) => f.x)) + 1) / 2, az[0].y + 0.5);
+    const bench = fx0.filter((f) => f.kind === 'hbench');
+    if (bench.length) placed(buildPlumbBench(), bench[0].x + 0.55, (bench[0].y + bench[bench.length - 1].y + 1) / 2);
+    const rack = fx0.filter((f) => f.kind === 'piperack');
+    if (rack.length) placed(buildPipeRack(rack.length), (rack[0].x + rack[rack.length - 1].x + 1) / 2, rack[0].y + 0.5);
+    fx0.filter((f) => f.kind === 'toolbox').forEach((f) => placed(buildToolbox(), f.x + 0.5, f.y + 0.5, 0.4));
+    // A warm light over the counter, a cold one over the bench.
+    const shopLight = new THREE.PointLight(0xffd8a0, 3, 6, 1.5);
+    shopLight.position.set(X0 + 2.5, HT - 0.4, Z0 + 2.5);
+    const benchLight = new THREE.PointLight(0xd8e8ff, 2.5, 5, 1.5);
+    benchLight.position.set(X0 + 3.5, HT - 0.4, Z0 + 7);
+    scene.add(shopLight, benchLight);
     // v0.60: offices on top (one storey).
     const flats = apartments({ x0: X0, z0: Z0, x1: X1, z1: Z1 }, HT + 0.12, 1, 0x7a4a3a, 0x5a3a2a);
     const fade: Fadeable = {
@@ -2281,6 +2328,7 @@ export function buildCity(scene: THREE.Scene) {
       cut: { height: HT + 0.12 + FLOOR, keep: HT, center: new THREE.Vector3(cx, 0, cz), upper: flats, on: false },
     };
     fadeables.push(fade);
+    rooms.set(HOTLINE_ROOM.id, fade);
 
     // The yard: cracked concrete, a half-high brick wall with a coping, one opening on the east.
     const Y0 = HOTLINE_YARD.x0;

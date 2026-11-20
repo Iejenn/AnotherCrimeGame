@@ -13,14 +13,15 @@ import { gameNow } from '../game/clock';
 import { GUARD_HALF, GUARD_RANGE, angDiff, bartenderAt, guardAt, inBeam } from '../game/watchers';
 import { ITEM_BY_ID, plural } from '../game/data/items';
 import { COOK_TICKS } from '../game/data/recipes';
-import { BAR_FACING, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
+import { BAR_FACING, BAR_LEAK, GUS_TALK, WATER_MAIN, barSpot, GRID, gi, inGrid, CLUB, NEST_GATE, BANK_COUNTER_Y, COURT, enclosureAt, FLOOR_H, LINKS, NODES, NPCS, ROOMS, SEWER_DEPTH, SPAWN, STAIRS, STATIONS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, inSewer, isUpstairs, onMap, type Npc, type StreetNode } from './map';
 import { RUN_MULT, drainPerTile, regenPerSecond } from '../game/stamina';
 import { levelFromXp } from '../game/xp';
 import { THROW_RELEASE, WALK_PACE, animateCharacter, buildCharacter, randomLook, type Pose } from './character';
 import { adjacent, clearShot, routeMs, routePoint, walkMasks } from './sight';
 import { rangedWeapon } from '../game/combat';
 import { buildCity, updateCuts, updateFades } from './city';
-import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, setGear, setSpotEmpty } from './props';
+import { BAG_COLORS, CAR_COLORS, METAL_COLORS, buildThrowingKnife, animatePigeon, animateRat, buildDog, buildGiantRat, buildGrave, buildRat, buildScrapDumpster, buildGymBag, buildMeter, buildPigeon, buildShelf, animateBurstPipe, buildBurstPipe, buildWaterMain, setGear, setSpotEmpty } from './props';
+import { QUEST_LINES } from '../game/data/quests';
 import { ENEMY_KINDS, enemyAt as scheduleAt } from '../game/enemies';
 import { buildBigCar, buildGroundItem } from './streetLife';
 import { CookDialog } from './CookDialog';
@@ -400,6 +401,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       doctor_1: [{ skin: 2, hair: 1, hairColor: 0, top: 4, bottom: 0 }, { scrubs: 0x7ab0d8, coat: true }], // light blue scrubs, white coat
       // Splinter: a filthy old army jacket, a cap, a beard (sits against the sewer wall).
       splinter: [{ skin: 1, hair: 4, hairColor: 1, top: 2, bottom: 3 }, { jacket: 0x4e5236 }],
+      // Gus (v0.62): a Hotline-blue boiler suit (scrubs: top and trousers in one colour) and a flat cap.
+      gus: [{ skin: 2, hair: 4, hairColor: 2, top: 4, bottom: 0 }, { scrubs: 0x2e5f8a }],
     };
     for (const npc of NPCS) {
       const [look, extra] = NPC_LOOKS[npc.id] ?? [randomLook(lookRng), undefined];
@@ -517,6 +520,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       /** Walking to the pothole or the ladder, to climb. */
       goalLink: null as string | null,
       goalGate: false,
+      /** v0.62 ("Pipe Dreams"): walking to the water main or the bar's burst pipe, to work it. */
+      goalQuest: null as string | null,
       /** Throwing a punch (pose) until this time. */
       punchUntil: 0,
       /** When the current swing started (performance.now()), for weapons that swing (a one-off move). */
@@ -841,6 +846,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       me.goalStation = null;
       me.goalLink = null;
       me.goalGate = false;
+      me.goalQuest = null;
       setCookAtRef.current(null);
       setTinkerAtRef.current(null);
       setBankAtRef.current(null);
@@ -874,6 +880,53 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       me.lastSpot = n.id;
       // One tap = one attempt. Where you stand matters: the guard checks it, and your grave goes there.
       apiRef.current.startAttempt(n.crimeId, n.id, tileOf(me.pos.x, me.pos.z));
+    };
+
+    // ---------- "Pipe Dreams" (v0.62): the bar's water main and its burst pipe ----------
+    // Both are props.ts models. You see them as they are for you (your step in the quest): the burst pipe sprays while
+    // the water is on and it's broken, the puddle dries once it's fixed, the main's wheel turns while you have it shut.
+    const waterMain = buildWaterMain();
+    waterMain.position.set(WATER_MAIN[0] + 0.5, 0.07, WATER_MAIN[1] + 0.5);
+    waterMain.scale.setScalar(1.35); // (a bit bigger than life, so it reads from the game's camera)
+    const burstPipe = buildBurstPipe();
+    burstPipe.position.set(BAR_LEAK[0] + 0.5, floorY(BAR_LEAK[0] + 0.5, BAR_LEAK[1] + 0.5) + 0.02, BAR_LEAK[1] + 0.5);
+    for (const [o, id] of [[waterMain, 'water_main'], [burstPipe, 'bar_leak']] as const) {
+      o.traverse((c) => (c.userData.questSpot = id));
+      addHitArea(o);
+      scene.add(o);
+      pickables.push(o);
+    }
+    let shownStep = -1;
+    const showPipeDreams = () => {
+      const step = sRef.current.quests?.pipe_dreams ?? 0;
+      if (step === shownStep) return;
+      shownStep = step;
+      const u = burstPipe.userData as { spray: THREE.Object3D; puddle: THREE.Object3D; cracked: THREE.Object3D; fixed: THREE.Object3D };
+      u.spray.visible = step <= 2;
+      u.puddle.visible = step <= 3;
+      u.cracked.visible = step <= 3;
+      u.fixed.visible = step >= 4;
+      (waterMain.userData.wheel as THREE.Object3D).rotation.y = step === 3 || step === 4 ? Math.PI * 1.5 : 0;
+    };
+    /** Arrived at the water main or the burst pipe: the server decides what happens (quest_talk), you read it. */
+    const reachQuestSpot = () => {
+      const id = me.goalQuest;
+      me.goalQuest = null;
+      if (!id) return;
+      void apiRef.current.questTalk(id, null, tileOf(me.pos.x, me.pos.z)).then((line) => {
+        const said = line ? QUEST_LINES[line] : null;
+        if (said) for (const t of said.text) say(t);
+      });
+    };
+    const goQuestSpot = (id: string) => {
+      stopWorking();
+      setTalkingRef.current(null);
+      // The water main blocks its tile: you stand next to it. The burst pipe is on the wall: you stand on its tile.
+      const goals: [number, number][] = id === 'water_main' ? beside(...WATER_MAIN) : [BAR_LEAK];
+      if (walkTo(goals, null)) {
+        me.goalQuest = id;
+        if (!me.path.length) reachQuestSpot();
+      }
     };
 
     // ---------- your grave (docs/design.md §5) ----------
@@ -1011,11 +1064,13 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         }
         return;
       }
+      if (hit?.object.userData.questSpot) return goQuestSpot(hit.object.userData.questSpot);
       if (hit?.object.userData.npcId) {
         const npc = NPCS.find((x) => x.id === hit.object.userData.npcId)!;
         if (npc.kind === 'baller') return say("They're busy playing. Their bags on the bench aren't watched much…");
         if (npc.kind === 'clerk') return say(`The ${npc.name.toLowerCase()} keeps an eye on the shelves. Don't get caught.`);
-        if (npc.kind === 'bartender') return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
+        // (v0.62: on "Pipe Dreams" you can talk to him, across the counter.)
+        if (npc.kind === 'bartender' && !isQuestNpc(npc, st)) return say('The bartender keeps an eye on his guests. Wait until he turns his back.');
         if (npc.kind === 'guard') return say('The guard patrols the lot with his flashlight. Stay out of the light.');
         if (npc.kind === 'receptionist') return say('"You\'re all patched up, hon. Try not to come back too soon."');
         if (npc.kind === 'doorman') return say('The guard nods at you. "Keep it civil in here."');
@@ -1023,7 +1078,15 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         setTalkingRef.current(null);
         const [ex, ey] = npcTile(npc);
         // A banker stands behind the counter: you talk to them from the row in front of it.
-        const goals: [number, number][] = npc.kind === 'banker' ? [[ex, BANK_COUNTER_Y + 1], [ex - 1, BANK_COUNTER_Y + 1], [ex + 1, BANK_COUNTER_Y + 1]] : beside(ex, ey);
+        const goals: [number, number][] =
+          npc.kind === 'banker'
+            ? [[ex, BANK_COUNTER_Y + 1], [ex - 1, BANK_COUNTER_Y + 1], [ex + 1, BANK_COUNTER_Y + 1]]
+            : // Gus and the bartender stay behind their counters: you talk to them from in front of it (v0.62).
+              npc.kind === 'plumber'
+              ? GUS_TALK
+              : npc.kind === 'bartender'
+                ? [-1, 0, 1].map((d) => [ex + 2, ey + d] as [number, number]).filter(([x, y]) => !blocked[gi(x, y)])
+                : beside(ex, ey);
         if (walkTo(goals, null, npc)) {
           ring.position.set(ex + 0.5, 0.08, ey + 0.5);
           (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
@@ -1451,6 +1514,10 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         if (!me.path.length && me.goalGate) {
           savePos();
           reachGate();
+        }
+        if (!me.path.length && me.goalQuest) {
+          savePos();
+          reachQuestSpot();
         }
         if (!me.path.length) savePos();
         if (!me.path.length && me.goalNpc) {
@@ -1978,6 +2045,8 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
       }
       updateFades(city.fadeables, camera, lift(me.pos, 0), dt);
       updateCuts(city.fadeables, camera, lift(me.pos, 0)); // (v0.60: buildings low on the screen show only their ground floor)
+      showPipeDreams();
+      animateBurstPipe(burstPipe, now / 1000);
       city.animate(now);
 
       // Progress bar for the current action.
@@ -2334,7 +2403,7 @@ export function StreetView({ s, api, onReport, world, chat, hud }: { s: GameStat
         )}
       </div>
       {talking &&
-        (isQuestNpc(talking) ? (
+        (isQuestNpc(talking, s) ? (
           <QuestDialog npc={talking} api={api} pos={herePos.current} onClose={() => setTalking(null)} />
         ) : (
           <NpcDialog npc={talking} s={s} api={api} onClose={() => setTalking(null)} />

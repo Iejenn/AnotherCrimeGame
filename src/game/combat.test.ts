@@ -102,6 +102,8 @@ describe('combat maths (design §12)', () => {
       ['aluminium_sheet', 21, 1, 4, 'press'], ['aluminium_knuckles', 22, 1, 12, 'bench'], ['aluminium_bat', 23, 2, 24, 'bench'], ['aluminium_knife', 24, 1, 12, 'bench'],
       ['aluminium_throwing_knife', 21, 1, 12, 'bench'],
       ['aluminium_helmet', 26, 1, 12, 'bench'], ['aluminium_legs', 27, 2, 24, 'bench'], ['aluminium_vest', 28, 3, 36, 'bench'],
+      // v0.62: the quest "Pipe Dreams": a Pipe Elbow from a tin sheet.
+      ['pipe_elbow', 1, 1, 10, 'bench'],
     ]);
   });
 

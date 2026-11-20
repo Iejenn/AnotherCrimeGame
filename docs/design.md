@@ -972,6 +972,23 @@ wins only about 5 in 6 (simulated); at combat 4, about 49 in 50.
 - **Giant rat meat:** the giant rats always drop it; cook it (Cooking 10, 15 XP, never burns from 30): heals 3 HP.
 
 
+
+### Pipe Dreams (v0.62; no fighting)
+
+Gus runs **Hotline Plumbing & Heating** (now a room you walk into by the office door, west: shelves of fittings, water
+heaters, an L-shaped counter round his corner, a workshop with a bench, a pipe rack, a toolbox and a hot-water tank).
+His back's gone and the bar has a burst pipe. Each step is a different kind of thing to do:
+1. **Gus** (talk to him across the counter): accept.
+2. **The bartender** (only on this quest you can talk to him, across the bar) shows you the leak.
+3. **The water main**: a valve with a red wheel on the sidewalk across the street from the bar, a little west. Turn it off.
+4. **A Pipe Elbow**: tin salvage from the Thrift Store's yard (Scrapping) → a tin sheet at the Factory's press → a Pipe
+   Elbow at a workbench (a quest-only craft: 1 tin sheet, Tinkering 1, 10 XP; a quest item, can't be dropped or sold).
+5. **The leak** (the bar's west wall, past the end of the bar): fit the elbow.
+6. **The water main** again: turn it on. **Gus**: +50 Scrapping XP, +50 Tinkering XP, $50.
+
+No timer, no fail: people nag with jokes instead. The server decides every step (`game.pipe_dreams`, from `quest_talk`,
+0047); the words are in `quests.ts`. The burst pipe (an arcing stream, splash and puddle, OSRS style) and the main's
+wheel show as they are for you.
 ## 17. The screen (v0.44)
 
 The street fills the screen, in portrait too. No header or tab bar any more (no name, no ranks: your name shows when you

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import zoneWestSql from '../../supabase/migrations/0026_zone_west.sql?raw';
-import { GRID, gi, inGrid, LINKS, ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PATROL, TOURIST_AREAS, inPark, SPAWN, STAIRS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
+import { GUS_TALK, WATER_MAIN, BAR_LEAK, GRID, gi, inGrid, LINKS, ENCLOSURES, FIXTURES, FLOOR_H, LOBBY, NODES, NPCS, PATROL, TOURIST_AREAS, inPark, SPAWN, STAIRS, WAKE, WARD, buildBlocked, canStep, floorY, inRect, isUpstairs } from './map';
 import { findPath, neighbors } from './pathfind';
 import { CRIMES } from '../game/data/crimes';
 import { GUARD_ROUTE } from '../game/watchers';
@@ -17,9 +17,23 @@ it('every street spot and NPC is reachable from spawn', () => {
   const ladderFoot = LINKS.find((l) => l.id === 'sewer_down')!.to;
   for (const npc of NPCS)
     expect(
-      npc.kind === 'splinter' ? findPath(b, GRID, ladderFoot, neighbors(npc.x, npc.y), canStep) : findPath(b, GRID, SPAWN, [[npc.x, npc.y]], canStep),
+      npc.kind === 'splinter'
+        ? findPath(b, GRID, ladderFoot, neighbors(npc.x, npc.y), canStep)
+        : // (v0.62: Gus stays behind his counter: you talk to him from in front of it.)
+          findPath(b, GRID, SPAWN, npc.kind === 'plumber' ? GUS_TALK : [[npc.x, npc.y]], canStep),
       npc.id,
     ).not.toBeNull();
+});
+
+// v0.62 ("Pipe Dreams"): the water main is on the sidewalk you can walk round, the bar's leak on a floor tile, and
+// Gus can't leave his corner (nor anyone get in behind the counter).
+it("Pipe Dreams' places: the water main, the leak, Gus's corner", () => {
+  const b = buildBlocked();
+  expect(findPath(b, GRID, SPAWN, neighbors(...WATER_MAIN), canStep)).not.toBeNull();
+  expect(b[gi(...BAR_LEAK)]).toBe(0);
+  expect(findPath(b, GRID, SPAWN, [BAR_LEAK], canStep)).not.toBeNull();
+  const gus = NPCS.find((n) => n.id === 'gus')!;
+  expect(findPath(b, GRID, SPAWN, [[gus.x, gus.y]], canStep)).toBeNull();
 });
 
 it('every spot can be worked from its own side of a fence or wall (not reaching through it)', async () => {

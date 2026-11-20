@@ -119,4 +119,6 @@ export const CRAFTS: Craft[] = METALS.flatMap((m) => [
     ticks: BENCH_TICKS, inputs: { [`${m.id}_sheet`]: p.sheets }, ...(p.makes ? { amount: p.makes } : {}),
   })),
 ]);
+// v0.62: the quest "Pipe Dreams" (quests.ts): bend a tin sheet into a Pipe Elbow at a workbench (a quest item).
+CRAFTS.push({ id: 'pipe_elbow', station: 'bench', skill: 'tinkering', level: 1, xp: 10, ticks: BENCH_TICKS, inputs: { tin_sheet: 1 } });
 export const CRAFT_BY_ID: Record<string, Craft> = Object.fromEntries(CRAFTS.map((c) => [c.id, c]));

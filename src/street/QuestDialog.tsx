@@ -1,14 +1,18 @@
-// Talking to a quest's person (docs/design.md §16): Splinter in the sewer, JD and Elliot in the hospital's ward. The
+// Talking to a quest's person (docs/design.md §16): Splinter in the sewer, JD and Elliot in the hospital's ward, Gus at
+// Hotline and the bartender (v0.62, "Pipe Dreams"). The
 // server decides what happens (quest_talk) and answers with the line they say; when they ask you something, you answer
 // with the buttons. JD is always too busy (no server needed).
 import { useEffect, useState } from 'react';
 import type { GameApi } from '../game/api';
+import type { GameState } from '../game/types';
 import type { Npc } from './map';
 import { QUEST_LINES } from '../game/data/quests';
 
 /** Which quest person an NPC is (for quest_talk). */
-const TALK_ID: Record<string, string> = { splinter: 'splinter', doctor_0: 'elliot' };
-export const isQuestNpc = (npc: Npc) => npc.id === 'splinter' || npc.kind === 'doctor';
+const TALK_ID: Record<string, string> = { splinter: 'splinter', doctor_0: 'elliot', gus: 'gus', bartender: 'bartender' };
+/** Does tapping this NPC open a quest talk? The bartender only while you're on "Pipe Dreams" (or done with it). */
+export const isQuestNpc = (npc: Npc, s: GameState) =>
+  npc.id === 'splinter' || npc.kind === 'doctor' || npc.id === 'gus' || (npc.id === 'bartender' && (s.quests?.pipe_dreams ?? 0) > 0);
 
 export function QuestDialog({ npc, api, pos, onClose }: { npc: Npc; api: GameApi; pos: [number, number]; onClose: () => void }) {
   const [line, setLine] = useState<string | null>(TALK_ID[npc.id] ? null : 'jd');
@@ -44,6 +48,16 @@ export function QuestDialog({ npc, api, pos, onClose }: { npc: Npc; api: GameApi
             <button onClick={() => setPage(page + 1)}>Continue</button>
           </li>
         )}
+        {said && last && line === 'gu_offer' && (
+          <>
+            <li>
+              <button onClick={() => ask('accept')}>Sure, I'll fix it. (Start the quest "Pipe Dreams")</button>
+            </li>
+            <li>
+              <button onClick={() => ask('decline')}>Not now.</button>
+            </li>
+          </>
+        )}
         {said && last && line === 'sp_offer' && (
           <>
             <li>
@@ -54,7 +68,7 @@ export function QuestDialog({ npc, api, pos, onClose }: { npc: Npc; api: GameApi
             </li>
           </>
         )}
-        {said && last && line !== 'sp_offer' && (
+        {said && last && line !== 'sp_offer' && line !== 'gu_offer' && (
           <li>
             <button onClick={onClose}>Goodbye</button>
           </li>

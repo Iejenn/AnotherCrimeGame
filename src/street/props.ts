@@ -1112,3 +1112,242 @@ export function buildStringLights(a: THREE.Vector3, b: THREE.Vector3, bulbs = 14
   }
   return g;
 }
+
+// ---------- Hotline Plumbing & Heating and the quest "Pipe Dreams" (v0.62) ----------
+// Built to the art rules (docs/design.md §18): low-poly, flat-shaded, 6–12-sided round things, pixel textures on the
+// materials, each within the prop budget (300 triangles). props.test.ts counts them. Each stands on its origin.
+
+/** Galvanised pipe metal: brushed grey, a few darker joints. */
+const PIPE_METAL: Painter = (g, rnd) => {
+  px(g, '#9aa0a6', 0, 0, 32, 32);
+  for (let x = 0; x < 32; x++) if (rnd() < 0.4) px(g, shade(0x9aa0a6, 0.88 + rnd() * 0.2), x, 0, 1, 32);
+  for (let i = 0; i < 3; i++) px(g, '#6e737a', 0, Math.floor(rnd() * 30), 32, 2);
+};
+/** Old iron pipe: rust in streaks and blotches over dark brown, a pale tide line of scale. */
+const RUST_PIPE: Painter = (g, rnd) => {
+  px(g, '#6a3a22', 0, 0, 32, 32);
+  for (let i = 0; i < 40; i++) px(g, rnd() < 0.5 ? '#8a4a2a' : '#4a2a1a', Math.floor(rnd() * 30), Math.floor(rnd() * 30), 2 + Math.floor(rnd() * 3), 1 + Math.floor(rnd() * 2));
+  for (let x = 0; x < 32; x++) if (rnd() < 0.5) px(g, '#a8784a', x, 20, 1, 1);
+};
+/** Enamel (a water heater's white, a toolbox's red): a sheen streak, a few chips and scuffs. */
+const ENAMEL = (c: number): Painter => (g, rnd) => {
+  px(g, shade(c, 1), 0, 0, 32, 32);
+  px(g, shade(c, 1.12), 4, 0, 3, 32);
+  for (let i = 0; i < 8; i++) px(g, shade(c, 0.78), Math.floor(rnd() * 31), Math.floor(rnd() * 31), 2, 1);
+};
+
+/**
+ * The water main (the bar's): a red handwheel on a cast-iron riser coming up out of a concrete pad, a flange, a blue
+ * "W" plate, a lid in the pad. `userData.wheel` turns (StreetView: shut while you have the water off). About 200 tris.
+ */
+export function buildWaterMain(): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(0.62, 0.08, 0.62), texMat('concrete', CONCRETE, 1, 1, 0x7a766e), 0, 0.04, 0);
+  boxAt(g, 0.26, 0.015, 0.26, 0x3a3d42, 0.12, 0.08, 0.12, false); // the lid of the meter box
+  const iron = texMat('pipemetal', PIPE_METAL, 1, 1, 0x5a5e64);
+  addTex(g, cylGeo(0.06, 0.42, 8), iron, -0.08, 0.08 + 0.21, -0.08);
+  add(g, cylGeo(0.1, 0.05, 8), 0x4a4e54, -0.08, 0.14, -0.08); // the flange at the bottom
+  add(g, cylGeo(0.085, 0.06, 8), 0x4a4e54, -0.08, 0.44, -0.08); // the valve body
+  const wheel = new THREE.Group();
+  wheel.position.set(-0.08, 0.53, -0.08);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 4, 10), lambert(0xc8322a));
+  rim.rotation.x = Math.PI / 2;
+  wheel.add(rim);
+  for (const r of [0, Math.PI / 2]) {
+    const spoke = new THREE.Mesh(boxGeo(0.26, 0.02, 0.025), lambert(0xa82a24));
+    spoke.rotation.y = r;
+    wheel.add(spoke);
+  }
+  add(wheel, cylGeo(0.03, 0.04, 6), 0x8a2620, 0, 0, 0, false);
+  g.add(wheel);
+  g.userData.wheel = wheel;
+  // A small blue plate on the riser: W for water.
+  const plate = boxAt(g, 0.1, 0.1, 0.01, 0x2e5f8a, -0.08, 0.24, -0.015, false);
+  boxAt(plate, 0.06, 0.012, 0.012, 0xe8e2d4, 0, -0.006, 0.006, false);
+  return g;
+}
+
+/**
+ * The bar's burst pipe, old-school RuneScape style (the wall is at -x): a rusty pipe along the wall up high with a tee
+ * coming into the room, broken off; a stream of water arcing out of it to the floor (a faceted ribbon, a paler core),
+ * white bits splashing where it lands (animateBurstPipe), an irregular puddle with two smaller ones. `userData`:
+ * `spray` (the stream and the splash: water on, still broken), `puddle`, `cracked` (the broken end), `fixed` (a new
+ * shiny elbow and cap). StreetView shows them by your step in the quest. About 280 tris.
+ */
+export function buildBurstPipe(): THREE.Group {
+  const g = new THREE.Group();
+  const rust = texMat('rustpipe', RUST_PIPE, 1, 1, 0x8a4a2a);
+  const run = addTex(g, cylGeo(0.06, 1.9, 6), rust, -0.42, 1.55, 0); // along the wall
+  run.rotation.x = Math.PI / 2;
+  const tee = addTex(g, cylGeo(0.06, 0.2, 6), rust, -0.32, 1.55, 0); // the tee into the room
+  tee.rotation.z = Math.PI / 2;
+  const cracked = new THREE.Group();
+  const jag = add(cracked, cylGeo(0.07, 0.07, 6), 0x5a3020, -0.2, 1.55, 0); // the broken-off end
+  jag.rotation.z = Math.PI / 2 + 0.25;
+  g.add(cracked);
+  const fixed = new THREE.Group();
+  const elbow = add(fixed, cylGeo(0.075, 0.16, 6), 0xd0d4d8, -0.18, 1.55, 0); // the new Pipe Elbow, shiny tin
+  elbow.rotation.z = Math.PI / 2;
+  add(fixed, cylGeo(0.08, 0.04, 6), 0xb0b4b8, -0.1, 1.55, 0, false).rotation.z = Math.PI / 2; // its cap
+  fixed.visible = false;
+  g.add(fixed);
+  // The stream: a tube along an arc from the break to the floor, flat-shaded so its facets catch the light like the
+  // reference; a thinner, whiter core inside it.
+  const spray = new THREE.Group();
+  const land = new THREE.Vector3(0.75, 0.14, 0.12);
+  const arc = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.2, 1.55, 0),
+    new THREE.Vector3(0.2, 1.6, 0.03),
+    new THREE.Vector3(0.55, 1.05, 0.08),
+    land.clone(),
+  ]);
+  const blue = new THREE.MeshLambertMaterial({ color: 0x9cc8ec, emissive: 0x2a5a8a, emissiveIntensity: 0.55, transparent: true, opacity: 0.85, flatShading: true });
+  const white = new THREE.MeshLambertMaterial({ color: 0xf2f8ff, emissive: 0x8ab0d0, emissiveIntensity: 0.6, flatShading: true });
+  const stream = new THREE.Mesh(new THREE.TubeGeometry(arc, 8, 0.075, 5), blue);
+  stream.scale.set(1, 1, 1.4); // a ribbon, wider than it is deep
+  spray.add(stream);
+  spray.add(new THREE.Mesh(new THREE.TubeGeometry(arc, 5, 0.035, 3), white));
+  // The splash: white bits (tetrahedra) flying up and out where it lands.
+  const splash = new THREE.Group();
+  splash.position.copy(land);
+  const bit = new THREE.TetrahedronGeometry(0.035, 0);
+  for (let i = 0; i < 12; i++) {
+    const m = new THREE.Mesh(bit, white);
+    m.userData = { a: (i / 12) * Math.PI * 2 + (i % 3) * 0.4, r: 0.2 + (i % 4) * 0.08, h: 0.18 + (i % 3) * 0.08, p: (i * 0.37) % 1 };
+    splash.add(m);
+  }
+  spray.add(splash);
+  spray.userData.splash = splash;
+  g.add(spray);
+  // The puddle: an irregular flat shape (a jagged ring of points), two little ones beside it. Paler where it's shallow.
+  const puddle = new THREE.Group();
+  const pool = (cx: number, cz: number, r: number, n: number, seed: number) => {
+    const s = new THREE.Shape();
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const k = r * (0.75 + 0.35 * Math.abs(Math.sin(seed * 7.3 + i * 2.1)));
+      i === 0 ? s.moveTo(Math.cos(a) * k, Math.sin(a) * k) : s.lineTo(Math.cos(a) * k, Math.sin(a) * k);
+    }
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshLambertMaterial({ color: 0x6aa8e8, emissive: 0x2a6aa8, emissiveIntensity: 0.6, transparent: true, opacity: 0.95, flatShading: true }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(cx, 0.135, cz);
+    puddle.add(m);
+  };
+  pool(land.x, land.z, 0.5, 10, 1);
+  pool(land.x + 0.55, land.z + 0.4, 0.17, 6, 2);
+  pool(land.x + 0.2, land.z - 0.55, 0.13, 6, 3);
+  g.add(puddle);
+  g.userData = { spray, puddle, cracked, fixed };
+  return g;
+}
+/** The burst pipe's splash: each bit flies up and out from where the water lands, and falls back (`t`: seconds). */
+export function animateBurstPipe(g: THREE.Group, t: number) {
+  const splash = (g.userData.spray as THREE.Object3D | undefined)?.userData.splash as THREE.Group | undefined;
+  if (!splash || !(g.userData.spray as THREE.Object3D).visible) return;
+  for (const m of splash.children) {
+    const { a, r, h, p } = m.userData as { a: number; r: number; h: number; p: number };
+    const k = (t * 1.6 + p) % 1;
+    m.position.set(Math.cos(a) * r * k, h * 4 * k * (1 - k), Math.sin(a) * r * k);
+    m.rotation.set(k * 6, k * 4, 0);
+  }
+}
+
+/** A shelf of plumbing fittings against a wall (the wall at -z): bins of elbows and tees, a coil of copper. ~260 tris. */
+export function buildFittingsShelf(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  const steel = surfaceMat('metal', 0x6a7078);
+  addTex(g, boxGeo(0.95, 1.5, 0.08), steel, 0, 0.75, -0.38);
+  for (let level = 0; level < 3; level++) addTex(g, boxGeo(0.95, 0.03, 0.4), steel, 0, 0.3 + level * 0.45, -0.2, false);
+  const bins = [0xc8322a, 0x2e5f8a, 0xe0b23a];
+  for (let level = 0; level < 3; level++)
+    for (let i = 0; i < 3; i++) {
+      boxAt(g, 0.26, 0.14, 0.3, bins[(seed + level + i) % 3], -0.3 + i * 0.3, 0.315 + level * 0.45, -0.2, false);
+      if (i === (seed + level) % 3) add(g, cylGeo(0.025, 0.08, 6), 0xb0b4b8, -0.3 + i * 0.3, 0.48 + level * 0.45, -0.2, false); // a fitting peeking out
+    }
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 3, 8), lambert(0xc07040));
+  coil.position.set(0.25, 1.57, -0.2);
+  coil.rotation.x = Math.PI / 2;
+  g.add(coil);
+  return g;
+}
+
+/** A water heater (white enamel, a dial, pipes on top). `tall`: the big hot-water tank in the workshop. ~150 tris. */
+export function buildWaterHeater(tall = false): THREE.Group {
+  const g = new THREE.Group();
+  const h = tall ? 1.55 : 1.15, r = tall ? 0.3 : 0.24;
+  addTex(g, cylGeo(r, h, 10), texMat('enamel_white', ENAMEL(0xe8e4dc), 1, 1, 0xe8e4dc), 0, 0.05 + h / 2, 0);
+  add(g, cylGeo(r + 0.02, 0.05, 10), 0x8a8f96, 0, 0.025, 0); // the base ring
+  add(g, cylGeo(r * 0.85, 0.06, 10), 0xd0ccc4, 0, 0.05 + h + 0.03, 0, false); // the domed top
+  for (const dx of [-0.08, 0.08]) add(g, cylGeo(0.03, 0.22, 6), dx < 0 ? 0xc8322a : 0x2e5f8a, dx, 0.05 + h + 0.14, 0, false); // hot and cold
+  add(g, cylGeo(0.05, 0.02, 8), 0x3a3d42, 0, 0.05 + h * 0.35, r + 0.005, false).rotation.x = Math.PI / 2; // the dial
+  if (!tall) boxAt(g, 0.14, 0.08, 0.01, 0xf2d27a, 0, 0.05 + h * 0.65, r + 0.004, false); // a price tag
+  return g;
+}
+
+/** A shop counter, `len` long along x: a wood top over a steel front, a till and a bell. ~120 tris. */
+export function buildShopCounter(len = 1, till = false): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(len, 0.85, 0.6), surfaceMat('metal', 0x2e5f8a), 0, 0.425, 0);
+  addTex(g, boxGeo(len + 0.04, 0.05, 0.66), texMat('wood', WOOD, len, 1, 0x7a5a3a), 0, 0.875, 0, false);
+  if (till) {
+    boxAt(g, 0.3, 0.14, 0.24, 0x3a3d42, -0.15, 0.9, 0.05, false);
+    boxAt(g, 0.22, 0.1, 0.02, 0x7ac88a, -0.15, 1.04, -0.05, false).rotation.x = -0.4;
+    add(g, new THREE.ConeGeometry(0.05, 0.05, 8), 0xd0b040, 0.25, 0.925, 0.1, false); // the bell
+  }
+  return g;
+}
+
+/** A plumber's workbench (along z, 2 tiles): a wood top, a vice, a pipe in it, tools on a pegboard. ~220 tris. */
+export function buildPlumbBench(): THREE.Group {
+  const g = new THREE.Group();
+  const wood = texMat('wood', WOOD, 1, 2, 0x7a5a3a);
+  addTex(g, boxGeo(0.7, 0.06, 1.9), wood, 0, 0.82, 0);
+  for (const dz of [-0.85, 0.85]) for (const dx of [-0.28, 0.28]) boxAt(g, 0.06, 0.8, 0.06, 0x3a3d42, dx, 0, dz);
+  addTex(g, boxGeo(0.62, 0.04, 1.8), wood, 0, 0.3, 0, false); // the shelf below
+  boxAt(g, 0.18, 0.14, 0.12, 0x2e5f8a, -0.1, 0.85, -0.5); // the vice
+  add(g, cylGeo(0.035, 0.8, 8), 0xb0b4b8, -0.1, 0.95, -0.5, false).rotation.x = Math.PI / 2;
+  boxAt(g, 0.04, 0.9, 1.6, 0x8a6a4a, 0.33, 0.88, 0, false); // the pegboard
+  for (const [dz, c] of [[-0.5, 0xc8322a], [0, 0x3a3d42], [0.45, 0xe0b23a]] as const) boxAt(g, 0.03, 0.3, 0.08, c, 0.3, 1.25, dz, false);
+  return g;
+}
+
+/** A rack of pipes along x: two frames, lengths of pipe lying across them in two rows. ~240 tris. */
+export function buildPipeRack(len = 2): THREE.Group {
+  const g = new THREE.Group();
+  for (const dx of [-len / 2 + 0.2, len / 2 - 0.2]) {
+    boxAt(g, 0.06, 0.9, 0.06, 0x3a3d42, dx, 0, -0.2);
+    boxAt(g, 0.06, 0.9, 0.06, 0x3a3d42, dx, 0, 0.2);
+    for (const y of [0.35, 0.75]) boxAt(g, 0.06, 0.04, 0.46, 0x3a3d42, dx, y, 0, false);
+  }
+  const iron = texMat('pipemetal', PIPE_METAL, len, 1, 0x9aa0a6);
+  for (const y of [0.42, 0.82])
+    for (let i = 0; i < 3; i++) {
+      const copper = (i + (y > 0.5 ? 1 : 0)) % 3 === 0;
+      const p = copper ? add(g, cylGeo(0.04, len - 0.1, 6), 0xc07040, 0, y, -0.14 + i * 0.14, false) : addTex(g, cylGeo(0.04, len - 0.1, 6), iron, 0, y, -0.14 + i * 0.14, false);
+      p.rotation.z = Math.PI / 2;
+    }
+  return g;
+}
+
+/** A red toolbox on a crate, its lid open, a wrench on top. ~90 tris. */
+export function buildToolbox(): THREE.Group {
+  const g = new THREE.Group();
+  addTex(g, boxGeo(0.6, 0.4, 0.5), texMat('wood', WOOD, 1, 1, 0x7a5a3a), 0, 0.2, 0);
+  addTex(g, boxGeo(0.45, 0.2, 0.22), texMat('enamel_red', ENAMEL(0xc8322a), 1, 1, 0xc8322a), 0, 0.5, 0);
+  const lid = boxAt(g, 0.45, 0.02, 0.22, 0xa82a24, 0, 0.6, -0.12, false);
+  lid.rotation.x = -1.1;
+  const wrench = boxAt(g, 0.32, 0.02, 0.05, 0x9aa0a6, 0.02, 0.61, 0.04, false);
+  wrench.rotation.y = 0.3;
+  return g;
+}
+
+/** The Pipe Elbow (the quest's part, a tin sheet bent into an L): for the bag and the ground. ~70 tris. */
+export function buildPipeElbow(): THREE.Group {
+  const g = new THREE.Group();
+  const tin = texMat('pipemetal', PIPE_METAL, 1, 1, 0xc8ccd0);
+  addTex(g, cylGeo(0.07, 0.24, 8), tin, 0, 0.12 + 0.07, 0).rotation.z = Math.PI / 2;
+  addTex(g, cylGeo(0.07, 0.2, 8), tin, 0.12, 0.17 + 0.1, 0);
+  add(g, cylGeo(0.085, 0.04, 8), 0xa8acb0, -0.12, 0.19, 0, false).rotation.z = Math.PI / 2;
+  add(g, cylGeo(0.085, 0.04, 8), 0xa8acb0, 0.12, 0.37, 0, false);
+  return g;
+}

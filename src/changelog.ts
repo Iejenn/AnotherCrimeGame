@@ -10,13 +10,15 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.62.0',
     date: '2026-11-20',
-    title: 'Fixes',
+    title: 'Pipe Dreams',
     items: [
       'Enemies only hit you when they stand right next to you, with nothing in between: no more thugs hitting you from a tile away or through the Yard\'s fence.',
       'To fight up close you walk right up to it (it used to start from two tiles away).',
       'A biker who jumps you in the club always comes to a free spot right next to you.',
       'Your grave lasts an hour now (it was 5 minutes), and only while you\'re online: log out and its clock stops until you\'re back.',
       'Quests show the levels we advise (never required): Sewer Problems advises combat level 5. Green when you have it, amber when you\'re below.',
+      'A new quest, Pipe Dreams, no fighting needed: Gus at Hotline Plumbing & Heating has a bad back and the bar has a burst pipe. Talk to the bartender, find the water main, make a Pipe Elbow (tin salvage, pressed and bent at the Factory), fix the leak, turn the water back on. Reward: +50 Scrapping XP, +50 Tinkering XP and $50.',
+      'You can go inside Hotline Plumbing & Heating now: shelves of fittings, water heaters, the counter where Gus works, and the workshop at the back.',
     ],
   },
   {
