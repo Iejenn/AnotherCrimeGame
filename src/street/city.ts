@@ -18,7 +18,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { animateFire, buildBarbecue, buildFire, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
+import { animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -328,6 +328,10 @@ export function buildCity(scene: THREE.Scene) {
       crowns[Math.floor(rng() * crowns.length)].add(x + (rng() - 0.5) * 0.35 * size, (0.68 + i * 0.2) * size, z + (rng() - 0.5) * 0.35 * size, s, s, s, rng() * 6);
     }
   };
+  /** v0.62: water pouring (fountains, the sewer's outflows), muck drifting in the sewage, bubbles popping. */
+  const pours: THREE.Group[] = [];
+  const drift: { o: THREE.Object3D; x0: number; len: number; x: number }[] = [];
+  const bubbles: THREE.Mesh[] = [];
   const pavement = lam(C.pavement);
   const grassMat = slam('grass', C.grass); // (v0.60: textured, the lots' lawns too)
   /** Marks lying flat on the ground (stains, cracks, painted lines): pulled towards the camera so they never flicker
@@ -714,12 +718,37 @@ export function buildCity(scene: THREE.Scene) {
       if (map) m.color.multiplyScalar(DETAIL_GAIN);
       return m;
     };
-    const fountain = (x: number, z: number, k: number) => {
+    /** v0.62 (the quality bar): water pouring over a bowl's rim (`n` streams round it, from radius `r0` at height
+     *  `y0` down to `y1`), and a jet spouting up from its middle at `yj`. props.ts buildPour; splashes animated. */
+    const pourRound = (x: number, z: number, n: number, r0: number, y0: number, y1: number, reach: number, scale: number) => {
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + 0.4;
+        const p = buildPour({ reach, drop: y0 - y1, rise: 0.04 * scale, r: 0.035 * scale, core: true, bits: 5, wide: 5 });
+        p.position.set(x + Math.cos(a) * r0, y0, z + Math.sin(a) * r0);
+        p.rotation.y = -a;
+        scene.add(p);
+        pours.push(p);
+      }
+    };
+    const jet = (x: number, z: number, y: number, h: number, scale: number) => {
+      for (const a of [0, Math.PI]) {
+        const p = buildPour({ reach: 0.16 * scale, drop: 0.02, rise: h, r: 0.04 * scale, core: true, bits: 3, wide: 1.6 });
+        p.position.set(x, y, z);
+        p.rotation.y = a;
+        scene.add(p);
+        pours.push(p);
+      }
+    };
+    const fountain = (x: number, z: number, k: number, pour = true) => {
       add(own(new THREE.CylinderGeometry(1.15 * k, 1.22 * k, 0.3, 12)), stone, x, LAWN + 0.13, z);
       add(own(new THREE.CylinderGeometry(1.03 * k, 1.03 * k, 0.05, 12)), fountainWater(0x2f6f86, 0x1d4a5c, 0.6, 3), x, LAWN + 0.26, z, false);
       add(own(new THREE.CylinderGeometry(0.1 * k, 0.14 * k, 0.62 * k, 8)), stone, x, LAWN + 0.2 + 0.31 * k, z);
       add(own(new THREE.CylinderGeometry(0.34 * k, 0.2 * k, 0.1, 10)), stone, x, LAWN + 0.2 + 0.62 * k, z);
       add(own(new THREE.CylinderGeometry(0.28 * k, 0.28 * k, 0.03, 10)), fountainWater(0x3f86a0, 0x2a6278, 0.7, 1), x, LAWN + 0.26 + 0.62 * k, z, false);
+      if (pour) {
+        pourRound(x, z, 4, 0.32 * k, LAWN + 0.24 + 0.62 * k, LAWN + 0.27, 0.45 * k, k);
+        jet(x, z, LAWN + 0.3 + 0.62 * k, 0.3 * k, k);
+      }
     };
     {
       const cx = PARK.x0 + 5, cz = PARK.y0 + 5;
@@ -745,10 +774,13 @@ export function buildCity(scene: THREE.Scene) {
       ring.position.set(cx, LAWN + 0.005, cz);
       scene.add(ring);
       // The big fountain: a wide basin, then a second bowl higher up, water in both.
-      fountain(cx, cz, 1.75);
+      fountain(cx, cz, 1.75, false);
       add(own(new THREE.CylinderGeometry(0.75, 0.45, 0.14, 10)), stone, cx, LAWN + 1.55, cz);
       add(own(new THREE.CylinderGeometry(0.66, 0.66, 0.03, 10)), fountainWater(0x3f86a0, 0x2a6278, 0.7, 1), cx, LAWN + 1.63, cz, false);
       add(own(new THREE.CylinderGeometry(0.06, 0.08, 0.4, 6)), stone, cx, LAWN + 1.8, cz);
+      // (v0.62) Water pours over the top bowl's rim down past the middle one into the basin, a jet on the spout.
+      pourRound(cx, cz, 6, 0.74, LAWN + 1.62, LAWN + 0.27, 0.95, 1.4);
+      jet(cx, cz, LAWN + 2.0, 0.45, 1.3);
       // Planters with a tree in each corner.
       for (const f of FIXTURES.filter((f) => f.kind === 'tree' && inRect(PLAZA, f.x, f.y))) {
         add(geoBox(0.9, 0.35, 0.9), stone, f.x + 0.5, LAWN + 0.17, f.y + 0.5);
@@ -805,9 +837,18 @@ export function buildCity(scene: THREE.Scene) {
       for (let i = 0; i < 5; i++) {
         const a = i * 1.3 + rng();
         const r = (0.25 + rng() * 0.45) * Math.min(sx, sz);
-        add(own(new THREE.CircleGeometry(0.11, 7).rotateX(-Math.PI / 2)), lam(0x3f7a3a), px + Math.cos(a) * r, W0 + 0.01, pz + Math.sin(a) * r, false);
+        // (v0.62: lily pads with their notch, two greens, some flowering; reeds with cattails.)
+        const pad = buildLilyPad(0.1 + (i % 3) * 0.03, i % 3 === 0);
+        pad.position.set(px + Math.cos(a) * r, W0 + 0.01, pz + Math.sin(a) * r);
+        pad.rotation.y = a * 2;
+        scene.add(pad);
       }
-      for (let i = 0; i < 6; i++) add(geoBox(0.03, 0.35 + rng() * 0.2, 0.03), lam(0x4a6a32), px + sx * 0.6 + rng() * 0.1, W0 + 0.2, pz - 0.4 + i * 0.16, false);
+      for (let i = 0; i < 6; i++) rng(); // (the old reeds' heights: drawn still, so nothing after moves)
+      for (const [dz, seed] of [[-0.3, 1], [0.25, 2]] as const) {
+        const reeds = buildReeds(seed);
+        reeds.position.set(px + sx * 0.62, W0, pz + dz);
+        scene.add(reeds);
+      }
     }
   }
 
@@ -2748,19 +2789,37 @@ export function buildCity(scene: THREE.Scene) {
     walkway(CH1, Z1);
     // The channel: a dark bed, murky green sewage with a sheen, and floating muck.
     add(geoBox(X1 - X0, 0.2, CH1 - CH0), lam(0x1a2018), cx, D - 1.2, (CH0 + CH1) / 2, false);
-    const sewage = new THREE.Mesh(
-      own(new THREE.PlaneGeometry(X1 - X0, CH1 - CH0)),
-      lam(0x3a5a34, { emissive: 0x12301a, emissiveIntensity: 0.7, transparent: true, opacity: 0.92 }),
-    );
+    // (v0.62: sludge that flows east, a pixel texture: animateSludge.)
+    const sewage = new THREE.Mesh(own(new THREE.PlaneGeometry(X1 - X0, CH1 - CH0)), sludgeMaterial(X1 - X0, CH1 - CH0));
     sewage.rotation.x = -Math.PI / 2;
     sewage.position.set(cx, D - 0.55, (CH0 + CH1) / 2);
     sewage.receiveShadow = true;
     scene.add(sewage);
+    // Floating muck (v0.62: jagged clots, some with a can or a bottle in them) drifting east with the flow, bubbles
+    // coming up and popping, and two outflow pipes pouring more in from under the north walkway.
     for (let i = 0; i < 16; i++) {
-      const muck = new THREE.Mesh(own(new THREE.CircleGeometry(0.12 + rng() * 0.18, 6)), lam(rng() < 0.5 ? 0x4f6a2a : 0x5a5236));
-      muck.rotation.x = -Math.PI / 2;
+      const k = 0.8 + rng() * 0.9;
+      rng();
+      const muck = buildMuck(i);
+      muck.scale.setScalar(k);
       muck.position.set(X0 + 0.5 + rng() * (X1 - X0 - 1), D - 0.54, CH0 + 0.4 + rng() * (CH1 - CH0 - 0.8));
+      muck.rotation.y = i * 1.7;
       scene.add(muck);
+      drift.push({ o: muck, x0: X0, len: X1 - X0, x: muck.position.x - X0 });
+    }
+    for (let i = 0; i < 5; i++) {
+      const b = new THREE.Mesh(own(new THREE.IcosahedronGeometry(0.06, 0)), lam(0x6a8a4a, { emissive: 0x1a3a12, emissiveIntensity: 0.5 }));
+      b.position.set(X0 + 2 + i * ((X1 - X0 - 4) / 4), D - 0.55, CH0 + 0.5 + ((i * 0.37) % 1) * (CH1 - CH0 - 1));
+      b.userData.phase = i * 0.29;
+      scene.add(b);
+      bubbles.push(b);
+    }
+    for (const fx of [X0 + 4.5, X1 - 6.5]) {
+      const outflow = buildPour({ reach: 0.45, drop: 0.42, rise: 0.06, r: 0.06, color: 0x6a6a3a, glow: 0x1a2010, pipe: true, core: false, bits: 5, wide: 1.2 });
+      outflow.position.set(fx, D - 0.12, CH0 + 0.02);
+      outflow.rotation.y = -Math.PI / 2;
+      scene.add(outflow);
+      pours.push(outflow);
     }
     // The grate bridges, with a rail on each side.
     const grateTex = own(
@@ -3067,6 +3126,13 @@ export function buildCity(scene: THREE.Scene) {
     animate(t: number) {
       animateWater(t);
       fires.forEach((f) => animateFire(f, t / 1000));
+      pours.forEach((p) => animatePour(p, t / 1000));
+      animateSludge(t / 1000);
+      for (const d of drift) d.o.position.x = d.x0 + 0.3 + ((d.x + (t / 1000) * 0.06) % (d.len - 0.6));
+      for (const b of bubbles) {
+        const k = ((t / 1000) * 0.5 + (b.userData.phase as number)) % 1;
+        b.scale.set(k < 0.8 ? k * 1.2 : 0, k < 0.8 ? k * 0.7 : 0, k < 0.8 ? k * 1.2 : 0);
+      }
       fireLights.forEach((l, i) => (l.intensity = 3.5 + Math.sin(t / 70 + i) * 0.6 + Math.sin(t / 23) * 0.3));
     },
     /** Room id → its walls/roof, so the Street view can fade a room while you're inside. */

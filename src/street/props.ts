@@ -1482,3 +1482,125 @@ export function buildBarbecue(): THREE.Group {
   boxAt(bag, 0.18, 0.08, 0.01, 0xe0b23a, 0, 0.06, 0.075, false); // its label
   return g;
 }
+
+// ---------- water (v0.62, the quality bar) ----------
+/**
+ * A stream of water (or sludge) pouring along +x: out of its origin, up by `rise`, then down `drop` to land `reach`
+ * away, with splash bits (animatePour) and a ring of foam where it lands. `pipe`: a rusty pipe stub it comes out of.
+ * `core`: a paler core inside the stream. Used for the fountains' and the sewer's pours. About 70–130 tris.
+ */
+export function buildPour(o: { reach: number; drop: number; rise?: number; r?: number; color?: number; glow?: number; pipe?: boolean; core?: boolean; bits?: number; wide?: number }): THREE.Group {
+  const { reach, drop, rise = 0.05, r = 0.05, color = 0x9cc8ec, glow = 0x2a5a8a, pipe = false, core = true, bits = 6, wide = 1.4 } = o;
+  const g = new THREE.Group();
+  if (pipe) addTex(g, cylGeo(r * 1.5, 0.3, 6), texMat('rustpipe', RUST_PIPE, 1, 1, 0x6a3a22), -0.12, 0, 0).rotation.z = Math.PI / 2;
+  const land = new THREE.Vector3(reach, -drop, 0);
+  const arc = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(reach * 0.35, rise, 0), new THREE.Vector3(reach * 0.75, -drop * 0.45, 0), land.clone()]);
+  const water = new THREE.MeshLambertMaterial({ color, emissive: glow, emissiveIntensity: 0.55, transparent: true, opacity: 0.85, flatShading: true });
+  const white = new THREE.MeshLambertMaterial({ color: 0xf2f8ff, emissive: 0x8ab0d0, emissiveIntensity: 0.6, flatShading: true });
+  const spray = new THREE.Group();
+  // (`wide`: how much wider the stream is than deep: a fountain's overflow is a sheet of water.)
+  const stream = new THREE.Mesh(new THREE.TubeGeometry(arc, 6, r, 4), water);
+  stream.scale.set(1, 1, wide);
+  spray.add(stream);
+  if (core) {
+    const c = new THREE.Mesh(new THREE.TubeGeometry(arc, 5, r * 0.45, 3), white);
+    c.scale.set(1, 1, Math.max(1, wide * 0.7));
+    spray.add(c);
+  }
+  const splash = new THREE.Group();
+  splash.position.copy(land);
+  const bit = new THREE.TetrahedronGeometry(r * 0.6, 0);
+  for (let i = 0; i < bits; i++) {
+    const m = new THREE.Mesh(bit, color === 0x9cc8ec ? white : water);
+    m.userData = { a: (i / bits) * Math.PI * 2 + (i % 3) * 0.4, r: r * 3 + (i % 3) * r, h: r * 3 + (i % 2) * r * 2, p: (i * 0.37) % 1 };
+    splash.add(m);
+  }
+  const foam = new THREE.Mesh(new THREE.RingGeometry(r * 1.2, r * (2 + wide), 7), new THREE.MeshLambertMaterial({ color: color === 0x9cc8ec ? 0xe8f2fa : color, emissive: glow, emissiveIntensity: 0.3, transparent: true, opacity: 0.7, flatShading: true, side: THREE.DoubleSide }));
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.y = 0.005;
+  splash.add(foam);
+  spray.add(splash);
+  spray.userData.splash = splash;
+  g.add(spray);
+  g.userData.spray = spray;
+  return g;
+}
+/** A pour's splash (the same as the burst pipe's). */
+export const animatePour = (g: THREE.Group, t: number) => animateBurstPipe(g, t);
+
+/** A pond's lily pad: a disc with its notch, two greens, sometimes a pink flower on it. About 20–60 tris. */
+export function buildLilyPad(r = 0.13, flower = false): THREE.Group {
+  const g = new THREE.Group();
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(r, 8, 0.35, Math.PI * 2 - 0.5), lambert(0x3f7a3a));
+  pad.rotation.x = -Math.PI / 2;
+  g.add(pad);
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(r * 0.55, 6, 0.35, Math.PI * 2 - 0.5), lambert(0x5a9a4a));
+  inner.rotation.x = -Math.PI / 2;
+  inner.position.y = 0.004;
+  g.add(inner);
+  if (flower) {
+    for (let i = 0; i < 5; i++) {
+      const p = add(g, new THREE.ConeGeometry(0.03, 0.07, 4), i % 2 ? 0xf2a8c8 : 0xe878a8, Math.cos(i * 1.26) * 0.025, 0.035, Math.sin(i * 1.26) * 0.025, false);
+      p.rotation.set(Math.sin(i * 1.26) * 0.6, 0, -Math.cos(i * 1.26) * 0.6);
+    }
+    add(g, new THREE.IcosahedronGeometry(0.018, 0), 0xf2d27a, 0, 0.05, 0, false);
+  }
+  return g;
+}
+
+/** A clump of reeds at the water's edge: tapered blades leaning out, three with brown cattail heads. About 110 tris. */
+export function buildReeds(seed = 1): THREE.Group {
+  const g = new THREE.Group();
+  const blade = (h: number) => new THREE.ConeGeometry(0.025, h, 3);
+  for (let i = 0; i < 7; i++) {
+    const h = 0.4 + ((seed * 13 + i * 7) % 10) / 30;
+    const a = i * 0.9 + seed;
+    const m = add(g, blade(h), i % 2 ? 0x4a6a32 : 0x5a7a3a, Math.cos(a) * 0.06, h / 2, Math.sin(a) * 0.06, false);
+    m.rotation.set(Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25);
+    if (i < 3) add(g, cylGeo(0.025, 0.1, 5), 0x6a4a2a, Math.cos(a) * 0.06 - Math.cos(a) * h * 0.24, h * 0.95, Math.sin(a) * 0.06 + Math.sin(a) * h * 0.24, false);
+  }
+  return g;
+}
+
+/** Sewage: thick green sludge with lighter scum streaks and dark clots, as a pixel texture that drifts along the
+ *  channel (animateSludge). `len` × `wide` tiles. */
+const SLUDGE: Painter = (g, rnd) => {
+  // Olive-brown, in long streaks along the flow (x), scum patches floating, dark eddies: never speckled like grass.
+  px(g, '#3e4a2c', 0, 0, 32, 32);
+  for (let i = 0; i < 14; i++) px(g, rnd() < 0.5 ? '#4a5632' : '#343e26', Math.floor(rnd() * 24), Math.floor(rnd() * 32), 8 + Math.floor(rnd() * 12), 1);
+  for (let i = 0; i < 5; i++) px(g, '#6a6a3e', Math.floor(rnd() * 28), Math.floor(rnd() * 30), 3 + Math.floor(rnd() * 3), 2); // scum
+  for (let i = 0; i < 3; i++) px(g, '#5a4a2e', Math.floor(rnd() * 29), Math.floor(rnd() * 30), 3, 2); // brown clots
+  for (let i = 0; i < 4; i++) px(g, '#242c1a', Math.floor(rnd() * 26), Math.floor(rnd() * 32), 5 + Math.floor(rnd() * 5), 1); // eddies
+};
+const sludgeMats: THREE.MeshLambertMaterial[] = [];
+export function sludgeMaterial(len: number, wide: number): THREE.MeshLambertMaterial {
+  const base = pixelTex('sludge', SLUDGE);
+  const map = base ? base.clone() : null;
+  if (map) (map.repeat.set(len, wide), (map.needsUpdate = true));
+  // (Dimmed: murky, not lawn-green.)
+  const m = new THREE.MeshLambertMaterial({ color: map ? 0xa8a890 : 0x3e4a2c, map, emissive: 0x141a0a, emissiveIntensity: 0.5, flatShading: true });
+  sludgeMats.push(m);
+  return m;
+}
+/** The sewage flows (east), slowly. */
+export function animateSludge(t: number) {
+  for (const m of sludgeMats) if (m.map) m.map.offset.x = -t * 0.06;
+}
+
+/** A clot of floating muck: an irregular flat blob (a jagged outline), sometimes with junk in it (a can, a bottle). */
+export function buildMuck(seed: number): THREE.Group {
+  const g = new THREE.Group();
+  const s = new THREE.Shape();
+  const n = 7;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const k = 0.18 * (0.6 + 0.5 * Math.abs(Math.sin(seed * 5.1 + i * 2.3)));
+    i === 0 ? s.moveTo(Math.cos(a) * k, Math.sin(a) * k) : s.lineTo(Math.cos(a) * k, Math.sin(a) * k);
+  }
+  const blob = new THREE.Mesh(new THREE.ShapeGeometry(s), lambert(seed % 2 ? 0x5a6a2a : 0x5a5236));
+  blob.rotation.x = -Math.PI / 2;
+  g.add(blob);
+  if (seed % 3 === 0) add(g, cylGeo(0.035, 0.1, 6), 0xb84a4a, 0.03, 0.02, 0, false).rotation.z = Math.PI / 2; // a can
+  if (seed % 3 === 1) add(g, new THREE.CylinderGeometry(0.012, 0.03, 0.14, 6), 0x2a6a3a, -0.02, 0.025, 0.02, false).rotation.x = Math.PI / 2; // a bottle
+  return g;
+}

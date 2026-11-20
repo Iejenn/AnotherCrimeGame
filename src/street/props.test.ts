@@ -1,7 +1,7 @@
 // The Yard's hangout props (v0.58) stay within the triangle budgets of docs/design.md §18: a prop 300, a vehicle 800.
 import * as THREE from 'three';
 import { expect, test } from 'vitest';
-import { buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
+import { buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
 
 const tris = (o: THREE.Object3D) => {
   let n = 0;
@@ -39,6 +39,11 @@ test('the hangout props are within budget', () => {
     // v0.62: the quality bar (docs/design.md §18).
     ['fire', buildFire(), 300],
     ['barbecue', buildBarbecue(), 300],
+    ['pour (sewer outflow)', buildPour({ reach: 0.4, drop: 0.42, pipe: true, core: false, bits: 5 }), 300],
+    ['pour (with core)', buildPour({ reach: 0.9, drop: 1.3, bits: 6 }), 300],
+    ['lily pad', buildLilyPad(0.13, true), 300],
+    ['reeds', buildReeds(1), 300],
+    ['muck', buildMuck(3), 300],
   ];
   for (const [name, o, max] of props) expect(tris(o), name).toBeLessThanOrEqual(max);
 });
