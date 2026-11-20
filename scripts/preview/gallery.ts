@@ -2,7 +2,7 @@
 // angle, on a pavement. ?set=street (benches, lamps, bins...), ?set=props (crates, dumpsters, fire, the barbecue).
 import * as THREE from 'three';
 import * as SL from '../../src/street/streetLife';
-import { animateFire, buildBarbecue, buildCrate, buildFire, buildScrapDumpster } from '../../src/street/props';
+import { buildDogHouse, animateFire, buildBarbecue, buildCrate, buildFire, buildScrapDumpster } from '../../src/street/props';
 
 const set = new URLSearchParams(location.search).get('set') ?? 'street';
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -23,7 +23,7 @@ scene.add(ground);
 const items: THREE.Object3D[] =
   set === 'street'
     ? [SL.buildStreetLamp(), SL.buildHydrant(), SL.buildMailbox(), SL.buildBin(), SL.buildBin(true), SL.buildNewsBoxes(), SL.buildBench(), SL.buildTreePit(() => 0.5)]
-    : [buildCrate(1.4), SL.buildDumpster(), buildScrapDumpster('tin'), buildBarbecue(), buildFire(1.25)];
+    : [buildDogHouse(), buildCrate(1.4), SL.buildDumpster(), buildScrapDumpster('tin'), buildBarbecue(), buildFire(1.25)];
 let x = -((items.length - 1) * 1.6) / 2;
 for (const o of items) {
   o.position.x = x;

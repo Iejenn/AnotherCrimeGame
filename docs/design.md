@@ -1058,14 +1058,14 @@ budget. See them side by side: `scripts/preview/gallery.html?set=street` or `?se
   `buildFlowerbed(seed)`; the park's trees and hedges in city.ts use these.
 - **Street** (`streetLife.ts`): `buildStreetLamp`, `buildHydrant`, `buildMailbox`, `buildBin(full)`, `buildNewsBoxes`,
   `buildBench(len)`, `buildDumpster`, `buildTreePit`, `buildBusStop`, `buildBikeRack`.
-- **Props** (`props.ts`): `buildCrate(size)`, `buildBarbecue`, `buildCrane` (a vehicle), `buildWaterMain`,
+- **Props** (`props.ts`): `buildCrate(size)`, `buildBarbecue`, `buildCrane` (a vehicle), `buildDogHouse`, `buildWaterMain`,
   `buildShopCounter(len, till)`, `buildFittingsShelf`, `buildWaterHeater(tall)`, `buildPlumbBench`, `buildPipeRack`,
   `buildToolbox`, `buildPipeElbow`, `buildShelf('candy'|'gas')`, `buildScrapDumpster(metal)`; the Yard's
   `buildContainer`, `buildRuinWall`, `buildRubble`, `buildStrippedCar`, `buildDiceCrate`, `buildLookout`,
   `buildStringLights`.
 - **Pixel textures**: `surfaceMat(kind, colour)` (surfaces.ts: brick, plaster, wood, roof, stone, metal, grass, leaves,
   bark) and the painters in props.ts (`texMat`: BRICK, WOOD, STEEL, PAINT, CONCRETE, PIPE_METAL, RUST_PIPE, ENAMEL,
-  MACHINE_YELLOW, HAZARD, TREAD, SLUDGE).
+  MACHINE_YELLOW, HAZARD, TREAD, SLUDGE, SHINGLE).
 
 ### The floor kit (v0.55, `src/street/floor.ts`; preview `scripts/preview/floor.html`)
 The ground, drawn from a grid of surfaces (asphalt, sidewalk, grass, gravel, paving, dirt, concrete, sand, water): each

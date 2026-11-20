@@ -19,7 +19,7 @@ import {
   BANK, BANK_DOOR, CITY_BX, CITY_COLS, FACTORY, FACTORY_DOOR, FACTORY_LOT, FACTORY_LOT_GATE, FACTORY_SITE, SEWER_CHANNEL, SEWER_DEPTH, SEWER_LADDER,
 } from './map';
 import * as L from './streetLife';
-import { buildCrane, crownClump, buildCrate, animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
+import { buildDogHouse, buildCrane, crownClump, buildCrate, animateFire, animatePour, animateSludge, buildBarbecue, buildFire, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, sludgeMaterial, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater } from './props';
 import { withModel } from './models';
 import { Kit, canvasTex, face, mergeStatic, signTexture, uOf } from './kit';
 import { mulberry32 } from '../game/rng';
@@ -2495,11 +2495,11 @@ export function buildCity(scene: THREE.Scene) {
           t.rotation.x = -Math.PI / 2;
         }
       } else if (f.kind === 'doghouse') {
-        add(geoBox(0.8, 0.55, 0.7), lam(0x6a4a2e), x, 0.3, z);
-        const roof = add(own(new THREE.ConeGeometry(0.62, 0.4, 4)), lam(0x8a2f28, { flatShading: true }), x, 0.77, z);
-        roof.rotation.y = Math.PI / 4;
-        add(geoBox(0.32, 0.36, 0.02), lam(0x141210), x, 0.2, z + 0.36, false);
-        add(own(new THREE.CylinderGeometry(0.15, 0.13, 0.08, 10)), lam(0x8a8f96), x + 0.6, 0.05, z + 0.4, false); // the food bowl
+        // (v0.62, the quality bar: a props.ts model with its chain, bowl and bone.)
+        const house = buildDogHouse();
+        house.position.set(x, 0.04, z);
+        house.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+        scene.add(house);
       }
     }
     // v0.45: two old trucks among the wrecks (Kenney's Retro Urban Kit): one rusting on its side by the north fence, one

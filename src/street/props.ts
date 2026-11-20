@@ -1764,3 +1764,83 @@ export function buildCrane(): THREE.Group {
   car.rotation.set(0.15, 0.4, 0.1);
   return g;
 }
+
+/** A painted name board (a dog house's): dark letters on cream, a little faded. */
+function nameBoard(text: string): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 20;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#e8d8b0';
+  g.fillRect(0, 0, 64, 20);
+  g.fillStyle = '#3a2216';
+  g.font = 'bold 15px sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 32, 11);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/** Shingles: rows of red tabs, staggered, each a little different, a dark line under each row. */
+const SHINGLE: Painter = (g, rnd) => {
+  px(g, '#5a1e18', 0, 0, 32, 32);
+  for (let row = 0; row < 4; row++)
+    for (let b = -1; b < 5; b++) px(g, shade(0x8a2f28, 0.8 + rnd() * 0.35), b * 8 + (row % 2) * 4 + 1, row * 8, 7, 7);
+};
+
+/**
+ * The Junkyard's dog house (v0.62, the quality bar): plank walls (a house outline with an arched doorway cut out,
+ * pushed out to its depth), a gable roof of red shingles overhanging it, "REX" on a board over the door, straw inside,
+ * a chain from a ring to a stake, a food bowl with kibble, a chewed bone. Its door faces +z. About 290 tris.
+ */
+export function buildDogHouse(): THREE.Group {
+  const g = new THREE.Group();
+  const W = 0.8, H = 0.5, P = 0.28, D = 0.75;
+  const outline = new THREE.Shape([new THREE.Vector2(-W / 2, 0), new THREE.Vector2(W / 2, 0), new THREE.Vector2(W / 2, H), new THREE.Vector2(0, H + P), new THREE.Vector2(-W / 2, H)]);
+  const door = new THREE.Path();
+  door.moveTo(-0.15, 0.04);
+  door.lineTo(0.15, 0.04);
+  door.lineTo(0.15, 0.28);
+  door.absarc(0, 0.28, 0.15, 0, Math.PI, false);
+  door.lineTo(-0.15, 0.04);
+  const front = new THREE.Shape(outline.getPoints());
+  front.holes.push(door);
+  const wood = texMat('wood', WOOD, 1, 1, 0x7a5a3a);
+  // The front wall with its doorway, the back wall, and the two sides.
+  const frontGeo = new THREE.ExtrudeGeometry(front, { depth: 0.05, bevelEnabled: false, curveSegments: 2 });
+  addTex(g, frontGeo, wood, 0, 0, D / 2 - 0.05);
+  addTex(g, new THREE.ExtrudeGeometry(outline, { depth: 0.05, bevelEnabled: false }), wood, 0, 0, -D / 2);
+  for (const x of [-1, 1]) addTex(g, boxGeo(0.05, H, D - 0.1), wood, (x * (W - 0.05)) / 2, H / 2, 0);
+  // Dark inside, straw on the floor, seen through the door.
+  boxAt(g, W - 0.12, 0.01, D - 0.12, 0xc8a85a, 0, 0.01, 0, false);
+  const back = boxAt(g, W - 0.12, H, 0.01, 0x1a1210, 0, 0.02, -D / 2 + 0.07, false);
+  back.castShadow = false;
+  // The roof: two shingled panels meeting at the ridge, overhanging all round, and a ridge board.
+  const slope = Math.hypot(W / 2 + 0.1, P);
+  const ang = Math.atan2(P, W / 2 + 0.1);
+  const shingles = texMat('shingle', SHINGLE, 1, 1, 0x8a2f28);
+  for (const x of [-1, 1]) {
+    const panel = addTex(g, boxGeo(slope, 0.04, D + 0.16), shingles, (x * (W / 2 + 0.1)) / 2, H + P / 2 + 0.03, 0);
+    panel.rotation.z = -x * ang;
+  }
+  // The name board over the door.
+  const board = new THREE.Mesh(boxGeo(0.26, 0.08, 0.02), typeof document === 'undefined' ? lambert(0xe8d8b0) : new THREE.MeshLambertMaterial({ map: nameBoard('REX') }));
+  board.position.set(0, H + 0.07, D / 2 + 0.005);
+  g.add(board);
+  // The chain: links from a ring on the wall to a stake in the ground.
+  const link = new THREE.TorusGeometry(0.04, 0.009, 3, 4);
+  for (let i = 0; i < 3; i++) {
+    const t = i / 2;
+    const l = add(g, link, 0x8a8f96, W / 2 + 0.03 + t * 0.35, 0.25 - t * 0.2 + Math.sin(t * Math.PI) * -0.04, 0.15 + t * 0.15, false);
+    l.rotation.set(i % 2 ? Math.PI / 2 : 0, 0.6, 0);
+  }
+  add(g, cylGeo(0.02, 0.18, 4), 0x5a5e64, W / 2 + 0.4, 0.06, 0.32, false);
+  // The food bowl with kibble, and a chewed bone.
+  add(g, new THREE.CylinderGeometry(0.15, 0.12, 0.08, 10, 1, true), 0x8a8f96, 0.55, 0.04, D / 2 + 0.25, false).material.side = THREE.DoubleSide;
+  for (let i = 0; i < 3; i++) add(g, new THREE.TetrahedronGeometry(0.03, 0), 0x6a4a2a, 0.5 + (i % 2) * 0.08, 0.06, D / 2 + 0.22 + Math.floor(i / 2) * 0.06, false);
+  const bone = add(g, cylGeo(0.022, 0.2, 4), 0xe8e0c8, -0.3, 0.025, D / 2 + 0.25, false);
+  bone.rotation.set(0, 0.6, Math.PI / 2);
+  for (const e of [-1, 1]) add(g, new THREE.OctahedronGeometry(0.035, 0), 0xe8e0c8, -0.3 + e * 0.08, 0.03, D / 2 + 0.25 - e * 0.055, false);
+  return g;
+}

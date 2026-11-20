@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import * as SL from './streetLife';
 import { expect, test } from 'vitest';
-import { buildCrane, buildCrate, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
+import { buildDogHouse, buildCrane, buildCrate, buildFlowerbed, buildLilyPad, buildMuck, buildPour, buildReeds, buildBarbecue, buildFire, buildBurstPipe, buildContainer, buildDiceCrate, buildFittingsShelf, buildLookout, buildPipeElbow, buildPipeRack, buildPlumbBench, buildRubble, buildRuinWall, buildShelf, buildShopCounter, buildStringLights, buildStrippedCar, buildToolbox, buildWaterHeater, buildWaterMain } from './props';
 
 const tris = (o: THREE.Object3D) => {
   let n = 0;
@@ -48,6 +48,7 @@ test('the hangout props are within budget', () => {
     ['flowerbed', buildFlowerbed(1), 300],
     ['crate', buildCrate(), 300],
     ['crane (a vehicle)', buildCrane(), 800],
+    ['dog house', buildDogHouse(), 300],
     ['street lamp', SL.buildStreetLamp(), 300],
     ['hydrant', SL.buildHydrant(), 300],
     ['mailbox', SL.buildMailbox(), 300],
