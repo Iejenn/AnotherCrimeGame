@@ -700,3 +700,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: radial-gradient(circle at center, #2a2622 58%, transparent 60%), conic-gradient(var(--ring, #8a8276) calc(var(--stamina, 1) * 360deg), #3a3530 0); }
 .run-btn.on { --ring: #5bd06a; }
 .run-btn svg { position: relative; width: 100%; height: 100%; display: block; }
+
+/* v0.60: every round button sits with its middle on the minimap's ring (the 132px minimap: middle at 66,66, ring at
+   radius 65): health on the left, combat style bottom-left, the world map at the bottom, running bottom-right. */
+.minimap-wrap .hp-heart { left: -19px; top: 46px; bottom: auto; right: auto; transform: none; margin: 0; }
+.minimap-wrap .style-btn { left: 2px; top: 94px; bottom: auto; }
+.minimap-wrap .map-btn { left: 49px; top: 114px; bottom: auto; transform: none; }
+.minimap-wrap .run-btn { left: 94px; top: 94px; right: auto; bottom: auto; }

@@ -1,5 +1,5 @@
 // The combat style button (v0.51): a round button on the minimap's bottom-left (mirroring the health bubble), shown
-// while you have throwing knives readied. A knife: you fight Melee (your weapon, or fists); a gun: Marksman (you throw
+// always (v0.60; with no Marksman weapon ready it shows the gun and a tap only says so). A knife: you fight Melee (your weapon, or fists); a gun: Marksman (you throw
 // the knives in your Marksman slot). One tap switches, also mid-fight; the server keeps the style (set_fight_style)
 // and switches you back to melee itself when the knives run out.
 import type { GameApi } from '../game/api';
@@ -7,7 +7,15 @@ import type { GameState } from '../game/types';
 import { marksmanSlot } from '../game/combat';
 
 export function StyleToggle({ s, api, say }: { s: GameState; api: GameApi; say: (text: string) => void }) {
-  if (!marksmanSlot(s)) return null;
+  // v0.60: always shown. No Marksman weapon (throwing knives, later guns) ready: it shows the gun, and a tap says why
+  // you can't switch instead of switching.
+  const ready = !!marksmanSlot(s);
+  if (!ready)
+    return (
+      <button className="style-btn" onClick={() => say('No marksman weapon ready.')} aria-label="Combat style: Melee. No marksman weapon ready." title="Combat style: Melee. No marksman weapon ready.">
+        <GunIcon />
+      </button>
+    );
   const throwing = s.fightStyle === 'marksman';
   const next = throwing ? 'melee' : 'marksman';
   const label = throwing ? 'Combat style: Marksman. Tap for Melee.' : 'Combat style: Melee. Tap for Marksman.';
@@ -22,12 +30,7 @@ export function StyleToggle({ s, api, say }: { s: GameState; api: GameApi; say: 
       title={label}
     >
       {throwing ? (
-        // A pistol, side on.
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 7 H20 V11 H11 L10 13 H8 L7 20 H3.5 L5 11 H3 Z" fill="#d8d2c6" stroke="#141210" strokeWidth="1.2" strokeLinejoin="round" />
-          <path d="M11 11 Q11.5 13.5 9.5 14" fill="none" stroke="#141210" strokeWidth="1.1" />
-          <rect x="17" y="5.5" width="1.6" height="1.6" fill="#141210" />
-        </svg>
+        <GunIcon />
       ) : (
         // A knife, point up and to the right.
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -39,5 +42,16 @@ export function StyleToggle({ s, api, say }: { s: GameState; api: GameApi; say: 
         </svg>
       )}
     </button>
+  );
+}
+
+// A pistol, side on.
+function GunIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 7 H20 V11 H11 L10 13 H8 L7 20 H3.5 L5 11 H3 Z" fill="#d8d2c6" stroke="#141210" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M11 11 Q11.5 13.5 9.5 14" fill="none" stroke="#141210" strokeWidth="1.1" />
+      <rect x="17" y="5.5" width="1.6" height="1.6" fill="#141210" />
+    </svg>
   );
 }
